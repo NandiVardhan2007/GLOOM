@@ -4,21 +4,23 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.compositionContext
-import androidx.compose.runtime.Recomposer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -29,11 +31,15 @@ import com.jarvis.island.bridge.FileBeamReceiver
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
 import com.jarvis.island.cutout.CutoutDetector
 import com.jarvis.island.cutout.CutoutMetrics
+import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.ActiveTransferInfo
 import com.jarvis.island.ui.BridgeDeviceInfo
 import com.jarvis.island.ui.JarvisIslandApp
 import com.jarvis.island.ui.MediaTrackInfo
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class JarvisIslandOverlayService : Service() {
@@ -50,24 +56,51 @@ class JarvisIslandOverlayService : Service() {
     private var activeTransfer by mutableStateOf(ActiveTransferInfo())
     private var mediaTrack by mutableStateOf(MediaTrackInfo())
 
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var collapseJob: Job? = null
+
+    private val settingsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                JarvisIslandSettings.ACTION_SETTINGS_CHANGED -> {
+                    updateOverlayParameters()
+                }
+                JarvisIslandSettings.ACTION_TOGGLE_EXPAND -> {
+                    toggleIslandExpansion()
+                }
+                JarvisIslandSettings.ACTION_TEST_BEAM -> {
+                    simulateTestTransfer()
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         bridgeClient = JarvisLiveBridgeClient(this)
+        JarvisIslandSettings.instance.load(this)
 
         startForegroundServiceNotification()
         setupComposeOverlay()
+        registerSettingsReceiver()
 
         fileBeamReceiver = FileBeamReceiver(this)
         fileBeamReceiver.startServer(53391) { receivedFile ->
-            activeTransfer = ActiveTransferInfo(
-                fileName = receivedFile.name,
-                fileSizeMb = (receivedFile.length() / (1024f * 1024f)),
-                progress = 1.0f,
-                speedMbps = "112 MB/s",
-                isUpload = false,
-                isActive = true
-            )
+            serviceScope.launch {
+                activeTransfer = ActiveTransferInfo(
+                    fileName = receivedFile.name,
+                    fileSizeMb = (receivedFile.length() / (1024f * 1024f)),
+                    progress = 1.0f,
+                    speedMbps = "112 MB/s",
+                    isUpload = false,
+                    isActive = true
+                )
+                if (JarvisIslandSettings.instance.autoExpandOnTransfer && !isExpanded) {
+                    expandIsland()
+                }
+                scheduleAutoCollapse()
+            }
         }
 
         bridgeClient.startDiscovery { desktopName ->
@@ -77,6 +110,19 @@ class JarvisIslandOverlayService : Service() {
                 pingMs = 12,
                 isConnected = true
             )
+        }
+    }
+
+    private fun registerSettingsReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(JarvisIslandSettings.ACTION_SETTINGS_CHANGED)
+            addAction(JarvisIslandSettings.ACTION_TOGGLE_EXPAND)
+            addAction(JarvisIslandSettings.ACTION_TEST_BEAM)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(settingsReceiver, filter)
         }
     }
 
@@ -120,21 +166,35 @@ class JarvisIslandOverlayService : Service() {
         ).toInt()
     }
 
+    private fun getOverlayFlags(): Int {
+        var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        if (JarvisIslandSettings.instance.showOnLockScreen) {
+            flags = flags or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+        }
+        return flags
+    }
+
     private fun setupComposeOverlay() {
         cutoutMetrics = CutoutDetector.detectCutout(this, null)
 
+        val initialHeight = if (isExpanded) {
+            dpToPx(248f)
+        } else {
+            dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 18).toFloat())
+        }
+
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            dpToPx(56f),
+            initialHeight,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            getOverlayFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -178,7 +238,7 @@ class JarvisIslandOverlayService : Service() {
                     activeTransfer = activeTransfer,
                     mediaTrack = mediaTrack,
                     bridgeDevice = bridgeDevice,
-                    topMarginDp = if (cutoutMetrics.hasCutout) 10 else 6
+                    settings = JarvisIslandSettings.instance
                 )
             }
         }
@@ -191,10 +251,13 @@ class JarvisIslandOverlayService : Service() {
         }
     }
 
-    private fun toggleIslandExpansion() {
-        isExpanded = !isExpanded
-        // When expanded, expand layoutParams height to 248dp; when collapsed, keep at 56dp
-        layoutParams.height = if (isExpanded) dpToPx(248f) else dpToPx(56f)
+    private fun updateOverlayParameters() {
+        layoutParams.flags = getOverlayFlags()
+        layoutParams.height = if (isExpanded) {
+            dpToPx(248f)
+        } else {
+            dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 18).toFloat())
+        }
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
         } catch (e: Exception) {
@@ -202,9 +265,87 @@ class JarvisIslandOverlayService : Service() {
         }
     }
 
+    private fun expandIsland() {
+        isExpanded = true
+        layoutParams.height = dpToPx(248f)
+        try {
+            composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun collapseIsland() {
+        isExpanded = false
+        layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 18).toFloat())
+        try {
+            composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun toggleIslandExpansion() {
+        if (isExpanded) {
+            collapseIsland()
+        } else {
+            expandIsland()
+        }
+    }
+
+    private fun scheduleAutoCollapse() {
+        collapseJob?.cancel()
+        collapseJob = serviceScope.launch {
+            delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
+            activeTransfer = activeTransfer.copy(isActive = false)
+            if (isExpanded) {
+                collapseIsland()
+            }
+        }
+    }
+
+    private fun simulateTestTransfer() {
+        collapseJob?.cancel()
+        serviceScope.launch {
+            activeTransfer = ActiveTransferInfo(
+                fileName = "Ecosystem_Sync_Payload.zip",
+                fileSizeMb = 48.6f,
+                progress = 0.05f,
+                speedMbps = "118 MB/s",
+                isUpload = true,
+                isActive = true
+            )
+            if (JarvisIslandSettings.instance.autoExpandOnTransfer && !isExpanded) {
+                expandIsland()
+            }
+
+            // Smooth progress simulation
+            val totalSteps = 25
+            for (step in 1..totalSteps) {
+                delay(90)
+                val p = step.toFloat() / totalSteps.toFloat()
+                val speed = (108 + (step % 4) * 6).toString() + " MB/s"
+                activeTransfer = activeTransfer.copy(
+                    progress = p,
+                    speedMbps = speed
+                )
+            }
+
+            // Keep card visible for configured auto-collapse delay
+            delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
+            activeTransfer = activeTransfer.copy(isActive = false)
+            if (isExpanded) {
+                collapseIsland()
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         fileBeamReceiver.stopServer()
+        try {
+            unregisterReceiver(settingsReceiver)
+        } catch (e: Exception) {}
         composeView?.let {
             try {
                 windowManager.removeView(it)

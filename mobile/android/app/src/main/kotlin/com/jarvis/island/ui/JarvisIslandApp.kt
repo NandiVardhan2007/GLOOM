@@ -1,9 +1,14 @@
 package com.jarvis.island.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,12 +41,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jarvis.island.settings.JarvisIslandSettings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,36 +62,46 @@ fun JarvisIslandApp(
     activeTransfer: ActiveTransferInfo = ActiveTransferInfo(),
     mediaTrack: MediaTrackInfo = MediaTrackInfo(),
     bridgeDevice: BridgeDeviceInfo = BridgeDeviceInfo(),
-    topMarginDp: Int = 12
+    settings: JarvisIslandSettings = JarvisIslandSettings.instance
 ) {
-    // Critically damped spring physics matching Apple Dynamic Island & Windows JARVIS
+    // Apple / HarmonyOS fluid critically damped spring curves
     val targetWidth by animateDpAsState(
-        targetValue = if (isExpanded) 364.dp else 146.dp,
+        targetValue = if (isExpanded) 364.dp else settings.pillWidth.dp,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 420f),
         label = "islandWidth"
     )
 
     val targetHeight by animateDpAsState(
-        targetValue = if (isExpanded) 224.dp else 38.dp,
+        targetValue = if (isExpanded) 232.dp else settings.pillHeight.dp,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 420f),
         label = "islandHeight"
     )
 
     val targetCorner by animateDpAsState(
-        targetValue = if (isExpanded) 26.dp else 19.dp,
+        targetValue = if (isExpanded) 26.dp else settings.cornerRadius.dp,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 420f),
         label = "islandCorner"
     )
 
     var currentTab by remember { mutableStateOf("transfer") } // "transfer" | "media" | "status"
-    val timeString = remember {
-        SimpleDateFormat("h:mm", Locale.getDefault()).format(Date())
-    }
+
+    // Pulsing beam glow animation for active file transfer
+    val infiniteTransition = rememberInfiniteTransition(label = "beamPulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = topMarginDp.dp),
+            .padding(top = settings.positionY.dp)
+            .offset(x = settings.positionX.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         Card(
@@ -101,8 +119,9 @@ fun JarvisIslandApp(
                     spotColor = if (isExpanded) Color(0x6638BDF8) else Color(0x33000000)
                 )
                 .border(
-                    width = 1.dp,
-                    color = if (isExpanded) Color(0x33FFFFFF) else Color(0x22FFFFFF),
+                    width = if (activeTransfer.isActive) 1.5.dp else 1.dp,
+                    color = if (activeTransfer.isActive) Color(0xFF38BDF8).copy(alpha = pulseAlpha)
+                            else if (isExpanded) Color(0x33FFFFFF) else Color(0x22FFFFFF),
                     shape = RoundedCornerShape(targetCorner)
                 )
                 .clickable(
@@ -112,54 +131,83 @@ fun JarvisIslandApp(
                 )
         ) {
             if (!isExpanded) {
-                // ── Collapsed Pill ──
+                // ── Collapsed Pill (Physical Camera Cutout Clearance Layout) ──
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left item: LAN status dot with green glow
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x3322C55E)),
-                        contentAlignment = Alignment.Center
+                    // 1. LEFT SLOT (Positioned safely to the LEFT of the center punch hole)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF22C55E))
-                        )
+                        if (activeTransfer.isActive) {
+                            // High-speed beaming upload/download arrow
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x3338BDF8)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (activeTransfer.isUpload) "↑" else "↓",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        } else {
+                            // LAN green pulse connection indicator
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x3322C55E)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF22C55E))
+                                )
+                            }
+                        }
                     }
 
-                    // Center item: Live time or streaming badge
-                    if (activeTransfer.isActive) {
-                        Text(
-                            text = "Beam 65%",
-                            color = Color(0xFF38BDF8),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.SansSerif
-                        )
-                    } else {
-                        Text(
-                            text = timeString,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.SansSerif
-                        )
-                    }
+                    // 2. DEAD-CENTER CUTOUT CLEARANCE (Camera Hole sits right here with 0 text obstruction)
+                    Spacer(modifier = Modifier.width(settings.cutoutClearance.dp))
 
-                    // Right item: Animated audio waveform equalizer
-                    AnimatedEqualizer(
-                        isPlaying = mediaTrack.isPlaying,
-                        color = Color(0xFF38BDF8)
-                    )
+                    // 3. RIGHT SLOT (Positioned safely to the RIGHT of the center punch hole)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        if (activeTransfer.isActive) {
+                            Text(
+                                text = "${(activeTransfer.progress * 100).toInt()}%",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.SansSerif,
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                            AnimatedEqualizer(
+                                isPlaying = true,
+                                color = Color(0xFF38BDF8)
+                            )
+                        } else {
+                            AnimatedEqualizer(
+                                isPlaying = mediaTrack.isPlaying,
+                                color = Color(0xFF38BDF8)
+                            )
+                        }
+                    }
                 }
             } else {
                 // ── Expanded Stunning Obsidian Card ──
@@ -169,7 +217,7 @@ fun JarvisIslandApp(
                         .padding(14.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // 1. Header: LiveBridge Device & Connection Status
+                    // Header: LiveBridge Device & Connection Status
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -186,10 +234,7 @@ fun JarvisIslandApp(
                                     .background(Color(0x2238BDF8)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "⚡",
-                                    fontSize = 14.sp
-                                )
+                                Text(text = "⚡", fontSize = 14.sp)
                             }
                             Column {
                                 Text(
@@ -228,7 +273,7 @@ fun JarvisIslandApp(
                         }
                     }
 
-                    // 2. Middle Card Content based on current tab
+                    // Center Content Card
                     if (currentTab == "transfer") {
                         // High-Speed Local File Beam Card
                         Box(
@@ -251,7 +296,8 @@ fun JarvisIslandApp(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                     Text(
                                         text = activeTransfer.speedMbps,
@@ -261,20 +307,24 @@ fun JarvisIslandApp(
                                     )
                                 }
 
-                                // Glowing Cyan Progress Bar
+                                // Glowing Cyan Gradient Progress Bar
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(RoundedCornerShape(3.dp))
+                                        .height(7.dp)
+                                        .clip(RoundedCornerShape(3.5.dp))
                                         .background(Color(0x22FFFFFF))
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth(activeTransfer.progress)
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(Color(0xFF38BDF8))
+                                            .fillMaxWidth(activeTransfer.progress.coerceIn(0.01f, 1f))
+                                            .height(7.dp)
+                                            .clip(RoundedCornerShape(3.5.dp))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFF0284C7), Color(0xFF38BDF8))
+                                                )
+                                            )
                                     )
                                 }
 
@@ -297,7 +347,7 @@ fun JarvisIslandApp(
                             }
                         }
                     } else {
-                        // Music Playing Card
+                        // Music Card
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -338,7 +388,7 @@ fun JarvisIslandApp(
                         }
                     }
 
-                    // 3. Bottom Action Bar
+                    // Bottom Action Bar
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
