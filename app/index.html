@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JARVIS Dynamic Island</title>
+    
+    <script>
+      (function() {
+        var isSettings = window.__IS_SETTINGS__ === true ||
+                         window.name === 'settings' ||
+                         window.location.search.includes('settings') ||
+                         window.location.hash.includes('settings');
+        if (!isSettings) {
+          try {
+            if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.metadata &&
+                window.__TAURI_INTERNALS__.metadata.currentWindow &&
+                window.__TAURI_INTERNALS__.metadata.currentWindow.label === 'settings') {
+              isSettings = true;
+            }
+          } catch(e) {}
+        }
+        var bg = isSettings ? '#131317' : 'transparent';
+        var s = document.createElement('style');
+        s.textContent = 'html, body, #root { background: ' + bg + ' !important; background-color: ' + bg + ' !important; }';
+        document.head.appendChild(s);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

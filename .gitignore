@@ -1,0 +1,74 @@
+# ==========================================
+# JARVIS Ecosystem — Root Git Ignore
+# ==========================================
+
+# Secrets, Credentials & Environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+credentials.json
+google-services.json
+GoogleService-Info.plist
+secrets/
+
+# Build Outputs & Binaries
+dist/
+build/
+target/
+app/dist/
+app/src-tauri/target/
+mobile/android/build/
+mobile/android/app/build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.apk
+*.aab
+*.msi
+
+# Dependency Directories
+node_modules/
+.pnpm-store/
+.yarn/
+
+# Gradle & Android Local Configs
+.gradle/
+buildOutputCleanup/
+local.properties
+.knownPackages
+
+# Temporary & Scratch Workspaces
+Scratch/
+tmp/
+*.log
+*.tmp
+*.bak
+
+# IDE & Editor Files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Directory Junctions (Desktop -> app, Android -> mobile/android)
+/Desktop
+/Android
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# External reference clones
+/references/

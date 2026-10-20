@@ -1,0 +1,82 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+:root {
+  --bg-island: #0d0d14;
+  --border-island: rgba(255, 255, 255, 0.16);
+  --accent-cyan: #38bdf8;
+  --accent-violet: #818cf8;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.8);
+  --text-muted: rgba(255, 255, 255, 0.55);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #ffffff;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Opaque obsidian surface for expanded island (100% crisp white text rendering in WebView2) */
+.liquid-glass {
+  background: #0d0d14 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.8),
+    0 20px 48px -4px rgba(0, 0, 0, 0.9),
+    0 8px 20px -2px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Pill specific surface */
+.pill-surface {
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 24px -2px rgba(0, 0, 0, 0.85) !important;
+}
+
+/* Tabular numbers for clocks and percentages */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth edge masks for overflowing text */
+.text-mask-fade {
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 12px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 12px), transparent 100%);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
