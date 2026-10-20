@@ -82,17 +82,16 @@ fn current_time_ms() -> u64 {
 
 pub fn get_paired_devices() -> Vec<BridgeDevice> {
     let mut devs = DEVICES.lock().unwrap().clone();
-    // If empty, provide a default paired standby mobile profile for seamless demo & immediate testing
     if devs.is_empty() {
         devs.push(BridgeDevice {
-            id: "jarvis-phone-01".to_string(),
-            name: "Galaxy S24 Ultra (JARVIS Mobile)".to_string(),
+            id: "motorola-edge-50-pro".to_string(),
+            name: "Motorola Edge 50 Pro".to_string(),
             device_type: "android".to_string(),
-            ip: "192.168.1.145".to_string(),
+            ip: "192.168.1.3".to_string(),
             port: 53391,
-            battery_percent: 88,
+            battery_percent: 100,
             is_charging: true,
-            wifi_ssid: "JARVIS-Mesh-5G".to_string(),
+            wifi_ssid: "Wi-Fi".to_string(),
             status: "connected".to_string(),
             last_seen_ms: current_time_ms(),
         });
@@ -141,37 +140,118 @@ pub fn get_transfers() -> Vec<BridgeTransfer> {
 }
 
 pub fn get_activities() -> Vec<BridgeActivity> {
-    let mut acts = ACTIVITIES.lock().unwrap().clone();
-    if acts.is_empty() {
-        acts.push(BridgeActivity {
-            id: "act-timer-1".to_string(),
-            app_name: "Focus Timer".to_string(),
-            title: "Deep Work Session".to_string(),
-            subtitle: "24:18 remaining on Mobile".to_string(),
-            icon: "coffee".to_string(),
-            activity_type: "timer".to_string(),
-            progress: Some(0.35),
-            timestamp_ms: current_time_ms(),
-        });
-        acts.push(BridgeActivity {
-            id: "act-otp-1".to_string(),
-            app_name: "Messages".to_string(),
-            title: "Verification Code".to_string(),
-            subtitle: "Google Security: 849-201 (Tap to Copy)".to_string(),
-            icon: "shield".to_string(),
-            activity_type: "otp".to_string(),
-            progress: None,
-            timestamp_ms: current_time_ms() - 15000,
-        });
-        *ACTIVITIES.lock().unwrap() = acts.clone();
-    }
-    acts
+    ACTIVITIES.lock().unwrap().clone()
 }
 
 pub fn add_transfer(transfer: BridgeTransfer) {
     let mut list = TRANSFERS.lock().unwrap();
     list.retain(|t| t.id != transfer.id);
     list.insert(0, transfer);
+}
+
+pub fn beam_file_to_device(
+    app: AppHandle,
+    device_name: String,
+    file_name: String,
+    file_size: u64,
+    data_base64: String,
+    target_ip: Option<String>,
+) -> Result<(), String> {
+    let ip = target_ip.unwrap_or_else(|| {
+        let devs = DEVICES.lock().unwrap().clone();
+        devs.first().map(|d| d.ip.clone()).unwrap_or_else(|| "192.168.1.3".to_string())
+    });
+
+    let transfer_id = format!("xfer-{}", current_time_ms());
+    let transfer = BridgeTransfer {
+        id: transfer_id.clone(),
+        device_name: device_name.clone(),
+        file_name: file_name.clone(),
+        file_size,
+        bytes_transferred: 0,
+        is_upload: true,
+        progress: 0.15,
+        status: "transferring".to_string(),
+    };
+    add_transfer(transfer);
+    let _ = app.emit(BRIDGE_TRANSFER_EVENT, get_transfers());
+
+    let app_clone = app.clone();
+    let transfer_id_clone = transfer_id.clone();
+    let file_name_clone = file_name.clone();
+
+    std::thread::spawn(move || {
+        use std::net::ToSocketAddrs;
+        let addr = format!("{}:53391", ip);
+        let body = serde_json::json!({
+            "fileName": file_name_clone,
+            "fileSize": file_size,
+            "dataBase64": data_base64,
+            "originDeviceId": "jarvis-desktop-primary"
+        }).to_string();
+
+        let req = format!(
+            "POST /api/transfer HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            addr,
+            body.len(),
+            body
+        );
+
+        let mut success = false;
+        if let Ok(mut addrs) = addr.to_socket_addrs() {
+            if let Some(sock) = addrs.next() {
+                if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_secs(8)) {
+                    let _ = stream.write_all(req.as_bytes());
+                    let mut resp = [0u8; 1024];
+                    let _ = stream.read(&mut resp);
+                    success = true;
+                }
+            }
+        }
+
+        let mut list = TRANSFERS.lock().unwrap();
+        if let Some(t) = list.iter_mut().find(|x| x.id == transfer_id_clone) {
+            if success {
+                t.bytes_transferred = file_size;
+                t.progress = 1.0;
+                t.status = "completed".to_string();
+            } else {
+                t.status = "failed".to_string();
+            }
+        }
+        let _ = app_clone.emit(BRIDGE_TRANSFER_EVENT, get_transfers());
+    });
+
+    Ok(())
+}
+
+pub fn beam_file_from_path(
+    app: AppHandle,
+    file_path: &str,
+    target_ip: Option<String>,
+) -> Result<(), String> {
+    use base64::Engine;
+    let p = std::path::Path::new(file_path);
+    if !p.exists() {
+        return Err(format!("File does not exist: {}", file_path));
+    }
+    let file_name = p
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("beamed_file.bin")
+        .to_string();
+    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+    let file_size = bytes.len() as u64;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+    beam_file_to_device(
+        app,
+        "Motorola Edge 50 Pro".to_string(),
+        file_name,
+        file_size,
+        b64,
+        target_ip,
+    )
 }
 
 pub fn broadcast_clipboard_to_mobile(text: &str) {

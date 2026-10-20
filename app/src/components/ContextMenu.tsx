@@ -14,6 +14,7 @@ import {
   FileText,
   Activity,
   Clipboard,
+  Smartphone,
   Power,
 } from "lucide-react";
 import { ActiveTab, AppConfig } from "../types";
@@ -51,7 +52,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   // Close when clicking outside or pressing Escape
   useEffect(() => {
     const handleDown = (e: MouseEvent) => {
-      if (activeMenuRef.current && !activeMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest(".jarvis-context-menu")) {
+        return;
+      }
+      if (activeMenuRef.current && !activeMenuRef.current.contains(target as Node)) {
         onClose();
       }
     };
@@ -67,20 +72,22 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose, activeMenuRef]);
 
-  const handleRecenter = async () => {
+  const handleRecenter = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await invoke("jarvis_recenter");
       onClose();
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleExit = async () => {
+  const handleExit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await invoke("jarvis_exit");
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -98,6 +105,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     fontWeight: 500,
     cursor: "pointer",
     textAlign: "left",
+    pointerEvents: "auto",
     transition: "background 0.12s ease",
   };
 
@@ -107,33 +115,41 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     margin: "4px 0",
   };
 
-  // Adjust x and y so menu doesn't overflow screen
-  const menuWidth = 190;
-  const menuHeight = 360;
+  const menuWidth = 194;
+  const menuHeight = 390;
   const left = Math.min(x, window.innerWidth - menuWidth - 12);
   const top = Math.min(y, window.innerHeight - menuHeight - 12);
 
   return (
     <div
       ref={activeMenuRef}
-      onContextMenu={(e) => e.preventDefault()}
+      className="jarvis-context-menu"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: "fixed",
         left: `${Math.max(10, left)}px`,
         top: `${Math.max(10, top)}px`,
         width: `${menuWidth}px`,
-        background: "#161622",
+        background: "#12121b",
         border: "1px solid rgba(255, 255, 255, 0.16)",
         borderRadius: "12px",
         padding: "6px",
         boxShadow: "0 16px 36px rgba(0, 0, 0, 0.9), 0 4px 12px rgba(0, 0, 0, 0.6)",
         zIndex: 100000,
+        pointerEvents: "auto",
         userSelect: "none",
       }}
     >
       {/* Settings (In-Island Settings) */}
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("settings");
           onClose();
         }}
@@ -147,7 +163,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
       {/* Expand / Collapse */}
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onToggleExpand();
           onClose();
         }}
@@ -170,7 +188,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
       {/* Pin / Unpin */}
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onTogglePin();
           onClose();
         }}
@@ -193,6 +213,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
       {/* Recenter */}
       <button
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={handleRecenter}
         style={itemStyle}
         onMouseEnter={(e) => (e.currentTarget.style.background = "#262638")}
@@ -204,7 +225,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
       {/* Mode switch */}
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onToggleMode();
           onClose();
         }}
@@ -213,14 +236,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
         <Laptop size={14} color="#cbd5e1" />
-        <span>Mode: {config.mode === "island" ? "Floating" : "Flush Notch"}</span>
+        <span>Mode: {config.mode === "island" ? "Floating Pill" : "Flush Notch"}</span>
       </button>
 
       <div style={separatorStyle} />
 
       {/* Jump to Tabs */}
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("dashboard");
           onClose();
         }}
@@ -233,7 +258,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       </button>
 
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("media");
           onClose();
         }}
@@ -246,7 +273,24 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       </button>
 
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectTab("bridge");
+          onClose();
+        }}
+        style={itemStyle}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#262638")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      >
+        <Smartphone size={13} color="#38bdf8" />
+        <span>Live Bridge & Phone</span>
+      </button>
+
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("controls");
           onClose();
         }}
@@ -259,7 +303,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       </button>
 
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("notes");
           onClose();
         }}
@@ -272,7 +318,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       </button>
 
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("system");
           onClose();
         }}
@@ -285,7 +333,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       </button>
 
       <button
-        onClick={() => {
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           onSelectTab("clipboard");
           onClose();
         }}
@@ -301,6 +351,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
       {/* Exit */}
       <button
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={handleExit}
         style={{
           ...itemStyle,

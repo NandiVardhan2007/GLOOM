@@ -1,5 +1,6 @@
 package com.jarvis.island.ui
 
+import android.graphics.Bitmap
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,15 +9,35 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -28,9 +49,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlin.math.sin
 
 /**
  * Visual Theme Colors & Brushes for JARVIS Dynamic Island
@@ -44,19 +72,19 @@ data class IslandThemeColors(
 )
 
 object IslandThemePalettes {
-    fun getTheme(name: String): IslandThemeColors {
-        return when (name) {
+    fun getTheme(themeName: String): IslandThemeColors {
+        return when (themeName) {
             "Cyber Cyan" -> IslandThemeColors(
-                background = Color(0xFF040814),
-                cardBackground = Color(0xFF0A1124),
-                primaryAccent = Color(0xFF00F0FF),
-                secondaryAccent = Color(0xFF38BDF8),
+                background = Color(0xFF030712),
+                cardBackground = Color(0xFF0B132B),
+                primaryAccent = Color(0xFF38BDF8),
+                secondaryAccent = Color(0xFF00E5FF),
                 borderBrush = Brush.linearGradient(
-                    listOf(Color(0xFF00F0FF), Color(0xFF0284C7), Color(0x3300F0FF))
+                    listOf(Color(0xFF38BDF8), Color(0xFF00E5FF), Color(0x3338BDF8))
                 )
             )
-            "Emerald Matrix" -> IslandThemeColors(
-                background = Color(0xFF030D08),
+            "Neon Green" -> IslandThemeColors(
+                background = Color(0xFF021008),
                 cardBackground = Color(0xFF071911),
                 primaryAccent = Color(0xFF10B981),
                 secondaryAccent = Color(0xFF34D399),
@@ -139,7 +167,6 @@ fun CyberBeamIcon(
             // Dynamic Arrow Path (Up for Upload, Down for Download)
             val path = Path()
             if (isUpload) {
-                // Shaft
                 drawLine(
                     color = accentColor,
                     start = Offset(cx, cy + h * 0.35f),
@@ -147,12 +174,10 @@ fun CyberBeamIcon(
                     strokeWidth = 2.2f,
                     cap = StrokeCap.Round
                 )
-                // Chevron Head
                 path.moveTo(cx - w * 0.28f, cy - h * 0.05f)
                 path.lineTo(cx, cy - h * 0.35f)
                 path.lineTo(cx + w * 0.28f, cy - h * 0.05f)
             } else {
-                // Shaft
                 drawLine(
                     color = accentColor,
                     start = Offset(cx, cy - h * 0.35f),
@@ -160,7 +185,6 @@ fun CyberBeamIcon(
                     strokeWidth = 2.2f,
                     cap = StrokeCap.Round
                 )
-                // Chevron Head
                 path.moveTo(cx - w * 0.28f, cy + h * 0.05f)
                 path.lineTo(cx, cy + h * 0.35f)
                 path.lineTo(cx + w * 0.28f, cy + h * 0.05f)
@@ -176,15 +200,194 @@ fun CyberBeamIcon(
 }
 
 /**
- * Animated Spinning Vinyl Record for Music Player Card.
+ * OriginOS Style Animated 4-Bar Soundwave Equalizer.
  */
 @Composable
-fun SpinningVinylRecord(
+fun OriginOSEqualizer(
     isPlaying: Boolean,
-    size: Dp = 44.dp,
+    color: Color = Color(0xFF22C55E),
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "originEq")
+    val b1 by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "b1"
+    )
+    val b2 by transition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 0.30f,
+        animationSpec = infiniteRepeatable(tween(560, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "b2"
+    )
+    val b3 by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(380, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "b3"
+    )
+    val b4 by transition.animateFloat(
+        initialValue = 0.70f,
+        targetValue = 0.20f,
+        animationSpec = infiniteRepeatable(tween(510, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "b4"
+    )
+
+    Row(
+        modifier = modifier.height(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val bars = listOf(b1, b2, b3, b4)
+        bars.forEach { hFraction ->
+            val actualH = if (isPlaying) (16.dp * hFraction).coerceAtLeast(3.dp) else 3.dp
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(actualH)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color)
+            )
+        }
+    }
+}
+
+/**
+ * Legacy Equalizer alias for compatibility
+ */
+@Composable
+fun AnimatedEqualizer(
+    isPlaying: Boolean,
+    color: Color = Color(0xFF22C55E),
+    modifier: Modifier = Modifier
+) {
+    OriginOSEqualizer(isPlaying = isPlaying, color = color, modifier = modifier)
+}
+
+/**
+ * OriginOS-Inspired Wavy Audio SeekBar with live elapsed and remaining timer.
+ */
+@Composable
+fun OriginOSWavySeekBar(
+    progress: Float,
+    durationMs: Long,
+    positionMs: Long,
+    accentColor: Color,
+    isPlaying: Boolean,
+    onSeek: ((Float) -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "waveProgress")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (isPlaying) 6.28f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wavePhase"
+    )
+
+    fun formatMs(ms: Long): String {
+        val s = (ms / 1000).coerceAtLeast(0)
+        val m = s / 60
+        val remSec = s % 60
+        return "%02d:%02d".format(m, remSec)
+    }
+
+    val elapsedText = formatMs(positionMs)
+    val totalText = if (durationMs > 0) formatMs(durationMs) else "--:--"
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Canvas(
+            modifier = Modifier
+                .height(18.dp)
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val ratio = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                        onSeek?.invoke(ratio)
+                    }
+                }
+        ) {
+            val w = size.width
+            val h = size.height
+            val midY = h / 2f
+            val filledW = (w * progress.coerceIn(0f, 1f))
+
+            // Background Track
+            drawLine(
+                color = Color(0x33FFFFFF),
+                start = Offset(0f, midY),
+                end = Offset(w, midY),
+                strokeWidth = 3f,
+                cap = StrokeCap.Round
+            )
+
+            // Dynamic Wave Active Progress
+            if (filledW > 2f) {
+                val path = Path()
+                path.moveTo(0f, midY)
+                val step = 4f
+                var x = 0f
+                while (x <= filledW) {
+                    val waveAmplitude = if (isPlaying) 3.5f else 0f
+                    val y = midY + sin((x / 14f) + phase) * waveAmplitude
+                    path.lineTo(x, y)
+                    x += step
+                }
+                drawPath(
+                    path = path,
+                    color = accentColor,
+                    style = Stroke(width = 3.5f, cap = StrokeCap.Round)
+                )
+
+                // Glowing Playhead Dot
+                drawCircle(
+                    color = Color.White,
+                    radius = 5.5f,
+                    center = Offset(filledW, midY)
+                )
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.5f),
+                    radius = 8.5f,
+                    center = Offset(filledW, midY)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = elapsedText,
+                color = Color(0xFF94A3B8),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = totalText,
+                color = Color(0xFF94A3B8),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+/**
+ * OriginOS Style Spinning Vinyl Record (Displays real album artwork bitmap when available).
+ */
+@Composable
+fun OriginOSVinylRecord(
+    isPlaying: Boolean,
+    albumArt: Bitmap? = null,
+    size: Dp = 46.dp,
     labelColor: Color = Color(0xFF38BDF8)
 ) {
-    val transition = rememberInfiniteTransition(label = "vinylSpin")
+    val transition = rememberInfiniteTransition(label = "originVinylSpin")
     val rotation by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -192,7 +395,7 @@ fun SpinningVinylRecord(
             animation = tween(4000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "vinylRotation"
+        label = "originVinylRotation"
     )
 
     Box(
@@ -200,41 +403,231 @@ fun SpinningVinylRecord(
             .size(size)
             .rotate(if (isPlaying) rotation else 0f)
             .clip(CircleShape)
-            .background(Color(0xFF0F172A)),
+            .background(Color(0xFF0F172A))
+            .border(1.dp, Color(0x33FFFFFF), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(size)) {
             val r = this.size.width / 2f
-            val center = Offset(r, r)
+            // Vinyl grooves
+            drawCircle(color = Color(0x28FFFFFF), radius = r * 0.88f, style = Stroke(width = 1f))
+            drawCircle(color = Color(0x1FFFFFFF), radius = r * 0.72f, style = Stroke(width = 1f))
+            drawCircle(color = Color(0x28FFFFFF), radius = r * 0.56f, style = Stroke(width = 1f))
+        }
 
-            // Vinyl groove lines
-            drawCircle(
-                color = Color(0x33FFFFFF),
-                radius = r * 0.85f,
-                style = Stroke(width = 1f)
+        if (albumArt != null) {
+            Image(
+                bitmap = albumArt.asImageBitmap(),
+                contentDescription = "Album Artwork",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(size * 0.65f)
+                    .clip(CircleShape)
             )
-            drawCircle(
-                color = Color(0x22FFFFFF),
-                radius = r * 0.68f,
-                style = Stroke(width = 1f)
-            )
-            drawCircle(
-                color = Color(0x28FFFFFF),
-                radius = r * 0.50f,
-                style = Stroke(width = 1f)
-            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(size * 0.55f)
+                    .clip(CircleShape)
+                    .background(labelColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(size * 0.3f)
+                )
+            }
+        }
 
-            // Center label
-            drawCircle(
-                color = labelColor,
-                radius = r * 0.32f
-            )
+        // Center spindle hole
+        Box(
+            modifier = Modifier
+                .size(size * 0.16f)
+                .clip(CircleShape)
+                .background(Color(0xFF050508))
+                .border(0.8.dp, Color(0x88FFFFFF), CircleShape)
+        )
+    }
+}
 
-            // Spindle hole
-            drawCircle(
-                color = Color.Black,
-                radius = r * 0.10f
+/**
+ * OriginOS Style Dynamic Island Music Card.
+ */
+@Composable
+fun OriginOSMusicCard(
+    track: MediaTrackInfo,
+    accentColor: Color,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onSeek: ((Float) -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF0A0A10).copy(alpha = 0.94f))
+            .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Top App Badge & Live Equalizer
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(if (track.isPlaying) Color(0xFF22C55E) else Color(0xFF94A3B8))
+                )
+                Text(
+                    text = if (track.appName.isNotBlank()) track.appName.uppercase() else "ORIGIN LIVE MEDIA",
+                    color = if (track.isPlaying) Color(0xFF22C55E) else Color(0xFF94A3B8),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+
+            OriginOSEqualizer(
+                isPlaying = track.isPlaying,
+                color = accentColor,
+                modifier = Modifier.height(12.dp)
             )
+        }
+
+        // Center: Album Art & Track Info
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Album Artwork: Large 64dp Card
+            if (track.albumArt != null) {
+                Image(
+                    bitmap = track.albumArt.asImageBitmap(),
+                    contentDescription = "Album Art",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
+                )
+            } else {
+                OriginOSVinylRecord(
+                    isPlaying = track.isPlaying,
+                    albumArt = null,
+                    size = 64.dp,
+                    labelColor = accentColor
+                )
+            }
+
+            // Track Title & Artist
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (track.title.isNotBlank()) track.title else "No Media Playing",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (track.artist.isNotBlank()) track.artist else "OriginOS Atomic Music",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (track.album.isNotBlank()) {
+                    Text(
+                        text = track.album,
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // OriginOS Wavy Seek Bar
+        OriginOSWavySeekBar(
+            progress = track.progress,
+            durationMs = track.durationMs,
+            positionMs = track.positionMs,
+            accentColor = accentColor,
+            isPlaying = track.isPlaying,
+            onSeek = onSeek
+        )
+
+        // Transport Controls Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // Previous Track
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x1AFFFFFF))
+                    .clickable(onClick = onPrev),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SkipPrevious,
+                    contentDescription = "Previous Track",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Play / Pause (Large Circular Button)
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(accentColor)
+                    .clickable(onClick = onPlayPause),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (track.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = if (track.isPlaying) "Pause" else "Play",
+                    tint = Color.Black,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+
+            // Next Track
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x1AFFFFFF))
+                    .clickable(onClick = onNext),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SkipNext,
+                    contentDescription = "Next Track",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
@@ -250,22 +643,23 @@ fun PulseConnectionDot(
 ) {
     val transition = rememberInfiniteTransition(label = "pulseRadar")
     val waveScale by transition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1.0f,
+        initialValue = 0.6f,
+        targetValue = 1.8f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1200, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "waveScale"
+        label = "radarScale"
     )
+
     val waveAlpha by transition.animateFloat(
-        initialValue = 0.7f,
+        initialValue = 0.8f,
         targetValue = 0.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1200, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "waveAlpha"
+        label = "radarAlpha"
     )
 
     Box(
@@ -276,83 +670,17 @@ fun PulseConnectionDot(
             Canvas(modifier = Modifier.size(size)) {
                 drawCircle(
                     color = color.copy(alpha = waveAlpha),
-                    radius = (this.size.width / 2f) * waveScale
+                    radius = (size.toPx() / 2f) * waveScale,
+                    style = Stroke(width = 1.5f)
                 )
             }
         }
+
         Box(
             modifier = Modifier
-                .size(size * 0.44f)
+                .size(size * 0.45f)
                 .clip(CircleShape)
                 .background(if (isConnected) color else Color(0xFFEF4444))
         )
-    }
-}
-
-/**
- * 4-Bar Equalizer with Smooth Harmonic Motion.
- */
-@Composable
-fun AnimatedEqualizer(
-    isPlaying: Boolean = true,
-    color: Color = Color(0xFF22C55E),
-    modifier: Modifier = Modifier
-) {
-    val transition = rememberInfiniteTransition(label = "waveform")
-
-    val h1 by transition.animateFloat(
-        initialValue = 4f,
-        targetValue = if (isPlaying) 16f else 4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(420, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "h1"
-    )
-
-    val h2 by transition.animateFloat(
-        initialValue = 8f,
-        targetValue = if (isPlaying) 20f else 6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(360, delayMillis = 80, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "h2"
-    )
-
-    val h3 by transition.animateFloat(
-        initialValue = 5f,
-        targetValue = if (isPlaying) 18f else 5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(490, delayMillis = 40, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "h3"
-    )
-
-    val h4 by transition.animateFloat(
-        initialValue = 3f,
-        targetValue = if (isPlaying) 14f else 3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(390, delayMillis = 120, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "h4"
-    )
-
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        listOf(h1, h2, h3, h4).forEach { height ->
-            Box(
-                modifier = Modifier
-                    .width(2.5.dp)
-                    .height(height.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
-                    .background(color)
-            )
-        }
     }
 }

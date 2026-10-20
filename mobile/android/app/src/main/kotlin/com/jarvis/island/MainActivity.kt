@@ -32,10 +32,34 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AspectRatio
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -60,6 +84,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -100,7 +125,11 @@ class MainActivity : ComponentActivity() {
                 ) {
                     JarvisMasterApp(
                         hasOverlayPermission = hasOverlayPermission(),
+                        hasNotificationAccess = hasNotificationAccess(),
+                        hasAccessibilityPermission = hasAccessibilityPermission(),
                         onRequestOverlayPermission = { requestOverlayPermission() },
+                        onRequestNotificationAccess = { requestNotificationAccess() },
+                        onRequestAccessibilityPermission = { requestAccessibilityPermission() },
                         onToggleExpand = { triggerBroadcast(JarvisIslandSettings.ACTION_TOGGLE_EXPAND) },
                         onExpand = { triggerBroadcast(JarvisIslandSettings.ACTION_EXPAND) },
                         onCollapse = { triggerBroadcast(JarvisIslandSettings.ACTION_COLLAPSE) },
@@ -129,6 +158,16 @@ class MainActivity : ComponentActivity() {
         } else true
     }
 
+    private fun hasNotificationAccess(): Boolean {
+        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+        return flat != null && flat.contains(packageName)
+    }
+
+    private fun hasAccessibilityPermission(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        return enabled != null && enabled.contains(packageName)
+    }
+
     private fun requestOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val intent = Intent(
@@ -137,6 +176,16 @@ class MainActivity : ComponentActivity() {
             )
             startActivity(intent)
         }
+    }
+
+    private fun requestNotificationAccess() {
+        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+        startActivity(intent)
+    }
+
+    private fun requestAccessibilityPermission() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        startActivity(intent)
     }
 
     private fun triggerBroadcast(action: String) {
@@ -156,12 +205,16 @@ class MainActivity : ComponentActivity() {
 
 /**
  * Main application scaffold featuring bottom navigation, screen routing,
- * and complete parity with MaterialYou-Dynamic-Island.
+ * dedicated reset buttons for every setting, and zero emojis.
  */
 @Composable
 fun JarvisMasterApp(
     hasOverlayPermission: Boolean,
+    hasNotificationAccess: Boolean,
+    hasAccessibilityPermission: Boolean,
     onRequestOverlayPermission: () -> Unit,
+    onRequestNotificationAccess: () -> Unit,
+    onRequestAccessibilityPermission: () -> Unit,
     onToggleExpand: () -> Unit,
     onExpand: () -> Unit,
     onCollapse: () -> Unit,
@@ -186,10 +239,10 @@ fun JarvisMasterApp(
                 contentColor = Color(0xFF38BDF8)
             ) {
                 listOf(
-                    NavigationItem("home", "Home", "🏠"),
-                    NavigationItem("plugins", "Plugins", "⚡"),
-                    NavigationItem("settings", "Settings", "⚙️"),
-                    NavigationItem("about", "About", "ℹ️")
+                    NavigationItem("home", "Home", Icons.Rounded.Home),
+                    NavigationItem("plugins", "Plugins", Icons.Rounded.Extension),
+                    NavigationItem("settings", "Settings", Icons.Rounded.Settings),
+                    NavigationItem("about", "About", Icons.Rounded.Info)
                 ).forEach { item ->
                     val selected = currentScreen == item.id
                     NavigationBarItem(
@@ -202,12 +255,16 @@ fun JarvisMasterApp(
                             settingsSubPage = null
                         },
                         icon = {
-                            Text(text = item.icon, fontSize = 18.sp)
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                modifier = Modifier.size(20.dp)
+                            )
                         },
                         label = {
                             Text(
                                 text = item.label,
-                                fontSize = 10.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                             )
                         },
@@ -238,7 +295,11 @@ fun JarvisMasterApp(
                     screen == "home" -> {
                         HomeScreen(
                             hasOverlayPermission = hasOverlayPermission,
+                            hasNotificationAccess = hasNotificationAccess,
+                            hasAccessibilityPermission = hasAccessibilityPermission,
                             onRequestOverlayPermission = onRequestOverlayPermission,
+                            onRequestNotificationAccess = onRequestNotificationAccess,
+                            onRequestAccessibilityPermission = onRequestAccessibilityPermission,
                             onToggleExpand = onToggleExpand,
                             onSimulateBeam = onSimulateBeam,
                             onSimulateMusic = onSimulateMusic,
@@ -280,7 +341,11 @@ fun JarvisMasterApp(
                     else -> {
                         HomeScreen(
                             hasOverlayPermission = hasOverlayPermission,
+                            hasNotificationAccess = hasNotificationAccess,
+                            hasAccessibilityPermission = hasAccessibilityPermission,
                             onRequestOverlayPermission = onRequestOverlayPermission,
+                            onRequestNotificationAccess = onRequestNotificationAccess,
+                            onRequestAccessibilityPermission = onRequestAccessibilityPermission,
                             onToggleExpand = onToggleExpand,
                             onSimulateBeam = onSimulateBeam,
                             onSimulateMusic = onSimulateMusic,
@@ -294,7 +359,7 @@ fun JarvisMasterApp(
     }
 }
 
-data class NavigationItem(val id: String, val label: String, val icon: String)
+data class NavigationItem(val id: String, val label: String, val icon: ImageVector)
 
 // ══════════════════════════════════════════════════════════════════════
 // SCREEN 1: HOME SCREEN
@@ -302,7 +367,11 @@ data class NavigationItem(val id: String, val label: String, val icon: String)
 @Composable
 fun HomeScreen(
     hasOverlayPermission: Boolean,
+    hasNotificationAccess: Boolean,
+    hasAccessibilityPermission: Boolean,
     onRequestOverlayPermission: () -> Unit,
+    onRequestNotificationAccess: () -> Unit,
+    onRequestAccessibilityPermission: () -> Unit,
     onToggleExpand: () -> Unit,
     onSimulateBeam: () -> Unit,
     onSimulateMusic: () -> Unit,
@@ -383,7 +452,7 @@ fun HomeScreen(
                     )
                     Text(
                         text = if (settings.isIslandEnabled) "Island overlay rendering over punch-hole camera"
-                               else "Island overlay disabled",
+                        else "Island overlay disabled",
                         color = Color(0xFF94A3B8),
                         fontSize = 11.5.sp
                     )
@@ -405,34 +474,37 @@ fun HomeScreen(
             }
         }
 
-        // Permission Card if missing
+        // Permission Card 1: Overlay
         if (!hasOverlayPermission) {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1014)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Overlay Permission Required",
-                        color = Color(0xFFFCA5A5),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        text = "Grant 'Appear on top' permission so Dynamic Island can position over your Motorola front camera.",
-                        color = Color(0xFFE2E8F0),
-                        fontSize = 11.5.sp
-                    )
-                    Button(
-                        onClick = onRequestOverlayPermission,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Grant Permission", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-            }
+            PermissionCard(
+                title = "Overlay Permission Required",
+                description = "Grant 'Appear on top' permission so Dynamic Island can position over your Motorola front camera.",
+                buttonText = "Grant Overlay Permission",
+                buttonColor = Color(0xFFEF4444),
+                onClick = onRequestOverlayPermission
+            )
+        }
+
+        // Permission Card 2: Media Session / Notification Access
+        if (!hasNotificationAccess) {
+            PermissionCard(
+                title = "Media & Now Playing Access",
+                description = "Enable Notification Access so JARVIS Island can capture currently playing songs from Spotify / YouTube Music with real controls.",
+                buttonText = "Enable Music Session Access",
+                buttonColor = Color(0xFF0284C7),
+                onClick = onRequestNotificationAccess
+            )
+        }
+
+        // Permission Card 3: Lock Screen Accessibility
+        if (!hasAccessibilityPermission) {
+            PermissionCard(
+                title = "Lock Screen Display (Accessibility)",
+                description = "Enable JARVIS Island in Accessibility to allow the dynamic island to float smoothly on your Lock Screen and Keyguard.",
+                buttonText = "Enable Lock Screen Accessibility",
+                buttonColor = Color(0xFF10B981),
+                onClick = onRequestAccessibilityPermission
+            )
         }
 
         // LiveBridge Windows PC Connection Card
@@ -449,16 +521,21 @@ fun HomeScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(34.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0x2238BDF8)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(text = "💻", fontSize = 15.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.Computer,
+                                contentDescription = "Windows Desktop",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                         Column {
                             Text(text = "JARVIS Windows Desktop", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
@@ -555,7 +632,7 @@ fun PluginsScreen() {
         PluginItem(
             title = "High-Speed File Beam",
             description = "Animates live file transfers between Windows PC and phone with MB/s speedometer.",
-            icon = "🚀",
+            icon = Icons.Rounded.SwapHoriz,
             enabled = settings.pluginFileBeam,
             onToggle = {
                 settings.pluginFileBeam = it
@@ -566,8 +643,8 @@ fun PluginsScreen() {
         // Plugin 2: Media Player
         PluginItem(
             title = "Now Playing Media Session",
-            description = "Displays rotating vinyl disk art, equalizer waveform, and music playback controls.",
-            icon = "🎵",
+            description = "Displays rotating vinyl disk art, wavy seekbar, and real music playback controls.",
+            icon = Icons.Rounded.MusicNote,
             enabled = settings.pluginMedia,
             onToggle = {
                 settings.pluginMedia = it
@@ -579,7 +656,7 @@ fun PluginsScreen() {
         PluginItem(
             title = "Smart Heads-Up Notifications",
             description = "Pill alerts for incoming messaging and system notifications.",
-            icon = "🔔",
+            icon = Icons.Rounded.Notifications,
             enabled = settings.pluginNotifications,
             onToggle = {
                 settings.pluginNotifications = it
@@ -590,8 +667,8 @@ fun PluginsScreen() {
         // Plugin 4: Battery & Charging
         PluginItem(
             title = "Charging & Battery Status",
-            description = "Visual charging ring and battery percentage when charger connects.",
-            icon = "⚡",
+            description = "Real-time battery level and charging badge when connected to charger.",
+            icon = Icons.Rounded.BatteryChargingFull,
             enabled = settings.pluginBattery,
             onToggle = {
                 settings.pluginBattery = it
@@ -603,7 +680,7 @@ fun PluginsScreen() {
         PluginItem(
             title = "Universal Clipboard Mirroring",
             description = "Live 2-way clipboard synchronization with Windows Desktop.",
-            icon = "📋",
+            icon = Icons.Rounded.ContentCopy,
             enabled = settings.pluginClipboard,
             onToggle = {
                 settings.pluginClipboard = it
@@ -617,7 +694,7 @@ fun PluginsScreen() {
 fun PluginItem(
     title: String,
     description: String,
-    icon: String,
+    icon: ImageVector,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
@@ -645,7 +722,12 @@ fun PluginItem(
                         .background(Color(0xFF1E293B)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = icon, fontSize = 20.sp)
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
                 Column {
                     Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -671,6 +753,9 @@ fun PluginItem(
 // ══════════════════════════════════════════════════════════════════════
 @Composable
 fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
 
     Column(
@@ -687,43 +772,72 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
 
         SettingsCategoryTile(
             title = "Position & Alignment",
-            subtitle = "Camera punch-hole clearance, X/Y margins, Island gravity",
-            icon = "📍",
+            subtitle = "Camera punch-hole clearance, X/Y margins (top 2px default)",
+            icon = Icons.Rounded.Place,
             onClick = { onNavigateSubPage("position") }
         )
 
         SettingsCategoryTile(
             title = "Size & Geometry",
             subtitle = "Pill width, height, expanded card bounds, corner radii",
-            icon = "📐",
+            icon = Icons.Rounded.AspectRatio,
             onClick = { onNavigateSubPage("size") }
         )
 
         SettingsCategoryTile(
             title = "Themes & Styling",
             subtitle = "Obsidian Black, Cyber Cyan, Emerald Matrix, border glows",
-            icon = "🎨",
+            icon = Icons.Rounded.Palette,
             onClick = { onNavigateSubPage("themes") }
         )
 
         SettingsCategoryTile(
             title = "Behavior & Lock Screen",
             subtitle = "Lock screen overlay, haptic feedback, gestures, auto-collapse",
-            icon = "🔒",
+            icon = Icons.Rounded.Lock,
             onClick = { onNavigateSubPage("behavior") }
         )
 
         SettingsCategoryTile(
             title = "Enabled Applications",
             subtitle = "Filter which apps can trigger Dynamic Island heads-up cards",
-            icon = "📱",
+            icon = Icons.Rounded.Apps,
             onClick = { onNavigateSubPage("apps") }
         )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Reset All Settings Button
+        OutlinedButton(
+            onClick = {
+                if (settings.hapticFeedback) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                settings.resetDefaults(context)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFFEF4444)
+            )
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.RestartAlt,
+                    contentDescription = "Reset All",
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(text = "Reset All Settings to Defaults", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
 @Composable
-fun SettingsCategoryTile(title: String, subtitle: String, icon: String, onClick: () -> Unit) {
+fun SettingsCategoryTile(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
@@ -750,14 +864,24 @@ fun SettingsCategoryTile(title: String, subtitle: String, icon: String, onClick:
                         .background(Color(0xFF1E293B)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = icon, fontSize = 18.sp)
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
                 Column {
                     Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(text = subtitle, color = Color(0xFF94A3B8), fontSize = 11.sp)
                 }
             }
-            Text(text = "›", color = Color(0xFF64748B), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = "Open",
+                tint = Color(0xFF64748B),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
@@ -766,6 +890,7 @@ fun SettingsCategoryTile(title: String, subtitle: String, icon: String, onClick:
 @Composable
 fun PositionSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
 
@@ -781,7 +906,20 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        SubPageHeader(title = "Position & Clearance", onBack = onBack)
+        SubPageHeader(
+            title = "Position & Clearance",
+            onBack = onBack,
+            onResetSection = {
+                if (settings.hapticFeedback) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                settings.resetPosition(context)
+                gravity = settings.gravity
+                cutoutClearance = settings.cutoutClearance
+                positionY = settings.positionY
+                positionX = settings.positionX
+            }
+        )
 
         // Visual Cutout Preview
         Card(
@@ -816,7 +954,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
 
                     Box(
                         modifier = Modifier
-                            .padding(top = (positionY * 0.8f - 2).dp)
+                            .padding(top = (positionY * 0.8f).coerceAtLeast(0f).dp)
                             .offset(x = positionX.dp)
                             .width((settings.pillWidth * 0.8f).dp)
                             .height((settings.pillHeight * 0.8f).dp)
@@ -829,7 +967,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                         Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
                             Spacer(modifier = Modifier.width((cutoutClearance * 0.8f).dp))
-                            Text("65%", color = Color(0xFF38BDF8), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text("JARVIS", color = Color(0xFF38BDF8), fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -837,7 +975,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        // Sliders
+        // Sliders with Individual Reset Buttons
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
@@ -871,6 +1009,11 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                     value = cutoutClearance.toFloat(),
                     valueText = "${cutoutClearance} dp",
                     range = 20f..80f,
+                    onReset = {
+                        cutoutClearance = JarvisIslandSettings.DEFAULT_CUTOUT_CLEARANCE
+                        settings.cutoutClearance = cutoutClearance
+                        settings.save(context)
+                    },
                     onValueChange = {
                         cutoutClearance = it.toInt()
                         settings.cutoutClearance = cutoutClearance
@@ -883,6 +1026,11 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                     value = positionY.toFloat(),
                     valueText = "${positionY} dp",
                     range = 0f..60f,
+                    onReset = {
+                        positionY = JarvisIslandSettings.DEFAULT_POSITION_Y
+                        settings.positionY = positionY
+                        settings.save(context)
+                    },
                     onValueChange = {
                         positionY = it.toInt()
                         settings.positionY = positionY
@@ -895,6 +1043,11 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                     value = positionX.toFloat(),
                     valueText = "${positionX} dp",
                     range = -50f..50f,
+                    onReset = {
+                        positionX = JarvisIslandSettings.DEFAULT_POSITION_X
+                        settings.positionX = positionX
+                        settings.save(context)
+                    },
                     onValueChange = {
                         positionX = it.toInt()
                         settings.positionX = positionX
@@ -910,6 +1063,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
 @Composable
 fun SizeSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
 
@@ -927,7 +1081,22 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        SubPageHeader(title = "Size & Geometry", onBack = onBack)
+        SubPageHeader(
+            title = "Size & Geometry",
+            onBack = onBack,
+            onResetSection = {
+                if (settings.hapticFeedback) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                settings.resetSize(context)
+                pillWidth = settings.pillWidth
+                pillHeight = settings.pillHeight
+                expandedWidth = settings.expandedWidth
+                expandedHeight = settings.expandedHeight
+                cornerRadius = settings.cornerRadius
+                expandedCornerRadius = settings.expandedCornerRadius
+            }
+        )
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -940,6 +1109,11 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     value = pillWidth.toFloat(),
                     valueText = "${pillWidth} dp",
                     range = 140f..260f,
+                    onReset = {
+                        pillWidth = JarvisIslandSettings.DEFAULT_PILL_WIDTH
+                        settings.pillWidth = pillWidth
+                        settings.save(context)
+                    },
                     onValueChange = {
                         pillWidth = it.toInt()
                         settings.pillWidth = pillWidth
@@ -952,6 +1126,11 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     value = pillHeight.toFloat(),
                     valueText = "${pillHeight} dp",
                     range = 30f..54f,
+                    onReset = {
+                        pillHeight = JarvisIslandSettings.DEFAULT_PILL_HEIGHT
+                        settings.pillHeight = pillHeight
+                        settings.save(context)
+                    },
                     onValueChange = {
                         pillHeight = it.toInt()
                         settings.pillHeight = pillHeight
@@ -963,7 +1142,12 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Card Width",
                     value = expandedWidth.toFloat(),
                     valueText = "${expandedWidth} dp",
-                    range = 300f..380f,
+                    range = 300f..400f,
+                    onReset = {
+                        expandedWidth = JarvisIslandSettings.DEFAULT_EXPANDED_WIDTH
+                        settings.expandedWidth = expandedWidth
+                        settings.save(context)
+                    },
                     onValueChange = {
                         expandedWidth = it.toInt()
                         settings.expandedWidth = expandedWidth
@@ -975,7 +1159,12 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Card Height",
                     value = expandedHeight.toFloat(),
                     valueText = "${expandedHeight} dp",
-                    range = 200f..320f,
+                    range = 200f..340f,
+                    onReset = {
+                        expandedHeight = JarvisIslandSettings.DEFAULT_EXPANDED_HEIGHT
+                        settings.expandedHeight = expandedHeight
+                        settings.save(context)
+                    },
                     onValueChange = {
                         expandedHeight = it.toInt()
                         settings.expandedHeight = expandedHeight
@@ -988,6 +1177,11 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     value = cornerRadius.toFloat(),
                     valueText = "${cornerRadius} dp",
                     range = 10f..30f,
+                    onReset = {
+                        cornerRadius = JarvisIslandSettings.DEFAULT_CORNER_RADIUS
+                        settings.cornerRadius = cornerRadius
+                        settings.save(context)
+                    },
                     onValueChange = {
                         cornerRadius = it.toInt()
                         settings.cornerRadius = cornerRadius
@@ -1000,6 +1194,11 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     value = expandedCornerRadius.toFloat(),
                     valueText = "${expandedCornerRadius} dp",
                     range = 18f..36f,
+                    onReset = {
+                        expandedCornerRadius = JarvisIslandSettings.DEFAULT_EXPANDED_CORNER_RADIUS
+                        settings.expandedCornerRadius = expandedCornerRadius
+                        settings.save(context)
+                    },
                     onValueChange = {
                         expandedCornerRadius = it.toInt()
                         settings.expandedCornerRadius = expandedCornerRadius
@@ -1015,6 +1214,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
 @Composable
 fun ThemesSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
 
@@ -1029,7 +1229,19 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        SubPageHeader(title = "Themes & Styling", onBack = onBack)
+        SubPageHeader(
+            title = "Themes & Styling",
+            onBack = onBack,
+            onResetSection = {
+                if (settings.hapticFeedback) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                settings.resetThemes(context)
+                themeStyle = settings.themeStyle
+                showBorders = settings.showBorders
+                borderGlow = settings.borderGlow
+            }
+        )
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1100,6 +1312,7 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
 @Composable
 fun BehaviorSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
 
@@ -1117,7 +1330,22 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        SubPageHeader(title = "Behavior & Lock Screen", onBack = onBack)
+        SubPageHeader(
+            title = "Behavior & Lock Screen",
+            onBack = onBack,
+            onResetSection = {
+                if (settings.hapticFeedback) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                settings.resetBehavior(context)
+                showOnLockScreen = settings.showOnLockScreen
+                showInLandscape = settings.showInLandscape
+                autoExpandOnTransfer = settings.autoExpandOnTransfer
+                autoCollapseDelaySec = settings.autoCollapseDelaySec
+                hapticFeedback = settings.hapticFeedback
+                longPressToExpand = settings.longPressToExpand
+            }
+        )
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1185,6 +1413,11 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
                     value = autoCollapseDelaySec,
                     valueText = String.format("%.1fs", autoCollapseDelaySec),
                     range = 1.5f..10.0f,
+                    onReset = {
+                        autoCollapseDelaySec = JarvisIslandSettings.DEFAULT_AUTO_COLLAPSE_DELAY
+                        settings.autoCollapseDelaySec = autoCollapseDelaySec
+                        settings.save(context)
+                    },
                     onValueChange = {
                         autoCollapseDelaySec = it
                         settings.autoCollapseDelaySec = it
@@ -1280,7 +1513,12 @@ fun AboutScreen() {
                 .background(Color(0xFF0284C7)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "⚡", fontSize = 36.sp)
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = "JARVIS",
+                tint = Color.White,
+                modifier = Modifier.size(36.dp)
+            )
         }
 
         Text(text = "JARVIS Dynamic Island", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -1333,28 +1571,75 @@ fun AboutScreen() {
 
 // ── Shared UI Helpers ──
 @Composable
-fun SubPageHeader(title: String, onBack: () -> Unit) {
+fun SubPageHeader(title: String, onBack: () -> Unit, onResetSection: (() -> Unit)? = null) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF1E293B))
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(text = "←", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1E293B))
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(text = title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
-        Text(text = title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+
+        if (onResetSection != null) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1E293B))
+                    .clickable(onClick = onResetSection)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Reset Section",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "Reset",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun SliderRow(label: String, value: Float, valueText: String, range: ClosedFloatingPointRange<Float>, onValueChange: (Float) -> Unit) {
+fun SliderRow(
+    label: String,
+    value: Float,
+    valueText: String,
+    range: ClosedFloatingPointRange<Float>,
+    onReset: (() -> Unit)? = null,
+    onValueChange: (Float) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1362,10 +1647,35 @@ fun SliderRow(label: String, value: Float, valueText: String, range: ClosedFloat
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = label, color = Color(0xFFE2E8F0), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text(text = valueText, color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(text = valueText, color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (onReset != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E293B))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onReset()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Reset $label",
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
         }
         Slider(
-            value = value,
+            value = value.coerceIn(range.start, range.endInclusive),
             onValueChange = onValueChange,
             valueRange = range,
             colors = SliderDefaults.colors(
@@ -1398,5 +1708,41 @@ fun SettingsSwitch(title: String, description: String, checked: Boolean, onCheck
                 uncheckedTrackColor = Color(0xFF1E293B)
             )
         )
+    }
+}
+
+@Composable
+fun PermissionCard(
+    title: String,
+    description: String,
+    buttonText: String,
+    buttonColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF181824)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Text(
+                text = description,
+                color = Color(0xFF94A3B8),
+                fontSize = 11.5.sp
+            )
+            Button(
+                onClick = onClick,
+                colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(buttonText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
     }
 }

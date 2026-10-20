@@ -48,10 +48,11 @@ const INITIAL_DEVICES: BtDevice[] = [
   },
   {
     id: "dev-phone",
-    name: "Galaxy S24 Ultra",
+    name: "Motorola Edge 50 Pro",
     category: "phone",
-    status: "disconnected",
-    info: "Phone Link & Quick Share",
+    status: "connected",
+    battery: 100,
+    info: "JARVIS LiveBridge Active",
   },
 ];
 

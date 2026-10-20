@@ -21,7 +21,7 @@ export const LiveBridgeView: React.FC = () => {
   const [transfers, setTransfers] = useState<BridgeTransfer[]>([]);
   const [connStatus, setConnStatus] = useState<ConnectionStatusPayload | null>(null);
   const [clipboardSync, setClipboardSync] = useState<boolean>(true);
-  const [lastCopied] = useState<string>("Google Security OTP: 849-201");
+  const [lastCopied] = useState<string>("Ecosystem Clipboard Sync Active");
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [isSendingFile, setIsSendingFile] = useState<boolean>(false);
   const [fileProgress, setFileProgress] = useState<number>(0);
@@ -71,29 +71,48 @@ export const LiveBridgeView: React.FC = () => {
 
   const activeDevice = devices[0];
 
-  const sendFileObject = (name: string, size: number) => {
-    setActiveFileName(name);
+  const sendRealFile = async (file: File) => {
+    setActiveFileName(file.name);
     setIsSendingFile(true);
-    setFileProgress(15);
-    const int = setInterval(() => {
-      setFileProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(int);
-          setIsSendingFile(false);
-          invoke("jarvis_send_bridge_file", {
-            deviceName: activeDevice?.name || "Galaxy S24 Ultra",
-            fileName: name,
-            fileSize: size,
-          }).catch(console.error);
-          return 100;
-        }
-        return prev + 25;
-      });
-    }, 120);
+    setFileProgress(20);
+
+    const filePath = (file as any).path;
+    if (filePath) {
+      setFileProgress(60);
+      try {
+        await invoke("jarvis_send_bridge_file_path", { filePath });
+        setFileProgress(100);
+      } catch (err) {
+        console.error("Beam error:", err);
+      } finally {
+        setTimeout(() => setIsSendingFile(false), 500);
+      }
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setFileProgress(70);
+      const b64 = (reader.result as string).split(",")[1];
+      try {
+        await invoke("jarvis_send_bridge_file_bytes", {
+          deviceName: activeDevice?.name || "Motorola Edge 50 Pro",
+          fileName: file.name,
+          fileSize: file.size,
+          dataBase64: b64,
+        });
+        setFileProgress(100);
+      } catch (err) {
+        console.error("Beam bytes error:", err);
+      } finally {
+        setTimeout(() => setIsSendingFile(false), 500);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSimulateSend = () => {
-    sendFileObject("Project_Assets.zip", 48200000);
+    fileInputRef.current?.click();
   };
 
   const handleOpenFolder = () => {
@@ -102,8 +121,7 @@ export const LiveBridgeView: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      sendFileObject(file.name, file.size);
+      sendRealFile(e.target.files[0]);
     }
   };
 
@@ -180,8 +198,8 @@ export const LiveBridgeView: React.FC = () => {
               </span>
             </div>
             <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.5)" }}>
-              {activeDevice ? activeDevice.wifiSsid : "JARVIS-Mesh-5G"} • v1.0.0 • IP:{" "}
-              {activeDevice ? activeDevice.ip : "192.168.1.145"}
+              {activeDevice ? activeDevice.wifiSsid : "Wi-Fi"} • v1.0.0 • IP:{" "}
+              {activeDevice ? activeDevice.ip : "192.168.1.3"}
             </div>
           </div>
         </div>
@@ -259,8 +277,7 @@ export const LiveBridgeView: React.FC = () => {
                 e.preventDefault();
                 setIsDragOver(false);
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                  const f = e.dataTransfer.files[0];
-                  sendFileObject(f.name, f.size);
+                  sendRealFile(e.dataTransfer.files[0]);
                 }
               }}
               style={{
@@ -457,63 +474,88 @@ export const LiveBridgeView: React.FC = () => {
 
         {activeSubTab === "activities" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {activities.map((act) => (
+            {activities.length === 0 ? (
               <div
-                key={act.id}
                 style={{
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
+                  justifyContent: "center",
+                  padding: "32px 20px",
+                  color: "rgba(255, 255, 255, 0.45)",
+                  fontSize: "12px",
+                  gap: "6px",
+                  background: "rgba(255, 255, 255, 0.02)",
                   borderRadius: "12px",
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  border: "1px dashed rgba(255, 255, 255, 0.08)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div
-                    style={{
-                      width: "30px",
-                      height: "30px",
-                      borderRadius: "8px",
-                      background: act.activityType === "otp" ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.15)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: act.activityType === "otp" ? "#f59e0b" : "#38bdf8",
-                    }}
-                  >
-                    {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
-                      {act.title}
-                    </div>
-                    <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)" }}>
-                      {act.subtitle}
-                    </div>
-                  </div>
-                </div>
-
-                {act.activityType === "otp" && (
-                  <button
-                    onClick={() => handleCopyOtp("849201")}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "6px",
-                      border: "none",
-                      background: "#38bdf8",
-                      color: "#000000",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Copy OTP
-                  </button>
-                )}
+                <Clock size={22} style={{ opacity: 0.5, color: "#38bdf8" }} />
+                <span style={{ fontWeight: 600, color: "#ffffff" }}>No Live Mobile Activities</span>
+                <span style={{ fontSize: "10.5px" }}>Active timers, delivery updates, and OTP codes from your phone will automatically display here in real time.</span>
               </div>
-            ))}
+            ) : (
+              activities.map((act) => (
+                <div
+                  key={act.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    background: "rgba(255, 255, 255, 0.03)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div
+                      style={{
+                        width: "30px",
+                        height: "30px",
+                        borderRadius: "8px",
+                        background: act.activityType === "otp" ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.15)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: act.activityType === "otp" ? "#f59e0b" : "#38bdf8",
+                      }}
+                    >
+                      {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
+                        {act.title}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)" }}>
+                        {act.subtitle}
+                      </div>
+                    </div>
+                  </div>
+
+                  {act.activityType === "otp" && (
+                    <button
+                      onClick={() => {
+                        const m = act.subtitle.match(/\b\d{4,8}\b/);
+                        handleCopyOtp(m ? m[0] : act.subtitle);
+                      }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: "#38bdf8",
+                        color: "#000000",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Copy OTP
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
 

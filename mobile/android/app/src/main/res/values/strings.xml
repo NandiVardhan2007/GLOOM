@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">JARVIS Island</string>
+    <string name="accessibility_service_label">JARVIS Dynamic Island</string>
+    <string name="accessibility_service_description">Enables JARVIS Dynamic Island to display seamlessly over apps and on the Lock Screen.</string>
 </resources>

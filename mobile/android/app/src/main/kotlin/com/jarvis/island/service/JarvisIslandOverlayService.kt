@@ -5,10 +5,17 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.PixelFormat
+import android.media.AudioManager
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.util.TypedValue
@@ -16,6 +23,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.AndroidUiDispatcher
@@ -50,14 +58,33 @@ class JarvisIslandOverlayService : Service() {
     private var cutoutMetrics: CutoutMetrics = CutoutMetrics()
     private lateinit var bridgeClient: JarvisLiveBridgeClient
     private lateinit var fileBeamReceiver: FileBeamReceiver
+    private lateinit var audioManager: AudioManager
+    private var mediaSessionManager: MediaSessionManager? = null
+    private var activeMediaController: MediaController? = null
 
     private var isExpanded by mutableStateOf(false)
     private var bridgeDevice by mutableStateOf(BridgeDeviceInfo())
     private var activeTransfer by mutableStateOf(ActiveTransferInfo())
     private var mediaTrack by mutableStateOf(MediaTrackInfo())
+    private var batteryLevel by mutableIntStateOf(100)
+    private var isCharging by mutableStateOf(false)
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var collapseJob: Job? = null
+
+    // Real System Battery & Power Receiver
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_BATTERY_CHANGED) {
+                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                        status == BatteryManager.BATTERY_STATUS_FULL
+                batteryLevel = if (level >= 0 && scale > 0) (level * 100) / scale else 100
+            }
+        }
+    }
 
     private val settingsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -78,7 +105,16 @@ class JarvisIslandOverlayService : Service() {
                     simulateTestTransfer()
                 }
                 JarvisIslandSettings.ACTION_TEST_MUSIC -> {
-                    simulateMusicTrack()
+                    refreshActiveMediaSession()
+                }
+                JarvisIslandSettings.ACTION_MEDIA_PLAY_PAUSE -> {
+                    toggleMediaPlayback()
+                }
+                JarvisIslandSettings.ACTION_MEDIA_NEXT -> {
+                    skipToNextMedia()
+                }
+                JarvisIslandSettings.ACTION_MEDIA_PREV -> {
+                    skipToPrevMedia()
                 }
             }
         }
@@ -87,12 +123,14 @@ class JarvisIslandOverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         bridgeClient = JarvisLiveBridgeClient(this)
         JarvisIslandSettings.instance.load(this)
 
         startForegroundServiceNotification()
         setupComposeOverlay()
-        registerSettingsReceiver()
+        registerReceivers()
+        setupRealMediaSessions()
 
         fileBeamReceiver = FileBeamReceiver(this)
         fileBeamReceiver.startServer(53391) { receivedFile ->
@@ -122,20 +160,108 @@ class JarvisIslandOverlayService : Service() {
         }
     }
 
-    private fun registerSettingsReceiver() {
+    private fun registerReceivers() {
         val filter = IntentFilter().apply {
             addAction(JarvisIslandSettings.ACTION_SETTINGS_CHANGED)
             addAction(JarvisIslandSettings.ACTION_TOGGLE_EXPAND)
             addAction(JarvisIslandSettings.ACTION_EXPAND)
             addAction(JarvisIslandSettings.ACTION_COLLAPSE)
             addAction(JarvisIslandSettings.ACTION_TEST_BEAM)
-            addAction(JarvisIslandSettings.ACTION_TEST_MUSIC)
+            addAction(JarvisIslandSettings.ACTION_MEDIA_PLAY_PAUSE)
+            addAction(JarvisIslandSettings.ACTION_MEDIA_NEXT)
+            addAction(JarvisIslandSettings.ACTION_MEDIA_PREV)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(settingsReceiver, filter)
         }
+
+        // Real Battery Changed Broadcast
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    }
+
+    private fun setupRealMediaSessions() {
+        JarvisNotificationListener.onMediaUpdate = { liveTrack ->
+            serviceScope.launch {
+                mediaTrack = liveTrack
+            }
+        }
+        JarvisNotificationListener.instance?.checkActiveMedia()
+    }
+
+    private fun refreshActiveMediaSession() {
+        try {
+            val component = ComponentName(this, JarvisNotificationListener::class.java)
+            val controllers = mediaSessionManager?.getActiveSessions(component) ?: emptyList()
+            if (controllers.isNotEmpty()) {
+                val playingController = controllers.firstOrNull {
+                    it.playbackState?.state == PlaybackState.STATE_PLAYING
+                } ?: controllers.first()
+
+                bindMediaController(playingController)
+            } else {
+                val isMusicActive = audioManager.isMusicActive
+                if (!isMusicActive) {
+                    mediaTrack = MediaTrackInfo(title = "", artist = "", isPlaying = false, progress = 0f)
+                }
+            }
+        } catch (e: SecurityException) {
+            val isMusicActive = audioManager.isMusicActive
+            if (isMusicActive) {
+                mediaTrack = MediaTrackInfo(title = "Playing Audio", artist = "System Media", isPlaying = true, progress = 0.5f)
+            } else {
+                mediaTrack = MediaTrackInfo(title = "", artist = "", isPlaying = false, progress = 0f)
+            }
+        } catch (e: Exception) {
+            val isMusicActive = audioManager.isMusicActive
+            mediaTrack = mediaTrack.copy(isPlaying = isMusicActive)
+        }
+    }
+
+    private fun bindMediaController(controller: MediaController) {
+        activeMediaController = controller
+        val metadata = controller.metadata
+        val state = controller.playbackState
+
+        val title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+        val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
+        val isPlaying = state?.state == PlaybackState.STATE_PLAYING
+
+        mediaTrack = MediaTrackInfo(
+            title = if (title.isNotBlank()) title else "Playing Audio",
+            artist = if (artist.isNotBlank()) artist else "Media Session",
+            isPlaying = isPlaying,
+            progress = 0.35f
+        )
+
+        controller.registerCallback(object : MediaController.Callback() {
+            override fun onPlaybackStateChanged(state: PlaybackState?) {
+                val playing = state?.state == PlaybackState.STATE_PLAYING
+                mediaTrack = mediaTrack.copy(isPlaying = playing)
+            }
+
+            override fun onMetadataChanged(metadata: MediaMetadata?) {
+                val newTitle = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+                val newArtist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
+                mediaTrack = mediaTrack.copy(
+                    title = if (newTitle.isNotBlank()) newTitle else mediaTrack.title,
+                    artist = if (newArtist.isNotBlank()) newArtist else mediaTrack.artist
+                )
+            }
+        })
+    }
+
+    private fun toggleMediaPlayback() {
+        JarvisNotificationListener.togglePlayPause()
+    }
+
+    private fun skipToNextMedia() {
+        JarvisNotificationListener.skipNext()
+    }
+
+    private fun skipToPrevMedia() {
+        JarvisNotificationListener.skipPrevious()
     }
 
     private fun startForegroundServiceNotification() {
@@ -190,6 +316,9 @@ class JarvisIslandOverlayService : Service() {
     }
 
     private fun setupComposeOverlay() {
+        if (JarvisIslandAccessibilityService.isRunning) {
+            return
+        }
         cutoutMetrics = CutoutDetector.detectCutout(this, null)
 
         val initialHeight = if (isExpanded) {
@@ -249,9 +378,15 @@ class JarvisIslandOverlayService : Service() {
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
                     },
+                    onMediaPlayPause = { toggleMediaPlayback() },
+                    onMediaNext = { skipToNextMedia() },
+                    onMediaPrev = { skipToPrevMedia() },
+                    onMediaSeek = { ratio -> JarvisNotificationListener.seekTo(ratio) },
                     activeTransfer = activeTransfer,
                     mediaTrack = mediaTrack,
                     bridgeDevice = bridgeDevice,
+                    batteryLevel = batteryLevel,
+                    isCharging = isCharging,
                     settings = JarvisIslandSettings.instance
                 )
             }
@@ -333,7 +468,6 @@ class JarvisIslandOverlayService : Service() {
                 expandIsland()
             }
 
-            // High-frame-rate progress simulation
             val totalSteps = 30
             for (step in 1..totalSteps) {
                 delay(80)
@@ -345,7 +479,6 @@ class JarvisIslandOverlayService : Service() {
                 )
             }
 
-            // Keep expanded card visible for configured auto-collapse delay
             delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
             activeTransfer = activeTransfer.copy(isActive = false)
             if (isExpanded) {
@@ -354,23 +487,12 @@ class JarvisIslandOverlayService : Service() {
         }
     }
 
-    private fun simulateMusicTrack() {
-        mediaTrack = MediaTrackInfo(
-            title = "Midnight City (JARVIS Remix)",
-            artist = "M83 • High-Res Audio",
-            isPlaying = !mediaTrack.isPlaying,
-            progress = 0.42f
-        )
-        if (!isExpanded) {
-            expandIsland()
-        }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         fileBeamReceiver.stopServer()
         try {
             unregisterReceiver(settingsReceiver)
+            unregisterReceiver(batteryReceiver)
         } catch (e: Exception) {}
         composeView?.let {
             try {

@@ -198,17 +198,28 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
           e.preventDefault();
           setIsIslandDragOver(false);
         }}
-        onDrop={(e) => {
+        onDrop={async (e) => {
           e.preventDefault();
           setIsIslandDragOver(false);
           const files = e.dataTransfer.files;
           if (files && files.length > 0) {
             const file = files[0];
-            invoke("jarvis_send_bridge_file", {
-              deviceName: "Galaxy S24 Ultra",
-              fileName: file.name,
-              fileSize: file.size,
-            }).catch(console.error);
+            const filePath = (file as any).path;
+            if (filePath) {
+              await invoke("jarvis_send_bridge_file_path", { filePath }).catch(console.error);
+            } else {
+              const reader = new FileReader();
+              reader.onload = async () => {
+                const b64 = (reader.result as string).split(",")[1];
+                await invoke("jarvis_send_bridge_file_bytes", {
+                  deviceName: "Motorola Edge 50 Pro",
+                  fileName: file.name,
+                  fileSize: file.size,
+                  dataBase64: b64,
+                }).catch(console.error);
+              };
+              reader.readAsDataURL(file);
+            }
             setActiveTab("bridge");
             setIslandState("expanded");
           }
@@ -219,7 +230,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
           borderRadius: targetRadius,
           top: topOffset,
         }}
-        transition={MOTION_PHYSICS.morph}
+        transition={isExpanded ? MOTION_PHYSICS.expand : MOTION_PHYSICS.collapse}
         style={{
           position: "absolute",
           top: `${topOffset}px`,

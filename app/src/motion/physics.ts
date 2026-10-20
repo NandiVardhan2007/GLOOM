@@ -1,12 +1,30 @@
 export const MOTION_PHYSICS = {
-  // Ultra-fast, snappy Apple/HarmonyOS fluid spring morph (~160ms)
+  // Ultra-fluid Apple / HarmonyOS elastic spring morph with organic bouncy rebound
   morph: {
     type: "spring" as const,
-    stiffness: 460,
-    damping: 34,
-    mass: 0.6,
-    restDelta: 0.5,
-    restSpeed: 0.5,
+    stiffness: 240,
+    damping: 18,
+    mass: 0.85,
+    restDelta: 0.001,
+    restSpeed: 0.001,
+  },
+  // Luxuriously smooth, bouncy collapse motion with extended duration and organic rebound
+  collapse: {
+    type: "spring" as const,
+    stiffness: 165,
+    damping: 14,
+    mass: 0.95,
+    restDelta: 0.001,
+    restSpeed: 0.001,
+  },
+  // Responsive, fluid expand motion
+  expand: {
+    type: "spring" as const,
+    stiffness: 260,
+    damping: 20,
+    mass: 0.8,
+    restDelta: 0.001,
+    restSpeed: 0.001,
   },
   // High-speed bezier curve alternative
   fluidCurve: {

@@ -35,8 +35,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -66,11 +76,19 @@ fun JarvisIslandApp(
     onLongPressExpand: () -> Unit = {},
     onBeamSampleFile: () -> Unit = {},
     onSyncClipboard: () -> Unit = {},
+    onMediaPlayPause: () -> Unit = {},
+    onMediaNext: () -> Unit = {},
+    onMediaPrev: () -> Unit = {},
+    onMediaSeek: (Float) -> Unit = {},
     activeTransfer: ActiveTransferInfo = ActiveTransferInfo(),
     mediaTrack: MediaTrackInfo = MediaTrackInfo(),
     bridgeDevice: BridgeDeviceInfo = BridgeDeviceInfo(),
+    batteryLevel: Int = 100,
+    isCharging: Boolean = false,
     settings: JarvisIslandSettings = JarvisIslandSettings.instance
 ) {
+    if (!settings.isIslandEnabled) return
+
     val haptic = LocalHapticFeedback.current
     val palette = remember(settings.themeStyle) { IslandThemePalettes.getTheme(settings.themeStyle) }
 
@@ -100,7 +118,14 @@ fun JarvisIslandApp(
 
     var currentTab by remember { mutableStateOf("transfer") } // "transfer" | "music" | "system"
 
-    // Shimmer pulse animation for active beam transfers
+    androidx.compose.runtime.LaunchedEffect(mediaTrack.isPlaying, mediaTrack.title, activeTransfer.isActive) {
+        if (activeTransfer.isActive) {
+            currentTab = "transfer"
+        } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
+            currentTab = "music"
+        }
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "islandGlowTransition")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.35f,
@@ -112,7 +137,6 @@ fun JarvisIslandApp(
         label = "pulseAlpha"
     )
 
-    // Alignment based on gravity setting
     val boxAlignment = when (settings.gravity) {
         "Left" -> Alignment.TopStart
         "Right" -> Alignment.TopEnd
@@ -122,7 +146,7 @@ fun JarvisIslandApp(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = settings.positionY.dp)
+            .padding(top = settings.positionY.dp) // User default 2px top
             .offset(x = settings.positionX.dp),
         contentAlignment = boxAlignment
     ) {
@@ -192,7 +216,7 @@ fun JarvisIslandApp(
                             .padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // ── Left Wing: Beaming Icon or LAN Pulse Dot ──
+                        // ── Left Wing: Official Vector Icons (Zero Emojis) ──
                         Row(
                             modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
@@ -211,6 +235,36 @@ fun JarvisIslandApp(
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black
                                 )
+                            } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
+                                OriginOSVinylRecord(
+                                    isPlaying = mediaTrack.isPlaying,
+                                    albumArt = mediaTrack.albumArt,
+                                    size = 20.dp,
+                                    labelColor = palette.primaryAccent
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (mediaTrack.title.isNotBlank()) mediaTrack.title.take(10) else (if (mediaTrack.appName.isNotBlank()) mediaTrack.appName else "MUSIC"),
+                                    color = Color(0xEEFFFFFF),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else if (isCharging) {
+                                Icon(
+                                    imageVector = Icons.Rounded.BatteryChargingFull,
+                                    contentDescription = "Charging",
+                                    tint = palette.secondaryAccent,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "$batteryLevel%",
+                                    color = palette.secondaryAccent,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             } else {
                                 PulseConnectionDot(
                                     isConnected = bridgeDevice.isConnected,
@@ -228,10 +282,9 @@ fun JarvisIslandApp(
                         }
 
                         // ── DEAD-CENTER CAMERA CUTOUT HOLE CLEARANCE ──
-                        // Completely empty and dark space where the front camera lens physically sits
                         Spacer(modifier = Modifier.width(settings.cutoutClearance.dp))
 
-                        // ── Right Wing: Transfer % or Equalizer Waveform ──
+                        // ── Right Wing: Transfer % or Equalizer Waveform or Battery ──
                         Row(
                             modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
@@ -246,21 +299,39 @@ fun JarvisIslandApp(
                                     fontFamily = FontFamily.SansSerif,
                                     modifier = Modifier.padding(end = 4.dp)
                                 )
-                                AnimatedEqualizer(
+                                OriginOSEqualizer(
                                     isPlaying = true,
                                     color = palette.primaryAccent
                                 )
-                            } else {
-                                AnimatedEqualizer(
+                            } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
+                                OriginOSEqualizer(
                                     isPlaying = mediaTrack.isPlaying,
-                                    color = palette.primaryAccent
+                                    color = palette.secondaryAccent
                                 )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.BatteryChargingFull,
+                                        contentDescription = "Battery",
+                                        tint = if (batteryLevel > 20) palette.primaryAccent else Color(0xFFEF4444),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "$batteryLevel%",
+                                        color = if (batteryLevel > 20) Color(0xCCFFFFFF) else Color(0xFFEF4444),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
                 } else {
                     // ══════════════════════════════════════════════════════════
-                    // 2. EXPANDED STUNNING OBSIDIAN CARD
+                    // 2. EXPANDED STUNNING OBSIDIAN CARD (SmartIsland Parity)
                     // ══════════════════════════════════════════════════════════
                     Column(
                         modifier = Modifier
@@ -269,7 +340,6 @@ fun JarvisIslandApp(
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         // ── Top Camera Hole Clearance Notch ──
-                        // Keeps the top center camera punch hole completely free of text/buttons!
                         Spacer(modifier = Modifier.height((settings.pillHeight * 0.7f).dp))
 
                         // ── Header Bar: Device Info & Subtab Selector ──
@@ -289,7 +359,12 @@ fun JarvisIslandApp(
                                         .background(palette.primaryAccent.copy(alpha = 0.18f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(text = "⚡", fontSize = 13.sp)
+                                    Icon(
+                                        imageVector = Icons.Rounded.Bolt,
+                                        contentDescription = "JARVIS Continuity",
+                                        tint = palette.primaryAccent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                                 Column {
                                     Text(
@@ -306,7 +381,7 @@ fun JarvisIslandApp(
                                 }
                             }
 
-                            // Subtab Pills
+                            // Subtab Pills (Official Vector Icons)
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 listOf("transfer", "music", "system").forEach { tab ->
                                     val active = currentTab == tab
@@ -354,7 +429,78 @@ fun JarvisIslandApp(
                                         .border(1.dp, palette.primaryAccent.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
                                         .padding(10.dp)
                                 ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (activeTransfer.isActive) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    CyberBeamIcon(
+                                                        isUpload = activeTransfer.isUpload,
+                                                        accentColor = palette.primaryAccent,
+                                                        size = 20.dp
+                                                    )
+                                                    Text(
+                                                        text = activeTransfer.fileName,
+                                                        color = Color.White,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                Text(
+                                                    text = activeTransfer.speedMbps,
+                                                    color = palette.primaryAccent,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+
+                                            // Glowing Gradient Progress Bar
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(7.dp)
+                                                    .clip(RoundedCornerShape(3.5.dp))
+                                                    .background(Color(0x22FFFFFF))
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth(activeTransfer.progress.coerceIn(0.01f, 1f))
+                                                        .height(7.dp)
+                                                        .clip(RoundedCornerShape(3.5.dp))
+                                                        .background(
+                                                            Brush.horizontalGradient(
+                                                                listOf(palette.primaryAccent, palette.secondaryAccent)
+                                                            )
+                                                        )
+                                                )
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = "${(activeTransfer.fileSizeMb * activeTransfer.progress).toInt()} MB of ${activeTransfer.fileSizeMb} MB",
+                                                    color = Color(0x88FFFFFF),
+                                                    fontSize = 9.5.sp
+                                                )
+                                                Text(
+                                                    text = "${(activeTransfer.progress * 100).toInt()}% • 5G WiFi Direct",
+                                                    color = palette.secondaryAccent,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    } else {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -362,107 +508,54 @@ fun JarvisIslandApp(
                                         ) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 CyberBeamIcon(
-                                                    isUpload = activeTransfer.isUpload,
+                                                    isUpload = false,
                                                     accentColor = palette.primaryAccent,
-                                                    size = 20.dp
+                                                    size = 22.dp
                                                 )
-                                                Text(
-                                                    text = activeTransfer.fileName,
-                                                    color = Color.White,
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
+                                                Column {
+                                                    Text(
+                                                        text = "File Beam Standby",
+                                                        color = Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "5G WiFi Direct • Port 53391",
+                                                        color = Color(0x99FFFFFF),
+                                                        fontSize = 9.5.sp
+                                                    )
+                                                }
                                             }
-                                            Text(
-                                                text = activeTransfer.speedMbps,
-                                                color = palette.primaryAccent,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-
-                                        // Glowing Gradient Progress Bar
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(7.dp)
-                                                .clip(RoundedCornerShape(3.5.dp))
-                                                .background(Color(0x22FFFFFF))
-                                        ) {
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth(activeTransfer.progress.coerceIn(0.01f, 1f))
-                                                    .height(7.dp)
-                                                    .clip(RoundedCornerShape(3.5.dp))
-                                                    .background(
-                                                        Brush.horizontalGradient(
-                                                            listOf(palette.primaryAccent, palette.secondaryAccent)
-                                                        )
-                                                    )
-                                            )
-                                        }
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = "${(activeTransfer.fileSizeMb * activeTransfer.progress).toInt()} MB of ${activeTransfer.fileSizeMb} MB",
-                                                color = Color(0x88FFFFFF),
-                                                fontSize = 9.5.sp
-                                            )
-                                            Text(
-                                                text = "${(activeTransfer.progress * 100).toInt()}% • 5G WiFi Direct",
-                                                color = palette.secondaryAccent,
-                                                fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(palette.primaryAccent.copy(alpha = 0.2f))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Ready",
+                                                    color = palette.primaryAccent,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
 
                             "music" -> {
-                                // Music Player Card with Spinning Vinyl Disk
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(palette.cardBackground)
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    SpinningVinylRecord(
-                                        isPlaying = mediaTrack.isPlaying,
-                                        size = 40.dp,
-                                        labelColor = palette.primaryAccent
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = mediaTrack.title,
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = mediaTrack.artist,
-                                            color = Color(0x99FFFFFF),
-                                            fontSize = 10.sp,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    AnimatedEqualizer(
-                                        isPlaying = mediaTrack.isPlaying,
-                                        color = palette.secondaryAccent
-                                    )
-                                }
+                                OriginOSMusicCard(
+                                    track = mediaTrack,
+                                    accentColor = palette.primaryAccent,
+                                    onPlayPause = onMediaPlayPause,
+                                    onNext = onMediaNext,
+                                    onPrev = onMediaPrev,
+                                    onSeek = onMediaSeek
+                                )
                             }
 
                             else -> {
@@ -476,9 +569,24 @@ fun JarvisIslandApp(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
-                                        Text(text = "JARVIS Continuity", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                        Text(text = "Cross-Device Shared State Active", color = Color(0x99FFFFFF), fontSize = 9.5.sp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.BatteryChargingFull,
+                                            contentDescription = "Battery",
+                                            tint = palette.secondaryAccent,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Column {
+                                            Text(text = "Battery: $batteryLevel%", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                text = if (isCharging) "Super-Fast Charging" else "Discharging",
+                                                color = Color(0x99FFFFFF),
+                                                fontSize = 9.5.sp
+                                            )
+                                        }
                                     }
                                     Box(
                                         modifier = Modifier
@@ -492,7 +600,7 @@ fun JarvisIslandApp(
                             }
                         }
 
-                        // ── Bottom Action Bar ──
+                        // ── Bottom Action Bar (Official Icons, Zero Emojis) ──
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -516,12 +624,23 @@ fun JarvisIslandApp(
                                     .padding(vertical = 7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "Beam File to PC",
-                                    color = palette.primaryAccent,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.FileUpload,
+                                        contentDescription = "Beam",
+                                        tint = palette.primaryAccent,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Beam to PC",
+                                        color = palette.primaryAccent,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
                             Box(
@@ -543,12 +662,23 @@ fun JarvisIslandApp(
                                     .padding(vertical = 7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "Sync Clipboard",
-                                    color = Color.White,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ContentCopy,
+                                        contentDescription = "Sync",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Sync Clipboard",
+                                        color = Color.White,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
 
                             Box(
@@ -568,11 +698,11 @@ fun JarvisIslandApp(
                                     .padding(horizontal = 10.dp, vertical = 7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "✕",
-                                    color = Color(0xCCFFFFFF),
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Close",
+                                    tint = Color(0xCCFFFFFF),
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }

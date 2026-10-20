@@ -197,20 +197,31 @@ fn jarvis_get_bridge_transfers() -> Vec<providers::livebridge::BridgeTransfer> {
 }
 
 #[tauri::command]
-fn jarvis_send_bridge_file(app: AppHandle, device_name: String, file_name: String, file_size: u64) -> Result<(), String> {
-    let transfer = providers::livebridge::BridgeTransfer {
-        id: format!("xfer-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()),
-        device_name,
-        file_name,
-        file_size,
-        bytes_transferred: file_size,
-        is_upload: true,
-        progress: 1.0,
-        status: "completed".to_string(),
-    };
-    providers::livebridge::add_transfer(transfer);
-    let _ = app.emit(providers::livebridge::BRIDGE_TRANSFER_EVENT, providers::livebridge::get_transfers());
-    Ok(())
+fn jarvis_send_bridge_file(app: AppHandle, device_name: Option<String>, file_name: String, file_size: u64) -> Result<(), String> {
+    let name = device_name.unwrap_or_else(|| "Motorola Edge 50 Pro".to_string());
+    providers::livebridge::beam_file_to_device(app, name, file_name, file_size, "".to_string(), None)
+}
+
+#[tauri::command]
+fn jarvis_send_bridge_file_bytes(
+    app: AppHandle,
+    device_name: Option<String>,
+    file_name: String,
+    file_size: u64,
+    data_base64: String,
+    target_ip: Option<String>,
+) -> Result<(), String> {
+    let name = device_name.unwrap_or_else(|| "Motorola Edge 50 Pro".to_string());
+    providers::livebridge::beam_file_to_device(app, name, file_name, file_size, data_base64, target_ip)
+}
+
+#[tauri::command]
+fn jarvis_send_bridge_file_path(
+    app: AppHandle,
+    file_path: String,
+    target_ip: Option<String>,
+) -> Result<(), String> {
+    providers::livebridge::beam_file_from_path(app, &file_path, target_ip)
 }
 
 
@@ -253,6 +264,8 @@ pub fn run() {
             jarvis_get_bridge_activities,
             jarvis_get_bridge_transfers,
             jarvis_send_bridge_file,
+            jarvis_send_bridge_file_bytes,
+            jarvis_send_bridge_file_path,
             jarvis_get_connection_status,
             jarvis_open_transfer_folder
         ])
