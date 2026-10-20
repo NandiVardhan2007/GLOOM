@@ -28,10 +28,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
@@ -683,4 +686,196 @@ fun PulseConnectionDot(
                 .background(if (isConnected) color else Color(0xFFEF4444))
         )
     }
+}
+
+/**
+ * Expressive Notification Card (Apple Dynamic Island & Expressive-Cutout style)
+ * Intercepts WhatsApp, Telegram, Phone, SMS, System notifications and presents
+ * a polished heads-up notification card with quick action triggers.
+ */
+@Composable
+fun ExpressiveNotificationCard(
+    event: NotificationIslandEvent,
+    accentColor: Color = Color(0xFF38BDF8),
+    onOpen: () -> Unit = {},
+    onDismiss: () -> Unit = {}
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF0C0E14))
+            .border(1.dp, Brush.horizontalGradient(listOf(accentColor.copy(alpha = 0.4f), Color(0x22FFFFFF))), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Top Header: App Pill & Time & Dismiss Icon
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(accentColor)
+                )
+                Text(
+                    text = if (event.appName.isNotBlank()) event.appName.uppercase() else "NOTIFICATION",
+                    color = accentColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+                if (event.subText.isNotBlank()) {
+                    Text(
+                        text = "• ${event.subText}",
+                        color = Color(0x88FFFFFF),
+                        fontSize = 9.5.sp
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "Just now",
+                    color = Color(0x66FFFFFF),
+                    fontSize = 9.5.sp
+                )
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x15FFFFFF))
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Dismiss",
+                        tint = Color(0xAAFFFFFF),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+
+        // Body: Avatar + Title & Message
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (event.largeIcon != null) {
+                Image(
+                    bitmap = event.largeIcon.asImageBitmap(),
+                    contentDescription = "Sender Avatar",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.18f))
+                        .border(1.dp, accentColor.copy(alpha = 0.35f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Notifications,
+                        contentDescription = "Notification",
+                        tint = accentColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (event.title.isNotBlank()) event.title else (if (event.appName.isNotBlank()) event.appName else "New Notification"),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (event.text.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = event.text,
+                        color = Color(0xCCFFFFFF),
+                        fontSize = 11.5.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 15.sp
+                    )
+                }
+            }
+        }
+
+        // Action Buttons Row: Open App & Dismiss
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(accentColor.copy(alpha = 0.22f))
+                    .border(1.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .clickable(onClick = onOpen)
+                .padding(vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.OpenInNew,
+                    contentDescription = "Open",
+                    tint = accentColor,
+                    modifier = Modifier.size(13.dp)
+                )
+                Text(
+                    text = "Open App",
+                    color = accentColor,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0x15FFFFFF))
+                .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(8.dp))
+                .clickable(onClick = onDismiss)
+                .padding(vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Dismiss",
+                color = Color(0xCCFFFFFF),
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
 }

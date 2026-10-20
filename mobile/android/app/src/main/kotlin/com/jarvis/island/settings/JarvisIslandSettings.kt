@@ -44,6 +44,7 @@ class JarvisIslandSettings {
         const val DEFAULT_SHOW_ON_LOCK_SCREEN = true
         const val DEFAULT_SHOW_IN_LANDSCAPE = false
         const val DEFAULT_AUTO_EXPAND_TRANSFER = true
+        const val DEFAULT_AUTO_EXPAND_NOTIFICATION = true
         const val DEFAULT_AUTO_COLLAPSE_DELAY = 4.0f
         const val DEFAULT_HAPTIC_FEEDBACK = true
         const val DEFAULT_LONG_PRESS_EXPAND = true
@@ -80,6 +81,7 @@ class JarvisIslandSettings {
     var showOnLockScreen by mutableStateOf(DEFAULT_SHOW_ON_LOCK_SCREEN)
     var showInLandscape by mutableStateOf(DEFAULT_SHOW_IN_LANDSCAPE)
     var autoExpandOnTransfer by mutableStateOf(DEFAULT_AUTO_EXPAND_TRANSFER)
+    var autoExpandOnNotification by mutableStateOf(DEFAULT_AUTO_EXPAND_NOTIFICATION)
     var autoCollapseDelaySec by mutableFloatStateOf(DEFAULT_AUTO_COLLAPSE_DELAY)
     var hapticFeedback by mutableStateOf(DEFAULT_HAPTIC_FEEDBACK)
     var longPressToExpand by mutableStateOf(DEFAULT_LONG_PRESS_EXPAND)
@@ -112,6 +114,7 @@ class JarvisIslandSettings {
         showOnLockScreen = prefs.getBoolean("show_on_lock_screen", DEFAULT_SHOW_ON_LOCK_SCREEN)
         showInLandscape = prefs.getBoolean("show_in_landscape", DEFAULT_SHOW_IN_LANDSCAPE)
         autoExpandOnTransfer = prefs.getBoolean("auto_expand_transfer", DEFAULT_AUTO_EXPAND_TRANSFER)
+        autoExpandOnNotification = prefs.getBoolean("auto_expand_notification", DEFAULT_AUTO_EXPAND_NOTIFICATION)
         autoCollapseDelaySec = prefs.getFloat("auto_collapse_delay", DEFAULT_AUTO_COLLAPSE_DELAY)
         hapticFeedback = prefs.getBoolean("haptic_feedback", DEFAULT_HAPTIC_FEEDBACK)
         longPressToExpand = prefs.getBoolean("long_press_expand", DEFAULT_LONG_PRESS_EXPAND)
@@ -142,6 +145,7 @@ class JarvisIslandSettings {
             .putBoolean("show_on_lock_screen", showOnLockScreen)
             .putBoolean("show_in_landscape", showInLandscape)
             .putBoolean("auto_expand_transfer", autoExpandOnTransfer)
+            .putBoolean("auto_expand_notification", autoExpandOnNotification)
             .putFloat("auto_collapse_delay", autoCollapseDelaySec)
             .putBoolean("haptic_feedback", hapticFeedback)
             .putBoolean("long_press_expand", longPressToExpand)
@@ -185,6 +189,7 @@ class JarvisIslandSettings {
         showOnLockScreen = DEFAULT_SHOW_ON_LOCK_SCREEN
         showInLandscape = DEFAULT_SHOW_IN_LANDSCAPE
         autoExpandOnTransfer = DEFAULT_AUTO_EXPAND_TRANSFER
+        autoExpandOnNotification = DEFAULT_AUTO_EXPAND_NOTIFICATION
         autoCollapseDelaySec = DEFAULT_AUTO_COLLAPSE_DELAY
         hapticFeedback = DEFAULT_HAPTIC_FEEDBACK
         longPressToExpand = DEFAULT_LONG_PRESS_EXPAND
@@ -214,6 +219,7 @@ class JarvisIslandSettings {
         showOnLockScreen = DEFAULT_SHOW_ON_LOCK_SCREEN
         showInLandscape = DEFAULT_SHOW_IN_LANDSCAPE
         autoExpandOnTransfer = DEFAULT_AUTO_EXPAND_TRANSFER
+        autoExpandOnNotification = DEFAULT_AUTO_EXPAND_NOTIFICATION
         autoCollapseDelaySec = DEFAULT_AUTO_COLLAPSE_DELAY
         hapticFeedback = DEFAULT_HAPTIC_FEEDBACK
         longPressToExpand = DEFAULT_LONG_PRESS_EXPAND

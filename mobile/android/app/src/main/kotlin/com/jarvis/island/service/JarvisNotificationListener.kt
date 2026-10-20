@@ -44,6 +44,8 @@ class JarvisNotificationListener : NotificationListenerService() {
 
         var onMediaUpdate: ((MediaTrackInfo) -> Unit)? = null
         var onMediaChanged: (() -> Unit)? = null
+        var onNotificationEvent: ((com.jarvis.island.ui.NotificationIslandEvent) -> Unit)? = null
+        var onNotificationDismissed: ((String) -> Unit)? = null
 
         fun play() {
             try {
@@ -140,12 +142,19 @@ class JarvisNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        if (sbn == null) return
+        if (sbn == null || sbn.packageName == packageName) return
+
+        val extras = sbn.notification.extras
 
         // 1. Inspect for OTP verification codes
-        val extras = sbn.notification.extras
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+            ?: extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()
+            ?: ""
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+            ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+            ?: ""
+        val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
+
         val combined = "$title $text"
         val matcher = otpPattern.matcher(combined)
         if (matcher.find()) {
@@ -172,12 +181,65 @@ class JarvisNotificationListener : NotificationListenerService() {
         val category = sbn.notification.category
         if (category == Notification.CATEGORY_TRANSPORT || sbn.notification.isMediaNotification()) {
             checkActiveMedia()
+            return
+        }
+
+        // 4. Regular App Heads-up Notification (WhatsApp, Telegram, Messages, Phone, etc.)
+        if (title.isNotBlank() || text.isNotBlank()) {
+            val appLabel = try {
+                val pm = packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString()
+            } catch (e: Exception) {
+                sbn.packageName
+            }
+
+            val largeIconBitmap = try {
+                val icon = sbn.notification.getLargeIcon()
+                val drawable = icon?.loadDrawable(this)
+                if (drawable is BitmapDrawable) {
+                    drawable.bitmap
+                } else if (drawable != null) {
+                    val bmp = Bitmap.createBitmap(
+                        drawable.intrinsicWidth.coerceAtLeast(48),
+                        drawable.intrinsicHeight.coerceAtLeast(48),
+                        Bitmap.Config.ARGB_8888
+                    )
+                    val canvas = android.graphics.Canvas(bmp)
+                    drawable.setBounds(0, 0, canvas.width, canvas.height)
+                    drawable.draw(canvas)
+                    bmp
+                } else null
+            } catch (e: Exception) {
+                null
+            }
+
+            val event = com.jarvis.island.ui.NotificationIslandEvent(
+                id = sbn.key ?: sbn.id.toString(),
+                packageName = sbn.packageName,
+                appName = appLabel,
+                title = title,
+                text = text,
+                subText = subText,
+                largeIcon = largeIconBitmap,
+                contentIntent = sbn.notification.contentIntent,
+                postTimeMs = sbn.postTime
+            )
+
+            mainHandler.post {
+                onNotificationEvent?.invoke(event)
+            }
         }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         checkActiveMedia()
         onMediaChanged?.invoke()
+        if (sbn != null) {
+            val key = sbn.key ?: sbn.id.toString()
+            mainHandler.post {
+                onNotificationDismissed?.invoke(key)
+            }
+        }
     }
 
     private fun Notification.isMediaNotification(): Boolean {

@@ -44,6 +44,7 @@ import com.jarvis.island.ui.ActiveTransferInfo
 import com.jarvis.island.ui.BridgeDeviceInfo
 import com.jarvis.island.ui.JarvisIslandApp
 import com.jarvis.island.ui.MediaTrackInfo
+import com.jarvis.island.ui.NotificationIslandEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,11 +67,13 @@ class JarvisIslandOverlayService : Service() {
     private var bridgeDevice by mutableStateOf(BridgeDeviceInfo())
     private var activeTransfer by mutableStateOf(ActiveTransferInfo())
     private var mediaTrack by mutableStateOf(MediaTrackInfo())
+    private var activeNotification by mutableStateOf<NotificationIslandEvent?>(null)
     private var batteryLevel by mutableIntStateOf(100)
     private var isCharging by mutableStateOf(false)
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var collapseJob: Job? = null
+    private var notificationJob: Job? = null
 
     // Real System Battery & Power Receiver
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -185,6 +188,31 @@ class JarvisIslandOverlayService : Service() {
         JarvisNotificationListener.onMediaUpdate = { liveTrack ->
             serviceScope.launch {
                 mediaTrack = liveTrack
+            }
+        }
+        JarvisNotificationListener.onNotificationEvent = { event ->
+            if (JarvisIslandSettings.instance.pluginNotifications) {
+                serviceScope.launch {
+                    activeNotification = event
+                    if (JarvisIslandSettings.instance.autoExpandOnNotification && !isExpanded) {
+                        expandIsland()
+                    }
+                    notificationJob?.cancel()
+                    notificationJob = launch {
+                        delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
+                        activeNotification = null
+                        if (isExpanded) {
+                            collapseIsland()
+                        }
+                    }
+                }
+            }
+        }
+        JarvisNotificationListener.onNotificationDismissed = { key ->
+            serviceScope.launch {
+                if (activeNotification?.id == key) {
+                    activeNotification = null
+                }
             }
         }
         JarvisNotificationListener.instance?.checkActiveMedia()
@@ -384,6 +412,20 @@ class JarvisIslandOverlayService : Service() {
                     onMediaSeek = { ratio -> JarvisNotificationListener.seekTo(ratio) },
                     activeTransfer = activeTransfer,
                     mediaTrack = mediaTrack,
+                    activeNotification = activeNotification,
+                    onNotificationClick = {
+                        try {
+                            activeNotification?.contentIntent?.send()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        activeNotification = null
+                        collapseIsland()
+                    },
+                    onNotificationDismiss = {
+                        activeNotification = null
+                        collapseIsland()
+                    },
                     bridgeDevice = bridgeDevice,
                     batteryLevel = batteryLevel,
                     isCharging = isCharging,

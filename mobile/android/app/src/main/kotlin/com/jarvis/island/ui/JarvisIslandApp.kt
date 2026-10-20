@@ -16,6 +16,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,7 +61,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +86,9 @@ fun JarvisIslandApp(
     onMediaSeek: (Float) -> Unit = {},
     activeTransfer: ActiveTransferInfo = ActiveTransferInfo(),
     mediaTrack: MediaTrackInfo = MediaTrackInfo(),
+    activeNotification: NotificationIslandEvent? = null,
+    onNotificationClick: () -> Unit = {},
+    onNotificationDismiss: () -> Unit = {},
     bridgeDevice: BridgeDeviceInfo = BridgeDeviceInfo(),
     batteryLevel: Int = 100,
     isCharging: Boolean = false,
@@ -99,7 +106,13 @@ fun JarvisIslandApp(
     )
 
     val targetWidth by animateDpAsState(
-        targetValue = if (isExpanded) settings.expandedWidth.dp else settings.pillWidth.dp,
+        targetValue = if (isExpanded) {
+            settings.expandedWidth.dp
+        } else if (activeNotification != null) {
+            (settings.pillWidth + 56).coerceAtMost(360).dp
+        } else {
+            settings.pillWidth.dp
+        },
         animationSpec = springSpecDp,
         label = "islandWidth"
     )
@@ -116,10 +129,12 @@ fun JarvisIslandApp(
         label = "islandCorner"
     )
 
-    var currentTab by remember { mutableStateOf("transfer") } // "transfer" | "music" | "system"
+    var currentTab by remember { mutableStateOf("transfer") } // "notification" | "transfer" | "music" | "system"
 
-    androidx.compose.runtime.LaunchedEffect(mediaTrack.isPlaying, mediaTrack.title, activeTransfer.isActive) {
-        if (activeTransfer.isActive) {
+    androidx.compose.runtime.LaunchedEffect(activeNotification, mediaTrack.isPlaying, mediaTrack.title, activeTransfer.isActive) {
+        if (activeNotification != null) {
+            currentTab = "notification"
+        } else if (activeTransfer.isActive) {
             currentTab = "transfer"
         } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
             currentTab = "music"
@@ -222,7 +237,35 @@ fun JarvisIslandApp(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Start
                         ) {
-                            if (activeTransfer.isActive) {
+                            if (activeNotification != null) {
+                                if (activeNotification.largeIcon != null) {
+                                    Image(
+                                        bitmap = activeNotification.largeIcon.asImageBitmap(),
+                                        contentDescription = "Avatar",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .border(0.8.dp, palette.primaryAccent.copy(alpha = 0.6f), CircleShape)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Notifications,
+                                        contentDescription = "Notification",
+                                        tint = palette.primaryAccent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (activeNotification.appName.isNotBlank()) activeNotification.appName else "ALERT",
+                                    color = palette.primaryAccent,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else if (activeTransfer.isActive) {
                                 CyberBeamIcon(
                                     isUpload = activeTransfer.isUpload,
                                     accentColor = palette.primaryAccent,
@@ -290,7 +333,16 @@ fun JarvisIslandApp(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.End
                         ) {
-                            if (activeTransfer.isActive) {
+                            if (activeNotification != null) {
+                                Text(
+                                    text = if (activeNotification.title.isNotBlank()) activeNotification.title else activeNotification.text,
+                                    color = Color.White,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else if (activeTransfer.isActive) {
                                 Text(
                                     text = "${(activeTransfer.progress * 100).toInt()}%",
                                     color = palette.primaryAccent,
@@ -383,8 +435,13 @@ fun JarvisIslandApp(
 
                             // Subtab Pills (Official Vector Icons)
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                listOf("transfer", "music", "system").forEach { tab ->
-                                    val active = currentTab == tab
+                                val availableTabs = if (activeNotification != null) {
+                                    listOf("alert", "transfer", "music", "system")
+                                } else {
+                                    listOf("transfer", "music", "system")
+                                }
+                                availableTabs.forEach { tab ->
+                                    val active = currentTab == (if (tab == "alert") "notification" else tab)
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
@@ -401,7 +458,7 @@ fun JarvisIslandApp(
                                                     if (settings.hapticFeedback) {
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     }
-                                                    currentTab = tab
+                                                    currentTab = if (tab == "alert") "notification" else tab
                                                 }
                                             )
                                             .padding(horizontal = 7.dp, vertical = 3.dp)
@@ -419,6 +476,25 @@ fun JarvisIslandApp(
 
                         // ── Center Content Area ──
                         when (currentTab) {
+                            "notification" -> {
+                                if (activeNotification != null) {
+                                    ExpressiveNotificationCard(
+                                        event = activeNotification,
+                                        accentColor = palette.primaryAccent,
+                                        onOpen = onNotificationClick,
+                                        onDismiss = onNotificationDismiss
+                                    )
+                                } else {
+                                    OriginOSMusicCard(
+                                        track = mediaTrack,
+                                        accentColor = palette.primaryAccent,
+                                        onPlayPause = onMediaPlayPause,
+                                        onNext = onMediaNext,
+                                        onPrev = onMediaPrev,
+                                        onSeek = onMediaSeek
+                                    )
+                                }
+                            }
                             "transfer" -> {
                                 // High-Speed File Beam Card
                                 Box(
