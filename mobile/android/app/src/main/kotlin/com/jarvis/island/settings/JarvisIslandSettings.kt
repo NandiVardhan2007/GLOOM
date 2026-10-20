@@ -10,8 +10,8 @@ import androidx.compose.runtime.setValue
 
 /**
  * Complete settings catalog for JARVIS Dynamic Island:
- * Controls geometry, physical camera punch-hole clearance, spring physics,
- * theme styles, lock-screen visibility, gesture behaviors, and LiveBridge continuity.
+ * Controls master power, plugin activations, geometry, camera clearance,
+ * spring physics, theme styles, lock-screen visibility, and gesture behaviors.
  */
 class JarvisIslandSettings {
     companion object {
@@ -24,6 +24,14 @@ class JarvisIslandSettings {
         const val ACTION_TEST_BEAM = "com.jarvis.island.ACTION_TEST_BEAM"
         const val ACTION_TEST_MUSIC = "com.jarvis.island.ACTION_TEST_MUSIC"
     }
+
+    // ── 0. Master & Plugins ──
+    var isIslandEnabled by mutableStateOf(true)
+    var pluginMedia by mutableStateOf(true)
+    var pluginFileBeam by mutableStateOf(true)
+    var pluginNotifications by mutableStateOf(true)
+    var pluginBattery by mutableStateOf(true)
+    var pluginClipboard by mutableStateOf(true)
 
     // ── 1. Position & Alignment ──
     var gravity by mutableStateOf("Center") // "Center", "Left", "Right"
@@ -54,6 +62,13 @@ class JarvisIslandSettings {
 
     fun load(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        isIslandEnabled = prefs.getBoolean("island_enabled", true)
+        pluginMedia = prefs.getBoolean("plugin_media", true)
+        pluginFileBeam = prefs.getBoolean("plugin_file_beam", true)
+        pluginNotifications = prefs.getBoolean("plugin_notifications", true)
+        pluginBattery = prefs.getBoolean("plugin_battery", true)
+        pluginClipboard = prefs.getBoolean("plugin_clipboard", true)
+
         gravity = prefs.getString("gravity", "Center") ?: "Center"
         positionY = prefs.getInt("position_y", 10)
         positionX = prefs.getInt("position_x", 0)
@@ -81,6 +96,12 @@ class JarvisIslandSettings {
     fun save(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
+            .putBoolean("island_enabled", isIslandEnabled)
+            .putBoolean("plugin_media", pluginMedia)
+            .putBoolean("plugin_file_beam", pluginFileBeam)
+            .putBoolean("plugin_notifications", pluginNotifications)
+            .putBoolean("plugin_battery", pluginBattery)
+            .putBoolean("plugin_clipboard", pluginClipboard)
             .putString("gravity", gravity)
             .putInt("position_y", positionY)
             .putInt("position_x", positionX)
@@ -112,6 +133,12 @@ class JarvisIslandSettings {
     }
 
     fun resetDefaults(context: Context) {
+        isIslandEnabled = true
+        pluginMedia = true
+        pluginFileBeam = true
+        pluginNotifications = true
+        pluginBattery = true
+        pluginClipboard = true
         gravity = "Center"
         positionY = 10
         positionX = 0
