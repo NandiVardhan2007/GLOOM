@@ -68,8 +68,17 @@ class JarvisIslandOverlayService : Service() {
                 JarvisIslandSettings.ACTION_TOGGLE_EXPAND -> {
                     toggleIslandExpansion()
                 }
+                JarvisIslandSettings.ACTION_EXPAND -> {
+                    expandIsland()
+                }
+                JarvisIslandSettings.ACTION_COLLAPSE -> {
+                    collapseIsland()
+                }
                 JarvisIslandSettings.ACTION_TEST_BEAM -> {
                     simulateTestTransfer()
+                }
+                JarvisIslandSettings.ACTION_TEST_MUSIC -> {
+                    simulateMusicTrack()
                 }
             }
         }
@@ -117,7 +126,10 @@ class JarvisIslandOverlayService : Service() {
         val filter = IntentFilter().apply {
             addAction(JarvisIslandSettings.ACTION_SETTINGS_CHANGED)
             addAction(JarvisIslandSettings.ACTION_TOGGLE_EXPAND)
+            addAction(JarvisIslandSettings.ACTION_EXPAND)
+            addAction(JarvisIslandSettings.ACTION_COLLAPSE)
             addAction(JarvisIslandSettings.ACTION_TEST_BEAM)
+            addAction(JarvisIslandSettings.ACTION_TEST_MUSIC)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -168,6 +180,7 @@ class JarvisIslandOverlayService : Service() {
 
     private fun getOverlayFlags(): Int {
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         if (JarvisIslandSettings.instance.showOnLockScreen) {
@@ -180,9 +193,9 @@ class JarvisIslandOverlayService : Service() {
         cutoutMetrics = CutoutDetector.detectCutout(this, null)
 
         val initialHeight = if (isExpanded) {
-            dpToPx(248f)
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 20).toFloat())
         } else {
-            dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 18).toFloat())
+            dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
 
         layoutParams = WindowManager.LayoutParams(
@@ -229,6 +242,7 @@ class JarvisIslandOverlayService : Service() {
                 JarvisIslandApp(
                     isExpanded = isExpanded,
                     onToggleExpand = { toggleIslandExpansion() },
+                    onLongPressExpand = { expandIsland() },
                     onBeamSampleFile = {
                         bridgeClient.syncClipboardToDesktop("Sample text beam from Motorola Edge 50 Pro")
                     },
@@ -254,9 +268,9 @@ class JarvisIslandOverlayService : Service() {
     private fun updateOverlayParameters() {
         layoutParams.flags = getOverlayFlags()
         layoutParams.height = if (isExpanded) {
-            dpToPx(248f)
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 20).toFloat())
         } else {
-            dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 18).toFloat())
+            dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
@@ -267,7 +281,7 @@ class JarvisIslandOverlayService : Service() {
 
     private fun expandIsland() {
         isExpanded = true
-        layoutParams.height = dpToPx(248f)
+        layoutParams.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 20).toFloat())
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
         } catch (e: Exception) {
@@ -277,7 +291,7 @@ class JarvisIslandOverlayService : Service() {
 
     private fun collapseIsland() {
         isExpanded = false
-        layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 18).toFloat())
+        layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
         } catch (e: Exception) {
@@ -308,35 +322,47 @@ class JarvisIslandOverlayService : Service() {
         collapseJob?.cancel()
         serviceScope.launch {
             activeTransfer = ActiveTransferInfo(
-                fileName = "Ecosystem_Sync_Payload.zip",
-                fileSizeMb = 48.6f,
-                progress = 0.05f,
-                speedMbps = "118 MB/s",
-                isUpload = true,
+                fileName = "Matrix_Holocron_UltraHD.mov",
+                fileSizeMb = 142.4f,
+                progress = 0.04f,
+                speedMbps = "124 MB/s",
+                isUpload = false,
                 isActive = true
             )
             if (JarvisIslandSettings.instance.autoExpandOnTransfer && !isExpanded) {
                 expandIsland()
             }
 
-            // Smooth progress simulation
-            val totalSteps = 25
+            // High-frame-rate progress simulation
+            val totalSteps = 30
             for (step in 1..totalSteps) {
-                delay(90)
+                delay(80)
                 val p = step.toFloat() / totalSteps.toFloat()
-                val speed = (108 + (step % 4) * 6).toString() + " MB/s"
+                val speed = (116 + (step % 5) * 4).toString() + " MB/s"
                 activeTransfer = activeTransfer.copy(
                     progress = p,
                     speedMbps = speed
                 )
             }
 
-            // Keep card visible for configured auto-collapse delay
+            // Keep expanded card visible for configured auto-collapse delay
             delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
             activeTransfer = activeTransfer.copy(isActive = false)
             if (isExpanded) {
                 collapseIsland()
             }
+        }
+    }
+
+    private fun simulateMusicTrack() {
+        mediaTrack = MediaTrackInfo(
+            title = "Midnight City (JARVIS Remix)",
+            artist = "M83 • High-Res Audio",
+            isPlaying = !mediaTrack.isPlaying,
+            progress = 0.42f
+        )
+        if (!isExpanded) {
+            expandIsland()
         }
     }
 
