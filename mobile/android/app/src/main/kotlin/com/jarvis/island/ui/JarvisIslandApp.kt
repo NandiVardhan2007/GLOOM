@@ -295,18 +295,27 @@ fun JarvisIslandApp(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             } else if (isCharging) {
-                                Icon(
-                                    imageVector = Icons.Rounded.BatteryChargingFull,
-                                    contentDescription = "Charging",
-                                    tint = palette.secondaryAccent,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF22C55E).copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.BatteryChargingFull,
+                                        contentDescription = "Charging",
+                                        tint = Color(0xFF22C55E),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "$batteryLevel%",
-                                    color = palette.secondaryAccent,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = "CHARGING",
+                                    color = Color(0xFF22C55E),
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp
                                 )
                             } else {
                                 PulseConnectionDot(
@@ -316,7 +325,7 @@ fun JarvisIslandApp(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "JARVIS",
+                                    text = if (bridgeDevice.isConnected) "JARVIS" else "STANDALONE",
                                     color = Color(0xCCFFFFFF),
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
@@ -368,14 +377,15 @@ fun JarvisIslandApp(
                                     Icon(
                                         imageVector = Icons.Rounded.BatteryChargingFull,
                                         contentDescription = "Battery",
-                                        tint = if (batteryLevel > 20) palette.primaryAccent else Color(0xFFEF4444),
+                                        tint = if (isCharging) Color(0xFF22C55E) else if (batteryLevel > 20) palette.primaryAccent else Color(0xFFEF4444),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Text(
                                         text = "$batteryLevel%",
-                                        color = if (batteryLevel > 20) Color(0xCCFFFFFF) else Color(0xFFEF4444),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
+                                        color = if (isCharging) Color(0xFF22C55E) else if (batteryLevel > 20) Color(0xEEFFFFFF) else Color(0xFFEF4444),
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.SansSerif
                                     )
                                 }
                             }
