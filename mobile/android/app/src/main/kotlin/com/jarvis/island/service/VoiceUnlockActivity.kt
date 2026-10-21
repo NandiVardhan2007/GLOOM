@@ -63,6 +63,7 @@ import com.jarvis.island.ui.AppleButton
 import com.jarvis.island.ui.AppleType
 import com.jarvis.island.ui.JarvisIcons
 import com.jarvis.island.ui.JarvisIcon
+import com.jarvis.island.voice.AppLauncher
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -231,7 +232,30 @@ class VoiceUnlockActivity : ComponentActivity() {
             status = "Unlocking…"
             recognizer?.stopListening()
             unlockDevice()
-        } else if (text.isNotBlank()) {
+            return
+        }
+        val appQuery = AppLauncher.extractAppQuery(text)
+        if (appQuery != null) {
+            matched = true
+            status = "Opening $appQuery…"
+            recognizer?.stopListening()
+            Thread {
+                val label = AppLauncher.launch(this, appQuery)
+                runOnUiThread {
+                    if (label != null) {
+                        status = "Opening $label"
+                        speak("Opening $label.")
+                        Handler(Looper.getMainLooper()).postDelayed({ finish() }, 2200)
+                    } else {
+                        failed = true
+                        status = "I couldn't find $appQuery"
+                        speak("I couldn't find $appQuery.")
+                    }
+                }
+            }.start()
+            return
+        }
+        if (text.isNotBlank()) {
             recognizer?.stopListening()
             askAi(text)
         }

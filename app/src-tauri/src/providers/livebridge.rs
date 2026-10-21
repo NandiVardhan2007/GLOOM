@@ -321,12 +321,29 @@ fn master_bridge_secret() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// A pairing binds trust to the address that completed the PIN handshake. The
+/// advertised device id is only a label: it comes from `Build.MODEL` for beacons
+/// and telemetry, while older pairing records stored a generic value, so an id
+/// mismatch must not revoke a device that paired from the same address.
 fn paired_token_for_device_id(device_id: &str, ip: &str) -> Option<String> {
     with_paired_devices(|map| {
         map.values()
             .filter(|record| {
-                record.device_id == device_id && (record.ip.is_empty() || record.ip == ip)
+                (record.ip.is_empty() || record.ip == ip)
+                    && (record.device_id == device_id || record.ip == ip)
             })
+            .max_by_key(|record| record.paired_at_ms)
+            .map(|record| record.auth_token.clone())
+    })
+}
+
+fn paired_token_for_ip(ip: &str) -> Option<String> {
+    if ip.is_empty() {
+        return None;
+    }
+    with_paired_devices(|map| {
+        map.values()
+            .filter(|record| record.ip == ip)
             .max_by_key(|record| record.paired_at_ms)
             .map(|record| record.auth_token.clone())
     })
@@ -337,8 +354,10 @@ pub fn is_device_paired(device_id: &str, ip: &str) -> bool {
         return true;
     }
     with_paired_devices(|map| {
-        map.values()
-            .any(|record| record.device_id == device_id && (record.ip.is_empty() || record.ip == ip))
+        map.values().any(|record| {
+            (!record.ip.is_empty() && record.ip == ip)
+                || (record.device_id == device_id && record.ip.is_empty())
+        })
     })
 }
 
@@ -356,16 +375,10 @@ pub fn get_bridge_token_for_ip(ip: &str) -> String {
     if let Some(secret) = master_bridge_secret() {
         return secret;
     }
-    // Resolve the device id first so the two mutexes are never held together.
-    let device_id = DEVICES
-        .lock()
-        .unwrap()
-        .iter()
-        .find(|device| device.ip == ip)
-        .map(|device| device.id.clone());
-    match device_id {
-        Some(id) if is_device_paired(&id, ip) => paired_token_for_device_id(&id, ip).unwrap_or_default(),
-        _ => String::new(),
+    if is_device_paired("", ip) {
+        paired_token_for_ip(ip).unwrap_or_default()
+    } else {
+        String::new()
     }
 }
 
@@ -867,40 +880,52 @@ pub fn beam_file_from_path(
 }
 
 pub fn broadcast_clipboard_to_mobile(text: &str) {
-    let devices = get_paired_devices();
-    if devices.is_empty() {
+    // Send to every paired peer from its stored record: the beacon list is only
+    // populated once the phone reports in, and the clipboard should not depend
+    // on discovery timing.
+    let peers: Vec<(String, String)> = with_paired_devices(|map| {
+        let mut seen = std::collections::HashSet::new();
+        map.values()
+            .filter(|r| {
+                !r.ip.is_empty()
+                    && !r.auth_token.is_empty()
+                    && r.permissions.clipboard
+                    && seen.insert(r.ip.clone())
+            })
+            .map(|r| (r.ip.clone(), r.auth_token.clone()))
+            .collect()
+    });
+    if peers.is_empty() {
         return;
     }
     let text_owned = text.to_string();
 
     std::thread::spawn(move || {
-        for dev in devices {
-            if dev.status == "connected" && !dev.ip.is_empty() {
-                let token = get_bridge_token_for_device(&dev);
-                if token.is_empty() {
-                    continue;
-                }
-                let addr = format!("{}:{}", dev.ip, dev.port);
-                if let Ok(mut stream) = connect_mobile_tls(&dev.ip, Duration::from_millis(2000)) {
-                    let timestamp = current_time_ms();
-                    let nonce = generate_nonce();
-                    let body = serde_json::json!({
-                        "text": text_owned,
-                        "originDeviceId": "jarvis-desktop-primary",
-                        "timestampMs": timestamp
-                    }).to_string();
+        for (ip, token) in peers {
+            let addr = format!("{}:{}", ip, 53391);
+            if let Ok(mut stream) = connect_mobile_tls(&ip, Duration::from_millis(2000)) {
+                let timestamp = current_time_ms();
+                let nonce = generate_nonce();
+                let body = serde_json::json!({
+                    "text": text_owned,
+                    "originDeviceId": "jarvis-desktop-primary",
+                    "timestampMs": timestamp
+                }).to_string();
 
-                    let req = format!(
-                        "POST /api/clipboard HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Jarvis-Auth-Token: {}\r\nX-Jarvis-Timestamp: {}\r\nX-Jarvis-Nonce: {}\r\nConnection: close\r\n\r\n{}",
-                        addr,
-                        body.len(),
-                        token,
-                        timestamp,
-                        nonce,
-                        body
-                    );
-                    let _ = stream.write_all(req.as_bytes());
+                let req = format!(
+                    "POST /api/clipboard HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Jarvis-Auth-Token: {}\r\nX-Jarvis-Timestamp: {}\r\nX-Jarvis-Nonce: {}\r\nConnection: close\r\n\r\n{}",
+                    addr,
+                    body.len(),
+                    token,
+                    timestamp,
+                    nonce,
+                    body
+                );
+                if let Err(e) = stream.write_all(req.as_bytes()) {
+                    log::warn!("LiveBridge: clipboard push to {} failed: {}", ip, e);
                 }
+            } else {
+                log::warn!("LiveBridge: could not open TLS connection to {} for clipboard sync", ip);
             }
         }
     });

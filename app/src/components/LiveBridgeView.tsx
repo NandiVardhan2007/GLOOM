@@ -15,29 +15,15 @@ import {
   Clock,
   Shield,
   FolderOpen,
-  MousePointer,
-  ChevronLeft,
-  Circle,
-  Square,
-  Bell,
-  Lock,
-  Volume2,
-  VolumeX,
-  Play,
-  SkipForward,
-  SkipBack,
-  ArrowUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
 } from "lucide-react";
 
 export const LiveBridgeView: React.FC = () => {
   const [devices, setDevices] = useState<BridgeDevice[]>([]);
   const [activities, setActivities] = useState<BridgeActivity[]>([]);
   const [transfers, setTransfers] = useState<BridgeTransfer[]>([]);
-  const [lastCopied] = useState<string>("Ecosystem Clipboard Sync Active");
-  const [hasCopied, setHasCopied] = useState<boolean>(false);
+  const [lastCopied, setLastCopied] = useState<string>("");
+  const [clipSyncEnabled, setClipSyncEnabled] = useState<boolean>(true);
+  const [clipSendState, setClipSendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [isSendingFile, setIsSendingFile] = useState<boolean>(false);
   const [fileProgress, setFileProgress] = useState<number>(0);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
@@ -82,6 +68,31 @@ export const LiveBridgeView: React.FC = () => {
     return () => {
       if (unlistenDev) unlistenDev();
       if (unlistenTransfer) unlistenTransfer();
+    };
+  }, []);
+
+  useEffect(() => {
+    invoke<{ bridgeClipboardSyncEnabled: boolean }>("jarvis_get_config")
+      .then((cfg) => setClipSyncEnabled(cfg?.bridgeClipboardSyncEnabled !== false))
+      .catch(console.error);
+
+    const refreshClipboard = (items?: { text?: string }[]) => {
+      const text = items?.[0]?.text;
+      if (text) setLastCopied(text);
+    };
+    invoke<{ text: string }[]>("jarvis_get_clipboard")
+      .then(refreshClipboard)
+      .catch(console.error);
+
+    let unlistenClip: (() => void) | undefined;
+    listen<{ text: string }[]>("jarvis://clipboard-update", (e) => refreshClipboard(e.payload)).then(
+      (fn) => {
+        unlistenClip = fn;
+      }
+    );
+
+    return () => {
+      if (unlistenClip) unlistenClip();
     };
   }, []);
 
@@ -177,34 +188,30 @@ export const LiveBridgeView: React.FC = () => {
 
   const handleCopyOtp = (textToCopy: string = "849201") => {
     navigator.clipboard.writeText(textToCopy);
-    setHasCopied(true);
-    setTimeout(() => setHasCopied(false), 2000);
   };
 
-  const [controlFeedback, setControlFeedback] = useState<string | null>(null);
-  const [trackpadPos, setTrackpadPos] = useState<{ x: number; y: number } | null>(null);
-
-  const handleSendControl = async (
-    action: string,
-    x?: number,
-    y?: number,
-    deltaX?: number,
-    deltaY?: number
-  ) => {
+  const toggleClipboardSync = async () => {
+    const next = !clipSyncEnabled;
+    setClipSyncEnabled(next);
     try {
-      setControlFeedback(action.toUpperCase().replace("_", " "));
-      setTimeout(() => setControlFeedback(null), 1200);
-      await invoke("jarvis_send_mobile_control", {
-        action,
-        x,
-        y,
-        deltaX,
-        deltaY,
-        targetIp: activeDevice?.ip || undefined,
-      });
-    } catch (e) {
-      console.error("Control error:", e);
+      await invoke("jarvis_set_bridge_clipboard_sync", { enabled: next });
+    } catch (err) {
+      console.error("Clipboard sync toggle failed:", err);
+      setClipSyncEnabled(!next);
     }
+  };
+
+  const sendClipboardToPhone = async () => {
+    if (!lastCopied) return;
+    setClipSendState("sending");
+    try {
+      await invoke("jarvis_send_clipboard_to_mobile", { text: lastCopied });
+      setClipSendState("sent");
+    } catch (err) {
+      console.error("Clipboard send failed:", err);
+      setClipSendState("error");
+    }
+    setTimeout(() => setClipSendState("idle"), 2000);
   };
 
   const [pairing, setPairing] = useState<{
@@ -621,29 +628,64 @@ export const LiveBridgeView: React.FC = () => {
                     Universal Clipboard
                   </span>
                 </div>
+                <button
+                  onClick={toggleClipboardSync}
+                  role="switch"
+                  aria-checked={clipSyncEnabled}
+                  title={clipSyncEnabled ? "Clipboard sync is on" : "Clipboard sync is off"}
+                  style={{
+                    width: "34px",
+                    height: "20px",
+                    padding: 0,
+                    border: "none",
+                    borderRadius: "9999px",
+                    position: "relative",
+                    cursor: "pointer",
+                    background: clipSyncEnabled ? "#30d158" : "rgba(120, 120, 128, 0.32)",
+                    transition: "background 0.18s ease",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "2px",
+                      left: clipSyncEnabled ? "16px" : "2px",
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      background: "#ffffff",
+                      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.3)",
+                      transition: "left 0.18s ease",
+                    }}
+                  />
+                </button>
               </div>
               <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.6)", lineHeight: 1.45, marginBottom: "8px" }}>
-                Text copied on your phone is automatically available on your PC.
+                {clipSyncEnabled
+                  ? "Copied text is synced between your PC and phone."
+                  : "Turn on to sync copied text between your PC and phone."}
               </div>
               <div
+                title={lastCopied}
                 style={{
                   padding: "8px 10px",
                   borderRadius: "8px",
                   background: "rgba(0, 0, 0, 0.28)",
                   fontSize: "11.5px",
-                  color: "rgba(235, 235, 245, 0.85)",
+                  color: lastCopied ? "rgba(235, 235, 245, 0.85)" : "rgba(235, 235, 245, 0.4)",
                   fontFamily: "inherit",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
                 }}
               >
-                {lastCopied}
+                {lastCopied || "Nothing copied yet"}
               </div>
             </div>
 
             <button
-              onClick={() => handleCopyOtp(lastCopied)}
+              onClick={sendClipboardToPhone}
+              disabled={!lastCopied || clipSendState === "sending"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -653,396 +695,26 @@ export const LiveBridgeView: React.FC = () => {
                 padding: "8px 12px",
                 borderRadius: "9px",
                 border: "none",
-                background: hasCopied ? "rgba(48, 209, 88, 0.2)" : "rgba(255, 255, 255, 0.08)",
-                color: hasCopied ? "#30d158" : "#ffffff",
+                background: clipSendState === "sent" ? "rgba(48, 209, 88, 0.2)" : "rgba(255, 255, 255, 0.08)",
+                color: clipSendState === "sent" ? "#30d158" : "#ffffff",
                 fontSize: "11.5px",
                 fontWeight: 600,
-                cursor: "pointer",
+                opacity: lastCopied ? 1 : 0.55,
+                cursor: lastCopied ? "pointer" : "default",
                 transition: "all 0.15s ease",
               }}
             >
-              {hasCopied ? <Check size={14} /> : <Copy size={14} />}
-              <span>{hasCopied ? "Copied!" : "Copy to PC"}</span>
+              {clipSendState === "sent" ? <Check size={14} /> : <Share2 size={14} />}
+              <span>
+                {clipSendState === "sent"
+                  ? "Sent to phone"
+                  : clipSendState === "sending"
+                    ? "Sending…"
+                    : clipSendState === "error"
+                      ? "Couldn't send"
+                      : "Send to Phone"}
+              </span>
             </button>
-          </div>
-        </div>
-
-        {/* Universal Control: Remote Pointer, Gestures & Mobile Display Control */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-            background: "rgba(255, 255, 255, 0.055)",
-            border: "0.5px solid rgba(255, 255, 255, 0.08)",
-            borderRadius: "14px",
-            padding: "12px 14px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <MousePointer size={15} color="#0a84ff" />
-              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#ffffff" }}>
-                Universal Control & Remote Pointer
-              </span>
-            </div>
-            {controlFeedback && (
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  padding: "2px 8px",
-                  borderRadius: "9999px",
-                  background: "rgba(10, 132, 255, 0.2)",
-                  color: "#0a84ff",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {controlFeedback}
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "10px" }}>
-            {/* Interactive Screen Trackpad / Pointer Area */}
-            <div
-              onMouseMove={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setTrackpadPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-              }}
-              onMouseLeave={() => setTrackpadPos(null)}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
-                handleSendControl("tap", x, y);
-              }}
-              style={{
-                position: "relative",
-                height: "105px",
-                borderRadius: "10px",
-                background: "linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(15, 23, 42, 0.4))",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                cursor: "crosshair",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                userSelect: "none",
-              }}
-            >
-              {/* Virtual phone notch preview */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: "6px",
-                  width: "36px",
-                  height: "8px",
-                  borderRadius: "9999px",
-                  background: "#000000",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                }}
-              />
-
-              <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)", fontWeight: 500 }}>
-                Click or drag to control mobile pointer
-              </span>
-
-              {trackpadPos && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: `${trackpadPos.x}px`,
-                    top: `${trackpadPos.y}px`,
-                    transform: "translate(-2px, -2px)",
-                    pointerEvents: "none",
-                    filter: "drop-shadow(0 0 6px #0a84ff)",
-                  }}
-                >
-                  <MousePointer size={14} color="#0a84ff" />
-                </div>
-              )}
-            </div>
-
-            {/* Quick Swipe & Navigation Controls */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ display: "flex", gap: "4px" }}>
-                <button
-                  onClick={() => handleSendControl("swipe_up")}
-                  title="Swipe Up"
-                  style={{
-                    flex: 1,
-                    padding: "6px",
-                    borderRadius: "6px",
-                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <ArrowUp size={13} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("swipe_down")}
-                  title="Swipe Down"
-                  style={{
-                    flex: 1,
-                    padding: "6px",
-                    borderRadius: "6px",
-                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <ArrowDown size={13} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("swipe_left")}
-                  title="Swipe Left"
-                  style={{
-                    flex: 1,
-                    padding: "6px",
-                    borderRadius: "6px",
-                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <ArrowLeft size={13} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("swipe_right")}
-                  title="Swipe Right"
-                  style={{
-                    flex: 1,
-                    padding: "6px",
-                    borderRadius: "6px",
-                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <ArrowRight size={13} />
-                </button>
-              </div>
-
-              {/* Hardware / System Buttons */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px" }}>
-                <button
-                  onClick={() => handleSendControl("back")}
-                  title="Back"
-                  style={{
-                    padding: "6px 4px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.08)",
-                    color: "#cbd5e1",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "3px",
-                  }}
-                >
-                  <ChevronLeft size={12} />
-                  <span>Back</span>
-                </button>
-
-                <button
-                  onClick={() => handleSendControl("home")}
-                  title="Home"
-                  style={{
-                    padding: "6px 4px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.08)",
-                    color: "#cbd5e1",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "3px",
-                  }}
-                >
-                  <Circle size={10} />
-                  <span>Home</span>
-                </button>
-
-                <button
-                  onClick={() => handleSendControl("recents")}
-                  title="Recents / Apps"
-                  style={{
-                    padding: "6px 4px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.08)",
-                    color: "#cbd5e1",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "3px",
-                  }}
-                >
-                  <Square size={10} />
-                  <span>Apps</span>
-                </button>
-              </div>
-
-              {/* Secondary System Actions */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-                <button
-                  onClick={() => handleSendControl("notifications")}
-                  style={{
-                    padding: "5px 6px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    color: "#94a3b8",
-                    fontSize: "11.5px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                  }}
-                >
-                  <Bell size={11} />
-                  <span>Shade</span>
-                </button>
-
-                <button
-                  onClick={() => handleSendControl("lock")}
-                  style={{
-                    padding: "5px 6px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    color: "#94a3b8",
-                    fontSize: "11.5px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                  }}
-                >
-                  <Lock size={11} />
-                  <span>Lock</span>
-                </button>
-              </div>
-
-              {/* Media & Volume Quick Remote */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "4px" }}>
-                <button
-                  onClick={() => handleSendControl("vol_down")}
-                  title="Volume Down"
-                  style={{
-                    padding: "5px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    color: "#94a3b8",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <VolumeX size={12} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("vol_up")}
-                  title="Volume Up"
-                  style={{
-                    padding: "5px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    color: "#94a3b8",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Volume2 size={12} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("media_prev")}
-                  title="Previous Track"
-                  style={{
-                    padding: "5px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    color: "#94a3b8",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <SkipBack size={12} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("media_toggle")}
-                  title="Play / Pause"
-                  style={{
-                    padding: "5px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(10, 132, 255, 0.2)",
-                    color: "#0a84ff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Play size={12} />
-                </button>
-                <button
-                  onClick={() => handleSendControl("media_next")}
-                  title="Next Track"
-                  style={{
-                    padding: "5px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: "rgba(255, 255, 255, 0.06)",
-                    color: "#94a3b8",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <SkipForward size={12} />
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 

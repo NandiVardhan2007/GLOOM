@@ -556,6 +556,8 @@ class JarvisLiveBridgeClient(private val context: Context) {
                 val payload = JSONObject().apply {
                     put("challengeId", challengeId)
                     put("pin", pin)
+                    put("clientDeviceId", Build.MODEL)
+                    put("clientDeviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
                 }.toString().toByteArray(Charsets.UTF_8)
 
                 val conn = openSecureConnection("https://$ip:$desktopPort/api/pair/confirm") ?: run {

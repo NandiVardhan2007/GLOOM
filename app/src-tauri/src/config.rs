@@ -127,7 +127,7 @@ impl Default for AppConfig {
             show_quick_tools: true,
             volume_hud_enabled: true,
             clipboard_history_enabled: true,
-            bridge_clipboard_sync_enabled: false,
+            bridge_clipboard_sync_enabled: true,
             reduced_motion: false,
 
             notchy_compact_indicator: true,

@@ -223,6 +223,26 @@ fn jarvis_close_settings_window(app: AppHandle) {
 }
 
 #[tauri::command]
+fn jarvis_set_bridge_clipboard_sync(
+    store: State<'_, ConfigStore>,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut config = store.get();
+    config.bridge_clipboard_sync_enabled = enabled;
+    store.set(config);
+    Ok(())
+}
+
+#[tauri::command]
+fn jarvis_send_clipboard_to_mobile(text: String) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err("There is no text to send".to_string());
+    }
+    providers::livebridge::broadcast_clipboard_to_mobile(&text);
+    Ok(())
+}
+
+#[tauri::command]
 fn jarvis_minimize_settings_window(app: AppHandle) {
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.minimize();
@@ -447,6 +467,8 @@ pub fn run() {
             jarvis_exit,
             jarvis_get_config,
             jarvis_set_config,
+            jarvis_set_bridge_clipboard_sync,
+            jarvis_send_clipboard_to_mobile,
             jarvis_get_monitors,
             jarvis_recenter,
             jarvis_get_clipboard,

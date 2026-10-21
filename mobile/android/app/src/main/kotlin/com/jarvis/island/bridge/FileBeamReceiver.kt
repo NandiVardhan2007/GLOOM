@@ -288,6 +288,7 @@ class FileBeamReceiver(private val context: Context) {
 
                                     if (origin != "jarvis-android-mobile" && text.isNotEmpty()) {
                                         mainHandler.post {
+                                            markRemoteClipboard(text)
                                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                             cm.setPrimaryClip(ClipData.newPlainText("JARVIS Ecosystem", text))
                                             Log.i(TAG, "Synchronized clipboard text from desktop (${text.length} chars)")
@@ -442,6 +443,22 @@ class FileBeamReceiver(private val context: Context) {
         private const val MAX_STREAM_BYTES = 1024 * 1024 * 1024 // 1 GB
 
         var currentAuthToken: String = ""
+
+        @Volatile
+        private var lastRemoteClipboardText: String = ""
+        @Volatile
+        private var lastRemoteClipboardAt: Long = 0L
+
+        /** Records text written by the desktop so the phone does not echo it back. */
+        fun markRemoteClipboard(text: String) {
+            lastRemoteClipboardText = text
+            lastRemoteClipboardAt = System.currentTimeMillis()
+        }
+
+        fun shouldForwardClipboard(text: String): Boolean {
+            val echoedRecently = System.currentTimeMillis() - lastRemoteClipboardAt < 8000
+            return !(echoedRecently && text == lastRemoteClipboardText)
+        }
 
         fun getOrInitAuthToken(context: Context): String {
             if (currentAuthToken.isNotEmpty()) return currentAuthToken

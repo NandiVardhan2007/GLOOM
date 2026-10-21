@@ -4,6 +4,7 @@ import java.io.File
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.BroadcastReceiver
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -78,6 +79,12 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private lateinit var audioManager: AudioManager
     private var mediaSessionManager: MediaSessionManager? = null
     private var activeMediaController: MediaController? = null
+
+    @Volatile
+    private var lastForwardedClipboard: String = ""
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        forwardClipboardChange()
+    }
 
     private var isExpanded by mutableStateOf(false)
     private var bridgeDevice by mutableStateOf(BridgeDeviceInfo())
@@ -179,6 +186,8 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         fileBeamReceiver = FileBeamReceiver(this)
         fileBeamReceiver.startServer(53391)
 
+        startClipboardSync()
+
         bridgeClient.startDiscovery { desktopName, desktopIp ->
             bridgeDevice = BridgeDeviceInfo(
                 deviceName = desktopName,
@@ -191,6 +200,37 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Monitors window state and screen transitions
+    }
+
+    private fun startClipboardSync() {
+        try {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.addPrimaryClipChangedListener(clipboardListener)
+            Log.i(TAG, "Universal Clipboard listener attached")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not attach the clipboard listener: ${e.message}")
+        }
+    }
+
+    private fun forwardClipboardChange() {
+        try {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val text = cm.primaryClip
+                ?.takeIf { it.itemCount > 0 }
+                ?.getItemAt(0)?.text?.toString()
+                .orEmpty()
+            if (text.isEmpty()) {
+                Log.d(TAG, "Clipboard changed but no text was readable (background access may be restricted)")
+                return
+            }
+            // Text pushed from the desktop is written to this same clipboard; don't echo it back.
+            if (text == lastForwardedClipboard || !FileBeamReceiver.shouldForwardClipboard(text)) return
+            lastForwardedClipboard = text
+            Log.i(TAG, "Forwarding clipboard change to desktop (${text.length} chars)")
+            bridgeClient.syncClipboardToDesktop(text)
+        } catch (e: Exception) {
+            Log.w(TAG, "Clipboard sync failed: ${e.message}")
+        }
     }
 
     override fun onInterrupt() {
@@ -489,13 +529,15 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 .build()
 
             // The pattern bouncer only exists after the keyguard is swiped up.
-            // Drawing straight onto the lock-screen clock silently does nothing.
+            // Drawing straight onto the lock-screen clock silently does nothing,
+            // so reveal the bouncer and wait until its pattern view actually
+            // exists before injecting the stroke.
             val reveal = Path().apply {
-                moveTo(width / 2f, height * 0.9f)
-                lineTo(width / 2f, height * 0.35f)
+                moveTo(width / 2f, height * 0.88f)
+                lineTo(width / 2f, height * 0.3f)
             }
             val revealGesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 250L))
+                .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 260L))
                 .build()
             if (!dispatchGesture(revealGesture, null, null)) {
                 Log.w(TAG, "The system rejected the keyguard swipe-up gesture")
@@ -507,9 +549,19 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                     "centred at ${left.toInt()},${(top + grid / 2).toInt()}"
             )
             serviceScope.launch {
-                // Give the bouncer time to finish its own entry animation before
-                // the pattern stroke starts, otherwise the first dot is dropped.
-                delay(900)
+                var bouncerReady = waitForPatternBouncer(2600)
+                if (!bouncerReady) {
+                    Log.w(TAG, "Pattern page did not appear after the first swipe; swiping up again")
+                    dispatchGesture(revealGesture, null, null)
+                    bouncerReady = waitForPatternBouncer(2200)
+                }
+                if (!bouncerReady) {
+                    logKeyguardWindows()
+                } else {
+                    // Let the bouncer finish its entry animation, otherwise the
+                    // first dot of the stroke is dropped.
+                    delay(220)
+                }
                 if (!dispatchGesture(patternGesture, null, null)) {
                     Log.w(TAG, "The system rejected the pattern replay gesture")
                 }
@@ -518,6 +570,69 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.w(TAG, "Could not replay the unlock pattern: ${e.message}")
             false
+        }
+    }
+
+    /** Polls the accessibility window tree until the lock-screen pattern view exists. */
+    private suspend fun waitForPatternBouncer(timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (isPatternBouncerVisible()) return true
+            delay(120)
+        }
+        return isPatternBouncerVisible()
+    }
+
+    private fun isPatternBouncerVisible(): Boolean {
+        val windowList = try {
+            windows
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        return windowList.any { window ->
+            val root = try {
+                window.root
+            } catch (e: Exception) {
+                null
+            }
+            root != null && containsPatternView(root, 0)
+        }
+    }
+
+    private fun containsPatternView(node: android.view.accessibility.AccessibilityNodeInfo?, depth: Int): Boolean {
+        if (node == null || depth > 25) return false
+        val className = node.className?.toString().orEmpty()
+        val viewId = node.viewIdResourceName.orEmpty()
+        if (className.contains("Pattern", ignoreCase = true) ||
+            viewId.contains("lock_pattern", ignoreCase = true)
+        ) {
+            return true
+        }
+        for (index in 0 until node.childCount) {
+            val child = try {
+                node.getChild(index)
+            } catch (e: Exception) {
+                null
+            } ?: continue
+            if (containsPatternView(child, depth + 1)) return true
+        }
+        return false
+    }
+
+    private fun logKeyguardWindows() {
+        try {
+            val descriptions = windows.map { window ->
+                val root = try {
+                    window.root
+                } catch (e: Exception) {
+                    null
+                }
+                val cls = root?.className?.toString().orEmpty()
+                "type=${window.type} pkg=${root?.packageName} cls=$cls"
+            }
+            Log.w(TAG, "Pattern page not detected. Windows: ${descriptions.joinToString(" | ")}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not inspect keyguard windows: ${e.message}")
         }
     }
 
@@ -607,6 +722,10 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         instance = null
         isRunning = false
         fileBeamReceiver.stopServer()
+        try {
+            (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .removePrimaryClipChangedListener(clipboardListener)
+        } catch (e: Exception) {}
         try {
             unregisterReceiver(settingsReceiver)
             unregisterReceiver(batteryReceiver)
