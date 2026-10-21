@@ -344,6 +344,8 @@ class VoiceUnlockActivity : ComponentActivity() {
             val handler = Handler(Looper.getMainLooper())
             handler.postDelayed({
                 accessibility.performUnlockPattern(pattern)
+                // Wait for the swipe-up (250 ms), the bouncer delay (900 ms), and
+                // the full pattern stroke (up to 1350 ms) before deciding it failed.
                 handler.postDelayed({
                     try {
                         wake?.release()
@@ -360,7 +362,7 @@ class VoiceUnlockActivity : ComponentActivity() {
                         } catch (_: Exception) {
                         }
                     }
-                }, 2200)
+                }, 3400)
             }, 650)
             return
         }
