@@ -1,6 +1,6 @@
 pub mod schema;
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub use schema::*;
@@ -9,7 +9,7 @@ const MAX_HISTORY_IDS: usize = 1000;
 
 pub struct ProtocolEngine {
     seen_ids: Mutex<HashSet<String>>,
-    id_order: Mutex<Vec<String>>,
+    id_order: Mutex<VecDeque<String>>,
     local_device_id: String,
     local_device_name: String,
     current_status: Mutex<ConnectionStatusPayload>,
@@ -19,7 +19,7 @@ impl ProtocolEngine {
     pub fn new(local_device_id: String, local_device_name: String) -> Self {
         Self {
             seen_ids: Mutex::new(HashSet::new()),
-            id_order: Mutex::new(Vec::new()),
+            id_order: Mutex::new(VecDeque::new()),
             local_device_id,
             local_device_name,
             current_status: Mutex::new(ConnectionStatusPayload {
@@ -62,11 +62,12 @@ impl ProtocolEngine {
         // Add to deduplication sliding window
         seen.insert(message_id.to_string());
         let mut order = self.id_order.lock().unwrap();
-        order.push(message_id.to_string());
+        order.push_back(message_id.to_string());
 
         if order.len() > MAX_HISTORY_IDS {
-            let oldest = order.remove(0);
-            seen.remove(&oldest);
+            if let Some(oldest) = order.pop_front() {
+                seen.remove(&oldest);
+            }
         }
 
         false
@@ -102,20 +103,28 @@ impl ProtocolEngine {
         }
     }
 
-    pub fn update_presence(&self, payload: &DevicePresencePayload) {
+    pub fn update_presence(&self, payload: &DevicePresencePayload, measured_ping_ms: Option<u32>) {
         let mut status = self.current_status.lock().unwrap();
         status.state = ConnectionState::Connected;
         status.paired_device_id = Some(payload.device_id.clone());
         status.paired_device_name = Some(payload.device_name.clone());
         status.last_heartbeat_ms = Self::current_time_ms();
-        status.ping_ms = 12; // LAN average latency
+        status.ping_ms = measured_ping_ms.unwrap_or(0);
+    }
+
+    pub fn set_disconnected(&self) {
+        let mut status = self.current_status.lock().unwrap();
+        status.state = ConnectionState::Disconnected;
+        status.paired_device_id = None;
+        status.paired_device_name = None;
+        status.ping_ms = 0;
     }
 
     pub fn get_status(&self) -> ConnectionStatusPayload {
         let mut status = self.current_status.lock().unwrap();
         let now = Self::current_time_ms();
         // If no heartbeat for > 15 seconds, mark as reconnecting
-        if status.state == ConnectionState::Connected && (now - status.last_heartbeat_ms > 15000) {
+        if status.state == ConnectionState::Connected && (now.saturating_sub(status.last_heartbeat_ms) > 15000) {
             status.state = ConnectionState::Reconnecting;
         }
         status.clone()

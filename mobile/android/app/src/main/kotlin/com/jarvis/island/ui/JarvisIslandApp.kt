@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -79,6 +80,7 @@ fun JarvisIslandApp(
     onLongPressExpand: () -> Unit = {},
     onBeamSampleFile: () -> Unit = {},
     onSyncClipboard: () -> Unit = {},
+    onOpenTrackpad: () -> Unit = {},
     onMediaPlayPause: () -> Unit = {},
     onMediaNext: () -> Unit = {},
     onMediaPrev: () -> Unit = {},
@@ -424,6 +426,7 @@ fun JarvisIslandApp(
                                 secondaryColor = palette.secondaryAccent,
                                 onBeamFile = onBeamSampleFile,
                                 onSyncClipboard = onSyncClipboard,
+                                onOpenTrackpad = onOpenTrackpad,
                                 onClose = onToggleExpand
                             )
                         }
@@ -569,6 +572,7 @@ private fun AppleContinuityCard(
     secondaryColor: Color,
     onBeamFile: () -> Unit,
     onSyncClipboard: () -> Unit,
+    onOpenTrackpad: () -> Unit = {},
     onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -783,8 +787,38 @@ private fun AppleContinuityCard(
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
-                        text = "Sync Clipboard",
+                        text = "Sync Clip",
                         color = Color(0xCCFFFFFF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // PC Remote Mousepad Action
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x18FFFFFF))
+                    .border(0.5.dp, Color(0x28FFFFFF), RoundedCornerShape(10.dp))
+                    .clickable(onClick = onOpenTrackpad)
+                    .padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Mouse,
+                        contentDescription = "Mouse",
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = "Mousepad",
+                        color = Color(0xFF38BDF8),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )

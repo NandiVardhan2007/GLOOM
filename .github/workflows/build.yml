@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
     paths-ignore:
       - 'README.md'
       - 'Doc.md'
@@ -27,6 +29,15 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Stamp Release Version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="1.0.${GITHUB_RUN_NUMBER}"
+          fi
+          python scripts/stamp_version.py "$VERSION" "${GITHUB_RUN_NUMBER}"
 
       - name: Set up Java JDK 17
         uses: actions/setup-java@v4
@@ -59,6 +70,10 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x mobile/android/gradlew
 
+      - name: Run Android Unit Tests
+        working-directory: mobile/android
+        run: ./gradlew testDebugUnitTest --no-daemon
+
       - name: Build Android Release APK
         working-directory: mobile/android
         env:
@@ -71,12 +86,16 @@ jobs:
         run: |
           mkdir -p build-artifacts
           cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/JARVIS-Island-Release-v1.0.apk
+          cd build-artifacts
+          sha256sum JARVIS-Island-Release-v1.0.apk > JARVIS-Island-Release-v1.0.apk.sha256
 
       - name: Upload Android Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Island-Android-Release-APK
-          path: build-artifacts/JARVIS-Island-Release-v1.0.apk
+          path: |
+            build-artifacts/JARVIS-Island-Release-v1.0.apk
+            build-artifacts/JARVIS-Island-Release-v1.0.apk.sha256
           retention-days: 30
 
   # ══════════════════════════════════════════════════════════════
@@ -108,11 +127,27 @@ jobs:
 
       - name: Install Node Dependencies
         working-directory: app
-        run: npm install
+        run: npm ci
+
+      - name: Stamp Release Version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/*") {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $version = "1.0.$env:GITHUB_RUN_NUMBER"
+          }
+          python scripts/stamp_version.py $version $env:GITHUB_RUN_NUMBER
 
       - name: Build Desktop Frontend (Vite)
         working-directory: app
         run: npm run build
+
+      - name: Run Protocol Schema Tests (self-contained plain Python)
+        run: python -m unittest discover -s tests -p "*_test.py"
+
+      - name: Run Cargo Tests
+        run: cargo test --manifest-path app/src-tauri/Cargo.toml
 
       - name: Compile Windows Tauri Desktop Binary (Release)
         run: cargo build --release --manifest-path app/src-tauri/Cargo.toml
@@ -121,12 +156,16 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path build-artifacts -Force
           Copy-Item app/src-tauri/target/release/jarvis.exe build-artifacts/JARVIS-Island-Windows.exe -Force
+          $hash = (Get-FileHash -Algorithm SHA256 -Path build-artifacts/JARVIS-Island-Windows.exe).Hash.ToLower()
+          "$hash  JARVIS-Island-Windows.exe" | Out-File -FilePath build-artifacts/JARVIS-Island-Windows.exe.sha256 -Encoding ascii
 
       - name: Upload Windows EXE Artifact
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Island-Windows-Desktop-EXE
-          path: build-artifacts/JARVIS-Island-Windows.exe
+          path: |
+            build-artifacts/JARVIS-Island-Windows.exe
+            build-artifacts/JARVIS-Island-Windows.exe.sha256
           retention-days: 14
 
   # ══════════════════════════════════════════════════════════════
@@ -136,7 +175,7 @@ jobs:
     name: Publish GitHub Release
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
@@ -166,6 +205,8 @@ jobs:
           generate_release_notes: true
           files: |
             release-assets/**/JARVIS-Island-Release-v1.0.apk
+            release-assets/**/JARVIS-Island-Release-v1.0.apk.sha256
             release-assets/**/JARVIS-Island-Windows.exe
+            release-assets/**/JARVIS-Island-Windows.exe.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

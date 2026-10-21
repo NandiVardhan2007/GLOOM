@@ -162,3 +162,35 @@ pub fn jarvis_focus_window(app: AppHandle) {
         let _ = win.set_focus();
     }
 }
+
+#[tauri::command]
+pub fn jarvis_unfocus_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window(ISLAND_LABEL) {
+        #[cfg(windows)]
+        {
+            use windows::Win32::Foundation::HWND;
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetWindowLongW, SetWindowLongW, SetWindowPos, GWL_EXSTYLE,
+                SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_NOACTIVATE,
+            };
+            if let Ok(hwnd) = win.hwnd() {
+                let hwnd = HWND(hwnd.0);
+                unsafe {
+                    let ex = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                    if (ex & (WS_EX_NOACTIVATE.0 as i32)) == 0 {
+                        SetWindowLongW(hwnd, GWL_EXSTYLE, ex | (WS_EX_NOACTIVATE.0 as i32));
+                        let _ = SetWindowPos(
+                            hwnd,
+                            None,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

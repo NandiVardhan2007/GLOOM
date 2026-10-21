@@ -193,9 +193,9 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               fontWeight: 700,
               padding: "2px 8px",
               borderRadius: "9999px",
-              background: "rgba(52, 199, 89, 0.18)",
-              color: "#34c759",
-              border: "0.5px solid rgba(52, 199, 89, 0.35)",
+              background: "rgba(50, 173, 230, 0.18)",
+              color: "#32ade6",
+              border: "0.5px solid rgba(50, 173, 230, 0.35)",
               display: "flex",
               alignItems: "center",
               gap: "4px",
@@ -207,11 +207,11 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
                 width: "5px",
                 height: "5px",
                 borderRadius: "50%",
-                backgroundColor: "#34c759",
-                boxShadow: "0 0 6px #34c759",
+                backgroundColor: "#32ade6",
+                boxShadow: "0 0 6px #32ade6",
               }}
             />
-            ONLINE
+            LISTENING
           </span>
         </div>
 
@@ -239,7 +239,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               <span>Interface</span>
             </div>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#ffffff" }}>
-              Wi-Fi Direct / LAN
+              Local Network
             </span>
           </div>
 
@@ -280,8 +280,8 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               <Smartphone size={11} color="#af52de" />
               <span>Android Bridge</span>
             </div>
-            <span className="tabular-nums" style={{ fontSize: "11px", fontWeight: 600, color: "#af52de" }}>
-              192.168.1.3 • 12ms
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "#af52de" }}>
+              P2P Stream Ready
             </span>
           </div>
         </div>
@@ -298,9 +298,9 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
             <ShieldCheck size={13} color="#34c759" />
-            <span>LocalSend Protocol & mDNS Zero-Config Enabled</span>
+            <span>JARVIS LiveBridge Authenticated Protocol</span>
           </div>
-          <span style={{ color: "#32ade6", fontWeight: 600 }}>5 GHz 802.11ax</span>
+          <span style={{ color: "#32ade6", fontWeight: 600 }}>Port 53391</span>
         </div>
       </div>
     </div>

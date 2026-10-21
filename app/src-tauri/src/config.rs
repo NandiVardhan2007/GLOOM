@@ -3,9 +3,16 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
+fn default_is_pro() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppConfig {
+    #[serde(default = "default_is_pro")]
+    pub is_pro: bool,
+
     // Geometry & Display
     pub mode: String,             // "island", "notch", "bar"
     pub top_offset: i32,          // pixels from top
@@ -57,6 +64,7 @@ pub struct AppConfig {
     pub show_quick_tools: bool,
     pub volume_hud_enabled: bool,
     pub clipboard_history_enabled: bool,
+    pub bridge_clipboard_sync_enabled: bool,
     pub reduced_motion: bool,
 
     // Notchy / AI Companion
@@ -71,6 +79,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            is_pro: true,
             mode: "island".to_string(),
             top_offset: 12,
             island_width: 210,
@@ -118,6 +127,7 @@ impl Default for AppConfig {
             show_quick_tools: true,
             volume_hud_enabled: true,
             clipboard_history_enabled: true,
+            bridge_clipboard_sync_enabled: false,
             reduced_motion: false,
 
             notchy_compact_indicator: true,
@@ -141,8 +151,22 @@ impl ConfigStore {
         let _ = fs::create_dir_all(&app_dir);
         let path = app_dir.join("config.json");
 
-        let mut config: AppConfig = if let Ok(data) = fs::read_to_string(&path) {
-            serde_json::from_str(&data).unwrap_or_default()
+        let mut config: AppConfig = if path.exists() {
+            match fs::read_to_string(&path) {
+                Ok(data) => match serde_json::from_str::<AppConfig>(&data) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        log::warn!("Config file is corrupt: {}. Backing up to config.json.bak and recovering with defaults.", e);
+                        let bak = app_dir.join("config.json.bak");
+                        let _ = fs::copy(&path, &bak);
+                        AppConfig::default()
+                    }
+                },
+                Err(e) => {
+                    log::warn!("Could not read config file: {}. Using defaults.", e);
+                    AppConfig::default()
+                }
+            }
         } else {
             AppConfig::default()
         };
@@ -167,13 +191,18 @@ impl ConfigStore {
     pub fn set(&self, new_config: AppConfig) {
         let mut cfg = self.config.lock().unwrap();
         *cfg = new_config.clone();
+
+        // Safe atomic write using temporary file and atomic rename
         if let Ok(json) = serde_json::to_string_pretty(&new_config) {
-            let _ = fs::write(&self.path, json);
+            let tmp_path = self.path.with_extension(format!("tmp.{}", std::process::id()));
+            if fs::write(&tmp_path, json).is_ok() {
+                let _ = fs::rename(&tmp_path, &self.path);
+            }
         }
     }
 }
 
-fn dirs_fallback() -> PathBuf {
+pub fn dirs_fallback() -> PathBuf {
     if let Ok(appdata) = std::env::var("APPDATA") {
         PathBuf::from(appdata)
     } else {

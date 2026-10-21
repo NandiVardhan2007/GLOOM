@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "identifier": "com.jarvis.dynamicisland",
   "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -27,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: asset: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://raw.githubusercontent.com https://objects.githubusercontent.com;"
     }
   },
   "bundle": {

@@ -90,7 +90,7 @@ object IslandThemePalettes {
                     listOf(Color(0xFF38BDF8), Color(0xFF00E5FF), Color(0x3338BDF8))
                 )
             )
-            "Neon Green" -> IslandThemeColors(
+            "Emerald Matrix", "Neon Green" -> IslandThemeColors(
                 background = Color(0xFF021008),
                 cardBackground = Color(0xFF071911),
                 primaryAccent = Color(0xFF10B981),

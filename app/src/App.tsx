@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   islandWidth: 210,
   islandHeight: 34,
   expandedWidth: 740,
-  expandedHeight: 250,
+  expandedHeight: 380,
   islandScale: 1.0,
   pillEdgeGap: 12,
   clockFormat: "12h",
@@ -124,7 +124,7 @@ export function App() {
         const updated: AppConfig = {
           ...prev,
           mode: nextMode,
-          topOffset: nextMode === "notch" ? 0 : prev.pillEdgeGap || 12,
+          topOffset: nextMode === "notch" ? 0 : prev.pillEdgeGap ?? 12,
         };
         invoke("jarvis_set_config", { config: updated }).catch(console.error);
         return updated;

@@ -63,25 +63,14 @@ export const MediaCard: React.FC<MediaCardProps> = ({
     onSetVolume(parseFloat(e.target.value));
   };
 
-  // Sample or placeholder lyrics matching track state
-  const mockLyrics = media.title
+  // Truthful track info when lyrics are unavailable
+  const trackLyrics = media.title
     ? [
-        `♪ Now listening to "${media.title}"`,
+        media.title,
         media.artist ? `by ${media.artist}` : "",
+        media.album ? `Album: ${media.album}` : "",
         "",
-        "♪ [Verse 1]",
-        "Floating high through the city lights",
-        "Rhythms echo through the quiet night",
-        "Caught in motion, feeling pure delight",
-        "",
-        "♪ [Chorus]",
-        `Singing along with ${media.title}`,
-        "Every second counting down in style",
-        "JARVIS floating on the Windows screen",
-        "Smoothest dynamic notch you've ever seen",
-        "",
-        "♪ [Outro]",
-        "Echoes fading away...",
+        "No synchronized lyrics available for this track.",
       ].filter((l) => l !== "")
     : ["No media track active.", "Play a song in Spotify, YouTube, or Apple Music."];
 
@@ -157,7 +146,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               paddingTop: "4px",
             }}
           >
-            {mockLyrics.map((line, idx) => (
+            {trackLyrics.map((line, idx) => (
               <p
                 key={idx}
                 style={{

@@ -158,7 +158,7 @@ object JarvisLyricsProvider {
         return try {
             val url = URL(urlStr)
             conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("User-Agent", "JARVIS-Dynamic-Island/1.0 (Android; Contact: support@jarvis.ai)")
+            conn.setRequestProperty("User-Agent", "JARVIS-Dynamic-Island/1.0 (https://github.com/nandujayaram/JARVIS)")
             conn.connectTimeout = 4000
             conn.readTimeout = 4000
             if (conn.responseCode == 200) {
@@ -204,11 +204,9 @@ object JarvisLyricsProvider {
         val rawLines = plainText.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         if (rawLines.isEmpty()) return emptyList()
 
-        val totalTime = if (durationMs > 0) durationMs else 180_000L
-        val interval = totalTime / rawLines.size
-
-        return rawLines.mapIndexed { index, text ->
-            LyricLine(timeMs = index * interval, text = text)
+        // Truthfully return plain lyric lines without synthesizing fake timestamps
+        return rawLines.map { text ->
+            LyricLine(timeMs = 0L, text = text)
         }
     }
 

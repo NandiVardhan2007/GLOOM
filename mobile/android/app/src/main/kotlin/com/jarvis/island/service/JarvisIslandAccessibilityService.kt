@@ -346,6 +346,14 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
                     },
+                    onOpenTrackpad = {
+                        collapseIsland()
+                        val itn = Intent(this@JarvisIslandAccessibilityService, com.jarvis.island.MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra("open_screen", "trackpad")
+                        }
+                        startActivity(itn)
+                    },
                     onMediaPlayPause = { toggleMediaPlayback() },
                     onMediaNext = { skipToNextMedia() },
                     onMediaPrev = { skipToPrevMedia() },

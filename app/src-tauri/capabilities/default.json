@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default permissions for JARVIS windows",
+  "windows": ["island", "settings"],
+  "permissions": [
+    "core:default",
+    "autostart:default",
+    "global-shortcut:default"
+  ]
+}

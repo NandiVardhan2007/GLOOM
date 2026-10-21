@@ -74,6 +74,35 @@ pub fn set_master_volume(_level: f32) -> Result<(), String> {
 }
 
 #[cfg(windows)]
+pub fn set_master_mute(muted: bool) -> Result<(), String> {
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+    use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
+    use windows::Win32::Media::Audio::{MMDeviceEnumerator, IMMDeviceEnumerator, eRender, eConsole};
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+            .map_err(|e| e.to_string())?;
+
+        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)
+            .map_err(|e| e.to_string())?;
+
+        let endpoint_vol: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)
+            .map_err(|e| e.to_string())?;
+
+        endpoint_vol.SetMute(muted, std::ptr::null())
+            .map_err(|e| e.to_string())?;
+
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+pub fn set_master_mute(_muted: bool) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(windows)]
 fn get_current_volume() -> Result<(f32, bool), String> {
     use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
     use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;

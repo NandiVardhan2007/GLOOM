@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AppConfig, IslandMode } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 import { ChittiLogo } from "./ChittiLogo";
@@ -11,7 +11,6 @@ import {
   Sparkles,
   Info,
   Check,
-  X,
   ExternalLink,
   RotateCcw,
   Monitor,
@@ -28,6 +27,9 @@ import {
   ClipboardList,
   Pin,
   FolderOpen,
+  ChevronLeft,
+  Power,
+  Smartphone,
 } from "lucide-react";
 
 export type SettingsCategory =
@@ -55,6 +57,24 @@ const ACCENT_COLORS = [
   { id: "#ffffff", name: "White", hex: "#ffffff" },
 ];
 
+const parseVersionParts = (version: string): number[] =>
+  version
+    .trim()
+    .replace(/^v/i, "")
+    .split("-")[0]
+    .split(".")
+    .map((part) => parseInt(part, 10) || 0);
+
+const compareVersions = (a: string, b: string): number => {
+  const pa = parseVersionParts(a);
+  const pb = parseVersionParts(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+};
+
 export const SettingsView: React.FC<SettingsViewProps> = ({
   config,
   onUpdateConfig,
@@ -63,7 +83,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   initialTab = "general",
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsCategory>(initialTab);
-  const [updateStatus, setUpdateStatus] = useState<string>("v1.0.7 (Latest)");
+  const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [updateStatus, setUpdateStatus] = useState<string>("");
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState<boolean>(false);
   const [updateInfo, setUpdateInfo] = useState<{
@@ -73,6 +94,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     apkDownloadUrl: string;
     expectedSha256?: string;
   } | null>(null);
+
+  useEffect(() => {
+    invoke<string>("jarvis_get_app_version")
+      .then((v) => {
+        setCurrentVersion(`v${v}`);
+        setUpdateStatus(`Running v${v}`);
+      })
+      .catch((e) => {
+        console.error("Failed to read app version:", e);
+        setUpdateStatus("Version unavailable");
+      });
+  }, []);
 
   const updateField = <K extends keyof AppConfig>(key: K, value: AppConfig[K]) => {
     onUpdateConfig({
@@ -100,7 +133,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       islandWidth: 210,
       islandHeight: 34,
       expandedWidth: 740,
-      expandedHeight: 250,
+      expandedHeight: 380,
       islandScale: 1.0,
       pillEdgeGap: 12,
       clockFormat: "12h",
@@ -159,17 +192,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         throw new Error(`Status ${res.status}`);
       }
       const data = await res.json();
-      const latestTag = data.tag_name || "v1.0.7";
+      const latestTag: string = data.tag_name || "";
       const assets = data.assets || [];
       const exe = assets.find((a: any) => a.name.endsWith(".exe"));
       const apk = assets.find((a: any) => a.name.endsWith(".apk"));
-      const currentVersion = "v1.0.7";
-      const hasUpdate = latestTag !== currentVersion;
+      const running = currentVersion || "v0.0.0";
+      const hasUpdate = latestTag !== "" && compareVersions(latestTag, running) > 0;
 
       if (hasUpdate) {
         setUpdateStatus(`New release ${latestTag} is available!`);
       } else {
-        setUpdateStatus(`You are running the latest version (${currentVersion})`);
+        setUpdateStatus(`You are running the latest version (${running})`);
       }
 
       let expectedSha256: string | undefined;
@@ -192,15 +225,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       setUpdateInfo({
         hasUpdate,
-        latestTag,
-        downloadUrl: exe?.browser_download_url || `https://github.com/NandiVardhan2007/JARVIS/releases/download/${latestTag}/JARVIS-Island-Windows.exe`,
+        latestTag: latestTag || running,
+        downloadUrl: exe?.browser_download_url || "",
         apkDownloadUrl: apk?.browser_download_url || data.html_url,
         expectedSha256,
       });
     } catch {
-      setUpdateStatus("Running v1.0.7 (Latest Release)");
+      setUpdateStatus(currentVersion ? `Running ${currentVersion}` : "Could not reach GitHub Releases");
     } finally {
       setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleBrowserDownload = async () => {
+    const url = updateInfo?.downloadUrl || "https://github.com/NandiVardhan2007/JARVIS/releases/latest";
+    try {
+      await invoke("jarvis_open_url", { url });
+      setUpdateStatus("Opening official release in your default browser...");
+    } catch (e: any) {
+      alert(`Could not launch browser: ${e?.message || e}`);
+    }
+  };
+
+  const handleApkDownload = async () => {
+    const url = updateInfo?.apkDownloadUrl || "https://github.com/NandiVardhan2007/JARVIS/releases/latest";
+    try {
+      await invoke("jarvis_open_url", { url });
+      setUpdateStatus("Opening Android APK download in your default browser...");
+    } catch (e: any) {
+      alert(`Could not launch browser: ${e?.message || e}`);
     }
   };
 
@@ -216,8 +269,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       });
       setUpdateStatus("Restarting JARVIS with verified release...");
     } catch (e: any) {
-      setUpdateStatus(`Update failed: ${e?.message || e}`);
+      console.warn("In-app update encountered issue, redirecting to browser download:", e);
+      setUpdateStatus(`In-app update note: ${e?.message || e}. Launching browser download...`);
       setIsInstallingUpdate(false);
+      try {
+        await invoke("jarvis_open_url", { url: updateInfo.downloadUrl });
+      } catch (err) {
+        console.error("Failed to open browser URL:", err);
+      }
     }
   };
 
@@ -415,20 +474,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={onClose}
                 style={{
-                  width: "26px",
-                  height: "26px",
-                  borderRadius: "50%",
-                  border: "none",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  color: "rgba(255, 255, 255, 0.7)",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "4px 9px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  color: "rgba(255, 255, 255, 0.85)",
                   cursor: "pointer",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  transition: "background 0.15s ease",
                 }}
-                title="Close Settings"
+                title={standalone ? "Close Settings Window" : "Return to Dashboard"}
               >
-                <X size={14} />
+                <ChevronLeft size={13} />
+                <span>{standalone ? "Close" : "Dashboard"}</span>
               </button>
             )}
           </div>
@@ -462,7 +524,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       onUpdateConfig({
                         ...config,
                         mode,
-                        topOffset: mode === "notch" ? 0 : config.pillEdgeGap || 12,
+                        topOffset: mode === "notch" ? 0 : config.pillEdgeGap ?? 12,
                       });
                     }}
                     options={[
@@ -790,8 +852,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 desc="Saved text snippets, links, and quick 1-click re-copy."
               >
                 <ToggleSwitch
-                  checked={config.showClipboardHistory}
-                  onChange={(c) => updateField("showClipboardHistory", c)}
+                  checked={config.clipboardHistoryEnabled}
+                  onChange={(c) => updateField("clipboardHistoryEnabled", c)}
                   accentColor={config.accentColor}
                 />
               </SettingRow>
@@ -937,7 +999,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   desc="Pixel-perfect dynamic island & notch experience for Windows 10/11."
                 >
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "#38bdf8" }}>
-                    Version 1.0.0
+                    {currentVersion ? `Version ${currentVersion.replace(/^v/i, "")}` : "Version —"}
                   </span>
                 </SettingRow>
 
@@ -956,7 +1018,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   title="Software Updates"
                   desc={updateStatus}
                 >
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                     <button
                       onClick={handleCheckUpdate}
                       disabled={isCheckingUpdate || isInstallingUpdate}
@@ -973,29 +1035,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     >
                       {isCheckingUpdate ? "Checking..." : "Check Now"}
                     </button>
-                    {updateInfo && (
+                    {updateInfo?.hasUpdate && (
+                      <>
+                        <button
+                          onClick={handleBrowserDownload}
+                          title="Open official release binary directly in default browser to download"
+                          style={{
+                            padding: "5px 12px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            border: "none",
+                            background: "#38bdf8",
+                            color: "#000",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                          }}
+                        >
+                          <Download size={13} />
+                          <span>Download {updateInfo.latestTag}</span>
+                        </button>
+
+                        <button
+                          onClick={handleInstallUpdate}
+                          disabled={isInstallingUpdate || !updateInfo.downloadUrl}
+                          title="Download and automatically apply update within JARVIS"
+                          style={{
+                            padding: "5px 10px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            border: "1px solid rgba(56, 189, 248, 0.4)",
+                            background: "rgba(56, 189, 248, 0.12)",
+                            color: "#38bdf8",
+                            cursor: isInstallingUpdate ? "wait" : "pointer",
+                          }}
+                        >
+                          {isInstallingUpdate ? "Installing..." : "In-App Auto Update"}
+                        </button>
+                      </>
+                    )}
+
+                    {updateInfo?.apkDownloadUrl && (
                       <button
-                        onClick={handleInstallUpdate}
-                        disabled={isInstallingUpdate}
+                        onClick={handleApkDownload}
+                        title="Download Android APK Companion"
                         style={{
-                          padding: "5px 14px",
+                          padding: "5px 10px",
                           fontSize: "11px",
                           fontWeight: 600,
                           borderRadius: "6px",
-                          border: "none",
-                          background: "#38bdf8",
-                          color: "#000",
-                          cursor: isInstallingUpdate ? "wait" : "pointer",
+                          border: "1px solid rgba(16, 185, 129, 0.4)",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#10b981",
+                          cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
-                          gap: "6px",
+                          gap: "4px",
                         }}
                       >
-                        {isInstallingUpdate
-                          ? "Downloading & Installing..."
-                          : updateInfo.hasUpdate
-                          ? `Update to ${updateInfo.latestTag}`
-                          : "Reinstall Latest"}
+                        <Smartphone size={12} />
+                        <span>Android APK</span>
                       </button>
                     )}
                   </div>
@@ -1049,9 +1151,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     Reset Defaults
                   </button>
                 </SettingRow>
+
+                <SettingRow
+                  icon={<Power size={15} color="#f43f5e" />}
+                  title="Exit JARVIS Application"
+                  desc="Cleanly stop all background services, hide all overlays, and terminate the process."
+                >
+                  <button
+                    onClick={() => invoke("jarvis_exit")}
+                    style={{
+                      padding: "5px 14px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      borderRadius: "6px",
+                      border: "1px solid rgba(244, 63, 94, 0.4)",
+                      background: "rgba(244, 63, 94, 0.18)",
+                      color: "#f43f5e",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Exit JARVIS
+                  </button>
+                </SettingRow>
               </SettingCard>
 
-              <SettingCard title="What's New in v1.0.0">
+              <SettingCard title={currentVersion ? `What's New in ${currentVersion}` : "What's New"}>
                 <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)", lineHeight: 1.6 }}>
                   <div>✨ <b>Comprehensive Settings System:</b> Dedicated multi-category customization suite.</div>
                   <div>🎵 <b>Harmonix & GSMTC Support:</b> Live music playback detection with synchronized scrubbing.</div>

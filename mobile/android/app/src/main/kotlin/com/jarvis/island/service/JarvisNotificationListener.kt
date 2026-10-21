@@ -161,7 +161,7 @@ class JarvisNotificationListener : NotificationListenerService() {
         if (matcher.find()) {
             val code = matcher.group(1)?.replace("-", "")?.replace(" ", "") ?: ""
             if (code.length in 4..8) {
-                Log.i(TAG, "Detected OTP code: $code from ${sbn.packageName}")
+                // Sensitive OTP code processed locally without logging to Logcat
             }
         }
 

@@ -41,7 +41,11 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "quit" => {
-                    app.exit(0);
+                    for (_, win) in app.webview_windows() {
+                        let _ = win.hide();
+                        let _ = win.close();
+                    }
+                    std::process::exit(0);
                 }
                 _ => {}
             }

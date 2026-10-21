@@ -3,6 +3,7 @@ package com.jarvis.island
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
@@ -60,6 +62,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +70,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -76,6 +81,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -101,6 +107,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
+import com.jarvis.island.ui.RemoteTrackpad
 import com.jarvis.island.service.JarvisIslandOverlayService
 import com.jarvis.island.updater.JarvisAppUpdater
 import com.jarvis.island.updater.UpdateState
@@ -110,14 +117,34 @@ import com.jarvis.island.ui.IslandThemePalettes
 class MainActivity : ComponentActivity() {
 
     private lateinit var bridgeClient: JarvisLiveBridgeClient
+    private val activeScreenState = mutableStateOf("home")
+    private val hasOverlayState = mutableStateOf(false)
+    private val hasNotificationState = mutableStateOf(false)
+    private val hasAccessibilityState = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val startScreen = intent?.getStringExtra("open_screen")
+        if (!startScreen.isNullOrEmpty()) {
+            activeScreenState.value = startScreen
+        }
+
+        hasOverlayState.value = hasOverlayPermission()
+        hasNotificationState.value = hasNotificationAccess()
+        hasAccessibilityState.value = hasAccessibilityPermission()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
+
         bridgeClient = JarvisLiveBridgeClient(this)
+        bridgeClient.startDiscovery { _, _ -> }
         JarvisIslandSettings.instance.load(this)
 
-        if (hasOverlayPermission() && JarvisIslandSettings.instance.isIslandEnabled) {
+        if (hasOverlayState.value && JarvisIslandSettings.instance.isIslandEnabled) {
             startOverlayService()
         }
 
@@ -134,9 +161,10 @@ class MainActivity : ComponentActivity() {
                     color = Color(0xFF07070A)
                 ) {
                     JarvisMasterApp(
-                        hasOverlayPermission = hasOverlayPermission(),
-                        hasNotificationAccess = hasNotificationAccess(),
-                        hasAccessibilityPermission = hasAccessibilityPermission(),
+                        initialScreen = activeScreenState.value,
+                        hasOverlayPermission = hasOverlayState.value,
+                        hasNotificationAccess = hasNotificationState.value,
+                        hasAccessibilityPermission = hasAccessibilityState.value,
                         onRequestOverlayPermission = { requestOverlayPermission() },
                         onRequestNotificationAccess = { requestNotificationAccess() },
                         onRequestAccessibilityPermission = { requestAccessibilityPermission() },
@@ -146,7 +174,16 @@ class MainActivity : ComponentActivity() {
                         onSimulateBeam = { triggerBroadcast(JarvisIslandSettings.ACTION_TEST_BEAM) },
                         onSimulateMusic = { triggerBroadcast(JarvisIslandSettings.ACTION_TEST_MUSIC) },
                         onSyncClipboard = {
-                            bridgeClient.syncClipboardToDesktop("Manual clipboard sync from JARVIS Companion")
+                            val clipMgr = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            val clipText = clipMgr?.primaryClip
+                                ?.takeIf { it.itemCount > 0 }
+                                ?.getItemAt(0)?.text?.toString()
+                            if (!clipText.isNullOrEmpty()) {
+                                bridgeClient.syncClipboardToDesktop(clipText)
+                                android.widget.Toast.makeText(this, "Clipboard synchronized with desktop", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(this, "Clipboard is empty", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         },
                         onRestartService = { startOverlayService() }
                     )
@@ -157,8 +194,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (hasOverlayPermission() && JarvisIslandSettings.instance.isIslandEnabled) {
+        hasOverlayState.value = hasOverlayPermission()
+        hasNotificationState.value = hasNotificationAccess()
+        hasAccessibilityState.value = hasAccessibilityPermission()
+        if (hasOverlayState.value && JarvisIslandSettings.instance.isIslandEnabled) {
             startOverlayService()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val target = intent.getStringExtra("open_screen")
+        if (!target.isNullOrEmpty()) {
+            activeScreenState.value = target
         }
     }
 
@@ -219,6 +268,7 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 fun JarvisMasterApp(
+    initialScreen: String = "home",
     hasOverlayPermission: Boolean,
     hasNotificationAccess: Boolean,
     hasAccessibilityPermission: Boolean,
@@ -235,57 +285,63 @@ fun JarvisMasterApp(
 ) {
     val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
-    var currentScreen by remember { mutableStateOf("home") } // "home", "plugins", "settings", "about"
+    var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) } // "home", "plugins", "settings", "about", "trackpad"
     var settingsSubPage by remember { mutableStateOf<String?>(null) } // "position", "size", "themes", "behavior", "apps"
 
-    BackHandler(enabled = settingsSubPage != null) {
-        settingsSubPage = null
+    BackHandler(enabled = settingsSubPage != null || currentScreen == "trackpad") {
+        if (settingsSubPage != null) {
+            settingsSubPage = null
+        } else {
+            currentScreen = "home"
+        }
     }
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = Color(0xFF0D0D14),
-                contentColor = Color(0xFF38BDF8)
-            ) {
-                listOf(
-                    NavigationItem("home", "Home", Icons.Rounded.Home),
-                    NavigationItem("plugins", "Plugins", Icons.Rounded.Extension),
-                    NavigationItem("settings", "Settings", Icons.Rounded.Settings),
-                    NavigationItem("about", "About", Icons.Rounded.Info)
-                ).forEach { item ->
-                    val selected = currentScreen == item.id
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            if (settings.hapticFeedback) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                            currentScreen = item.id
-                            settingsSubPage = null
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label,
-                                modifier = Modifier.size(20.dp)
+            if (currentScreen != "trackpad") {
+                NavigationBar(
+                    containerColor = Color(0xFF0D0D14),
+                    contentColor = Color(0xFF38BDF8)
+                ) {
+                    listOf(
+                        NavigationItem("home", "Home", Icons.Rounded.Home),
+                        NavigationItem("plugins", "Plugins", Icons.Rounded.Extension),
+                        NavigationItem("settings", "Settings", Icons.Rounded.Settings),
+                        NavigationItem("about", "About", Icons.Rounded.Info)
+                    ).forEach { item ->
+                        val selected = currentScreen == item.id
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                if (settings.hapticFeedback) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                currentScreen = item.id
+                                settingsSubPage = null
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = item.label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFF38BDF8),
+                                selectedTextColor = Color(0xFF38BDF8),
+                                unselectedIconColor = Color(0xFF94A3B8),
+                                unselectedTextColor = Color(0xFF64748B),
+                                indicatorColor = Color(0x2238BDF8)
                             )
-                        },
-                        label = {
-                            Text(
-                                text = item.label,
-                                fontSize = 11.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF38BDF8),
-                            selectedTextColor = Color(0xFF38BDF8),
-                            unselectedIconColor = Color(0xFF94A3B8),
-                            unselectedTextColor = Color(0xFF64748B),
-                            indicatorColor = Color(0x2238BDF8)
                         )
-                    )
+                    }
                 }
             }
         }
@@ -302,6 +358,9 @@ fun JarvisMasterApp(
                 label = "screenTransition"
             ) { (screen, subPage) ->
                 when {
+                    screen == "trackpad" -> {
+                        RemoteTrackpad(onClose = { currentScreen = "home" })
+                    }
                     screen == "home" -> {
                         HomeScreen(
                             hasOverlayPermission = hasOverlayPermission,
@@ -314,11 +373,12 @@ fun JarvisMasterApp(
                             onSimulateBeam = onSimulateBeam,
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
-                            onRestartService = onRestartService
+                            onRestartService = onRestartService,
+                            onOpenTrackpad = { currentScreen = "trackpad" }
                         )
                     }
                     screen == "plugins" -> {
-                        PluginsScreen()
+                        PluginsScreen(onOpenTrackpad = { currentScreen = "trackpad" })
                     }
                     screen == "settings" && subPage == null -> {
                         SettingsHubScreen(
@@ -360,7 +420,8 @@ fun JarvisMasterApp(
                             onSimulateBeam = onSimulateBeam,
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
-                            onRestartService = onRestartService
+                            onRestartService = onRestartService,
+                            onOpenTrackpad = { currentScreen = "trackpad" }
                         )
                     }
                 }
@@ -386,11 +447,71 @@ fun HomeScreen(
     onSimulateBeam: () -> Unit,
     onSimulateMusic: () -> Unit,
     onSyncClipboard: () -> Unit,
-    onRestartService: () -> Unit
+    onRestartService: () -> Unit,
+    onOpenTrackpad: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
+
+    var bridgeTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(2000)
+            bridgeTick += 1
+        }
+    }
+    val bridgeClient = JarvisLiveBridgeClient.activeClient
+    val bridgeConnected = bridgeClient?.isConnected == true
+    val bridgeAddress = bridgeClient?.desktopIp?.let { "$it:${bridgeClient.desktopPort}" }
+        ?: "Searching for desktop on LAN..."
+
+    var showPairDialog by remember { mutableStateOf(false) }
+    var pairingChallengeId by remember { mutableStateOf<String?>(null) }
+    var pinInput by remember { mutableStateOf("") }
+    var pairStatus by remember { mutableStateOf("Waiting for the desktop to display a PIN...") }
+
+    // Referenced so Compose re-reads the polled bridge state above.
+    @Suppress("UNUSED_VARIABLE")
+    val bridgePollTick = bridgeTick
+
+    if (showPairDialog) {
+        AlertDialog(
+            onDismissRequest = { showPairDialog = false },
+            title = { Text("Pair with JARVIS Desktop") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(pairStatus, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = { pinInput = it.filter(Char::isDigit).take(6) },
+                        label = { Text("6-digit PIN shown on desktop") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = pinInput.length == 6 && pairingChallengeId != null,
+                    onClick = {
+                        val challenge = pairingChallengeId ?: return@TextButton
+                        pairStatus = "Verifying PIN..."
+                        JarvisLiveBridgeClient.activeClient?.confirmPairing(challenge, pinInput) { paired ->
+                            if (paired) {
+                                pairStatus = "Paired successfully."
+                                showPairDialog = false
+                            } else {
+                                pairStatus = "Incorrect or expired PIN. Start pairing again."
+                            }
+                        }
+                    }
+                ) { Text("Pair") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPairDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -472,7 +593,11 @@ fun HomeScreen(
                     onCheckedChange = {
                         settings.isIslandEnabled = it
                         settings.save(context)
-                        if (it) onRestartService()
+                        if (it) {
+                            onRestartService()
+                        } else {
+                            context.stopService(Intent(context, JarvisIslandOverlayService::class.java))
+                        }
                     },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
@@ -549,18 +674,94 @@ fun HomeScreen(
                         }
                         Column {
                             Text(text = "JARVIS Windows Desktop", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
-                            Text(text = "LAN Continuity: 192.168.1.4:53390", color = Color(0xFF38BDF8), fontSize = 10.5.sp)
+                            Text(
+                                text = bridgeAddress,
+                                color = if (bridgeConnected) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                                fontSize = 10.5.sp
+                            )
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x2222C55E))
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    Button(
+                        onClick = {
+                            pinInput = ""
+                            pairingChallengeId = null
+                            pairStatus = "Waiting for the desktop to display a PIN..."
+                            showPairDialog = true
+                            JarvisLiveBridgeClient.activeClient?.requestPairing { id ->
+                                pairingChallengeId = id
+                                if (id == null) {
+                                    pairStatus = "Could not reach the desktop. Ensure both devices share the same Wi-Fi and JARVIS is running."
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (bridgeConnected) Color(0xFF0284C7) else Color(0xFF334155)
+                        ),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text(text = "Connected", color = Color(0xFF22C55E), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (bridgeConnected) "Pair" else "Retry",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
+            }
+        }
+
+        // PC Remote Mousepad / Trackpad Feature Card
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenTrackpad() }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0x2238BDF8)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Mouse,
+                            contentDescription = "Mousepad",
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "PC Remote Mousepad",
+                            color = Color.White,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Control Windows cursor, clicks & scroll via phone",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 11.5.sp
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = "Open Trackpad",
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
@@ -621,7 +822,7 @@ fun HomeScreen(
 // SCREEN 2: PLUGINS SCREEN
 // ══════════════════════════════════════════════════════════════════════
 @Composable
-fun PluginsScreen() {
+fun PluginsScreen(onOpenTrackpad: () -> Unit = {}) {
     val context = LocalContext.current
     val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
@@ -696,6 +897,15 @@ fun PluginsScreen() {
                 settings.pluginClipboard = it
                 settings.save(context)
             }
+        )
+
+        // Plugin 6: Wireless PC Trackpad & Cursor
+        PluginItem(
+            title = "Wireless PC Trackpad & Cursor",
+            description = "KDE Connect-style trackpad controlling Windows cursor, clicks and vertical scrolling.",
+            icon = Icons.Rounded.Mouse,
+            enabled = true,
+            onToggle = { onOpenTrackpad() }
         )
     }
 }
@@ -1649,7 +1859,7 @@ fun AboutScreen() {
                     is UpdateState.Available -> {
                         Text("New release ${state.tag} is ready for installation (${"%.1f".format(state.sizeMb)} MB).", color = Color.White, fontSize = 12.sp)
                         Button(
-                            onClick = { updater.startDownload(state.downloadUrl) },
+                            onClick = { updater.startDownload(state.downloadUrl, state.checksumUrl) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                             shape = RoundedCornerShape(10.dp)

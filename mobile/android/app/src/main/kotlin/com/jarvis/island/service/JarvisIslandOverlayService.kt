@@ -56,7 +56,7 @@ class JarvisIslandOverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
-    private lateinit var layoutParams: WindowManager.LayoutParams
+    private var layoutParams: WindowManager.LayoutParams? = null
     private var cutoutMetrics: CutoutMetrics = CutoutMetrics()
     private lateinit var bridgeClient: JarvisLiveBridgeClient
     private lateinit var fileBeamReceiver: FileBeamReceiver
@@ -197,6 +197,7 @@ class JarvisIslandOverlayService : Service() {
             addAction(JarvisIslandSettings.ACTION_EXPAND)
             addAction(JarvisIslandSettings.ACTION_COLLAPSE)
             addAction(JarvisIslandSettings.ACTION_TEST_BEAM)
+            addAction(JarvisIslandSettings.ACTION_TEST_MUSIC)
             addAction(JarvisIslandSettings.ACTION_MEDIA_PLAY_PAUSE)
             addAction(JarvisIslandSettings.ACTION_MEDIA_NEXT)
             addAction(JarvisIslandSettings.ACTION_MEDIA_PREV)
@@ -383,20 +384,8 @@ class JarvisIslandOverlayService : Service() {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
 
-        layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            initialHeight,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            getOverlayFlags(),
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        }
+        val params = buildLayoutParams(initialHeight)
+        layoutParams = params
 
         val view = ComposeView(this).apply {
             val viewModelStore = ViewModelStore()
@@ -440,6 +429,14 @@ class JarvisIslandOverlayService : Service() {
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
                     },
+                    onOpenTrackpad = {
+                        collapseIsland()
+                        val itn = Intent(this@JarvisIslandOverlayService, com.jarvis.island.MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra("open_screen", "trackpad")
+                        }
+                        startActivity(itn)
+                    },
                     onMediaPlayPause = { toggleMediaPlayback() },
                     onMediaNext = { skipToNextMedia() },
                     onMediaPrev = { skipToPrevMedia() },
@@ -470,21 +467,39 @@ class JarvisIslandOverlayService : Service() {
 
         composeView = view
         try {
-            windowManager.addView(composeView, layoutParams)
+            windowManager.addView(composeView, params)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
+    private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            height,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            getOverlayFlags(),
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        }
+    }
+
     private fun updateOverlayParameters() {
-        layoutParams.flags = getOverlayFlags()
-        layoutParams.height = if (isExpanded) {
+        val params = layoutParams ?: return
+        params.flags = getOverlayFlags()
+        params.height = if (isExpanded) {
             dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
         try {
-            composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
+            composeView?.let { windowManager.updateViewLayout(it, params) }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -492,10 +507,11 @@ class JarvisIslandOverlayService : Service() {
 
     private fun expandIsland() {
         isExpanded = true
-        layoutParams.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
-        layoutParams.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
+        val params = layoutParams ?: return
+        params.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
+        params.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
-            composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
+            composeView?.let { windowManager.updateViewLayout(it, params) }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -503,10 +519,11 @@ class JarvisIslandOverlayService : Service() {
 
     private fun collapseIsland() {
         isExpanded = false
-        layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
-        layoutParams.flags = getOverlayFlags()
+        val params = layoutParams ?: return
+        params.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
+        params.flags = getOverlayFlags()
         try {
-            composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
+            composeView?.let { windowManager.updateViewLayout(it, params) }
         } catch (e: Exception) {
             e.printStackTrace()
         }

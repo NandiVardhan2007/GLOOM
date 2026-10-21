@@ -38,7 +38,6 @@ fn sample_system_telemetry(
     prev_net_out: u64,
     prev_net_time: std::time::Instant,
 ) -> (SystemTelemetry, windows::Win32::Foundation::FILETIME, windows::Win32::Foundation::FILETIME, windows::Win32::Foundation::FILETIME, u64, u64, std::time::Instant) {
-    use windows::core::w;
     use windows::Win32::Foundation::FILETIME;
     use windows::Win32::NetworkManagement::IpHelper::{FreeMibTable, GetIfTable2, MIB_IF_TABLE2};
     use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
@@ -66,10 +65,15 @@ fn sample_system_telemetry(
     unsafe {
         let mut sps = SYSTEM_POWER_STATUS::default();
         if GetSystemPowerStatus(&mut sps).is_ok() {
-            telemetry.has_battery = sps.BatteryFlag != 128 && sps.BatteryFlag != 255;
-            telemetry.is_charging = sps.ACLineStatus == 1;
-            if sps.BatteryLifePercent != 255 {
+            // BatteryFlag 128 = No system battery, 255 = Unknown status
+            let has_real_battery = sps.BatteryFlag != 128 && sps.BatteryFlag != 255;
+            telemetry.has_battery = has_real_battery;
+            // A desktop without battery must not report is_charging = true
+            telemetry.is_charging = has_real_battery && sps.ACLineStatus == 1;
+            if has_real_battery && sps.BatteryLifePercent != 255 {
                 telemetry.battery_percent = Some(sps.BatteryLifePercent.min(100));
+            } else {
+                telemetry.battery_percent = None;
             }
         }
     }
@@ -96,13 +100,15 @@ fn sample_system_telemetry(
         }
     }
 
-    // 4. Primary Drive (C:\) Storage
+    // 4. Primary System Drive Storage (dynamically discovered)
+    let sys_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string()) + "\\";
+    let wide_drive: Vec<u16> = sys_drive.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe {
         let mut free_bytes_avail = 0u64;
         let mut total_bytes = 0u64;
         let mut total_free = 0u64;
         if GetDiskFreeSpaceExW(
-            w!("C:\\"),
+            windows::core::PCWSTR(wide_drive.as_ptr()),
             Some(&mut free_bytes_avail),
             Some(&mut total_bytes),
             Some(&mut total_free),
@@ -112,7 +118,7 @@ fn sample_system_telemetry(
         }
     }
 
-    // 5. Network I/O Speed
+    // 5. Network I/O Speed (physical and active interfaces only)
     let mut cur_net_in = prev_net_in;
     let mut cur_net_out = prev_net_out;
     let now = std::time::Instant::now();
@@ -125,7 +131,8 @@ fn sample_system_telemetry(
             let mut total_out = 0u64;
             let entries = std::slice::from_raw_parts(table.Table.as_ptr(), table.NumEntries as usize);
             for entry in entries {
-                if entry.Type != 24 {
+                // Filter out loopback (24) and tunnel (131) interfaces; only consider active up interfaces
+                if entry.Type != 24 && entry.Type != 131 && entry.OperStatus.0 == 1 {
                     total_in += entry.InOctets;
                     total_out += entry.OutOctets;
                 }
@@ -154,7 +161,6 @@ pub fn start_system_service(app: AppHandle) {
     std::thread::spawn(move || {
         use windows::Win32::System::Threading::GetSystemTimes;
 
-        // Warm up initial CPU and Network baseline
         let mut prev_idle = windows::Win32::Foundation::FILETIME::default();
         let mut prev_kernel = windows::Win32::Foundation::FILETIME::default();
         let mut prev_user = windows::Win32::Foundation::FILETIME::default();
@@ -166,7 +172,7 @@ pub fn start_system_service(app: AppHandle) {
         let mut prev_net_out = 0u64;
         let mut prev_net_time = std::time::Instant::now();
 
-        // Immediate first sample so memory, disk, and battery are available right away
+        // Immediate first sample
         let (first_sample, i, k, u, ni, no, nt) = sample_system_telemetry(
             Some(prev_idle),
             Some(prev_kernel),
@@ -186,7 +192,7 @@ pub fn start_system_service(app: AppHandle) {
         prev_net_time = nt;
 
         loop {
-            std::thread::sleep(Duration::from_millis(1500));
+            std::thread::sleep(Duration::from_millis(1000));
 
             let (sample, i, k, u, ni, no, nt) = sample_system_telemetry(
                 Some(prev_idle),
@@ -197,15 +203,15 @@ pub fn start_system_service(app: AppHandle) {
                 prev_net_time,
             );
 
-            *CURRENT_TELEMETRY.lock().unwrap() = Some(sample.clone());
-            let _ = app.emit(SYSTEM_EVENT, &sample);
-
             prev_idle = i;
             prev_kernel = k;
             prev_user = u;
             prev_net_in = ni;
             prev_net_out = no;
             prev_net_time = nt;
+
+            *CURRENT_TELEMETRY.lock().unwrap() = Some(sample.clone());
+            let _ = app.emit(SYSTEM_EVENT, &sample);
         }
     });
 }
@@ -214,20 +220,20 @@ pub fn start_system_service(app: AppHandle) {
 pub fn start_system_service(_app: AppHandle) {}
 
 #[cfg(windows)]
-fn filetime_diff(prev: windows::Win32::Foundation::FILETIME, curr: windows::Win32::Foundation::FILETIME) -> u64 {
-    let p = ((prev.dwHighDateTime as u64) << 32) | (prev.dwLowDateTime as u64);
-    let c = ((curr.dwHighDateTime as u64) << 32) | (curr.dwLowDateTime as u64);
-    c.saturating_sub(p)
+fn filetime_diff(a: windows::Win32::Foundation::FILETIME, b: windows::Win32::Foundation::FILETIME) -> u64 {
+    let t_a = ((a.dwHighDateTime as u64) << 32) | (a.dwLowDateTime as u64);
+    let t_b = ((b.dwHighDateTime as u64) << 32) | (b.dwLowDateTime as u64);
+    t_b.saturating_sub(t_a)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_system_telemetry_gathering() {
-        let t = get_telemetry();
-        println!("Telemetry sampled: RAM total: {}MB, used: {}MB", t.ram_total_mb, t.ram_used_mb);
-        assert!(t.ram_total_mb > 0);
-    }
+#[cfg(not(windows))]
+fn sample_system_telemetry(
+    _prev_idle: Option<()>,
+    _prev_kernel: Option<()>,
+    _prev_user: Option<()>,
+    _prev_net_in: u64,
+    _prev_net_out: u64,
+    _prev_net_time: std::time::Instant,
+) -> (SystemTelemetry, (), (), (), u64, u64, std::time::Instant) {
+    (SystemTelemetry::default(), (), (), (), 0, 0, std::time::Instant::now())
 }

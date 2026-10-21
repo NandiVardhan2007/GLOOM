@@ -65,7 +65,7 @@ export const LiveBridgeView: React.FC = () => {
     });
 
     let unlistenTransfer: (() => void) | undefined;
-    listen<BridgeTransfer[]>("jarvis://bridge-transfer", (e) => {
+    listen<BridgeTransfer[]>("jarvis://bridge-transfers", (e) => {
       if (e.payload) setTransfers(e.payload);
     }).then((fn) => {
       unlistenTransfer = fn;
@@ -104,7 +104,7 @@ export const LiveBridgeView: React.FC = () => {
       const b64 = (reader.result as string).split(",")[1];
       try {
         await invoke("jarvis_send_bridge_file_bytes", {
-          deviceName: activeDevice?.name || "Motorola Edge 50 Pro",
+          deviceName: activeDevice?.name || "Companion Device",
           fileName: file.name,
           fileSize: file.size,
           dataBase64: b64,
@@ -124,9 +124,12 @@ export const LiveBridgeView: React.FC = () => {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      sendRealFile(e.target.files[0]);
+    const file = e.target.files?.[0];
+    if (file) {
+      sendRealFile(file);
     }
+    // Allow re-selecting the same file in a later transfer
+    e.target.value = "";
   };
 
   const handleCopyOtp = (textToCopy: string = "849201") => {
@@ -161,6 +164,42 @@ export const LiveBridgeView: React.FC = () => {
     }
   };
 
+  const [pairing, setPairing] = useState<{
+    pin: string;
+    clientDeviceName: string;
+    expiresAtMs: number;
+  } | null>(null);
+
+  useEffect(() => {
+    invoke<{ pin: string; clientDeviceName: string; expiresAtMs: number } | null>(
+      "jarvis_get_pairing_challenge"
+    )
+      .then((challenge) => {
+        if (challenge?.pin) setPairing(challenge);
+      })
+      .catch(console.error);
+
+    let unlistenPairing: (() => void) | undefined;
+    listen<{ pin: string; clientDeviceName: string; expiresAtMs: number }>(
+      "jarvis://bridge-pairing-request",
+      (e) => {
+        if (e.payload?.pin) setPairing(e.payload);
+      }
+    ).then((fn) => {
+      unlistenPairing = fn;
+    });
+    return () => {
+      if (unlistenPairing) unlistenPairing();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pairing) return;
+    const remaining = Math.max(0, pairing.expiresAtMs - Date.now());
+    const timer = window.setTimeout(() => setPairing(null), remaining);
+    return () => window.clearTimeout(timer);
+  }, [pairing]);
+
   return (
     <div
       style={{
@@ -173,6 +212,35 @@ export const LiveBridgeView: React.FC = () => {
         userSelect: "none",
       }}
     >
+      {pairing && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            background: "rgba(245, 158, 11, 0.12)",
+            border: "1px solid rgba(245, 158, 11, 0.4)",
+            borderRadius: "14px",
+            padding: "10px 14px",
+            flexShrink: 0,
+          }}
+        >
+          <Shield size={18} color="#f59e0b" />
+          <div style={{ lineHeight: 1.35 }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "#f59e0b" }}>
+              Pairing request from {pairing.clientDeviceName || "Companion Device"}
+            </div>
+            <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.75)" }}>
+              Enter PIN{" "}
+              <span style={{ fontWeight: 800, letterSpacing: "3px", color: "#ffffff" }}>
+                {pairing.pin}
+              </span>{" "}
+              on the device within 2 minutes.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Top Device Bar ── */}
       <div
         style={{
@@ -205,7 +273,7 @@ export const LiveBridgeView: React.FC = () => {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
               <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff" }}>
-                {activeDevice ? activeDevice.name : "Motorola Edge 50 Pro"}
+                {activeDevice ? activeDevice.name : "No Device Connected"}
               </span>
               <div
                 style={{

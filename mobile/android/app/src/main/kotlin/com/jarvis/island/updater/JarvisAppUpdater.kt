@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import com.jarvis.island.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,7 +36,8 @@ sealed class UpdateState {
         val tag: String,
         val sizeMb: Float,
         val downloadUrl: String,
-        val releaseNotes: String
+        val releaseNotes: String,
+        val checksumUrl: String? = null
     ) : UpdateState()
     data class Downloading(val progress: UpdateProgress) : UpdateState()
     data class ReadyToInstall(val apkFile: File) : UpdateState()
@@ -49,7 +51,20 @@ class JarvisAppUpdater(private val context: Context) {
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
-    private val currentVersion = "v1.0.0"
+    private val currentVersion = "v${BuildConfig.VERSION_NAME}"
+
+    private fun isNewerVersion(target: String): Boolean {
+        val current = BuildConfig.VERSION_NAME.trim().removePrefix("v").split("-")[0]
+            .split(".").map { it.toIntOrNull() ?: 0 }
+        val candidate = target.trim().removePrefix("v").split("-")[0]
+            .split(".").map { it.toIntOrNull() ?: 0 }
+        val size = maxOf(current.size, candidate.size)
+        for (i in 0 until size) {
+            val diff = (candidate.getOrElse(i) { 0 }) - (current.getOrElse(i) { 0 })
+            if (diff != 0) return diff > 0
+        }
+        return false
+    }
 
     fun checkForUpdates() {
         _state.value = UpdateState.Checking
@@ -69,6 +84,7 @@ class JarvisAppUpdater(private val context: Context) {
                     val assets = json.optJSONArray("assets")
 
                     var downloadUrl: String? = null
+                    var checksumUrl: String? = null
                     var sizeBytes = 0L
 
                     if (assets != null) {
@@ -78,18 +94,20 @@ class JarvisAppUpdater(private val context: Context) {
                             if (name.endsWith(".apk", ignoreCase = true)) {
                                 downloadUrl = asset.optString("browser_download_url")
                                 sizeBytes = asset.optLong("size", 0L)
-                                break
+                            } else if (name.endsWith(".apk.sha256", ignoreCase = true)) {
+                                checksumUrl = asset.optString("browser_download_url")
                             }
                         }
                     }
 
-                    if (downloadUrl != null && tagName != currentVersion) {
+                    if (downloadUrl != null && isNewerVersion(tagName)) {
                         val sizeMb = if (sizeBytes > 0) sizeBytes / (1024f * 1024f) else 18.5f
                         _state.value = UpdateState.Available(
                             tag = tagName,
                             sizeMb = sizeMb,
                             downloadUrl = downloadUrl,
-                            releaseNotes = notes
+                            releaseNotes = notes,
+                            checksumUrl = checksumUrl
                         )
                     } else {
                         _state.value = UpdateState.UpToDate
@@ -103,7 +121,7 @@ class JarvisAppUpdater(private val context: Context) {
         }
     }
 
-    fun startDownload(downloadUrl: String) {
+    fun startDownload(downloadUrl: String, checksumUrl: String? = null) {
         _state.value = UpdateState.Downloading(UpdateProgress(0, 0f, 0f, "Connecting..."))
         updaterScope.launch {
             try {
@@ -134,8 +152,23 @@ class JarvisAppUpdater(private val context: Context) {
                     responseCode == 307 || responseCode == 308) {
                     val newUrl = conn.getHeaderField("Location")
                     conn.disconnect()
-                    conn = URL(newUrl).openConnection() as HttpURLConnection
+                    val redirectUrl = URL(newUrl)
+                    if (!redirectUrl.protocol.equals("https", ignoreCase = true)) {
+                        _state.value = UpdateState.Error("Update rejected: Redirect downgraded to insecure transport.")
+                        return@launch
+                    }
+                    val redirectHost = redirectUrl.host.lowercase()
+                    val isApprovedRedirect = redirectHost == "github.com" ||
+                        redirectHost.endsWith(".github.com") ||
+                        redirectHost.endsWith(".githubusercontent.com")
+                    if (!isApprovedRedirect) {
+                        _state.value = UpdateState.Error("Update rejected: Redirect to '$redirectHost' is not approved.")
+                        return@launch
+                    }
+                    conn = redirectUrl.openConnection() as HttpURLConnection
                     conn.setRequestProperty("User-Agent", "JARVIS-Android-Updater")
+                    conn.connectTimeout = 12000
+                    conn.readTimeout = 20000
                 }
 
                 val totalLength = conn.contentLength.toLong()
@@ -186,10 +219,63 @@ class JarvisAppUpdater(private val context: Context) {
                 output.close()
                 input.close()
 
+                if (checksumUrl.isNullOrBlank()) {
+                    targetApk.delete()
+                    _state.value = UpdateState.Error("Update rejected: the release does not publish a SHA-256 checksum.")
+                    return@launch
+                }
+                val expected = fetchChecksum(checksumUrl)
+                val actual = sha256Of(targetApk)
+                if (expected == null || actual == null || !expected.equals(actual, ignoreCase = true)) {
+                    targetApk.delete()
+                    _state.value = UpdateState.Error("SHA-256 verification failed. Update aborted.")
+                    return@launch
+                }
+
                 _state.value = UpdateState.ReadyToInstall(targetApk)
             } catch (e: Exception) {
                 _state.value = UpdateState.Error(e.message ?: "Download interrupted")
             }
+        }
+    }
+
+    private fun fetchChecksum(urlString: String): String? {
+        return try {
+            val url = URL(urlString)
+            if (!url.protocol.equals("https", ignoreCase = true)) return null
+            val host = url.host.lowercase()
+            val approved = host == "github.com" ||
+                host.endsWith(".github.com") ||
+                host.endsWith(".githubusercontent.com")
+            if (!approved) return null
+
+            val conn = url.openConnection() as HttpURLConnection
+            conn.setRequestProperty("User-Agent", "JARVIS-Android-Updater")
+            conn.connectTimeout = 12000
+            conn.readTimeout = 12000
+            if (conn.responseCode != 200) return null
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            Regex("[a-fA-F0-9]{64}").find(text)?.value?.lowercase()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun sha256Of(file: File): String? {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(65536)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            null
         }
     }
 

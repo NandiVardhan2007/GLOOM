@@ -43,15 +43,20 @@ Write-Host "      Target path: $InstallDir" -ForegroundColor Green
 Write-Host "[3/5] Querying GitHub Releases for latest version..." -ForegroundColor Yellow
 $ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
 $DownloadUrl = $null
+$ChecksumUrl = $null
 $TagName = "latest"
 
 try {
     $Release = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "JARVIS-Installer" } -TimeoutSec 15
     $TagName = $Release.tag_name
     $ExeAsset = $Release.assets | Where-Object { $_.name -like "*.exe" } | Select-Object -First 1
+    $SumAsset = $Release.assets | Where-Object { $_.name -like "*.exe.sha256" } | Select-Object -First 1
     if ($ExeAsset) {
         $DownloadUrl = $ExeAsset.browser_download_url
         Write-Host "      Found release: $TagName ($([math]::Round($ExeAsset.size / 1MB, 2)) MB)" -ForegroundColor Green
+    }
+    if ($SumAsset) {
+        $ChecksumUrl = $SumAsset.browser_download_url
     }
 } catch {
     Write-Host "      Notice: GitHub API rate limited or unreachable. Using direct release CDN fallback." -ForegroundColor DarkYellow
@@ -59,6 +64,9 @@ try {
 
 if (-not $DownloadUrl) {
     $DownloadUrl = "https://github.com/$Repo/releases/latest/download/JARVIS-Island-Windows.exe"
+}
+if (-not $ChecksumUrl) {
+    $ChecksumUrl = "https://github.com/$Repo/releases/latest/download/JARVIS-Island-Windows.exe.sha256"
 }
 
 # 4. Download executable
@@ -105,6 +113,39 @@ if (-not $DownloadSuccess) {
 }
 
 if ($DownloadSuccess) {
+    # Security: verify the downloaded binary against the release's published SHA-256
+    # before it is ever placed on disk as the installed executable.
+    Write-Host "      Verifying SHA-256 integrity..." -ForegroundColor Gray
+    $ChecksumText = $null
+    try {
+        $ChecksumText = (Invoke-RestMethod -Uri $ChecksumUrl -Headers @{ "User-Agent" = "JARVIS-Installer" } -TimeoutSec 20)
+    } catch {
+        Write-Host "      Could not fetch release checksum: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    $ExpectedHash = $null
+    if ($ChecksumText) {
+        $Match = [regex]::Match([string]$ChecksumText, '(?i)\b[a-f0-9]{64}\b')
+        if ($Match.Success) { $ExpectedHash = $Match.Value.ToLower() }
+    }
+
+    if (-not $ExpectedHash) {
+        Write-Host "      No published SHA-256 checksum was found for this release." -ForegroundColor Red
+        Write-Host "      Refusing to install an unverifiable binary. Download it manually from:" -ForegroundColor Red
+        Write-Host "      https://github.com/$Repo/releases/latest" -ForegroundColor Cyan
+        Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+
+    $ActualHash = (Get-FileHash -Algorithm SHA256 -Path $TempFile).Hash.ToLower()
+    if ($ActualHash -ne $ExpectedHash) {
+        Write-Host "      SHA-256 mismatch! Expected $ExpectedHash but got $ActualHash" -ForegroundColor Red
+        Write-Host "      The download may have been tampered with. Installation aborted." -ForegroundColor Red
+        Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+    Write-Host "      SHA-256 verified: $ActualHash" -ForegroundColor Green
+
     Move-Item -Path $TempFile -Destination $ExeTarget -Force
     Write-Host "      Binary successfully deployed to: $ExeTarget" -ForegroundColor Green
 } else {

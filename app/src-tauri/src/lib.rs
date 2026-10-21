@@ -12,11 +12,11 @@ use display::{list_monitors, position_overlay, MonitorDetails};
 use providers::clipboard::{get_clipboard_items, ClipboardItem};
 use providers::media::control_media;
 use providers::system::{get_telemetry, SystemTelemetry};
-use providers::volume::set_master_volume;
+use providers::volume::{set_master_volume, set_master_mute};
 use providers::brightness::set_display_brightness;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
-use window::{make_overlay, start_pointer_watcher, update_hit_rects, jarvis_focus_window, HitRect, ISLAND_LABEL};
+use window::{make_overlay, start_pointer_watcher, update_hit_rects, jarvis_focus_window, jarvis_unfocus_window, HitRect, ISLAND_LABEL};
 
 pub fn open_settings_window(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     let target_tab = tab.unwrap_or_else(|| "general".into());
@@ -77,6 +77,11 @@ fn jarvis_set_volume(level: f32) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn jarvis_set_mute(muted: bool) -> Result<(), String> {
+    set_master_mute(muted)
+}
+
+#[tauri::command]
 fn jarvis_set_brightness(brightness: u32) {
     set_display_brightness(brightness);
 }
@@ -87,22 +92,77 @@ fn jarvis_get_telemetry() -> SystemTelemetry {
 }
 
 #[tauri::command]
-fn jarvis_exit(app: AppHandle) {
-    app.exit(0);
+fn jarvis_get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 #[tauri::command]
-fn jarvis_install_update(
+fn jarvis_exit(app: AppHandle) {
+    for (_, win) in app.webview_windows() {
+        let _ = win.hide();
+        let _ = win.close();
+    }
+    std::process::exit(0);
+}
+
+#[tauri::command]
+fn jarvis_open_url(url: String) -> Result<(), String> {
+    let clean = url.trim();
+    if !clean.starts_with("https://") && !clean.starts_with("http://") {
+        return Err("Invalid protocol: only https/http URLs allowed".into());
+    }
+    if clean.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("Invalid URL: control and whitespace characters are not allowed".into());
+    }
+    let host = clean
+        .split_once("://")
+        .map(|(_, rest)| rest.split(['/', '?', '#']).next().unwrap_or(""))
+        .unwrap_or("");
+    if host.is_empty() {
+        return Err("Invalid URL: missing host".into());
+    }
+    #[cfg(windows)]
+    {
+        use windows::core::{HSTRING, PCWSTR};
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+        let wide_url = HSTRING::from(clean);
+        let wide_op = HSTRING::from("open");
+        unsafe {
+            let res = ShellExecuteW(
+                None,
+                PCWSTR(wide_op.as_ptr()),
+                PCWSTR(wide_url.as_ptr()),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            );
+            if (res.0 as usize) <= 32 {
+                return Err("Failed to open URL with the system browser".into());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn jarvis_install_update(
     app: AppHandle,
     download_url: String,
     target_version: Option<String>,
     expected_sha256: Option<String>,
 ) -> Result<String, String> {
-    let msg = updater::stage_and_install_update(
-        &download_url,
-        target_version.as_deref(),
-        expected_sha256.as_deref(),
-    )?;
+    // Downloads must not block the IPC/UI thread.
+    let msg = tauri::async_runtime::spawn_blocking(move || {
+        updater::stage_and_install_update(
+            &download_url,
+            target_version.as_deref(),
+            expected_sha256.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| format!("Update task failed: {}", e))??;
 
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -110,6 +170,12 @@ fn jarvis_install_update(
     });
 
     Ok(msg)
+}
+
+#[tauri::command]
+fn jarvis_simulate_mouse_input(action: String, dx: f32, dy: f32, button: Option<String>) {
+    let btn = button.unwrap_or_else(|| "left".to_string());
+    providers::livebridge::handle_remote_mouse_action(&action, dx, dy, &btn);
 }
 
 #[tauri::command]
@@ -189,9 +255,12 @@ fn jarvis_check_fullscreen() -> bool {
 fn jarvis_system_action(app: AppHandle, action: String) -> Result<(), String> {
     match action.as_str() {
         "lock" => {
-            let _ = std::process::Command::new("rundll32.exe")
-                .args(["user32.dll,LockWorkStation"])
-                .spawn();
+            #[cfg(windows)]
+            {
+                unsafe {
+                    let _ = windows::Win32::System::Shutdown::LockWorkStation();
+                }
+            }
             Ok(())
         }
         "taskmgr" => {
@@ -203,7 +272,15 @@ fn jarvis_system_action(app: AppHandle, action: String) -> Result<(), String> {
             Ok(())
         }
         "bluetooth" => {
-            // Self-contained in Dynamic Island - do not open external Windows settings
+            #[cfg(windows)]
+            {
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+                use windows::core::w;
+                unsafe {
+                    let _ = ShellExecuteW(None, w!("open"), w!("ms-settings:bluetooth"), None, None, SW_SHOWNORMAL);
+                }
+            }
             Ok(())
         }
         "network" => {
@@ -215,9 +292,21 @@ fn jarvis_system_action(app: AppHandle, action: String) -> Result<(), String> {
             Ok(())
         }
         "snip" => {
-            let _ = std::process::Command::new("cmd")
-                .args(["/c", "start", "ms-screenclip:"])
-                .spawn();
+            #[cfg(windows)]
+            {
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+                use windows::core::w;
+                unsafe {
+                    let _ = ShellExecuteW(None, w!("open"), w!("ms-screenclip:"), None, None, SW_SHOWNORMAL);
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = std::process::Command::new("cmd")
+                    .args(["/c", "start", "ms-screenclip:"])
+                    .spawn();
+            }
             Ok(())
         }
         "sound" => {
@@ -245,8 +334,13 @@ fn jarvis_get_bridge_transfers() -> Vec<providers::livebridge::BridgeTransfer> {
 }
 
 #[tauri::command]
+fn jarvis_get_pairing_challenge() -> Option<providers::livebridge::PairingChallenge> {
+    providers::livebridge::get_active_pairing_challenge()
+}
+
+#[tauri::command]
 fn jarvis_send_bridge_file(app: AppHandle, device_name: Option<String>, file_name: String, file_size: u64) -> Result<(), String> {
-    let name = device_name.unwrap_or_else(|| "Motorola Edge 50 Pro".to_string());
+    let name = device_name.unwrap_or_else(|| "Companion Device".to_string());
     providers::livebridge::beam_file_to_device(app, name, file_name, file_size, "".to_string(), None)
 }
 
@@ -259,7 +353,7 @@ fn jarvis_send_bridge_file_bytes(
     data_base64: String,
     target_ip: Option<String>,
 ) -> Result<(), String> {
-    let name = device_name.unwrap_or_else(|| "Motorola Edge 50 Pro".to_string());
+    let name = device_name.unwrap_or_else(|| "Companion Device".to_string());
     providers::livebridge::beam_file_to_device(app, name, file_name, file_size, data_base64, target_ip)
 }
 
@@ -286,6 +380,7 @@ fn jarvis_open_transfer_folder() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env_logger::init();
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -294,9 +389,12 @@ pub fn run() {
             jarvis_update_hit_rects,
             jarvis_media_control,
             jarvis_set_volume,
+            jarvis_set_mute,
             jarvis_set_brightness,
             jarvis_get_telemetry,
+            jarvis_get_app_version,
             jarvis_focus_window,
+            jarvis_unfocus_window,
             jarvis_exit,
             jarvis_get_config,
             jarvis_set_config,
@@ -311,13 +409,16 @@ pub fn run() {
             jarvis_get_bridge_devices,
             jarvis_get_bridge_activities,
             jarvis_get_bridge_transfers,
+            jarvis_get_pairing_challenge,
             jarvis_send_bridge_file,
             jarvis_send_bridge_file_bytes,
             jarvis_send_bridge_file_path,
             jarvis_get_connection_status,
             jarvis_open_transfer_folder,
             jarvis_install_update,
-            jarvis_send_mobile_control
+            jarvis_send_mobile_control,
+            jarvis_simulate_mouse_input,
+            jarvis_open_url
         ])
         .setup(|app| {
             let handle = app.handle().clone();

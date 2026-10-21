@@ -23,7 +23,6 @@ import {
   Music,
   Sliders,
   Coffee,
-  CloudSun,
   Pin,
   PinOff,
   Settings,
@@ -92,8 +91,6 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
     { id: "controls", icon: <Sliders size={13} />, label: "Control Center" },
     { id: "timer", icon: <Coffee size={13} />, label: "Focus Timer" },
   ];
-
-  const batteryPercent = telemetry.batteryPercent ?? 100;
 
   return (
     <div
@@ -166,48 +163,35 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
 
         {/* Right Status & Action Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {/* Weather Pill */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "#cbd5e1",
-            }}
-          >
-            <CloudSun size={14} color="#38bdf8" />
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>30°C</span>
-          </div>
-
-          {/* Battery Pill with Green Ring */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: 700,
-              color: "#ffffff",
-            }}
-          >
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{batteryPercent}%</span>
+          {/* Battery Pill (only when hardware battery is present) */}
+          {telemetry.hasBattery && telemetry.batteryPercent != null && (
             <div
               style={{
-                width: "18px",
-                height: "18px",
-                borderRadius: "50%",
-                border: "2px solid #10b981",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 0 6px rgba(16, 185, 129, 0.4)",
+                gap: "4px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#ffffff",
               }}
             >
-              <Zap size={10} color="#10b981" fill="#10b981" />
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{telemetry.batteryPercent}%</span>
+              <div
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  borderRadius: "50%",
+                  border: "2px solid #10b981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 0 6px rgba(16, 185, 129, 0.4)",
+                }}
+              >
+                <Zap size={10} color="#10b981" fill={telemetry.isCharging ? "#10b981" : "transparent"} />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Pin Button */}
           <button
@@ -294,9 +278,10 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
             <ChevronUp size={14} />
           </button>
 
-          {/* Close & Stop JARVIS Process Button */}
+          {/* Close & Exit JARVIS Process Button */}
           <button
-            onClick={async () => {
+            onClick={async (e) => {
+              e.stopPropagation();
               try {
                 await invoke("jarvis_exit");
               } catch (e) {
@@ -312,17 +297,17 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(239, 68, 68, 0.15)",
+              background: "rgba(239, 68, 68, 0.2)",
               color: "#f87171",
               transition: "all 0.15s ease",
             }}
-            title="Stop & Clear JARVIS Process (Exit Application)"
+            title="Exit JARVIS (Terminate Application Process)"
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.35)";
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.4)";
               e.currentTarget.style.color = "#ffffff";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
               e.currentTarget.style.color = "#f87171";
             }}
           >

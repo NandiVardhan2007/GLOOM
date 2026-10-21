@@ -14,6 +14,7 @@ import { useMediaSession } from "../hooks/useMediaSession";
 import { useSystemTelemetry } from "../hooks/useSystemTelemetry";
 import { useVolumeHUD } from "../hooks/useVolumeHUD";
 import { useHitTest } from "../hooks/useHitTest";
+import { subscribeTimer, toTimerState } from "../utils/timerStore";
 
 interface IslandProps {
   config: AppConfig;
@@ -47,6 +48,22 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
   // Register interactive hit rects with Rust backend (disabled when suppressed)
   useHitTest(containerRef, !isSuppressed, contextMenuRef);
 
+  // Persistent Timer sync across tabs, collapse, and window state
+  useEffect(() => {
+    return subscribeTimer((data) => {
+      if (
+        data.isTimerRunning ||
+        data.isStopwatchRunning ||
+        data.remainingSeconds !== data.totalSeconds ||
+        data.stopwatchMs > 0
+      ) {
+        setActiveTimer(toTimerState(data));
+      } else {
+        setActiveTimer(null);
+      }
+    });
+  }, []);
+
   // Listen to background fullscreen change events
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -69,7 +86,8 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     listen<any[]>("jarvis://bridge-transfers", (event) => {
       const transfers = event.payload;
       if (transfers && transfers.length > 0 && islandState === "closed" && !isSuppressed) {
-        const latest = transfers[transfers.length - 1];
+        const latest = transfers[0];
+        if (!latest) return;
         setPeekMessage(`${latest.fileName} (${latest.status})`);
         setIslandState("peek");
         if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
@@ -156,14 +174,31 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     };
   }, []);
 
-  // Disable default browser context menu globally
+  // Disable default browser context menu outside editable fields
   useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.isContentEditable ||
+        target?.closest("input, textarea, [contenteditable='true']")
+      ) {
+        return;
+      }
       e.preventDefault();
     };
     window.addEventListener("contextmenu", handleGlobalContextMenu);
     return () => window.removeEventListener("contextmenu", handleGlobalContextMenu);
   }, []);
+
+  // Cancel pending state timers on unmount
+  useEffect(
+    () => () => {
+      if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
+      if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+      if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+    },
+    []
+  );
 
   // Keyboard shortcut: Escape to collapse and unpin
   useEffect(() => {
@@ -289,12 +324,48 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     targetRadius = 22;
   } else if (isExpanded) {
     if (activeTab === "settings") {
-      targetWidth = Math.max(config.expandedWidth, 860);
-      targetHeight = 520;
+      targetWidth = Math.max(config.expandedWidth, 880);
+      targetHeight = 560;
+      targetRadius = 24;
+    } else if (activeTab === "bridge") {
+      targetWidth = 700;
+      targetHeight = 500;
+      targetRadius = 24;
+    } else if (activeTab === "dashboard") {
+      targetWidth = 660;
+      targetHeight = 380;
+      targetRadius = 24;
+    } else if (activeTab === "media") {
+      targetWidth = 620;
+      targetHeight = 360;
+      targetRadius = 24;
+    } else if (activeTab === "network") {
+      targetWidth = 600;
+      targetHeight = 380;
+      targetRadius = 24;
+    } else if (activeTab === "controls") {
+      targetWidth = 580;
+      targetHeight = 360;
+      targetRadius = 24;
+    } else if (activeTab === "notes") {
+      targetWidth = 600;
+      targetHeight = 400;
+      targetRadius = 24;
+    } else if (activeTab === "clipboard") {
+      targetWidth = 600;
+      targetHeight = 400;
+      targetRadius = 24;
+    } else if (activeTab === "bluetooth") {
+      targetWidth = 580;
+      targetHeight = 360;
+      targetRadius = 24;
+    } else if (activeTab === "timer") {
+      targetWidth = 520;
+      targetHeight = 340;
       targetRadius = 24;
     } else {
-      targetWidth = config.expandedWidth;
-      targetHeight = config.expandedHeight;
+      targetWidth = Math.max(config.expandedWidth, 640);
+      targetHeight = Math.max(config.expandedHeight, 380);
       targetRadius = 24;
     }
   }
