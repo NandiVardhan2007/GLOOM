@@ -3,6 +3,11 @@ package com.jarvis.island.ui
 import android.app.PendingIntent
 import android.graphics.Bitmap
 
+data class LyricLine(
+    val timeMs: Long = 0L,
+    val text: String = ""
+)
+
 data class MediaTrackInfo(
     val title: String = "",
     val artist: String = "",
@@ -13,7 +18,8 @@ data class MediaTrackInfo(
     val positionMs: Long = 0L,
     val progress: Float = 0f,
     val appName: String = "",
-    val packageName: String = ""
+    val packageName: String = "",
+    val lyrics: List<LyricLine> = emptyList()
 )
 
 data class ActiveTransferInfo(

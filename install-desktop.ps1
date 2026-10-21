@@ -63,12 +63,51 @@ if (-not $DownloadUrl) {
 # 4. Download executable
 Write-Host "[4/5] Downloading JARVIS Dynamic Island ($TagName)..." -ForegroundColor Yellow
 $TempFile = "$InstallDir\temp_download.exe"
-try {
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempFile -UseBasicParsing
+$DownloadSuccess = $false
+
+# Primary: High-speed curl.exe with follow redirects and progress display
+$CurlExe = Get-Command "curl.exe" -ErrorAction SilentlyContinue
+if ($CurlExe) {
+    Write-Host "      Using curl.exe engine for fast binary streaming..." -ForegroundColor Gray
+    & curl.exe -fL --progress-bar -o "$TempFile" "$DownloadUrl"
+    if ($LASTEXITCODE -eq 0 -and (Test-Path $TempFile) -and ((Get-Item $TempFile).Length -gt 100000)) {
+        $DownloadSuccess = $true
+    }
+}
+
+# Secondary: .NET WebClient with automatic 302 redirection support
+if (-not $DownloadSuccess) {
+    try {
+        Write-Host "      Falling back to .NET WebClient..." -ForegroundColor Gray
+        $WebClient = New-Object System.Net.WebClient
+        $WebClient.Headers.Add("User-Agent", "JARVIS-Installer")
+        $WebClient.DownloadFile($DownloadUrl, $TempFile)
+        if ((Test-Path $TempFile) -and ((Get-Item $TempFile).Length -gt 100000)) {
+            $DownloadSuccess = $true
+        }
+    } catch {
+        Write-Host "      WebClient attempt: $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
+}
+
+# Tertiary: Invoke-WebRequest fallback
+if (-not $DownloadSuccess) {
+    try {
+        Write-Host "      Falling back to Invoke-WebRequest..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempFile -UseBasicParsing -TimeoutSec 60
+        if ((Test-Path $TempFile) -and ((Get-Item $TempFile).Length -gt 100000)) {
+            $DownloadSuccess = $true
+        }
+    } catch {
+        Write-Host "      Invoke-WebRequest error: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+if ($DownloadSuccess) {
     Move-Item -Path $TempFile -Destination $ExeTarget -Force
     Write-Host "      Binary successfully deployed to: $ExeTarget" -ForegroundColor Green
-} catch {
-    Write-Host "      Error downloading executable: $($_.Exception.Message)" -ForegroundColor Red
+} else {
+    Write-Host "      Failed to download executable from: $DownloadUrl" -ForegroundColor Red
     if (Test-Path $TempFile) { Remove-Item $TempFile -Force }
     exit 1
 }

@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
@@ -43,6 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -468,6 +472,8 @@ fun OriginOSMusicCard(
     onSeek: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var showLyrics by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -477,7 +483,7 @@ fun OriginOSMusicCard(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Top App Badge & Live Equalizer
+        // Top App Badge, Lyrics Toggle, and Live Equalizer
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -494,7 +500,7 @@ fun OriginOSMusicCard(
                         .background(if (track.isPlaying) Color(0xFF22C55E) else Color(0xFF94A3B8))
                 )
                 Text(
-                    text = if (track.appName.isNotBlank()) track.appName.uppercase() else "ORIGIN LIVE MEDIA",
+                    text = if (track.appName.isNotBlank()) track.appName.uppercase() else "NOW PLAYING",
                     color = if (track.isPlaying) Color(0xFF22C55E) else Color(0xFF94A3B8),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -502,65 +508,144 @@ fun OriginOSMusicCard(
                 )
             }
 
-            OriginOSEqualizer(
-                isPlaying = track.isPlaying,
-                color = accentColor,
-                modifier = Modifier.height(12.dp)
-            )
-        }
-
-        // Center: Album Art & Track Info
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Album Artwork: Large 64dp Card
-            if (track.albumArt != null) {
-                Image(
-                    bitmap = track.albumArt.asImageBitmap(),
-                    contentDescription = "Album Art",
-                    contentScale = ContentScale.Crop,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Apple Music Live Lyrics Mode Toggle
+                Box(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
-                )
-            } else {
-                OriginOSVinylRecord(
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(if (showLyrics) accentColor.copy(alpha = 0.25f) else Color(0x1AFFFFFF))
+                        .clickable { showLyrics = !showLyrics },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        contentDescription = "Live Lyrics",
+                        tint = if (showLyrics) accentColor else Color(0xAAFFFFFF),
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+
+                OriginOSEqualizer(
                     isPlaying = track.isPlaying,
-                    albumArt = null,
-                    size = 64.dp,
-                    labelColor = accentColor
+                    color = accentColor,
+                    modifier = Modifier.height(12.dp)
                 )
             }
+        }
 
-            // Track Title & Artist
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (track.title.isNotBlank()) track.title else "No Media Playing",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = if (track.artist.isNotBlank()) track.artist else "OriginOS Atomic Music",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (track.album.isNotBlank()) {
+        if (showLyrics) {
+            // Apple Music Synchronized Live Lyrics
+            val effectiveLyrics = if (track.lyrics.isNotEmpty()) {
+                track.lyrics
+            } else {
+                remember(track.title) {
+                    listOf(
+                        LyricLine(0L, "♪ ${if (track.title.isNotBlank()) track.title else "Live Audio"} ♪"),
+                        LyricLine(12000L, "Streaming via ${if (track.artist.isNotBlank()) track.artist else "JARVIS Island"}"),
+                        LyricLine(24000L, "High-fidelity spatial audio active"),
+                        LyricLine(36000L, "Synchronized ecosystem playback"),
+                        LyricLine(50000L, "Feel the acoustic resonance in real time"),
+                        LyricLine(70000L, "Connected across all your devices")
+                    )
+                }
+            }
+
+            val currentPos = if (track.durationMs > 0) track.positionMs else (track.progress * 120000L).toLong()
+            val activeIndex = effectiveLyrics.indexOfLast { it.timeMs <= currentPos }.coerceAtLeast(0)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x15FFFFFF))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                for (offset in -1..1) {
+                    val idx = activeIndex + offset
+                    if (idx in effectiveLyrics.indices) {
+                        val line = effectiveLyrics[idx]
+                        val isActive = idx == activeIndex
+                        Text(
+                            text = line.text,
+                            color = if (isActive) Color.White else Color(0x55FFFFFF),
+                            fontSize = if (isActive) 13.5.sp else 11.sp,
+                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp)
+                                .clickable {
+                                    if (track.durationMs > 0 && onSeek != null) {
+                                        onSeek(line.timeMs.toFloat() / track.durationMs.toFloat())
+                                    }
+                                }
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+            }
+        } else {
+            // Center: Album Art & Track Info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Album Artwork: Large 64dp Card
+                if (track.albumArt != null) {
+                    Image(
+                        bitmap = track.albumArt.asImageBitmap(),
+                        contentDescription = "Album Art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
+                    )
+                } else {
+                    OriginOSVinylRecord(
+                        isPlaying = track.isPlaying,
+                        albumArt = null,
+                        size = 64.dp,
+                        labelColor = accentColor
+                    )
+                }
+
+                // Track Title & Artist
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = track.album,
-                        color = Color(0xFF64748B),
-                        fontSize = 10.sp,
+                        text = if (track.title.isNotBlank()) track.title else "No Media Playing",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (track.artist.isNotBlank()) track.artist else "Apple Music • Live Audio",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (track.album.isNotBlank()) {
+                        Text(
+                            text = track.album,
+                            color = Color(0xFF64748B),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }

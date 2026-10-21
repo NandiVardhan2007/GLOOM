@@ -157,9 +157,13 @@ pub fn beam_file_to_device(
     data_base64: String,
     target_ip: Option<String>,
 ) -> Result<(), String> {
-    let ip = target_ip.unwrap_or_else(|| {
+    let ip = target_ip.filter(|s| !s.is_empty()).unwrap_or_else(|| {
         let devs = DEVICES.lock().unwrap().clone();
-        devs.first().map(|d| d.ip.clone()).unwrap_or_else(|| "192.168.1.3".to_string())
+        devs.iter()
+            .find(|d| d.status == "connected" && !d.ip.is_empty() && d.ip != "192.168.1.3")
+            .map(|d| d.ip.clone())
+            .or_else(|| devs.first().map(|d| d.ip.clone()))
+            .unwrap_or_else(|| "127.0.0.1".to_string())
     });
 
     let transfer_id = format!("xfer-{}", current_time_ms());
@@ -200,11 +204,15 @@ pub fn beam_file_to_device(
         let mut success = false;
         if let Ok(mut addrs) = addr.to_socket_addrs() {
             if let Some(sock) = addrs.next() {
-                if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_secs(8)) {
+                if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_secs(10)) {
                     let _ = stream.write_all(req.as_bytes());
                     let mut resp = [0u8; 1024];
-                    let _ = stream.read(&mut resp);
-                    success = true;
+                    if let Ok(n) = stream.read(&mut resp) {
+                        let resp_str = String::from_utf8_lossy(&resp[..n]);
+                        if resp_str.contains("200 OK") || resp_str.contains("\"received\":true") {
+                            success = true;
+                        }
+                    }
                 }
             }
         }
@@ -318,9 +326,43 @@ pub fn start_livebridge_service(app: AppHandle) {
         }).to_string();
 
         loop {
-            // Broadcast beacon every 8 seconds for mobile auto-pairing
+            // Broadcast beacon every 4 seconds for mobile auto-pairing
             let _ = socket.send_to(beacon_msg.as_bytes(), "255.255.255.255:53390");
-            std::thread::sleep(Duration::from_secs(8));
+            let _ = socket.send_to(beacon_msg.as_bytes(), "255.255.255.255:53391");
+            std::thread::sleep(Duration::from_secs(4));
+        }
+    });
+
+    // 1b. Listen for incoming UDP beacons from mobile devices
+    let app_udp_rx = app_handle.clone();
+    std::thread::spawn(move || {
+        if let Ok(rx_sock) = UdpSocket::bind("0.0.0.0:53390") {
+            let mut buf = [0u8; 2048];
+            while let Ok((amt, src)) = rx_sock.recv_from(&mut buf) {
+                if let Ok(msg) = std::str::from_utf8(&buf[..amt]) {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(msg) {
+                        if json.get("type").and_then(|t| t.as_str()) == Some("jarvis_mobile_beacon") {
+                            let ip = src.ip().to_string();
+                            let dev_name = json.get("name").and_then(|n| n.as_str()).unwrap_or("Motorola Edge 50 Pro");
+                            let mut devs = DEVICES.lock().unwrap();
+                            devs.retain(|d| d.ip != ip && d.ip != "192.168.1.3");
+                            devs.insert(0, BridgeDevice {
+                                id: format!("android-{}", ip.replace('.', "-")),
+                                name: dev_name.to_string(),
+                                device_type: "android".to_string(),
+                                ip: ip.clone(),
+                                port: 53391,
+                                battery_percent: 100,
+                                is_charging: true,
+                                wifi_ssid: "Wi-Fi".to_string(),
+                                status: "connected".to_string(),
+                                last_seen_ms: current_time_ms(),
+                            });
+                            let _ = app_udp_rx.emit(BRIDGE_DEVICE_EVENT, devs.clone());
+                        }
+                    }
+                }
+            }
         }
     });
 
@@ -371,11 +413,57 @@ pub fn start_livebridge_service(app: AppHandle) {
                     }
 
                     let req = String::from_utf8_lossy(&full_data);
+                    let peer_ip = stream.peer_addr().map(|a| a.ip().to_string()).unwrap_or_default();
 
                     if req.contains("GET /api/status") {
+                        if !peer_ip.is_empty() && peer_ip != "127.0.0.1" {
+                            let mut devs = DEVICES.lock().unwrap();
+                            if !devs.iter().any(|d| d.ip == peer_ip) {
+                                devs.retain(|d| d.ip != "192.168.1.3");
+                                devs.insert(0, BridgeDevice {
+                                    id: format!("android-{}", peer_ip.replace('.', "-")),
+                                    name: "Motorola Edge 50 Pro".to_string(),
+                                    device_type: "android".to_string(),
+                                    ip: peer_ip.clone(),
+                                    port: 53391,
+                                    battery_percent: 100,
+                                    is_charging: true,
+                                    wifi_ssid: "Wi-Fi".to_string(),
+                                    status: "connected".to_string(),
+                                    last_seen_ms: current_time_ms(),
+                                });
+                                let _ = app.emit(BRIDGE_DEVICE_EVENT, devs.clone());
+                            }
+                        }
                         write_json_response(&mut stream, "{\"status\":\"ok\",\"service\":\"JARVIS LiveBridge\"}");
                     } else if req.contains("POST /api/telemetry") {
-                        // Mobile posting battery, wifi, charging status
+                        // Mobile posting real battery, wifi, charging status, and registering its actual IP
+                        if let Some(body_start) = req.find("\r\n\r\n") {
+                            let body = &req[body_start + 4..];
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {
+                                let dev_id = json.get("deviceId").and_then(|v| v.as_str()).unwrap_or("motorola-edge-50-pro");
+                                let dev_name = json.get("deviceName").and_then(|v| v.as_str()).unwrap_or("Motorola Edge 50 Pro");
+                                let battery = json.get("batteryPercent").and_then(|v| v.as_u64()).unwrap_or(100) as u8;
+                                let charging = json.get("isCharging").and_then(|v| v.as_bool()).unwrap_or(false);
+                                let ssid = json.get("wifiSsid").and_then(|v| v.as_str()).unwrap_or("Wi-Fi");
+
+                                let real_ip = if !peer_ip.is_empty() { peer_ip.clone() } else { "127.0.0.1".to_string() };
+                                let mut devs = DEVICES.lock().unwrap();
+                                devs.retain(|d| d.id != dev_id && d.ip != "192.168.1.3");
+                                devs.insert(0, BridgeDevice {
+                                    id: dev_id.to_string(),
+                                    name: dev_name.to_string(),
+                                    device_type: "android".to_string(),
+                                    ip: real_ip,
+                                    port: 53391,
+                                    battery_percent: battery,
+                                    is_charging: charging,
+                                    wifi_ssid: ssid.to_string(),
+                                    status: "connected".to_string(),
+                                    last_seen_ms: current_time_ms(),
+                                });
+                            }
+                        }
                         write_json_response(&mut stream, "{\"acknowledged\":true}");
                         let _ = app.emit(BRIDGE_DEVICE_EVENT, get_paired_devices());
                     } else if req.contains("POST /api/clipboard") {
@@ -394,16 +482,22 @@ pub fn start_livebridge_service(app: AppHandle) {
                         write_json_response(&mut stream, "{\"copied\":true}");
                     } else if req.contains("POST /api/transfer") {
                         // Handle incoming file beam from mobile
+                        let mut dev_label = "Motorola Edge 50 Pro".to_string();
+                        let mut actual_bytes_len = 0u64;
                         let safe_name = if let Some(body_start) = req.find("\r\n\r\n") {
                             let body = &req[body_start + 4..];
-                            let mut name = "Mobile_Capture.jpg".to_string();
+                            let mut name = "Mobile_File.bin".to_string();
                             if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {
+                                if let Some(orig) = json.get("originDeviceId").and_then(|o| o.as_str()) {
+                                    dev_label = orig.to_string();
+                                }
                                 if let Some(fn_str) = json.get("fileName").and_then(|f| f.as_str()) {
                                     name = sanitize_filename(fn_str);
                                 }
                                 if let Some(b64) = json.get("dataBase64").and_then(|d| d.as_str()) {
                                     use base64::Engine;
                                     if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                                        actual_bytes_len = bytes.len() as u64;
                                         let dest = get_jarvis_download_dir().join(&name);
                                         let _ = std::fs::write(&dest, &bytes);
                                     }
@@ -416,10 +510,10 @@ pub fn start_livebridge_service(app: AppHandle) {
 
                         let transfer = BridgeTransfer {
                             id: format!("rx-{}", current_time_ms()),
-                            device_name: "Galaxy S24 Ultra".to_string(),
+                            device_name: dev_label,
                             file_name: safe_name,
-                            file_size: 4820000,
-                            bytes_transferred: 4820000,
+                            file_size: actual_bytes_len.max(1024),
+                            bytes_transferred: actual_bytes_len.max(1024),
                             is_upload: false,
                             progress: 1.0,
                             status: "completed".to_string(),

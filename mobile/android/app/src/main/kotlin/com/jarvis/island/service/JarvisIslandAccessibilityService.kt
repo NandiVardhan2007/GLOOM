@@ -1,5 +1,6 @@
 package com.jarvis.island.service
 
+import java.io.File
 import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -130,28 +131,54 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         registerReceivers()
         setupRealMediaSessions()
 
-        fileBeamReceiver = FileBeamReceiver(this)
-        fileBeamReceiver.startServer(53391) { receivedFile ->
-            serviceScope.launch {
-                activeTransfer = ActiveTransferInfo(
-                    fileName = receivedFile.name,
-                    fileSizeMb = (receivedFile.length() / (1024f * 1024f)),
-                    progress = 1.0f,
-                    speedMbps = "112 MB/s",
-                    isUpload = false,
-                    isActive = true
-                )
-                if (JarvisIslandSettings.instance.autoExpandOnTransfer && !isExpanded) {
-                    expandIsland()
+        FileBeamReceiver.addListener(object : FileBeamReceiver.FileTransferListener {
+            override fun onTransferStarted(fileName: String, fileSizeMb: Float, isUpload: Boolean) {
+                serviceScope.launch {
+                    activeTransfer = ActiveTransferInfo(
+                        fileName = fileName,
+                        fileSizeMb = fileSizeMb,
+                        progress = 0.08f,
+                        speedMbps = "112 MB/s",
+                        isUpload = isUpload,
+                        isActive = true
+                    )
+                    if (JarvisIslandSettings.instance.autoExpandOnTransfer && !isExpanded) {
+                        expandIsland()
+                    }
                 }
-                scheduleAutoCollapse()
             }
-        }
 
-        bridgeClient.startDiscovery { desktopName ->
+            override fun onTransferProgress(fileName: String, progress: Float, speedMbps: String, isUpload: Boolean) {
+                serviceScope.launch {
+                    activeTransfer = activeTransfer.copy(
+                        progress = progress,
+                        speedMbps = speedMbps,
+                        isActive = true
+                    )
+                }
+            }
+
+            override fun onTransferCompleted(fileName: String, file: File?, isUpload: Boolean) {
+                serviceScope.launch {
+                    activeTransfer = activeTransfer.copy(
+                        progress = 1.0f,
+                        speedMbps = "Completed",
+                        isActive = true
+                    )
+                    scheduleAutoCollapse()
+                    delay(3500)
+                    activeTransfer = ActiveTransferInfo()
+                }
+            }
+        })
+
+        fileBeamReceiver = FileBeamReceiver(this)
+        fileBeamReceiver.startServer(53391)
+
+        bridgeClient.startDiscovery { desktopName, desktopIp ->
             bridgeDevice = BridgeDeviceInfo(
                 deviceName = desktopName,
-                ipAddress = "192.168.1.4",
+                ipAddress = desktopIp,
                 pingMs = 12,
                 isConnected = true
             )
@@ -308,7 +335,13 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                     onToggleExpand = { toggleIslandExpansion() },
                     onLongPressExpand = { expandIsland() },
                     onBeamSampleFile = {
-                        bridgeClient.syncClipboardToDesktop("Sample text beam from Motorola Edge 50 Pro")
+                        val desktopIp = bridgeClient.desktopIp ?: if (bridgeDevice.ipAddress != "192.168.1.4") bridgeDevice.ipAddress else null
+                        if (bridgeDevice.isConnected && !desktopIp.isNullOrBlank()) {
+                            val sampleFile = File(cacheDir, "JARVIS_Ecosystem_Beam.txt").apply {
+                                writeText("JARVIS AirDrop Continuity Beam\nDevice: ${Build.MANUFACTURER} ${Build.MODEL}\nTimestamp: ${System.currentTimeMillis()}\nStatus: High-Speed LAN Link Active\nPort: 53391\n")
+                            }
+                            FileBeamReceiver.beamFileToDesktop(sampleFile, desktopIp, 53391, { _: Float -> }, { _: Boolean -> })
+                        }
                     },
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
@@ -366,6 +399,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private fun expandIsland() {
         isExpanded = true
         layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
+        layoutParams.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
         } catch (e: Exception) {
@@ -376,6 +410,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private fun collapseIsland() {
         isExpanded = false
         layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
+        layoutParams.flags = getOverlayFlags()
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
         } catch (e: Exception) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { BridgeActivity, BridgeDevice, BridgeTransfer, ConnectionStatusPayload } from "../types";
+import { BridgeActivity, BridgeDevice, BridgeTransfer } from "../types";
 import {
   Smartphone,
   Share2,
@@ -19,13 +19,10 @@ export const LiveBridgeView: React.FC = () => {
   const [devices, setDevices] = useState<BridgeDevice[]>([]);
   const [activities, setActivities] = useState<BridgeActivity[]>([]);
   const [transfers, setTransfers] = useState<BridgeTransfer[]>([]);
-  const [connStatus, setConnStatus] = useState<ConnectionStatusPayload | null>(null);
-  const [clipboardSync, setClipboardSync] = useState<boolean>(true);
   const [lastCopied] = useState<string>("Ecosystem Clipboard Sync Active");
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [isSendingFile, setIsSendingFile] = useState<boolean>(false);
   const [fileProgress, setFileProgress] = useState<number>(0);
-  const [activeSubTab, setActiveSubTab] = useState<"overview" | "files" | "activities">("overview");
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [activeFileName, setActiveFileName] = useState<string>("Project_Assets.zip");
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -34,10 +31,6 @@ export const LiveBridgeView: React.FC = () => {
     // Fetch bridge devices & connection status from Rust backend
     invoke<BridgeDevice[]>("jarvis_get_bridge_devices")
       .then((d) => setDevices(d || []))
-      .catch(console.error);
-
-    invoke<ConnectionStatusPayload>("jarvis_get_connection_status")
-      .then(setConnStatus)
       .catch(console.error);
 
     invoke<BridgeActivity[]>("jarvis_get_bridge_activities")
@@ -111,10 +104,6 @@ export const LiveBridgeView: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSimulateSend = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleOpenFolder = () => {
     invoke("jarvis_open_transfer_folder").catch(console.error);
   };
@@ -152,7 +141,7 @@ export const LiveBridgeView: React.FC = () => {
           background: "rgba(255, 255, 255, 0.04)",
           border: "1px solid rgba(255, 255, 255, 0.08)",
           borderRadius: "14px",
-          padding: "8px 14px",
+          padding: "10px 14px",
           flexShrink: 0,
         }}
       >
@@ -173,462 +162,334 @@ export const LiveBridgeView: React.FC = () => {
             <Smartphone size={17} />
           </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
-                {activeDevice ? activeDevice.name : "JARVIS Phone"}
+            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff" }}>
+                {activeDevice ? activeDevice.name : "Motorola Edge 50 Pro"}
               </span>
-              <span
+              <div
                 style={{
-                  fontSize: "9px",
-                  fontWeight: 700,
-                  padding: "1px 6px",
-                  borderRadius: "9999px",
-                  background:
-                    connStatus?.state === "reconnecting"
-                      ? "rgba(245, 158, 11, 0.2)"
-                      : "rgba(16, 185, 129, 0.2)",
-                  color:
-                    connStatus?.state === "reconnecting"
-                      ? "#f59e0b"
-                      : "#10b981",
-                  border: "1px solid currentColor",
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: "#10b981",
+                  boxShadow: "0 0 8px rgba(16, 185, 129, 0.6)",
                 }}
-              >
-                {connStatus?.state ? connStatus.state.toUpperCase() : "CONNECTED"} • {connStatus?.pingMs || 12}ms
+              />
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#10b981" }}>
+                Connected
               </span>
             </div>
-            <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.5)" }}>
-              {activeDevice ? activeDevice.wifiSsid : "Wi-Fi"} • v1.0.0 • IP:{" "}
-              {activeDevice ? activeDevice.ip : "192.168.1.3"}
+            <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.45)" }}>
+              Continuity & AirDrop Active
             </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          {/* Battery pill */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "11.5px",
-              fontWeight: 700,
-              color: "#ffffff",
-              background: "rgba(255, 255, 255, 0.06)",
-              padding: "4px 8px",
-              borderRadius: "8px",
-            }}
-          >
-            <Zap size={11} color="#10b981" fill="#10b981" />
-            <span>{activeDevice ? activeDevice.batteryPercent : 88}%</span>
-          </div>
-
-          {/* Subtabs */}
-          <div
-            style={{
-              display: "flex",
-              gap: "3px",
-              background: "rgba(0, 0, 0, 0.3)",
-              padding: "2px",
-              borderRadius: "8px",
-            }}
-          >
-            {(["overview", "files", "activities"] as const).map((tab) => {
-              const active = activeSubTab === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveSubTab(tab)}
-                  style={{
-                    padding: "3px 9px",
-                    borderRadius: "6px",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "10.5px",
-                    fontWeight: active ? 700 : 500,
-                    background: active ? "rgba(255, 255, 255, 0.15)" : "transparent",
-                    color: active ? "#ffffff" : "rgba(255, 255, 255, 0.5)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              );
-            })}
-          </div>
+        {/* Right Status Pill */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            fontSize: "11.5px",
+            fontWeight: 700,
+            color: "#ffffff",
+            background: "rgba(255, 255, 255, 0.06)",
+            padding: "4px 9px",
+            borderRadius: "8px",
+            border: "0.5px solid rgba(255, 255, 255, 0.1)",
+          }}
+        >
+          <Zap size={11} color="#10b981" fill="#10b981" />
+          <span>{activeDevice ? activeDevice.batteryPercent : 100}%</span>
         </div>
       </div>
 
-      {/* ── Tab Content ── */}
+      {/* ── Main Ecosystem Cards ── */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
-        {activeSubTab === "overview" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", height: "100%" }}>
-            {/* Left Card: Universal AirDrop / File Drop */}
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragOver(true);
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                setIsDragOver(false);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragOver(false);
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                  sendRealFile(e.dataTransfer.files[0]);
-                }
-              }}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", height: "100%" }}>
+          {/* Left Card: AirDrop */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                sendRealFile(e.dataTransfer.files[0]);
+              }
+            }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              background: isDragOver ? "rgba(56, 189, 248, 0.1)" : "rgba(255, 255, 255, 0.03)",
+              border: isDragOver ? "2px dashed #38bdf8" : "1px dashed rgba(56, 189, 248, 0.35)",
+              boxShadow: isDragOver ? "0 0 20px rgba(56, 189, 248, 0.25)" : "none",
+              borderRadius: "14px",
+              padding: "14px",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                  <Share2 size={15} color="#38bdf8" />
+                  <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
+                    AirDrop
+                  </span>
+                </div>
+                <button
+                  onClick={handleOpenFolder}
+                  title="Open Received Folder"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "3px 7px",
+                    color: "#38bdf8",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    fontSize: "10.5px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  <FolderOpen size={11} />
+                  <span>Received</span>
+                </button>
+              </div>
+              <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.4 }}>
+                {isDragOver
+                  ? "Drop to send to your phone."
+                  : "Drag and drop files to beam them to your phone."}
+              </div>
+            </div>
+
+            {isSendingFile ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", margin: "10px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#38bdf8", fontWeight: 600 }}>
+                  <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Sending {activeFileName}...
+                  </span>
+                  <span>{fileProgress}%</span>
+                </div>
+                <div style={{ width: "100%", height: "5px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "3px", overflow: "hidden" }}>
+                  <div style={{ width: `${fileProgress}%`, height: "100%", background: "#38bdf8", transition: "width 0.15s ease" }} />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    padding: "8px 10px",
+                    borderRadius: "9px",
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                    background: "rgba(56, 189, 248, 0.15)",
+                    color: "#38bdf8",
+                    fontSize: "11.5px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <UploadCloud size={13} />
+                  <span>Choose File</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Right Card: Universal Clipboard */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "14px",
+              padding: "14px",
+            }}
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                  <Copy size={15} color="#10b981" />
+                  <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
+                    Universal Clipboard
+                  </span>
+                </div>
+              </div>
+              <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", marginBottom: "8px" }}>
+                Text copied on your phone is automatically available on your PC.
+              </div>
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "8px",
+                  background: "rgba(0, 0, 0, 0.35)",
+                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                  fontSize: "11.5px",
+                  color: "#f1f5f9",
+                  fontFamily: "inherit",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {lastCopied}
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleCopyOtp(lastCopied)}
               style={{
                 display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                background: isDragOver ? "rgba(56, 189, 248, 0.1)" : "rgba(255, 255, 255, 0.03)",
-                border: isDragOver ? "2px dashed #38bdf8" : "1px dashed rgba(56, 189, 248, 0.35)",
-                boxShadow: isDragOver ? "0 0 20px rgba(56, 189, 248, 0.25)" : "none",
-                borderRadius: "14px",
-                padding: "14px",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "9px",
+                border: "none",
+                background: hasCopied ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.08)",
+                color: hasCopied ? "#10b981" : "#ffffff",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                cursor: "pointer",
                 transition: "all 0.15s ease",
               }}
             >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                style={{ display: "none" }}
-              />
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                    <Share2 size={15} color="#38bdf8" />
-                    <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
-                      Universal AirDrop & Beamer
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleOpenFolder}
-                    title="Open JARVIS Downloads folder"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.08)",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "3px 6px",
-                      color: "#38bdf8",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      fontSize: "10px",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <FolderOpen size={11} />
-                    <span>Open Folder</span>
-                  </button>
-                </div>
-                <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.4 }}>
-                  {isDragOver
-                    ? "Release to beam this file to your phone immediately!"
-                    : "Drag files here or onto the Island to beam them over local 5G WiFi at 100+ MB/s."}
-                </div>
-              </div>
+              {hasCopied ? <Check size={14} /> : <Copy size={14} />}
+              <span>{hasCopied ? "Copied!" : "Copy to PC"}</span>
+            </button>
+          </div>
+        </div>
 
-              {isSendingFile ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", margin: "10px 0" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#38bdf8", fontWeight: 600 }}>
-                    <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      Streaming {activeFileName}...
-                    </span>
-                    <span>{fileProgress}%</span>
-                  </div>
-                  <div style={{ width: "100%", height: "5px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "3px", overflow: "hidden" }}>
-                    <div style={{ width: `${fileProgress}%`, height: "100%", background: "#38bdf8", transition: "width 0.15s ease" }} />
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
+        {/* Live Activities / OTP notifications if any */}
+        {activities.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255, 255, 255, 0.45)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Live Activities
+            </span>
+            {activities.map((act) => (
+              <div
+                key={act.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  background: "rgba(255, 255, 255, 0.04)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div
                     style={{
-                      flex: 1,
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "8px",
+                      background: act.activityType === "otp" ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.15)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: "6px",
-                      padding: "8px 10px",
-                      borderRadius: "9px",
-                      border: "1px solid rgba(56, 189, 248, 0.3)",
-                      background: "rgba(56, 189, 248, 0.15)",
-                      color: "#38bdf8",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
+                      color: act.activityType === "otp" ? "#f59e0b" : "#38bdf8",
                     }}
                   >
-                    <UploadCloud size={13} />
-                    <span>Choose File</span>
-                  </button>
-                  <button
-                    onClick={handleSimulateSend}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "9px",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      color: "rgba(255, 255, 255, 0.7)",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    Quick Sample
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Right Card: Real-Time Universal Clipboard */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                background: "rgba(255, 255, 255, 0.03)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                borderRadius: "14px",
-                padding: "14px",
-              }}
-            >
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                    <Copy size={15} color="#10b981" />
-                    <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
-                      Universal Clipboard
-                    </span>
+                    {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
                   </div>
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
+                      {act.title}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)" }}>
+                      {act.subtitle}
+                    </div>
+                  </div>
+                </div>
+
+                {act.activityType === "otp" && (
                   <button
-                    onClick={() => setClipboardSync(!clipboardSync)}
+                    onClick={() => {
+                      const m = act.subtitle.match(/\b\d{4,8}\b/);
+                      handleCopyOtp(m ? m[0] : act.subtitle);
+                    }}
                     style={{
-                      background: clipboardSync ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                      padding: "4px 10px",
                       borderRadius: "6px",
-                      padding: "2px 6px",
-                      fontSize: "10px",
-                      color: clipboardSync ? "#10b981" : "rgba(255, 255, 255, 0.4)",
-                      cursor: "pointer",
+                      border: "none",
+                      background: "#38bdf8",
+                      color: "#000000",
+                      fontSize: "11px",
                       fontWeight: 700,
+                      cursor: "pointer",
                     }}
                   >
-                    {clipboardSync ? "2-WAY ACTIVE" : "PAUSED"}
+                    Copy OTP
                   </button>
-                </div>
-                <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", marginBottom: "8px" }}>
-                  Text copied on mobile is instantaneously mirrored in the island clipboard.
-                </div>
-                <div
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: "8px",
-                    background: "rgba(0, 0, 0, 0.35)",
-                    border: "1px solid rgba(255, 255, 255, 0.06)",
-                    fontSize: "11.5px",
-                    color: "#f1f5f9",
-                    fontFamily: "monospace",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {lastCopied}
-                </div>
+                )}
               </div>
+            ))}
+          </div>
+        )}
 
-              <button
-                onClick={() => handleCopyOtp(lastCopied)}
+        {/* Recent Transfers */}
+        {transfers.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255, 255, 255, 0.45)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Recent Transfers
+            </span>
+            {transfers.slice(0, 3).map((t) => (
+              <div
+                key={t.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px",
-                  width: "100%",
+                  justifyContent: "space-between",
                   padding: "8px 12px",
-                  borderRadius: "9px",
-                  border: "none",
-                  background: hasCopied ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.08)",
-                  color: hasCopied ? "#10b981" : "#ffffff",
-                  fontSize: "11.5px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {hasCopied ? <Check size={14} /> : <Copy size={14} />}
-                <span>{hasCopied ? "Copied to Desktop!" : "Copy OTP to Desktop"}</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeSubTab === "activities" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {activities.length === 0 ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "32px 20px",
-                  color: "rgba(255, 255, 255, 0.45)",
-                  fontSize: "12px",
-                  gap: "6px",
-                  background: "rgba(255, 255, 255, 0.02)",
-                  borderRadius: "12px",
-                  border: "1px dashed rgba(255, 255, 255, 0.08)",
-                }}
-              >
-                <Clock size={22} style={{ opacity: 0.5, color: "#38bdf8" }} />
-                <span style={{ fontWeight: 600, color: "#ffffff" }}>No Live Mobile Activities</span>
-                <span style={{ fontSize: "10.5px" }}>Active timers, delivery updates, and OTP codes from your phone will automatically display here in real time.</span>
-              </div>
-            ) : (
-              activities.map((act) => (
-                <div
-                  key={act.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    background: "rgba(255, 255, 255, 0.03)",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div
-                      style={{
-                        width: "30px",
-                        height: "30px",
-                        borderRadius: "8px",
-                        background: act.activityType === "otp" ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.15)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: act.activityType === "otp" ? "#f59e0b" : "#38bdf8",
-                      }}
-                    >
-                      {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
-                        {act.title}
-                      </div>
-                      <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)" }}>
-                        {act.subtitle}
-                      </div>
-                    </div>
-                  </div>
-
-                  {act.activityType === "otp" && (
-                    <button
-                      onClick={() => {
-                        const m = act.subtitle.match(/\b\d{4,8}\b/);
-                        handleCopyOtp(m ? m[0] : act.subtitle);
-                      }}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        border: "none",
-                        background: "#38bdf8",
-                        color: "#000000",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Copy OTP
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {activeSubTab === "files" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 4px" }}>
-              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.6)" }}>
-                Recent Cross-Device File Beam History
-              </span>
-              <button
-                onClick={handleOpenFolder}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "3px 8px",
-                  color: "#38bdf8",
-                  fontSize: "10.5px",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                <FolderOpen size={12} />
-                <span>Open Downloads Folder</span>
-              </button>
-            </div>
-            {transfers.length === 0 ? (
-              <div
-                style={{
-                  padding: "20px",
-                  textAlign: "center",
-                  fontSize: "11px",
-                  color: "rgba(255, 255, 255, 0.4)",
-                  background: "rgba(255, 255, 255, 0.02)",
                   borderRadius: "10px",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.06)",
                 }}
               >
-                No active transfers. Drag & drop files onto the island to beam.
-              </div>
-            ) : (
-              transfers.map((t) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "8px 12px",
-                    borderRadius: "10px",
-                    background: "rgba(255, 255, 255, 0.03)",
-                    border: "1px solid rgba(255, 255, 255, 0.06)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <FileText size={16} color="#38bdf8" />
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>
-                        {t.fileName}
-                      </div>
-                      <div style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.4)" }}>
-                        {(t.fileSize / (1024 * 1024)).toFixed(1)} MB • {t.deviceName}
-                      </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <FileText size={15} color="#38bdf8" />
+                  <div>
+                    <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#ffffff" }}>
+                      {t.fileName}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.4)" }}>
+                      {(t.fileSize / (1024 * 1024)).toFixed(1)} MB • {t.deviceName}
                     </div>
                   </div>
-                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#10b981" }}>
-                    COMPLETED
-                  </span>
                 </div>
-              ))
-            )}
+                <span style={{ fontSize: "10.5px", fontWeight: 600, color: "#10b981" }}>
+                  Completed
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>

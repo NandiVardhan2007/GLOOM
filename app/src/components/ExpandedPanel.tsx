@@ -21,11 +21,7 @@ import {
   LayoutGrid,
   Music,
   Sliders,
-  Bluetooth,
-  ClipboardList,
   Coffee,
-  Activity,
-  Wifi,
   CloudSun,
   Pin,
   PinOff,
@@ -85,14 +81,10 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
 
   const navCapsuleItems: { id: ActiveTab; icon: React.ReactNode; label: string }[] = [
     { id: "dashboard", icon: <LayoutGrid size={13} />, label: "Dashboard" },
-    { id: "media", icon: <Music size={13} />, label: "Media" },
-    { id: "bridge", icon: <Smartphone size={13} />, label: "Live Bridge & Phone" },
-    { id: "controls", icon: <Sliders size={13} />, label: "Controls" },
-    { id: "bluetooth", icon: <Bluetooth size={13} />, label: "Bluetooth" },
-    { id: "clipboard", icon: <ClipboardList size={13} />, label: "Clipboard & Notes" },
+    { id: "media", icon: <Music size={13} />, label: "Music" },
+    { id: "bridge", icon: <Smartphone size={13} />, label: "AirDrop & Phone" },
+    { id: "controls", icon: <Sliders size={13} />, label: "Control Center" },
     { id: "timer", icon: <Coffee size={13} />, label: "Focus Timer" },
-    { id: "system", icon: <Activity size={13} />, label: "Hardware Stats" },
-    { id: "network", icon: <Wifi size={13} />, label: "Network & Bridge" },
   ];
 
   const batteryPercent = telemetry.batteryPercent ?? 100;

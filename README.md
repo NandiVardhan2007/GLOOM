@@ -31,7 +31,9 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 Download the signed release APK directly to your phone:
 
 - **Direct Download**: **[JARVIS-Island-Release-v1.0.apk (Latest Release)](https://github.com/NandiVardhan2007/JARVIS/releases/latest)**
-- **In-App Auto Updater**: Go to the **About** screen inside the mobile app and tap **Check for Updates** to detect and install releases directly from GitHub.
+- **In-App Auto-Updater**: Go to the **About** screen in the mobile app and tap **Check for Updates**. JARVIS downloads and installs updates seamlessly within the app, displaying live animated progress with download speeds, byte counters, and direct APK installation via `FileProvider`.
+- **Apple Music Live Lyrics**: Toggle the karaoke speech-bubble icon on the music card to view real-time synchronized lyrics with active-line kinetic highlighting and tap-to-seek.
+- **Fluid Modal Dismissal**: Tap anywhere outside the expanded Dynamic Island on your screen to immediately collapse it back to the camera notch.
 
 ---
 

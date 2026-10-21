@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Computer
@@ -74,6 +76,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -87,6 +90,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -98,6 +102,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
 import com.jarvis.island.service.JarvisIslandOverlayService
+import com.jarvis.island.updater.JarvisAppUpdater
+import com.jarvis.island.updater.UpdateState
 import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.IslandThemePalettes
 
@@ -1539,59 +1545,8 @@ fun EnabledAppsSettingsScreen(onBack: () -> Unit) {
 fun AboutScreen() {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
-    var isCheckingUpdate by remember { mutableStateOf(false) }
-    var updateStatus by remember { mutableStateOf("Tap below to check for the latest release") }
-    var latestTag by remember { mutableStateOf<String?>(null) }
-    var apkDownloadUrl by remember { mutableStateOf<String?>(null) }
-
-    fun checkForUpdates() {
-        isCheckingUpdate = true
-        updateStatus = "Connecting to GitHub Releases..."
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                val url = java.net.URL("https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.setRequestProperty("User-Agent", "JARVIS-Android-App")
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val json = org.json.JSONObject(body)
-                    val tag = json.optString("tag_name", "v1.0.0")
-                    val assets = json.optJSONArray("assets")
-                    var foundApk: String? = null
-                    if (assets != null) {
-                        for (i in 0 until assets.length()) {
-                            val asset = assets.getJSONObject(i)
-                            val name = asset.optString("name", "")
-                            if (name.endsWith(".apk", ignoreCase = true)) {
-                                foundApk = asset.optString("browser_download_url")
-                                break
-                            }
-                        }
-                    }
-                    withContext(Dispatchers.Main) {
-                        latestTag = tag
-                        apkDownloadUrl = foundApk ?: json.optString("html_url")
-                        val isNewer = tag != "v1.0.0"
-                        updateStatus = if (isNewer) "New release $tag available!" else "You are running the latest version (v1.0.0)"
-                        isCheckingUpdate = false
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        updateStatus = "Connected: Running v1.0.0 (Latest Release)"
-                        isCheckingUpdate = false
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateStatus = "Connected: Running v1.0.0 (Latest Release)"
-                    isCheckingUpdate = false
-                }
-            }
-        }
-    }
+    val updater = remember { JarvisAppUpdater(context) }
+    val updateState by updater.state.collectAsState()
 
     Column(
         modifier = Modifier
@@ -1621,62 +1576,152 @@ fun AboutScreen() {
         Text(text = "JARVIS Dynamic Island", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(text = "Version 1.0.0 • Connected Ecosystem", color = Color(0xFF94A3B8), fontSize = 12.sp)
 
-        // ── Auto Updater Card ──
+        // ── In-App Seamless Auto Updater Card ──
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2238BDF8)),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Software Updates", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(text = latestTag ?: "v1.0.0", color = Color(0xFF00D2FF), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = "Update",
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(text = "Software Updates", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text(text = "v1.0.0", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
 
-                Text(
-                    text = updateStatus,
-                    color = Color(0xFF94A3B8),
-                    fontSize = 11.5.sp
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { checkForUpdates() },
-                        enabled = !isCheckingUpdate,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
+                when (val state = updateState) {
+                    is UpdateState.Idle -> {
                         Text(
-                            text = if (isCheckingUpdate) "Checking..." else "Check for Updates",
-                            color = Color.White,
+                            text = "Keep JARVIS Dynamic Island up-to-date with latest Apple HIG features & Live Activities.",
+                            color = Color(0xFF94A3B8),
                             fontSize = 11.5.sp
                         )
-                    }
-
-                    if (apkDownloadUrl != null) {
                         Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(apkDownloadUrl))
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D2FF)),
-                            shape = RoundedCornerShape(8.dp)
+                            onClick = { updater.checkForUpdates() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text(
-                                text = "Download APK",
-                                color = Color.Black,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Check for Updates", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    is UpdateState.Checking -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        ) {
+                            Text("Checking GitHub Releases for latest build...", color = Color(0xFF38BDF8), fontSize = 12.sp)
+                        }
+                    }
+                    is UpdateState.UpToDate -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                            Text("You are running the latest version (v1.0.0)", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(
+                            onClick = { updater.checkForUpdates() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Check Again", color = Color.White, fontSize = 11.5.sp)
+                        }
+                    }
+                    is UpdateState.Available -> {
+                        Text("New release ${state.tag} is ready for installation (${"%.1f".format(state.sizeMb)} MB).", color = Color.White, fontSize = 12.sp)
+                        Button(
+                            onClick = { updater.startDownload(state.downloadUrl) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Rounded.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Download & Install Update", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    is UpdateState.Downloading -> {
+                        val progress = state.progress
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Downloading Update...", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${progress.percent}%", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // Glowing animated gradient progress bar
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF1E293B))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(progress.percent / 100f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF0284C7), Color(0xFF38BDF8))
+                                            )
+                                        )
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("${"%.1f".format(progress.downloadedMb)} MB / ${"%.1f".format(progress.totalMb)} MB", color = Color(0xFF94A3B8), fontSize = 10.5.sp)
+                                Text(progress.speedMbps, color = Color(0xFF94A3B8), fontSize = 10.5.sp)
+                            }
+                        }
+                    }
+                    is UpdateState.ReadyToInstall -> {
+                        Text("Download complete! Ready to install update.", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Button(
+                            onClick = { updater.installApk(state.apkFile) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Install Update Now", color = Color.Black, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    is UpdateState.Error -> {
+                        Text("Update error: ${state.message}", color = Color(0xFFEF4444), fontSize = 11.5.sp)
+                        Button(
+                            onClick = { updater.checkForUpdates() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Retry", color = Color.White, fontSize = 11.5.sp)
                         }
                     }
                 }
