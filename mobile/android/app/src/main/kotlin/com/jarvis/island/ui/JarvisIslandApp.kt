@@ -19,6 +19,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -160,55 +161,74 @@ fun JarvisIslandApp(
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = settings.positionY.dp) // User default 2px top
-            .offset(x = settings.positionX.dp),
+            .fillMaxSize()
+            .then(
+                if (isExpanded) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (settings.hapticFeedback) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            onToggleExpand()
+                        }
+                    )
+                } else Modifier
+            ),
         contentAlignment = boxAlignment
     ) {
-        Card(
-            shape = RoundedCornerShape(targetCorner),
-            colors = CardDefaults.cardColors(containerColor = palette.background),
+        Box(
             modifier = Modifier
-                .width(targetWidth)
-                .height(targetHeight)
-                .defaultMinSize(minWidth = 140.dp, minHeight = 36.dp)
-                .shadow(
-                    elevation = if (isExpanded) 28.dp else 10.dp,
-                    shape = RoundedCornerShape(targetCorner),
-                    ambientColor = Color(0xFF000000),
-                    spotColor = if (isExpanded) palette.primaryAccent.copy(alpha = 0.4f) else Color(0x33000000)
-                )
-                .border(
-                    width = if (settings.showBorders) (if (activeTransfer.isActive) 1.5.dp else 1.dp) else 0.dp,
-                    brush = if (activeTransfer.isActive) {
-                        Brush.linearGradient(
-                            listOf(
-                                palette.primaryAccent.copy(alpha = pulseAlpha),
-                                palette.secondaryAccent.copy(alpha = pulseAlpha)
-                            )
-                        )
-                    } else palette.borderBrush,
-                    shape = RoundedCornerShape(targetCorner)
-                )
-                .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        if (settings.hapticFeedback) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                        onToggleExpand()
-                    },
-                    onLongClick = {
-                        if (settings.hapticFeedback) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        }
-                        if (settings.longPressToExpand) {
-                            onLongPressExpand()
-                        }
-                    }
-                )
+                .padding(top = settings.positionY.dp) // User default 2px top
+                .offset(x = settings.positionX.dp)
         ) {
+            Card(
+                shape = RoundedCornerShape(targetCorner),
+                colors = CardDefaults.cardColors(containerColor = palette.background),
+                modifier = Modifier
+                    .width(targetWidth)
+                    .height(targetHeight)
+                    .defaultMinSize(minWidth = 140.dp, minHeight = 36.dp)
+                    .shadow(
+                        elevation = if (isExpanded) 28.dp else 10.dp,
+                        shape = RoundedCornerShape(targetCorner),
+                        ambientColor = Color(0xFF000000),
+                        spotColor = if (isExpanded) palette.primaryAccent.copy(alpha = 0.4f) else Color(0x33000000)
+                    )
+                    .border(
+                        width = if (settings.showBorders) (if (activeTransfer.isActive) 1.5.dp else 1.dp) else 0.dp,
+                        brush = if (activeTransfer.isActive) {
+                            Brush.linearGradient(
+                                listOf(
+                                    palette.primaryAccent.copy(alpha = pulseAlpha),
+                                    palette.secondaryAccent.copy(alpha = pulseAlpha)
+                                )
+                            )
+                        } else palette.borderBrush,
+                        shape = RoundedCornerShape(targetCorner)
+                    )
+                    .combinedClickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (settings.hapticFeedback) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            if (!isExpanded) {
+                                onToggleExpand()
+                            }
+                        },
+                        onLongClick = {
+                            if (settings.hapticFeedback) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            if (!isExpanded && settings.longPressToExpand) {
+                                onLongPressExpand()
+                            }
+                        }
+                    )
+            ) {
             AnimatedContent(
                 targetState = isExpanded,
                 transitionSpec = {
@@ -797,4 +817,5 @@ fun JarvisIslandApp(
             }
         }
     }
+}
 }
