@@ -10,29 +10,53 @@ html, body, #root {
 }
 
 :root {
-  /*  Apple Color System Tokens */
-  --apple-pitch-black: #000000;
-  --apple-glass-bg: rgba(13, 14, 20, 0.92);
-  --apple-border: rgba(255, 255, 255, 0.14);
-  --apple-border-specular: rgba(255, 255, 255, 0.28);
-  --apple-accent-blue: #007aff;
-  --apple-accent-cyan: #32ade6;
-  --apple-accent-green: #34c759;
-  --apple-accent-orange: #ff9500;
-  --apple-accent-purple: #af52de;
-  --apple-accent-red: #ff3b30;
-  --apple-text-primary: #ffffff;
-  --apple-text-secondary: rgba(255, 255, 255, 0.72);
-  --apple-text-tertiary: rgba(255, 255, 255, 0.45);
+  /* ── Cross-Platform Typography Tokens ── */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: Consolas, "SF Mono", Menlo, Monaco, monospace;
 
-  /* Legacy aliases for backward compatibility */
-  --bg-island: #000000;
-  --border-island: rgba(255, 255, 255, 0.16);
-  --accent-cyan: #32ade6;
+  /* ── Core Surface & Glass Tokens ── */
+  --island-pitch-black: #000000;
+  --island-glass-bg: rgba(13, 14, 20, 0.94);
+  --island-glass-opaque: #0d0e14;
+  --island-border: rgba(255, 255, 255, 0.14);
+  --island-border-specular: rgba(255, 255, 255, 0.28);
+  --island-divider: rgba(255, 255, 255, 0.08);
+
+  /* ── Semantic Text Hierarchy ── */
+  --island-text-primary: #ffffff;
+  --island-text-secondary: rgba(255, 255, 255, 0.72);
+  --island-text-tertiary: rgba(255, 255, 255, 0.45);
+
+  /* ── Dynamic Island Accent Tokens ── */
+  --island-accent-blue: #007aff;
+  --island-accent-cyan: #32ade6;
+  --island-accent-green: #34c759;
+  --island-accent-orange: #ff9500;
+  --island-accent-purple: #af52de;
+  --island-accent-red: #ff3b30;
+  --island-focus-ring: #007aff;
+
+  /* ── Backward Compatibility Aliases ── */
+  --apple-pitch-black: var(--island-pitch-black);
+  --apple-glass-bg: var(--island-glass-bg);
+  --apple-border: var(--island-border);
+  --apple-border-specular: var(--island-border-specular);
+  --apple-accent-blue: var(--island-accent-blue);
+  --apple-accent-cyan: var(--island-accent-cyan);
+  --apple-accent-green: var(--island-accent-green);
+  --apple-accent-orange: var(--island-accent-orange);
+  --apple-accent-purple: var(--island-accent-purple);
+  --apple-accent-red: var(--island-accent-red);
+  --apple-text-primary: var(--island-text-primary);
+  --apple-text-secondary: var(--island-text-secondary);
+  --apple-text-tertiary: var(--island-text-tertiary);
+  --bg-island: var(--island-pitch-black);
+  --border-island: var(--island-border);
+  --accent-cyan: var(--island-accent-cyan);
   --accent-violet: #818cf8;
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.8);
-  --text-muted: rgba(255, 255, 255, 0.55);
+  --text-primary: var(--island-text-primary);
+  --text-secondary: var(--island-text-secondary);
+  --text-muted: var(--island-text-tertiary);
 }
 
 body {
@@ -42,52 +66,86 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Segoe UI Variable Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: #ffffff;
+  font-family: var(--font-sans);
+  color: var(--island-text-primary);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
 }
 
-/*  Apple Glassmorphic Expanded Panel */
+/* ── Keyboard Focus Indicator ── */
+:focus-visible {
+  outline: 2px solid var(--island-focus-ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* ── High Contrast & Reduced Transparency Fallbacks ── */
+@media (prefers-contrast: more) {
+  :root {
+    --island-glass-bg: #0d0e14;
+    --island-border: rgba(255, 255, 255, 0.4);
+    --island-text-secondary: rgba(255, 255, 255, 0.9);
+    --island-text-tertiary: rgba(255, 255, 255, 0.75);
+  }
+}
+
+body.high-contrast {
+  --island-glass-bg: #0d0e14;
+  --island-border: rgba(255, 255, 255, 0.4);
+  --island-text-secondary: rgba(255, 255, 255, 0.9);
+  --island-text-tertiary: rgba(255, 255, 255, 0.75);
+}
+
+/* ── Reduced Motion Fallback ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Glassmorphic Expanded Panel ── */
 .liquid-glass,
 .apple-glass {
-  background: var(--apple-glass-bg) !important;
+  background: var(--island-glass-bg) !important;
   backdrop-filter: blur(32px) saturate(190%) !important;
   -webkit-backdrop-filter: blur(32px) saturate(190%) !important;
-  border: 0.5px solid var(--apple-border) !important;
+  border: 0.5px solid var(--island-border) !important;
   box-shadow: 
-    inset 0 0.5px 0.5px 0 var(--apple-border-specular),
+    inset 0 0.5px 0.5px 0 var(--island-border-specular),
     inset 0 -0.5px 0.5px 0 rgba(0, 0, 0, 0.6),
     0 24px 50px -4px rgba(0, 0, 0, 0.95),
     0 8px 24px -2px rgba(0, 0, 0, 0.8) !important;
 }
 
-/*  Apple Dynamic Island Pill Surface */
+/* ── Dynamic Island Pill Surface ── */
 .pill-surface,
 .apple-pill {
-  background: var(--apple-pitch-black) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.16) !important;
+  background: var(--island-pitch-black) !important;
+  border: 0.5px solid var(--island-border) !important;
   box-shadow: 
     inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.22),
     0 12px 28px -2px rgba(0, 0, 0, 0.9) !important;
 }
 
-/*  Tabular numbers for clocks, speeds, and timestamps */
+/* ── Tabular numbers for clocks, speeds, and timestamps ── */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
-/*  Monospace code and stats */
-.apple-mono {
-  font-family: "SF Mono", Menlo, Consolas, Monaco, monospace;
+/* ── Monospace code and stats ── */
+.apple-mono,
+.island-mono {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
-/* Smooth edge masks for overflowing text */
+/* ── Smooth edge masks for overflowing text ── */
 .text-mask-fade {
   overflow: hidden;
   position: relative;
@@ -95,12 +153,12 @@ body {
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 12px), transparent 100%);
 }
 
-/* Micro-interaction active feedback (Emil Kowalski Kill Latency) */
+/* ── Micro-interaction active feedback ── */
 button:active {
   transform: scale(0.97);
 }
 
-/* Apple-style minimalist scrollbars */
+/* ── Minimalist scrollbars ── */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;

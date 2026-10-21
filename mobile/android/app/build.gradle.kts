@@ -20,18 +20,22 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = file("../keystore/release.jks")
-            if (keystoreFile.exists()) {
+            val keystorePath = System.getenv("KEYSTORE_PATH") ?: "../keystore/release.jks"
+            val keystoreFile = file(keystorePath)
+            val storePass = System.getenv("KEYSTORE_PASSWORD")
+            val alias = System.getenv("KEY_ALIAS")
+            val keyPass = System.getenv("KEY_PASSWORD")
+
+            val hasCredentials = keystoreFile.exists() &&
+                !storePass.isNullOrBlank() &&
+                !alias.isNullOrBlank() &&
+                !keyPass.isNullOrBlank()
+
+            if (hasCredentials) {
                 storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "jarvis_island_release_key"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "jarvis_release"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "jarvis_island_release_key"
-            } else {
-                val debugConfig = getByName("debug")
-                storeFile = debugConfig.storeFile
-                storePassword = debugConfig.storePassword
-                keyAlias = debugConfig.keyAlias
-                keyPassword = debugConfig.keyPassword
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
             }
         }
     }
@@ -39,7 +43,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null) {
+                signingConfig = releaseSigning
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -82,3 +89,21 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
+
+gradle.taskGraph.whenReady {
+    val isReleaseBuild = allTasks.any {
+        it.name.equals("assembleRelease", ignoreCase = true) ||
+        it.name.equals("packageRelease", ignoreCase = true)
+    }
+    if (isReleaseBuild) {
+        val releaseConfig = android.signingConfigs.getByName("release")
+        val storeFile = releaseConfig.storeFile
+        if (storeFile == null || !storeFile.exists() || releaseConfig.storePassword.isNullOrBlank()) {
+            throw GradleException(
+                "Release signing failed: Secure signing credentials were not provided. " +
+                "Set KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, and ensure a valid keystore is configured via CI secrets."
+            )
+        }
+    }
+}
+

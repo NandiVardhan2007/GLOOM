@@ -9,6 +9,7 @@ interface CollapsedPillProps {
   timer?: TimerState | null;
   clockFormat?: "12h" | "24h";
   isDragging?: boolean;
+  reducedMotion?: boolean;
 }
 
 export const CollapsedPill: React.FC<CollapsedPillProps> = ({
@@ -17,6 +18,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
   timer,
   clockFormat = "12h",
   isDragging = false,
+  reducedMotion = false,
 }) => {
   const [time, setTime] = useState<string>("");
 
@@ -56,10 +58,12 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
         color: "#ffffff",
         position: "relative",
         boxSizing: "border-box",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+        fontFamily: "var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif)",
       }}
+      role="status"
+      aria-label="JARVIS dynamic island collapsed status pill"
     >
-      {/* ──  Leading Presentation (Apple HIG) ── */}
+      {/* ── Leading Presentation ── */}
       <div
         style={{
           display: "flex",
@@ -141,13 +145,13 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             title={`Battery: ${batteryPercent}% ${telemetry.isCharging ? "(Charging)" : ""}`}
           >
             {telemetry.isCharging ? (
-              <Zap size={9} color="#34c759" fill="#34c759" />
+              <Zap size={10} color="#34c759" fill="#34c759" />
             ) : (
               <span
                 style={{
-                  fontSize: "8.5px",
+                  fontSize: "10px",
                   fontWeight: 700,
-                  color: "rgba(255, 255, 255, 0.8)",
+                  color: "rgba(255, 255, 255, 0.9)",
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
@@ -158,7 +162,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
         )}
       </div>
 
-      {/* ──  Center Presentation (Apple HIG) ── */}
+      {/* ── Center Presentation ── */}
       <div
         style={{
           display: "flex",
@@ -194,7 +198,11 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             {timer.formattedTime}
           </span>
         ) : isPlaying && media.title ? (
-          <div className="text-mask-fade" style={{ maxWidth: "120px" }}>
+          <div
+            className="text-mask-fade"
+            style={{ maxWidth: "120px" }}
+            title={media.artist ? `${media.title} • ${media.artist}` : media.title}
+          >
             <span
               style={{
                 fontSize: "11px",
@@ -232,7 +240,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
         )}
       </div>
 
-      {/* ──  Trailing Presentation (Apple HIG) ── */}
+      {/* ── Trailing Presentation ── */}
       <div
         style={{
           display: "flex",
@@ -245,7 +253,13 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
         {isDragging ? (
           <Smartphone size={12} color="#32ade6" />
         ) : isPlaying ? (
-          <Waveform isPlaying={true} width={18} height={11} color="#34c759" />
+          <Waveform
+            isPlaying={true}
+            width={18}
+            height={11}
+            color="#34c759"
+            reducedMotion={reducedMotion}
+          />
         ) : hasTrack ? (
           <Music size={13} color="rgba(255, 255, 255, 0.65)" />
         ) : (

@@ -71,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     latestTag: string;
     downloadUrl: string;
     apkDownloadUrl: string;
+    expectedSha256?: string;
   } | null>(null);
 
   const updateField = <K extends keyof AppConfig>(key: K, value: AppConfig[K]) => {
@@ -171,11 +172,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setUpdateStatus(`You are running the latest version (${currentVersion})`);
       }
 
+      let expectedSha256: string | undefined;
+      const checksumAsset = assets.find((a: any) =>
+        a.name.toLowerCase().includes("sha256") ||
+        a.name.toLowerCase().includes("checksum")
+      );
+      if (checksumAsset?.browser_download_url) {
+        try {
+          const sumRes = await fetch(checksumAsset.browser_download_url);
+          if (sumRes.ok) {
+            const sumText = await sumRes.text();
+            const match = sumText.match(/([a-fA-F0-9]{64})\s+.*(?:JARVIS.*\.exe|\.exe)/);
+            if (match) expectedSha256 = match[1];
+          }
+        } catch {
+          // ignore optional checksum asset fetch failure
+        }
+      }
+
       setUpdateInfo({
         hasUpdate,
         latestTag,
         downloadUrl: exe?.browser_download_url || `https://github.com/NandiVardhan2007/JARVIS/releases/download/${latestTag}/JARVIS-Island-Windows.exe`,
         apkDownloadUrl: apk?.browser_download_url || data.html_url,
+        expectedSha256,
       });
     } catch {
       setUpdateStatus("Running v1.0.7 (Latest Release)");
@@ -187,10 +207,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleInstallUpdate = async () => {
     if (!updateInfo?.downloadUrl) return;
     setIsInstallingUpdate(true);
-    setUpdateStatus(`Downloading and installing ${updateInfo.latestTag}...`);
+    setUpdateStatus(`Downloading and verifying ${updateInfo.latestTag}...`);
     try {
-      await invoke("jarvis_install_update", { downloadUrl: updateInfo.downloadUrl });
-      setUpdateStatus("Restarting JARVIS with latest version...");
+      await invoke("jarvis_install_update", {
+        downloadUrl: updateInfo.downloadUrl,
+        targetVersion: updateInfo.latestTag,
+        expectedSha256: updateInfo.expectedSha256,
+      });
+      setUpdateStatus("Restarting JARVIS with verified release...");
     } catch (e: any) {
       setUpdateStatus(`Update failed: ${e?.message || e}`);
       setIsInstallingUpdate(false);

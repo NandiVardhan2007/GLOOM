@@ -108,6 +108,20 @@ class JarvisAppUpdater(private val context: Context) {
         updaterScope.launch {
             try {
                 val url = URL(downloadUrl)
+                if (!url.protocol.equals("https", ignoreCase = true)) {
+                    _state.value = UpdateState.Error("Update rejected: Insecure transport protocol.")
+                    return@launch
+                }
+                val host = url.host.lowercase()
+                val isApprovedHost = host == "github.com" || 
+                    host == "api.github.com" || 
+                    host == "objects.githubusercontent.com" || 
+                    host.endsWith(".github.com") || 
+                    host.endsWith(".githubusercontent.com")
+                if (!isApprovedHost) {
+                    _state.value = UpdateState.Error("Update rejected: Host '$host' is not an approved release host.")
+                    return@launch
+                }
                 var conn = url.openConnection() as HttpURLConnection
                 conn.instanceFollowRedirects = true
                 conn.setRequestProperty("User-Agent", "JARVIS-Android-Updater")

@@ -385,7 +385,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private fun updateOverlayParameters() {
         layoutParams.flags = getOverlayFlags()
         layoutParams.height = if (isExpanded) {
-            WindowManager.LayoutParams.MATCH_PARENT
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
@@ -398,7 +398,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
     private fun expandIsland() {
         isExpanded = true
-        layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
+        layoutParams.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
         layoutParams.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }

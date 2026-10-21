@@ -15,6 +15,28 @@ pub struct MonitorDetails {
     pub is_primary: bool,
 }
 
+#[cfg(windows)]
+pub fn get_monitor_work_area(pos_x: i32, pos_y: i32) -> Option<(i32, i32, i32, i32)> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+
+    let pt = POINT { x: pos_x, y: pos_y };
+    let hmon = unsafe { MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST) };
+    if hmon.is_invalid() {
+        return None;
+    }
+    let mut mi = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    if unsafe { GetMonitorInfoW(hmon, &mut mi).as_bool() } {
+        let work = mi.rcWork;
+        Some((work.left, work.top, work.right - work.left, work.bottom - work.top))
+    } else {
+        None
+    }
+}
+
 pub fn list_monitors(app: &AppHandle) -> Vec<MonitorDetails> {
     let mut details = Vec::new();
     let primary = app.primary_monitor().ok().flatten().and_then(|m| m.name().cloned());
@@ -48,19 +70,31 @@ pub fn position_overlay(win: &WebviewWindow) {
         let size = m.size();
         let scale = m.scale_factor();
 
-        // Calculate logical width from physical width
+        // Calculate logical width from physical width (DPI-aware)
         let logical_width = (size.width as f64) / scale;
         let logical_height = STRIP_HEIGHT;
 
-        // Position at monitor top-left in physical coords
+        #[cfg(windows)]
+        let (target_x, target_y) = {
+            if let Some((work_x, work_y, _, _)) = get_monitor_work_area(pos.x, pos.y) {
+                // If top-docked taskbar exists, work_y accounts for it safely
+                (work_x, work_y)
+            } else {
+                (pos.x, pos.y)
+            }
+        };
+
+        #[cfg(not(windows))]
+        let (target_x, target_y) = (pos.x, pos.y);
+
         let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: logical_width,
             height: logical_height,
         }));
 
         let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-            x: pos.x,
-            y: pos.y,
+            x: target_x,
+            y: target_y,
         }));
     }
 }

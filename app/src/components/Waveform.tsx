@@ -7,6 +7,7 @@ interface WaveformProps {
   barCount?: number;
   width?: number;
   height?: number;
+  reducedMotion?: boolean;
 }
 
 export const Waveform: React.FC<WaveformProps> = ({
@@ -15,6 +16,7 @@ export const Waveform: React.FC<WaveformProps> = ({
   barCount = 6,
   width = 24,
   height = 14,
+  reducedMotion = false,
 }) => {
   // Proportions: bar width is 1.3x gap
   const totalSlots = barCount + (barCount - 1) / 1.3;
@@ -45,13 +47,15 @@ export const Waveform: React.FC<WaveformProps> = ({
             key={i}
             animate={
               isPlaying
-                ? {
-                    height: [minH, maxH, minH * 1.5, maxH * 0.8, minH],
-                  }
+                ? reducedMotion
+                  ? { height: maxH * 0.75 }
+                  : {
+                      height: [minH, maxH, minH * 1.5, maxH * 0.8, minH],
+                    }
                 : { height: minH }
             }
             transition={
-              isPlaying
+              isPlaying && !reducedMotion
                 ? {
                     duration: 0.85 + i * 0.12,
                     repeat: Infinity,
@@ -59,7 +63,7 @@ export const Waveform: React.FC<WaveformProps> = ({
                     ease: "easeInOut",
                     delay: i * 0.08,
                   }
-                : { duration: 0.25 }
+                : { duration: 0.15 }
             }
             style={{
               width: `${barWidth}px`,

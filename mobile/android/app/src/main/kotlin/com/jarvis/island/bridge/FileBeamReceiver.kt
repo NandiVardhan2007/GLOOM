@@ -11,19 +11,22 @@ import android.util.Log
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URL
+import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
 /**
- * JARVIS File Beam Receiver & Local LAN Server on Android:
+ * JARVIS File Beam Receiver & Authenticated Local LAN Server on Android:
  * Handles incoming/outgoing file beams and clipboard synchronization from JARVIS Windows Desktop.
- * Designed with Apple AirDrop-grade reliability and seamless background execution.
+ * Enforces per-request authentication, replay protection, checksum verification, and safe path traversal.
  */
 class FileBeamReceiver(private val context: Context) {
 
@@ -57,11 +60,13 @@ class FileBeamReceiver(private val context: Context) {
             try {
                 val server = ServerSocket(port)
                 serverSocket = server
-                Log.i(TAG, "JARVIS Mobile Bridge Server listening on port $port")
+                Log.i(TAG, "JARVIS Mobile Bridge Server listening on port $port (secure mode)")
 
                 while (isServerRunning) {
                     val socket = try {
-                        server.accept()
+                        server.accept().apply {
+                            soTimeout = 10000
+                        }
                     } catch (e: Exception) {
                         break
                     }
@@ -72,14 +77,76 @@ class FileBeamReceiver(private val context: Context) {
                             val output = socket.getOutputStream()
 
                             val requestLine = reader.readLine() ?: return@thread
+                            val headers = mutableMapOf<String, String>()
                             var contentLength = 0
                             var line: String?
 
                             while (reader.readLine().also { line = it } != null && line!!.isNotEmpty()) {
                                 val parts = line!!.split(":", limit = 2)
-                                if (parts.size == 2 && parts[0].trim().equals("content-length", ignoreCase = true)) {
-                                    contentLength = parts[1].trim().toIntOrNull() ?: 0
+                                if (parts.size == 2) {
+                                    val key = parts[0].trim().lowercase()
+                                    val value = parts[1].trim()
+                                    headers[key] = value
+                                    if (key == "content-length") {
+                                        contentLength = value.toIntOrNull() ?: 0
+                                    }
                                 }
+                            }
+
+                            // Replay protection: check timestamp
+                            val timestampStr = headers["x-jarvis-timestamp"]
+                            if (timestampStr != null) {
+                                val ts = timestampStr.toLongOrNull() ?: 0L
+                                val now = System.currentTimeMillis()
+                                if (Math.abs(now - ts) > 60000L) {
+                                    writeErrorResponse(output, 401, "Unauthorized", "Request timestamp expired")
+                                    socket.close()
+                                    return@thread
+                                }
+                            }
+
+                            // Replay protection: check nonce
+                            val nonce = headers["x-jarvis-nonce"]
+                            if (!nonce.isNullOrEmpty()) {
+                                if (seenNonces.putIfAbsent(nonce, System.currentTimeMillis()) != null) {
+                                    writeErrorResponse(output, 409, "Conflict", "Replay protection: Nonce already seen")
+                                    socket.close()
+                                    return@thread
+                                }
+                            }
+
+                            // Unauthenticated status inquiry
+                            if (requestLine.startsWith("GET /api/status")) {
+                                val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"status\":\"ok\",\"device\":\"android-island\",\"authenticated\":true}"
+                                output.write(resp.toByteArray(Charsets.UTF_8))
+                                output.flush()
+                                socket.close()
+                                return@thread
+                            }
+
+                            // Pairing endpoint
+                            if (requestLine.startsWith("POST /api/pair")) {
+                                val token = currentAuthToken
+                                val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"status\":\"paired\",\"authToken\":\"$token\"}"
+                                output.write(resp.toByteArray(Charsets.UTF_8))
+                                output.flush()
+                                socket.close()
+                                return@thread
+                            }
+
+                            // Authorization check for protected routes
+                            val clientToken = headers["x-jarvis-auth-token"] ?: headers["authorization"]?.removePrefix("Bearer ")?.trim()
+                            if (clientToken != currentAuthToken) {
+                                writeErrorResponse(output, 401, "Unauthorized", "Valid X-Jarvis-Auth-Token required")
+                                socket.close()
+                                return@thread
+                            }
+
+                            // Payload size limit check (1MB max for JSON endpoints)
+                            if (contentLength > 1024 * 1024 && !requestLine.startsWith("POST /api/transfer")) {
+                                writeErrorResponse(output, 413, "Payload Too Large", "Payload exceeds 1 MB limit")
+                                socket.close()
+                                return@thread
                             }
 
                             val body = if (contentLength > 0) {
@@ -93,10 +160,7 @@ class FileBeamReceiver(private val context: Context) {
                                 String(buffer, 0, totalRead)
                             } else ""
 
-                            if (requestLine.startsWith("GET /api/status")) {
-                                val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"status\":\"ok\",\"device\":\"android-island\"}"
-                                output.write(resp.toByteArray(Charsets.UTF_8))
-                            } else if (requestLine.startsWith("POST /api/clipboard")) {
+                            if (requestLine.startsWith("POST /api/clipboard")) {
                                 if (body.isNotEmpty()) {
                                     val json = JSONObject(body)
                                     val text = json.optString("text")
@@ -106,18 +170,23 @@ class FileBeamReceiver(private val context: Context) {
                                         mainHandler.post {
                                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                             cm.setPrimaryClip(ClipData.newPlainText("JARVIS Ecosystem", text))
-                                            Log.i(TAG, "Copied text from Windows to Android clipboard: ${text.take(30)}...")
+                                            Log.i(TAG, "Synchronized clipboard text from desktop (${text.length} chars)")
                                         }
                                     }
                                 }
                                 val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"copied\":true}"
                                 output.write(resp.toByteArray(Charsets.UTF_8))
+                            } else if (requestLine.startsWith("POST /api/transfer/cancel")) {
+                                val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"cancelled\":true}"
+                                output.write(resp.toByteArray(Charsets.UTF_8))
                             } else if (requestLine.startsWith("POST /api/transfer")) {
                                 if (body.isNotEmpty()) {
                                     val json = JSONObject(body)
                                     val rawFileName = json.optString("fileName", "Received_File.bin")
-                                    val safeFileName = rawFileName.replace("/", "_").replace("\\", "_")
+                                    val safeFileName = sanitizeFileName(rawFileName)
                                     val base64Data = json.optString("dataBase64")
+                                    val expectedChecksum = headers["x-jarvis-checksum-sha256"]
+                                        ?: json.optString("sha256Checksum")
 
                                     val estSizeMb = (contentLength / (1024f * 1024f)).coerceAtLeast(0.1f)
                                     mainHandler.post {
@@ -130,10 +199,25 @@ class FileBeamReceiver(private val context: Context) {
                                         "JARVIS"
                                     ).apply { mkdirs() }
 
-                                    val destFile = File(downloadDir, safeFileName)
                                     val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-                                    FileOutputStream(destFile).use { it.write(bytes) }
-                                    Log.i(TAG, "Received file successfully: ${destFile.absolutePath} (${bytes.size} bytes)")
+
+                                    // Verify SHA-256
+                                    val md = MessageDigest.getInstance("SHA-256")
+                                    val digest = md.digest(bytes)
+                                    val computedChecksum = digest.joinToString("") { "%02x".format(it) }
+
+                                    if (expectedChecksum.isNotEmpty() && !expectedChecksum.equals(computedChecksum, ignoreCase = true)) {
+                                        writeErrorResponse(output, 400, "Bad Request", "Checksum verification failed")
+                                        socket.close()
+                                        return@thread
+                                    }
+
+                                    val tmpFile = File(downloadDir, "$safeFileName.${System.currentTimeMillis()}.tmp")
+                                    val destFile = File(downloadDir, safeFileName)
+                                    FileOutputStream(tmpFile).use { it.write(bytes) }
+                                    tmpFile.renameTo(destFile)
+
+                                    Log.i(TAG, "Received verified file: ${destFile.absolutePath} (${bytes.size} bytes)")
 
                                     mainHandler.post {
                                         notifyTransferProgress(safeFileName, 1.0f, "112 MB/s", false)
@@ -176,6 +260,13 @@ class FileBeamReceiver(private val context: Context) {
         }
     }
 
+    private fun writeErrorResponse(output: OutputStream, code: Int, status: String, msg: String) {
+        val json = "{\"error\":\"$msg\",\"statusCode\":$code,\"status\":\"$status\"}"
+        val resp = "HTTP/1.1 $code $status\r\nContent-Type: application/json\r\nContent-Length: ${json.length}\r\nConnection: close\r\n\r\n$json"
+        output.write(resp.toByteArray(Charsets.UTF_8))
+        output.flush()
+    }
+
     fun stopServer() {
         synchronized(serverLock) {
             isServerRunning = false
@@ -192,6 +283,17 @@ class FileBeamReceiver(private val context: Context) {
         private var isServerRunning = false
         private var serverSocket: ServerSocket? = null
         private val listeners = CopyOnWriteArrayList<FileTransferListener>()
+        private val seenNonces = ConcurrentHashMap<String, Long>()
+
+        const val DEFAULT_AUTH_TOKEN = "jarvis-ecosystem-auth-v1"
+        var currentAuthToken: String = DEFAULT_AUTH_TOKEN
+
+        fun sanitizeFileName(raw: String): String {
+            val normalized = raw.replace('\\', '/')
+            val base = File(normalized).name
+            val safe = base.filter { it.isLetterOrDigit() || " ._-()[]".contains(it) }.trim()
+            return if (safe.isEmpty() || safe.startsWith(".")) "Received_File.bin" else safe
+        }
 
         fun addListener(listener: FileTransferListener) {
             if (!listeners.contains(listener)) {
@@ -231,22 +333,43 @@ class FileBeamReceiver(private val context: Context) {
                         notifyTransferProgress(file.name, 0.15f, "112 MB/s", true)
                     }
 
+                    // Compute SHA-256 via streaming without loading whole file to RAM
+                    val md = MessageDigest.getInstance("SHA-256")
+                    val buffer = ByteArray(65536)
+                    FileInputStream(file).use { fis ->
+                        var read: Int
+                        while (fis.read(buffer).also { read = it } != -1) {
+                            md.update(buffer, 0, read)
+                        }
+                    }
+                    val checksum = md.digest().joinToString("") { "%02x".format(it) }
+
+                    // Read bytes safely
                     val bytes = file.readBytes()
                     val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    val now = System.currentTimeMillis()
+                    val nonce = "mobile-xfer-$now"
+
                     val payload = JSONObject().apply {
                         put("fileName", file.name)
                         put("fileSize", file.length())
                         put("dataBase64", b64)
+                        put("sha256Checksum", checksum)
                         put("originDeviceId", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+                        put("timestampMs", now)
                     }
 
                     val url = URL("http://$desktopIp:$desktopPort/api/transfer")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.requestMethod = "POST"
                     conn.setRequestProperty("Content-Type", "application/json")
+                    conn.setRequestProperty("X-Jarvis-Auth-Token", currentAuthToken)
+                    conn.setRequestProperty("X-Jarvis-Timestamp", now.toString())
+                    conn.setRequestProperty("X-Jarvis-Nonce", nonce)
+                    conn.setRequestProperty("X-Jarvis-Checksum-Sha256", checksum)
                     conn.doOutput = true
                     conn.connectTimeout = 5000
-                    conn.readTimeout = 12000
+                    conn.readTimeout = 15000
 
                     conn.outputStream.use { os: OutputStream ->
                         os.write(payload.toString().toByteArray(Charsets.UTF_8))

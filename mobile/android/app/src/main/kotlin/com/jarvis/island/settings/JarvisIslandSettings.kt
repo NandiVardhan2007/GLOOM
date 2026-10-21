@@ -50,6 +50,8 @@ class JarvisIslandSettings {
         const val DEFAULT_AUTO_COLLAPSE_DELAY = 4.0f
         const val DEFAULT_HAPTIC_FEEDBACK = true
         const val DEFAULT_LONG_PRESS_EXPAND = true
+        const val DEFAULT_REDUCED_MOTION = false
+        const val DEFAULT_HIGH_CONTRAST = false
     }
 
     // ── 0. Master & Plugins ──
@@ -59,6 +61,10 @@ class JarvisIslandSettings {
     var pluginNotifications by mutableStateOf(true)
     var pluginBattery by mutableStateOf(true)
     var pluginClipboard by mutableStateOf(true)
+
+    // ── 0b. Accessibility & Motion ──
+    var reducedMotion by mutableStateOf(DEFAULT_REDUCED_MOTION)
+    var highContrast by mutableStateOf(DEFAULT_HIGH_CONTRAST)
 
     // ── 1. Position & Alignment (Top default 2px) ──
     var gravity by mutableStateOf(DEFAULT_GRAVITY)
@@ -120,6 +126,8 @@ class JarvisIslandSettings {
         autoCollapseDelaySec = prefs.getFloat("auto_collapse_delay", DEFAULT_AUTO_COLLAPSE_DELAY)
         hapticFeedback = prefs.getBoolean("haptic_feedback", DEFAULT_HAPTIC_FEEDBACK)
         longPressToExpand = prefs.getBoolean("long_press_expand", DEFAULT_LONG_PRESS_EXPAND)
+        reducedMotion = prefs.getBoolean("reduced_motion", DEFAULT_REDUCED_MOTION)
+        highContrast = prefs.getBoolean("high_contrast", DEFAULT_HIGH_CONTRAST)
     }
 
     fun save(context: Context) {
@@ -151,6 +159,8 @@ class JarvisIslandSettings {
             .putFloat("auto_collapse_delay", autoCollapseDelaySec)
             .putBoolean("haptic_feedback", hapticFeedback)
             .putBoolean("long_press_expand", longPressToExpand)
+            .putBoolean("reduced_motion", reducedMotion)
+            .putBoolean("high_contrast", highContrast)
             .apply()
 
         // Broadcast change so running overlay service updates in real-time

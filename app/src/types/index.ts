@@ -1,6 +1,26 @@
 export type IslandMode = "island" | "notch" | "bar";
 
-export type IslandState = "closed" | "peek" | "expanded";
+/**
+ * Cross-platform semantic presentation state model:
+ * Supports glanceable, interactive, activity-focused, transient HUD,
+ * and background lifecycle states.
+ */
+export type IslandPresentationState =
+  | "idle"
+  | "compact"
+  | "peek"
+  | "minimal"
+  | "expandedActivity"
+  | "expandedControl"
+  | "loading"
+  | "reconnecting"
+  | "error"
+  | "completed"
+  | "dismissed"
+  | "expired"
+  | "suppressed";
+
+export type IslandState = "closed" | "peek" | "expanded" | IslandPresentationState;
 
 export type ActiveTab =
   | "dashboard"

@@ -240,6 +240,10 @@ class JarvisLiveBridgeClient(private val context: Context) {
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/json")
+        conn.setRequestProperty("X-Jarvis-Auth-Token", FileBeamReceiver.currentAuthToken)
+        val now = System.currentTimeMillis()
+        conn.setRequestProperty("X-Jarvis-Timestamp", now.toString())
+        conn.setRequestProperty("X-Jarvis-Nonce", "mobile-req-$now-${(1000..9999).random()}")
         conn.doOutput = true
         conn.connectTimeout = 3000
         conn.readTimeout = 3000

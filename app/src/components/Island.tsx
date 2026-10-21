@@ -6,6 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ActiveTab, AppConfig, IslandState, TimerState } from "../types";
 import { MOTION_PHYSICS } from "../motion/physics";
 import { CollapsedPill } from "./CollapsedPill";
+import { PeekGlance } from "./PeekGlance";
 import { VolumeHUD } from "./VolumeHUD";
 import { ExpandedPanel } from "./ExpandedPanel";
 import { ContextMenu } from "./ContextMenu";
@@ -26,18 +27,85 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [activeTimer, setActiveTimer] = useState<TimerState | null>(null);
   const [isIslandDragOver, setIsIslandDragOver] = useState<boolean>(false);
+  const [isForegroundFullscreen, setIsForegroundFullscreen] = useState<boolean>(false);
+  const [peekMessage, setPeekMessage] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const collapseTimerRef = useRef<number | null>(null);
+  const peekTimerRef = useRef<number | null>(null);
+  const prevTrackRef = useRef<string>("");
 
   const { media, togglePlay, nextTrack, prevTrack, seek } = useMediaSession();
   const telemetry = useSystemTelemetry();
   const { volume, isMuted, showHUD, setVolume } = useVolumeHUD();
 
-  // Register interactive hit rects with Rust backend (including context menu if open)
-  useHitTest(containerRef, true, contextMenuRef);
+  // Fullscreen suppression condition
+  const isSuppressed = isForegroundFullscreen && config.avoidFullscreen;
+
+  // Register interactive hit rects with Rust backend (disabled when suppressed)
+  useHitTest(containerRef, !isSuppressed, contextMenuRef);
+
+  // Listen to background fullscreen change events
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<boolean>("jarvis://fullscreen-changed", (event) => {
+      setIsForegroundFullscreen(event.payload);
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  // Listen to bridge transfers for peek alerts
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<any[]>("jarvis://bridge-transfers", (event) => {
+      const transfers = event.payload;
+      if (transfers && transfers.length > 0 && islandState === "closed" && !isSuppressed) {
+        const latest = transfers[transfers.length - 1];
+        setPeekMessage(`${latest.fileName} (${latest.status})`);
+        setIslandState("peek");
+        if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
+        peekTimerRef.current = window.setTimeout(() => {
+          setIslandState("closed");
+          setPeekMessage(null);
+        }, 3000);
+      }
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [islandState, isSuppressed]);
+
+  // Track changes trigger a transient peek glance if closed
+  useEffect(() => {
+    if (
+      media.title &&
+      prevTrackRef.current &&
+      media.title !== prevTrackRef.current &&
+      islandState === "closed" &&
+      !isSuppressed
+    ) {
+      setIslandState("peek");
+      if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = window.setTimeout(() => {
+        setIslandState("closed");
+      }, 2600);
+    }
+    prevTrackRef.current = media.title;
+  }, [media.title, islandState, isSuppressed]);
 
   // Listen to global open-settings events (tray, shortcuts, external)
   useEffect(() => {
@@ -45,9 +113,11 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     listen("jarvis://open-settings", () => {
       setActiveTab("settings");
       setIslandState("expanded");
-    }).then((fn) => {
-      unlisten = fn;
-    }).catch(console.error);
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
 
     return () => {
       if (unlisten) unlisten();
@@ -101,6 +171,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
       if (e.key === "Escape" && islandState === "expanded") {
         setIslandState("closed");
         setIsPinned(false);
+        containerRef.current?.focus();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -121,7 +192,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [islandState]);
 
-  // Expand on hover
+  // Hover management: supports Peek and Expand
   const handleMouseEnter = () => {
     if (collapseTimerRef.current) {
       window.clearTimeout(collapseTimerRef.current);
@@ -129,34 +200,43 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     }
     if (islandState === "expanded") return;
 
-    // 70ms dwell filter before expanding to prevent accidental fast sweeps
-    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = window.setTimeout(() => {
-      setIslandState("expanded");
-    }, 25);
+    if (config.expandOnHover) {
+      // Immediate peek glance, followed by full expand after dwell
+      setIslandState("peek");
+      if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = window.setTimeout(() => {
+        setIslandState("expanded");
+      }, 180);
+    } else {
+      setIslandState("peek");
+    }
   };
 
-  // Collapse on mouse out
   const handleMouseLeave = () => {
     if (hoverTimerRef.current) {
       window.clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
+    if (peekTimerRef.current) {
+      window.clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = null;
+    }
 
     // If pinned by user or currently on settings tab, do not collapse
     if (isPinned || activeTab === "settings") return;
 
-    // 200ms grace period to avoid accidental collapse when near borders
+    // Grace period to avoid accidental collapse
     if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
     collapseTimerRef.current = window.setTimeout(() => {
       setIslandState("closed");
-    }, 120);
+    }, 140);
   };
 
   // Immediate expansion on click
   const handleClick = () => {
     if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
     if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+    if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
     if (islandState !== "expanded") {
       setIslandState("expanded");
     }
@@ -165,8 +245,10 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
   const handleCollapse = () => {
     if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
     if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+    if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
     setIslandState("closed");
     setIsPinned(false);
+    containerRef.current?.focus();
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -175,17 +257,36 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
+  // Keyboard navigation within island region
+  const handleRegionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      if (islandState !== "expanded") {
+        e.preventDefault();
+        setIslandState("expanded");
+      }
+    }
+  };
+
   // Compute animated dimensions
   const isExpanded = islandState === "expanded";
+  const isPeek = islandState === "peek";
 
   let targetWidth = config.islandWidth;
   let targetHeight = config.islandHeight;
   let targetRadius = config.islandHeight / 2;
 
-  if (showHUD && !isExpanded) {
+  if (isSuppressed) {
+    targetWidth = config.islandWidth;
+    targetHeight = 0;
+    targetRadius = 0;
+  } else if (showHUD && !isExpanded) {
     targetWidth = 240;
     targetHeight = 38;
     targetRadius = 19;
+  } else if (isPeek) {
+    targetWidth = 320;
+    targetHeight = 44;
+    targetRadius = 22;
   } else if (isExpanded) {
     if (activeTab === "settings") {
       targetWidth = Math.max(config.expandedWidth, 860);
@@ -204,6 +305,14 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
       ? `0 0 ${targetRadius}px ${targetRadius}px`
       : `${targetRadius}px`;
 
+  const motionTransition = config.reducedMotion
+    ? MOTION_PHYSICS.reducedMotion
+    : isExpanded
+    ? MOTION_PHYSICS.expand
+    : isPeek
+    ? MOTION_PHYSICS.peek
+    : MOTION_PHYSICS.collapse;
+
   return (
     <div
       style={{
@@ -215,10 +324,17 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
         display: "flex",
         justifyContent: "center",
         pointerEvents: "none",
+        opacity: isSuppressed ? 0 : 1,
+        transition: "opacity 0.2s ease",
       }}
     >
       <motion.div
         ref={containerRef}
+        role="region"
+        aria-label="JARVIS Dynamic Island"
+        aria-expanded={isExpanded}
+        tabIndex={0}
+        onKeyDown={handleRegionKeyDown}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
@@ -246,7 +362,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
                 reader.onload = async () => {
                   const b64 = (reader.result as string).split(",")[1];
                   await invoke("jarvis_send_bridge_file_bytes", {
-                    deviceName: "Motorola Edge 50 Pro",
+                    deviceName: "Live Bridge Device",
                     fileName: file.name,
                     fileSize: file.size,
                     dataBase64: b64,
@@ -259,18 +375,18 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
             setIslandState("expanded");
           }
         }}
-        whileTap={!isExpanded ? { scale: 0.98 } : undefined}
+        whileTap={!isExpanded && !isPeek ? { scale: 0.98 } : undefined}
         animate={{
           width: targetWidth,
           height: targetHeight,
           borderRadius: targetRadius,
           top: topOffset,
         }}
-        transition={isExpanded ? MOTION_PHYSICS.expand : MOTION_PHYSICS.collapse}
+        transition={motionTransition}
         style={{
           position: "absolute",
           top: `${topOffset}px`,
-          pointerEvents: "auto",
+          pointerEvents: isSuppressed ? "none" : "auto",
           overflow: "hidden",
           transformOrigin: "top center",
           willChange: "width, height, border-radius, top",
@@ -289,7 +405,9 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
             ? "0 0 30px rgba(50, 173, 230, 0.7), 0 0 60px rgba(50, 173, 230, 0.35)"
             : isExpanded
             ? "inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.28), 0 24px 50px -4px rgba(0, 0, 0, 0.95), 0 8px 24px -2px rgba(0, 0, 0, 0.8)"
-            : `inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.22), 0 0 16px ${config.accentColor ? `${config.accentColor}44` : "rgba(0, 140, 255, 0.35)"}, 0 12px 28px -2px rgba(0, 0, 0, 0.9)`,
+            : `inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.22), 0 0 16px ${
+                config.accentColor ? `${config.accentColor}44` : "rgba(0, 140, 255, 0.35)"
+              }, 0 12px 28px -2px rgba(0, 0, 0, 0.9)`,
         }}
       >
         <AnimatePresence initial={false}>
@@ -299,7 +417,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              transition={MOTION_PHYSICS.fade}
+              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
               style={{ width: "100%", height: "100%" }}
             >
               <VolumeHUD volume={volume} isMuted={isMuted} />
@@ -310,7 +428,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={MOTION_PHYSICS.fade}
+              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
               style={{
                 width: "100%",
                 height: "100%",
@@ -337,13 +455,34 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
                 onTimerUpdate={setActiveTimer}
               />
             </motion.div>
+          ) : isPeek ? (
+            <motion.div
+              key="peek"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: "#000000",
+              }}
+            >
+              <PeekGlance
+                media={media}
+                telemetry={telemetry}
+                timer={activeTimer}
+                message={peekMessage}
+                reducedMotion={config.reducedMotion}
+              />
+            </motion.div>
           ) : (
             <motion.div
               key="collapsed"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={MOTION_PHYSICS.fade}
+              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
               style={{
                 width: "100%",
                 height: "100%",
@@ -356,6 +495,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
                 timer={activeTimer}
                 clockFormat={config.clockFormat}
                 isDragging={isIslandDragOver}
+                reducedMotion={config.reducedMotion}
               />
             </motion.div>
           )}

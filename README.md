@@ -1,104 +1,93 @@
-#  JARVIS Dynamic Island & Connected Ecosystem
-### Apple-Grade Live Activities, Dynamic Island & Continuity for Windows and Android
+# JARVIS — Cross-Platform Glanceable Activity Surface & Connected Ecosystem
+### Apple-inspired Dynamic Island-style overlay for Windows and Android
 
 [![Latest Release](https://img.shields.io/github/v/release/NandiVardhan2007/JARVIS?color=007aff&label=Release&logo=github)](https://github.com/NandiVardhan2007/JARVIS/releases/latest)
-[![Windows 11 Compatible](https://img.shields.io/badge/Windows-11%20%7C%2010-0078d4.svg?logo=windows)](https://microsoft.com/windows)
-[![Android Version](https://img.shields.io/badge/Android-9.0--15.0%20(API%2028%2B)-3ddc84.svg?logo=android)](https://developer.android.com)
-[![Design Standard](https://img.shields.io/badge/Design-Apple%20HIG%20%7C%20Live%20Activities-black.svg?logo=apple)](DESIGN.md)
+[![Windows Desktop](https://img.shields.io/badge/Windows-11%20%7C%2010%20Overlay-0078d4.svg?logo=windows)](https://microsoft.com/windows)
+[![Android Mobile](https://img.shields.io/badge/Android-Cutout--Aware%20Overlay-3ddc84.svg?logo=android)](https://developer.android.com)
+[![Design Standard](https://img.shields.io/badge/Design-Apple--Inspired%20Tokens-black.svg)](DESIGN.md)
 [![Architecture: Tauri 2](https://img.shields.io/badge/Desktop-Tauri%202%20%7C%20Rust%20%2B%20React%2019-ffc13b.svg?logo=tauri)](https://tauri.app)
 [![Mobile: Jetpack Compose](https://img.shields.io/badge/Mobile-Jetpack%20Compose%20%7C%20Kotlin-4285f4.svg?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Build Status](https://github.com/NandiVardhan2007/JARVIS/actions/workflows/build.yml/badge.svg)](https://github.com/NandiVardhan2007/JARVIS/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**JARVIS** is an ultra-fluid, Apple-grade Dynamic Island and Connected Ecosystem designed for Windows 11/10 and Android companion devices. Built strictly according to the official **[Apple Human Interface Guidelines for Live Activities](https://developer.apple.com/design/human-interface-guidelines/live-activities)** and Emil Kowalski's fluid physical spring mechanics (`apple-design`), JARVIS brings true hardware punch-hole integration, glassmorphism, real-time audio waveforms, LiveBridge clipboard synchronization, and 5G local file beaming into a single unified companion.
+**JARVIS** is an Apple-inspired Dynamic Island-style overlay and cross-device glanceable activity surface designed for Windows 11/10 and Android devices. It provides fluid spring mechanics, hardware camera cutout alignment, glassmorphic styling with high-contrast fallbacks, audio waveforms, secure local clipboard synchronization, and authenticated file beaming across your devices.
+
+> **Important Platform Notice**: JARVIS is an independent, Apple-inspired overlay application for Windows and Android. It does not provide official Apple Dynamic Island or Apple Live Activities functionality. Official Apple Live Activities strictly require Apple ActivityKit and WidgetKit on iOS/iPadOS devices. iOS is currently unsupported.
 
 ---
 
-## ⚡ Quick Start: 1-Line Windows Desktop Installer
+## 🏛️ Platform Architecture & Positioning
 
-Install JARVIS on Windows directly from PowerShell. This single line downloads the latest release binary from GitHub Releases, installs to `%LOCALAPPDATA%\JARVIS-Island`, creates Start Menu and Desktop shortcuts, and launches the app:
+JARVIS cleanly separates platform adaptations to respect each operating system's native paradigms:
 
-```powershell
-powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/NandiVardhan2007/JARVIS/main/install-desktop.ps1 | iex"
-```
+### 1. Windows Desktop Overlay
+- **Layered Window Architecture**: Built on Tauri 2, Rust, and React 19. Runs as a borderless topmost overlay with dynamic hit-testing pass-through (`WS_EX_LAYERED`, `WS_EX_TRANSPARENT`).
+- **DPI & Multi-Monitor Geometry**: Respects monitor work areas (`rcWork`) to avoid top-docked taskbars, handles negative virtual-screen multi-monitor coordinates, and adapts to DPI scaling changes.
+- **Fullscreen Suppression**: Monitors foreground applications for fullscreen and borderless-fullscreen states (e.g., games, presentations) and automatically transitions to the `suppressed` state with zero pointer capture.
+- **Keyboard Navigation & A11y**: Full keyboard navigation (`Tab`, `Enter`, `Space`, `Escape`), ARIA accessibility attributes (`role="region"`, `aria-label`), visible focus rings, and high-contrast styling.
 
-> **Uninstallation**: Running `uninstall.ps1` in `%LOCALAPPDATA%\JARVIS-Island` cleanly cleans all shortcuts and files.
+### 2. Android Cutout-Aware Overlay
+- **Window Manager Overlay**: Built in Kotlin and Jetpack Compose utilizing Android `WindowManager` (`TYPE_APPLICATION_OVERLAY`).
+- **Dynamic Cutout Adaptation**: Queries live `WindowInsets` and `DisplayCutout` coordinates for real-time camera alignment across center punch-holes, corner cutouts, waterdrop notches, and no-cutout displays.
+- **Non-Blocking Touch Geometry**: Expanded activity cards occupy strictly bounded window bounds (`dpToPx(expandedHeight + positionY + 24)`), preventing background touch interception.
+- **Accessibility & Motion**: TalkBack accessibility semantics, persistent high-contrast mode, and reduced-motion support (smooth crossfades replacing spring bounces).
+- **Hardware Preset**: Calibrated hardware profile for devices including the Motorola Edge 50 Pro (1220×2712 px, 50% center punch-hole).
 
----
-
-## 📱 Mobile Companion (Android APK)
-
-Download the signed release APK directly to your phone:
-
-- **Direct Download**: **[JARVIS-Island-Release-v1.0.apk (Latest Release)](https://github.com/NandiVardhan2007/JARVIS/releases/latest)**
-- **In-App Auto-Updater**: Go to the **About** screen in the mobile app and tap **Check for Updates**. JARVIS downloads and installs updates seamlessly within the app, displaying live animated progress with download speeds, byte counters, and direct APK installation via `FileProvider`.
-- **Apple Music Live Lyrics**: Toggle the karaoke speech-bubble icon on the music card to view real-time synchronized lyrics with active-line kinetic highlighting and tap-to-seek.
-- **Fluid Modal Dismissal**: Tap anywhere outside the expanded Dynamic Island on your screen to immediately collapse it back to the camera notch.
-
----
-
-## 💎 Apple HIG Live Activities & Dynamic Island Design
-
-JARVIS follows the complete presentation hierarchy specified by Apple's design system (documented in [DESIGN.md](DESIGN.md)):
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ [compactLeading: 20x20]         [Center: Live Metric]        [compactTrailing: Waveform] │ ◄ Compact
-└────────────────────────────────────────────────────────────────────────┘
-
-┌────────────────────────────────────────────────────────────────────────┐
-│  ┌───────────┐  Track Title (SF Pro 14pt Bold)                         │ ◄ .center
-│  │  Artwork  │  Artist Name (SF Pro 12pt Regular, 60% White)          │
-│  │  Squircle │  ──────────────────────────────────────────             │
-│  │  (.leading│  0:42 ━━━━━━━●───────────────────── -2:18 (Tabular Nums)│ ◄ .bottom
-│  └───────────┘  [◄◄]        [ ▶ / ❚❚ ]        [►►]        [AirPlay]    │
-│  ────────────────────────────────────────────────────────────────────  │
-│  [Dashboard] [Media] [Bridge] [Controls] [Bluetooth] [Timer] [Stats] [Net]│
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-1. **Compact Presentation**:
-   - `compactLeading`: Context glyph or 18×18 squircle album thumbnail (`4.5px` continuous radius).
-   - `compactTrailing`: Vibrant live audio visualizer equalizer (`#34C759` or accent cyan) or focus countdown timer.
-   - `center`: Recessed pill capsule with live tabular clock or status.
-2. **Minimal Presentation**:
-   - Detached circular or capsule badge during concurrent multitasking activities.
-3. **Expanded Presentation (4-Region Apple HIG Layout)**:
-   - `.leading`: Continuous squircle album art / app avatar.
-   - `.trailing`: Live equalizer bars or companion status badge.
-   - `.center`: Typographic hierarchy with SF Pro Display Bold titles and SF Pro Text subtitles.
-   - `.bottom`: Full-width scrub bar with elapsed and remaining timestamps in tabular numerals (`tnum`), flanked by tactile circular media transport buttons.
-4. **Lock Screen Presentation**:
-   - `14pt` standard layout padding conforming to Apple HIG.
-   - Liquid dark translucent glass with specular hairline border (`0.5px solid rgba(255, 255, 255, 0.14)`).
+### 3. iOS Status
+- **Currently Unsupported**: No iOS source tree exists within this repository.
+- **Future Architecture**: A genuine iOS implementation will require a native Swift target utilizing ActivityKit, WidgetKit, and dynamic Live Activity push tokens.
 
 ---
 
-## 🎯 Motorola Edge 50 Pro Hardware Calibration
+## 🔒 Security & Release Architecture
 
-The Android companion overlay is calibrated with pixel-perfection for the **Motorola Edge 50 Pro**:
+### 1. Hardened Desktop/Mobile LiveBridge
+- **Mutual Token Authentication**: Every API request requires a shared `X-Jarvis-Auth-Token` (or HTTP Bearer token). Unauthenticated requests are rejected with `401 Unauthorized`.
+- **Replay Protection**: Enforces timestamp validation (`X-Jarvis-Timestamp`) with maximum 60-second clock skew and a sliding-window nonce cache (`X-Jarvis-Nonce`).
+- **Strict Payload Limits**: Maximum 1 MB for control payloads; 2 GB streaming limit for file transfers with active cancellation (`/api/transfer/cancel`).
+- **Streaming Integrity Verification**: Files are hashed on the fly via SHA-256 and checked against `X-Jarvis-Checksum-Sha256` before atomic promotion from `.tmp` storage.
+- **Network Isolation**: Android enforces a strict `network_security_config.xml` restricting cleartext communication exclusively to local loopback and private RFC1918 subnets.
+- **Privacy First**: Sensitive clipboard contents and file payloads are never logged to console or disk.
 
-- **Display**: 1220 × 2712 px, 446 PPI (6.7" pOLED, 144 Hz)
-- **Punch-Hole Alignment**:
-  - Horizontal Center: `610 px` (50.0% dead center across display)
-  - Vertical Center: `52 px` (~`18.6 dp` from active screen top edge)
-  - Hole Diameter: `48–52 px` (~`17.2–18.6 dp`)
-- **Calibrated Island Metrics**:
-  - **Top Margin**: `2 px` default margin as requested.
-  - **Pill Height**: `38 dp` (~`106 px`), seamlessly enveloping the physical camera from `Y = 5.5 px` to `Y = 111.5 px`.
-  - **Cutout Clearance Gap**: `32 dp` dead-zone, providing `7 dp` safe pitch-black margins on both sides of the physical lens.
-  - **Wingspan**: `184 dp` closed width, `380 dp × 260 dp` expanded card with `28.5 dp` side gutters.
-- **One-Tap Preset**: Accessible anytime in **Settings → Position & Alignment → Apply Motorola Edge 50 Pro Preset**.
+### 2. Safe Desktop Auto-Updater
+- **Approved Release Host Enforcement**: Downloads are strictly restricted to official repository releases (`github.com/NandiVardhan2007/JARVIS/releases/download/` and `objects.githubusercontent.com`) over HTTPS.
+- **Cryptographic & Binary Verification**: Updates verify SHA-256 checksums from signed manifests and validate PE executable headers (`MZ` magic bytes) before installation.
+- **Downgrade Protection**: Rejects older or equal versions using semantic version parsing.
+- **Atomic Swap with Rollback**: Replaces the binary via an atomic non-elevated script with automatic `.old` file restoration if replacement fails, eliminating unverified execution policies.
+
+### 3. Safe Release Signing
+- **No Embedded Secrets**: Hardcoded release passwords and embedded repository keystores have been completely removed.
+- **Safe CI Failure**: Builds explicitly abort with descriptive errors if release signing secrets are not supplied in CI, preventing unsigned or insecure fallbacks.
 
 ---
 
-## 🔗 LiveBridge Ecosystem Features
+## 📐 Presentation State Architecture
 
-- **Bi-Directional Clipboard Sync**: Copy text on Windows and paste instantly on Android (and vice-versa) with zero friction.
-- **Drag-to-Beam File Sharing**: Drag any file onto the Windows Dynamic Island to immediately beam it over local Wi-Fi Direct (Port 53391) to your Android companion without third-party cloud servers.
-- **Dedicated Network Dashboard**: Monitor live download/upload throughput, Wi-Fi Direct interface stats, and companion socket ping directly inside the island ([NetworkView.tsx](app/src/components/NetworkView.tsx)).
-- **Volume HUD**: Hardware volume changes trigger a non-focus-stealing temporary HUD pill.
-- **Hardware Telemetry**: Real-time CPU%, RAM usage, GPU load, and disk metrics.
+JARVIS defines a 13-state cross-platform semantic presentation contract:
+
+| State | Purpose | Windows Adaptation | Android Adaptation |
+|:---|:---|:---|:---|
+| `idle` / `compact` | Primary glanceable state | 210×36 pill hugging screen edge | Cutout-enveloping pill (38 dp height) |
+| `peek` | Transient glance (2.5s) | 320×44 card previewing track/timer/alert | Quick notification / activity preview |
+| `minimal` | Secondary multitasking badge | Collapsed auxiliary pill | Detached satellite bubble |
+| `expandedActivity` | Interactive media/timer | 420×190 glass panel with transport controls | Bounded expanded card (380×260 dp) |
+| `expandedControl` | Full system command center | Multi-tab dashboard and settings suite | Settings & controls overlay |
+| `loading` | Asynchronous task in progress | Indeterminate progress shimmer | Progress indicator |
+| `reconnecting` | Bridge connection retry | Amber status indicator | Amber reconnect badge |
+| `error` | Transfer or auth failure | Red specular rim and alert text | Transient error banner |
+| `completed` | Successful transfer / timer end | Green confirmation badge | Haptic confirmation & badge |
+| `dismissed` | Dismissed by user | Return to `idle` | Collapse to cutout |
+| `expired` | Activity timer finished | Pulsing amber ring | Audible/visual notification |
+| `suppressed` | Fullscreen app active | Zero-height, zero-opacity, pass-through | Auto-hidden during full-screen games |
+
+---
+
+## 📱 Mobile Companion (Android)
+
+- **Direct Download**: **[JARVIS-Island-Release (Latest Release)](https://github.com/NandiVardhan2007/JARVIS/releases/latest)**
+- **Cutout Calibration**: Works automatically on punch-hole and notch displays with an optional preset for Motorola Edge 50 Pro.
+- **In-App Updater**: Verified download and installation over HTTPS from official release channels.
+- **Background Keep-Alive**: Foreground overlay service with proper notification channels and battery optimization settings.
 
 ---
 
@@ -109,7 +98,7 @@ The Android companion overlay is calibrated with pixel-perfection for the **Moto
 - **Rust**: Stable toolchain (`rustup update stable`)
 - **Android SDK**: API 34+ / JDK 17
 
-### 1. Build Desktop (Windows EXE)
+### 1. Build Desktop (Windows)
 ```powershell
 cd app
 npm install
@@ -118,21 +107,12 @@ cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
 The compiled binary will be located at `app/src-tauri/target/release/jarvis.exe`.
 
-### 2. Build Mobile (Android APK)
+### 2. Build Mobile (Android)
 ```bash
 cd mobile/android
-./gradlew assembleRelease
+./gradlew assembleDebug
 ```
-The compiled signed APK will be located at `mobile/android/app/build/outputs/apk/release/app-release.apk`.
-
----
-
-## 🚀 CI/CD & Automated GitHub Releases
-
-Every push to `main` triggers a complete multi-platform CI/CD pipeline via GitHub Actions ([.github/workflows/build.yml](.github/workflows/build.yml)):
-1. **Android Build**: Compiles release APK with zero warnings using JDK 17 and Android SDK.
-2. **Windows Build**: Compiles release EXE with Rust and Vite frontend.
-3. **Automated Publishing**: Automatically creates a new GitHub Release with an auto-incrementing tag (`v1.0.<run_number>`) and attaches both release binaries.
+For release builds, configure CI signing secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`).
 
 ---
 

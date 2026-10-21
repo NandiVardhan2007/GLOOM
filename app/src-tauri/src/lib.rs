@@ -4,6 +4,7 @@ pub mod fullscreen;
 pub mod protocol;
 pub mod providers;
 pub mod tray;
+pub mod updater;
 pub mod window;
 
 use config::{AppConfig, ConfigStore};
@@ -91,72 +92,24 @@ fn jarvis_exit(app: AppHandle) {
 }
 
 #[tauri::command]
-fn jarvis_install_update(app: AppHandle, download_url: String) -> Result<String, String> {
-    use std::process::Command;
-    #[cfg(windows)]
-    use std::os::windows::process::CommandExt;
-
-    let current_exe = std::env::current_exe()
-        .map_err(|e| format!("Failed to find current executable: {}", e))?;
-    let current_exe_str = current_exe.to_string_lossy().replace('\'', "''");
-    let current_pid = std::process::id();
-
-    let script = format!(
-        r#"
-$ErrorActionPreference = 'Stop'
-$Target = '{current_exe_str}'
-$TargetNew = "$Target.new"
-$Url = '{download_url}'
-$PidToKill = {current_pid}
-
-if (Get-Command curl.exe -ErrorAction SilentlyContinue) {{
-    & curl.exe -L -s -S -o $TargetNew $Url
-}} else {{
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $Url -OutFile $TargetNew -UseBasicParsing
-}}
-
-if (Test-Path $TargetNew) {{
-    Start-Sleep -Milliseconds 600
-    Stop-Process -Id $PidToKill -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name 'JARVIS*' -Force -ErrorAction SilentlyContinue
-    
-    $retries = 10
-    while ($retries -gt 0) {{
-        try {{
-            Move-Item -Path $TargetNew -Destination $Target -Force
-            break
-        }} catch {{
-            Start-Sleep -Milliseconds 500
-            $retries--
-        }}
-    }}
-    Start-Process -FilePath $Target
-}}
-"#
-    );
-
-    #[cfg(windows)]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        Command::new("powershell")
-            .args(&["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("Failed to spawn updater: {}", e))?;
-    }
-
-    #[cfg(not(windows))]
-    {
-        return Err("Desktop self-update is supported on Windows.".to_string());
-    }
+fn jarvis_install_update(
+    app: AppHandle,
+    download_url: String,
+    target_version: Option<String>,
+    expected_sha256: Option<String>,
+) -> Result<String, String> {
+    let msg = updater::stage_and_install_update(
+        &download_url,
+        target_version.as_deref(),
+        expected_sha256.as_deref(),
+    )?;
 
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(800));
+        std::thread::sleep(std::time::Duration::from_millis(1000));
         app.exit(0);
     });
 
-    Ok("Update downloaded and installing... App will restart momentarily.".to_string())
+    Ok(msg)
 }
 
 #[tauri::command]
@@ -386,6 +339,36 @@ pub fn run() {
             providers::volume::start_volume_service(handle.clone());
             providers::clipboard::start_clipboard_service(handle.clone());
             providers::livebridge::start_livebridge_service(handle.clone());
+
+            // Fullscreen suppression watcher
+            let fs_handle = handle.clone();
+            std::thread::spawn(move || {
+                let mut was_fullscreen = false;
+                loop {
+                    let is_fs = fullscreen::is_foreground_fullscreen();
+                    if is_fs != was_fullscreen {
+                        was_fullscreen = is_fs;
+                        let _ = fs_handle.emit("jarvis://fullscreen-changed", is_fs);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(800));
+                }
+            });
+
+            // Multi-monitor hotplug & resolution change watcher
+            let display_handle = handle.clone();
+            std::thread::spawn(move || {
+                let mut last_monitor_count = 0;
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    if let Some(win) = display_handle.get_webview_window(ISLAND_LABEL) {
+                        let count = win.available_monitors().map(|m| m.len()).unwrap_or(0);
+                        if count != last_monitor_count {
+                            last_monitor_count = count;
+                            display::position_overlay(&win);
+                        }
+                    }
+                }
+            });
 
             Ok(())
         })

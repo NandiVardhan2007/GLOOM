@@ -86,7 +86,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
   const navCapsuleItems: { id: ActiveTab; icon: React.ReactNode; label: string }[] = [
     { id: "dashboard", icon: <LayoutGrid size={13} />, label: "Dashboard" },
     { id: "media", icon: <Music size={13} />, label: "Music" },
-    { id: "bridge", icon: <Smartphone size={13} />, label: "AirDrop & Phone" },
+    { id: "bridge", icon: <Smartphone size={13} />, label: "File Beam & Phone" },
     { id: "notes", icon: <FileText size={13} />, label: "Notepad" },
     { id: "network", icon: <Activity size={13} />, label: "Network" },
     { id: "controls", icon: <Sliders size={13} />, label: "Control Center" },
@@ -107,7 +107,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
         boxSizing: "border-box",
         backgroundColor: "transparent",
         color: "#ffffff",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
+        fontFamily: "var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif)",
       }}
     >
       {/* ── Top Header Bar ── */}

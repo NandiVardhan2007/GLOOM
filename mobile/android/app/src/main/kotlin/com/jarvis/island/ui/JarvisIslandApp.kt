@@ -62,6 +62,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,11 +102,15 @@ fun JarvisIslandApp(
     val isNotificationActive = activeNotification != null
     val isTransferActive = activeTransfer.isActive
 
-    // Apple & OriginOS Critically Damped Spring Physics
-    val springSpecDp = spring<androidx.compose.ui.unit.Dp>(
-        dampingRatio = 0.68f, // Subtle organic bounce
-        stiffness = 360f      // Ultra-fluid responsiveness
-    )
+    // Motion specification: critically damped spring or reduced motion tween
+    val animationSpecDp = if (settings.reducedMotion) {
+        tween<androidx.compose.ui.unit.Dp>(durationMillis = 90, easing = FastOutSlowInEasing)
+    } else {
+        spring<androidx.compose.ui.unit.Dp>(
+            dampingRatio = 0.68f, // Subtle organic bounce
+            stiffness = 360f      // Ultra-fluid responsiveness
+        )
+    }
 
     // Dynamic Width:
     // Expanded -> 380dp
@@ -121,7 +127,7 @@ fun JarvisIslandApp(
             isCharging -> 140.dp
             else -> 104.dp
         },
-        animationSpec = springSpecDp,
+        animationSpec = animationSpecDp,
         label = "islandWidth"
     )
 
@@ -131,13 +137,13 @@ fun JarvisIslandApp(
         } else {
             settings.pillHeight.dp
         },
-        animationSpec = springSpecDp,
+        animationSpec = animationSpecDp,
         label = "islandHeight"
     )
 
     val targetCorner by animateDpAsState(
         targetValue = if (isExpanded) settings.expandedCornerRadius.dp else settings.cornerRadius.dp,
-        animationSpec = springSpecDp,
+        animationSpec = animationSpecDp,
         label = "islandCorner"
     )
 
@@ -175,11 +181,18 @@ fun JarvisIslandApp(
         ) {
             Card(
                 shape = RoundedCornerShape(targetCorner),
-                colors = CardDefaults.cardColors(containerColor = palette.background),
+                colors = CardDefaults.cardColors(containerColor = if (settings.highContrast) Color.Black else palette.background),
                 modifier = Modifier
                     .width(targetWidth)
                     .height(targetHeight)
                     .defaultMinSize(minWidth = 100.dp, minHeight = 36.dp)
+                    .semantics {
+                        contentDescription = if (isExpanded) {
+                            "JARVIS Dynamic Island overlay, expanded activity card. Tap outside to collapse."
+                        } else {
+                            "JARVIS Dynamic Island overlay pill. Tap to expand."
+                        }
+                    }
                     .shadow(
                         elevation = if (isExpanded) 24.dp else 8.dp,
                         shape = RoundedCornerShape(targetCorner),
