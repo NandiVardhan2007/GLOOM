@@ -42,7 +42,7 @@ jobs:
           mkdir -p mobile/android/keystore
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "Using configured repository Secret KEYSTORE_BASE64..."
-            echo "$KEYSTORE_BASE64" | base64 -d > mobile/android/keystore/release.jks
+            echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > mobile/android/keystore/release.jks
           else
             echo "::error::KEYSTORE_BASE64 secret is not configured in repository settings. Release build failed safely."
             exit 1
