@@ -72,3 +72,14 @@ __pycache__/
 
 # External reference clones
 /references/
+
+# Ignored Internal Audits, Roadmaps & Specs
+ARCHITECTURE.md
+IMPLEMENTATION_ROADMAP.md
+REUSE_AUDIT.md
+SECURITY.md
+references.md
+docs/
+research/
+build-artifacts/
+

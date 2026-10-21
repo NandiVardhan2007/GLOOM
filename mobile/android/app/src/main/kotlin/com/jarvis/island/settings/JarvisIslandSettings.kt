@@ -27,17 +27,19 @@ class JarvisIslandSettings {
         const val ACTION_MEDIA_NEXT = "com.jarvis.island.ACTION_MEDIA_NEXT"
         const val ACTION_MEDIA_PREV = "com.jarvis.island.ACTION_MEDIA_PREV"
 
-        // Calibrated Default Values
+        // Motorola Edge 50 Pro Calibrated Hardware Specifications:
+        // Screen: 1220 x 2712 px, 446 PPI (~2.79 dp density), 144 Hz
+        // Punch hole: Center at X=610 px, Y=52 px (~18.6 dp from top), Diameter=48-52 px (~18 dp)
         const val DEFAULT_GRAVITY = "Center"
         const val DEFAULT_POSITION_Y = 2  // User requirement: 2px default top margin
-        const val DEFAULT_POSITION_X = 0
-        const val DEFAULT_CUTOUT_CLEARANCE = 44
-        const val DEFAULT_PILL_WIDTH = 176
-        const val DEFAULT_PILL_HEIGHT = 38
-        const val DEFAULT_EXPANDED_WIDTH = 364
-        const val DEFAULT_EXPANDED_HEIGHT = 252
+        const val DEFAULT_POSITION_X = 0  // Dead-center at 610 px
+        const val DEFAULT_CUTOUT_CLEARANCE = 32 // 48-52 px physical hole + 7 dp safe margin each side
+        const val DEFAULT_PILL_WIDTH = 184 // Optimal wingspan across 437 dp screen
+        const val DEFAULT_PILL_HEIGHT = 38 // Completely envelops punch-hole from top 2 dp to 40 dp
+        const val DEFAULT_EXPANDED_WIDTH = 380
+        const val DEFAULT_EXPANDED_HEIGHT = 260
         const val DEFAULT_CORNER_RADIUS = 19
-        const val DEFAULT_EXPANDED_CORNER_RADIUS = 28
+        const val DEFAULT_EXPANDED_CORNER_RADIUS = 32
         const val DEFAULT_THEME = "Obsidian Black"
         const val DEFAULT_SHOW_BORDERS = true
         const val DEFAULT_BORDER_GLOW = true
@@ -223,6 +225,20 @@ class JarvisIslandSettings {
         autoCollapseDelaySec = DEFAULT_AUTO_COLLAPSE_DELAY
         hapticFeedback = DEFAULT_HAPTIC_FEEDBACK
         longPressToExpand = DEFAULT_LONG_PRESS_EXPAND
+        save(context)
+    }
+
+    fun applyMotoEdge50ProPreset(context: Context) {
+        gravity = DEFAULT_GRAVITY
+        positionY = DEFAULT_POSITION_Y
+        positionX = DEFAULT_POSITION_X
+        cutoutClearance = DEFAULT_CUTOUT_CLEARANCE
+        pillWidth = DEFAULT_PILL_WIDTH
+        pillHeight = DEFAULT_PILL_HEIGHT
+        expandedWidth = DEFAULT_EXPANDED_WIDTH
+        expandedHeight = DEFAULT_EXPANDED_HEIGHT
+        cornerRadius = DEFAULT_CORNER_RADIUS
+        expandedCornerRadius = DEFAULT_EXPANDED_CORNER_RADIUS
         save(context)
     }
 }

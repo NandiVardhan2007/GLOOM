@@ -6,7 +6,6 @@ export type ActiveTab =
   | "dashboard"
   | "media"
   | "bridge"
-  | "notchy"
   | "controls"
   | "bluetooth"
   | "notes"

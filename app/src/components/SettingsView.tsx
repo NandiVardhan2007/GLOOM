@@ -36,7 +36,6 @@ export type SettingsCategory =
   | "general"
   | "appearance"
   | "widgets"
-  | "notchy"
   | "tips"
   | "pro"
   | "about";
@@ -69,6 +68,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [activeTab, setActiveTab] = useState<SettingsCategory>(initialTab);
   const [updateStatus, setUpdateStatus] = useState<string>("v1.0.0 (Latest)");
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+  const [updateInfo, setUpdateInfo] = useState<{
+    hasUpdate: boolean;
+    latestTag: string;
+    downloadUrl: string;
+    apkDownloadUrl: string;
+  } | null>(null);
 
   const updateField = <K extends keyof AppConfig>(key: K, value: AppConfig[K]) => {
     onUpdateConfig({
@@ -146,25 +151,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onUpdateConfig(defaults);
   };
 
-  const handleCheckUpdate = () => {
+  const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true);
-    setUpdateStatus("Checking for updates...");
-    setTimeout(() => {
+    setUpdateStatus("Connecting to GitHub Releases...");
+    try {
+      const res = await fetch("https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest");
+      if (!res.ok) {
+        throw new Error(`Status ${res.status}`);
+      }
+      const data = await res.json();
+      const latestTag = data.tag_name || "v1.0.0";
+      const assets = data.assets || [];
+      const exe = assets.find((a: any) => a.name.endsWith(".exe"));
+      const apk = assets.find((a: any) => a.name.endsWith(".apk"));
+      const currentVersion = "v1.0.0";
+      const hasUpdate = latestTag !== currentVersion;
+
+      if (hasUpdate) {
+        setUpdateStatus(`New release ${latestTag} is available!`);
+      } else {
+        setUpdateStatus(`You are running the latest version (${currentVersion})`);
+      }
+
+      setUpdateInfo({
+        hasUpdate,
+        latestTag,
+        downloadUrl: exe?.browser_download_url || data.html_url,
+        apkDownloadUrl: apk?.browser_download_url || data.html_url,
+      });
+    } catch {
+      setUpdateStatus("Running v1.0.0 (Latest Release)");
+    } finally {
       setIsCheckingUpdate(false);
-      setUpdateStatus("You are up to date! (v1.0.0)");
-    }, 1200);
+    }
   };
 
   const isProActive = config.isPro !== false;
 
-  const navItems = [
-    { id: "general" as const, label: "General", icon: <Sliders size={15} /> },
-    { id: "appearance" as const, label: "Appearance", icon: <Palette size={15} /> },
-    { id: "widgets" as const, label: "Widgets", icon: <LayoutGrid size={15} /> },
-    { id: "notchy" as const, label: "Notchy & AI", icon: <Bot size={15} />, isPro: true },
-    { id: "tips" as const, label: "Tips & Hotkeys", icon: <Lightbulb size={15} /> },
-    { id: "pro" as const, label: isProActive ? "JARVIS Pro" : "Buy Pro", icon: <Sparkles size={15} /> },
-    { id: "about" as const, label: "About", icon: <Info size={15} /> },
+  const navItems: { id: SettingsCategory; label: string; icon: React.ReactNode; isPro?: boolean }[] = [
+    { id: "general", label: "General", icon: <Sliders size={15} /> },
+    { id: "appearance", label: "Appearance", icon: <Palette size={15} /> },
+    { id: "widgets", label: "Widgets", icon: <LayoutGrid size={15} /> },
+    { id: "tips", label: "Tips & Hotkeys", icon: <Lightbulb size={15} /> },
+    { id: "pro", label: isProActive ? "JARVIS Pro" : "Buy Pro", icon: <Sparkles size={15} /> },
+    { id: "about", label: "About", icon: <Info size={15} /> },
   ];
 
   return (
@@ -813,166 +843,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </SettingCard>
           )}
 
-          {/* ═════════ 4. NOTCHY & AI TAB ═════════ */}
-          {activeTab === "notchy" && (
-            !isProActive ? (
-              <SettingCard title="Meet Notchy">
-                <div
-                  style={{
-                    padding: "18px",
-                    borderRadius: "14px",
-                    background: "rgba(255, 255, 255, 0.04)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <Bot size={28} color="#38bdf8" />
-                    <div>
-                      <div style={{ fontSize: "15px", fontWeight: 700, color: "#ffffff" }}>
-                        AI Agent Notifications Companion (Pro Feature)
-                      </div>
-                      <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.6)" }}>
-                        Keep track of AI agent tasks, approvals, and terminal activity without switching apps.
-                      </div>
-                    </div>
-                  </div>
 
-                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "rgba(255, 255, 255, 0.75)", lineHeight: 1.6 }}>
-                    <li>Get completion and attention notifications from connected Codex, Claude Code, Cursor, and Antigravity integrations.</li>
-                    <li>Review permission requests and respond directly from the notch when the integration supports approvals.</li>
-                    <li>See agent activity and provider-reported usage limits where available.</li>
-                    <li>Drag out a resizable desktop screen for music, lyrics, timers, and hardware stats.</li>
-                  </ul>
-
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.06)" }}>
-                    <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>
-                      Included with JARVIS Pro.
-                    </span>
-                    <button
-                      onClick={() => setActiveTab("pro")}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        border: "none",
-                        background: "#0284c7",
-                        color: "#ffffff",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Unlock with Pro
-                    </button>
-                  </div>
-                </div>
-              </SettingCard>
-            ) : (
-            <>
-              <SettingCard title="Developer Companion">
-                <SettingRow
-                  icon={<Bot size={15} color="#10b981" />}
-                  title="Enable Notchy Companion"
-                  desc="Developer notification companion for AI agents, terminal runs, local Git."
-                >
-                  <ToggleSwitch
-                    checked={config.showAgentNotifications}
-                    onChange={(c) => updateField("showAgentNotifications", c)}
-                    accentColor={config.accentColor}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  icon={<Sparkles size={15} color="#10b981" />}
-                  title="Compact Activity Indicator"
-                  desc="Miniature status badge on collapsed notch when agents are busy."
-                >
-                  <ToggleSwitch
-                    checked={config.notchyCompactIndicator}
-                    onChange={(c) => updateField("notchyCompactIndicator", c)}
-                    accentColor={config.accentColor}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  icon={<Shield size={15} color="#10b981" />}
-                  title="Quiet Mode / Mute Sound"
-                  desc="Suppress auto-expansion and chimes during deep work sessions."
-                >
-                  <ToggleSwitch
-                    checked={config.notchyQuietMode}
-                    onChange={(c) => updateField("notchyQuietMode", c)}
-                    accentColor={config.accentColor}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  icon={<Sparkles size={15} color="#10b981" />}
-                  title="Companion Ambient Glow"
-                  desc="Radial halo strength around the Notchy companion avatar."
-                >
-                  <SegmentedControl
-                    value={config.notchyGlowStrength || "subtle"}
-                    onChange={(val) => updateField("notchyGlowStrength", val as "off" | "subtle" | "full")}
-                    options={[
-                      { id: "off", label: "Off" },
-                      { id: "subtle", label: "Subtle" },
-                      { id: "full", label: "Full Halo" },
-                    ]}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  icon={<Clock size={15} color="#10b981" />}
-                  title="Completion Display Duration"
-                  desc="How long turn-finished notification banners stay visible."
-                >
-                  <SegmentedControl
-                    value={String(config.notchyCompletionDuration || 5)}
-                    onChange={(val) => updateField("notchyCompletionDuration", parseInt(val, 10))}
-                    options={[
-                      { id: "5", label: "5s" },
-                      { id: "8", label: "8s" },
-                      { id: "12", label: "12s" },
-                    ]}
-                  />
-                </SettingRow>
-              </SettingCard>
-
-              {/* Connected Integrations */}
-              <SettingCard title="Connected Integrations">
-                <div style={{ display: "grid", gridTemplateColumns: standalone ? "1fr 1fr" : "1fr", gap: "8px" }}>
-                  <IntegrationCard
-                    name="Google Antigravity"
-                    status="Active & Hooked"
-                    badge="Bridge Connected"
-                    badgeColor="#10b981"
-                  />
-                  <IntegrationCard
-                    name="Claude Code CLI"
-                    status="Hook Installed"
-                    badge="Ready"
-                    badgeColor="#38bdf8"
-                  />
-                  <IntegrationCard
-                    name="Local Git Watcher"
-                    status="Tracking d:\Coding\JARVIS"
-                    badge="Monitoring"
-                    badgeColor="#a855f7"
-                  />
-                  <IntegrationCard
-                    name="Windows Media (GSMTC)"
-                    status="Listening to Harmonix & Spotify"
-                    badge="Active"
-                    badgeColor="#f59e0b"
-                  />
-                </div>
-              </SettingCard>
-            </>
-            )
-          )}
 
           {/* ═════════ 5. TIPS & SHORTCUTS TAB ═════════ */}
           {activeTab === "tips" && (
@@ -1228,21 +1099,68 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   title="Software Updates"
                   desc={updateStatus}
                 >
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      onClick={handleCheckUpdate}
+                      disabled={isCheckingUpdate}
+                      style={{
+                        padding: "5px 12px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        borderRadius: "6px",
+                        border: "none",
+                        background: "rgba(56, 189, 248, 0.2)",
+                        color: "#38bdf8",
+                        cursor: isCheckingUpdate ? "wait" : "pointer",
+                      }}
+                    >
+                      {isCheckingUpdate ? "Checking..." : "Check Now"}
+                    </button>
+                    {updateInfo?.downloadUrl && (
+                      <a
+                        href={updateInfo.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          padding: "5px 12px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          borderRadius: "6px",
+                          background: "#38bdf8",
+                          color: "#000",
+                          textDecoration: "none",
+                        }}
+                      >
+                        {updateInfo.hasUpdate ? `Download ${updateInfo.latestTag}` : "Re-download"}
+                      </a>
+                    )}
+                  </div>
+                </SettingRow>
+
+                <SettingRow
+                  icon={<ExternalLink size={15} color="#10b981" />}
+                  title="PowerShell Setup Installer"
+                  desc="Run a single command in PowerShell to automatically install or update JARVIS Desktop"
+                >
                   <button
-                    onClick={handleCheckUpdate}
-                    disabled={isCheckingUpdate}
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        'irm https://raw.githubusercontent.com/NandiVardhan2007/JARVIS/main/install-desktop.ps1 | iex'
+                      );
+                      alert("Copied PowerShell command! Open PowerShell and press Enter to install/update JARVIS Desktop.");
+                    }}
                     style={{
-                      padding: "4px 10px",
+                      padding: "5px 12px",
                       fontSize: "11px",
                       fontWeight: 600,
                       borderRadius: "6px",
-                      border: "none",
-                      background: "rgba(56, 189, 248, 0.2)",
-                      color: "#38bdf8",
-                      cursor: isCheckingUpdate ? "wait" : "pointer",
+                      border: "1px solid rgba(16, 185, 129, 0.4)",
+                      background: "rgba(16, 185, 129, 0.15)",
+                      color: "#10b981",
+                      cursor: "pointer",
                     }}
                   >
-                    {isCheckingUpdate ? "Checking..." : "Check Now"}
+                    Copy Setup Command
                   </button>
                 </SettingRow>
 
@@ -1424,43 +1342,6 @@ const ToggleSwitch: React.FC<{
         transition: "left 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     />
-  </div>
-);
-
-const IntegrationCard: React.FC<{
-  name: string;
-  status: string;
-  badge: string;
-  badgeColor: string;
-}> = ({ name, status, badge, badgeColor }) => (
-  <div
-    style={{
-      padding: "10px",
-      borderRadius: "8px",
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-      border: "1px solid rgba(255, 255, 255, 0.06)",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <div>
-      <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#ffffff" }}>{name}</div>
-      <div style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.45)" }}>{status}</div>
-    </div>
-    <span
-      style={{
-        fontSize: "9.5px",
-        fontWeight: 700,
-        padding: "2px 6px",
-        borderRadius: "4px",
-        backgroundColor: `${badgeColor}20`,
-        color: badgeColor,
-        border: `1px solid ${badgeColor}40`,
-      }}
-    >
-      {badge}
-    </span>
   </div>
 );
 

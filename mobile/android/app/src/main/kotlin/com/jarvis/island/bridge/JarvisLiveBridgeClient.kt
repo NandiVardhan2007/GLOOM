@@ -72,7 +72,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     val isCharging = bm.isCharging
 
                     val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                    val ssid = wm.connectionInfo.ssid.replace("\"", "")
+                    val ssid = getWifiSsid(wm)
 
                     val payload = JSONObject().apply {
                         put("deviceId", Build.MODEL)
@@ -80,7 +80,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
                         put("deviceType", "android")
                         put("batteryPercent", battery)
                         put("isCharging", isCharging)
-                        put("wifiSsid", if (ssid.isEmpty() || ssid == "<unknown ssid>") "5G WiFi" else ssid)
+                        put("wifiSsid", ssid)
                     }
 
                     postJson("http://$desktopIp:$desktopPort/api/telemetry", payload)
@@ -89,6 +89,16 @@ class JarvisLiveBridgeClient(private val context: Context) {
                 }
                 Thread.sleep(10000)
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getWifiSsid(wm: WifiManager): String {
+        return try {
+            val ssid = wm.connectionInfo?.ssid?.replace("\"", "") ?: ""
+            if (ssid.isEmpty() || ssid == "<unknown ssid>") "5G WiFi" else ssid
+        } catch (e: Exception) {
+            "5G WiFi"
         }
     }
 

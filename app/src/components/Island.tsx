@@ -224,6 +224,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
             setIslandState("expanded");
           }
         }}
+        whileTap={!isExpanded ? { scale: 0.98 } : undefined}
         animate={{
           width: targetWidth,
           height: targetHeight,
@@ -240,18 +241,20 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
           willChange: "width, height, border-radius, top",
           transform: "translateZ(0)",
           zIndex: 9999,
-          backgroundColor: isExpanded ? "#0d0d14" : "#000000",
+          backgroundColor: isExpanded ? "rgba(13, 14, 20, 0.94)" : "#000000",
+          backdropFilter: "blur(32px) saturate(190%)",
+          WebkitBackdropFilter: "blur(32px) saturate(190%)",
           border: isIslandDragOver
-            ? "2px dashed #38bdf8"
+            ? "2px dashed #32ade6"
             : isExpanded
-            ? "1px solid rgba(255, 255, 255, 0.18)"
-            : "1px solid rgba(255, 255, 255, 0.2)",
+            ? "0.5px solid rgba(255, 255, 255, 0.16)"
+            : "0.5px solid rgba(255, 255, 255, 0.18)",
           borderRadius,
           boxShadow: isIslandDragOver
-            ? "0 0 30px rgba(56, 189, 248, 0.7), 0 0 60px rgba(56, 189, 248, 0.35)"
+            ? "0 0 30px rgba(50, 173, 230, 0.7), 0 0 60px rgba(50, 173, 230, 0.35)"
             : isExpanded
-            ? "0 24px 50px -4px rgba(0, 0, 0, 0.95), 0 8px 24px -2px rgba(0, 0, 0, 0.8)"
-            : `0 0 18px ${config.accentColor ? `${config.accentColor}55` : "rgba(0, 140, 255, 0.45)"}, 0 10px 24px -2px rgba(0, 0, 0, 0.9)`,
+            ? "inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.28), 0 24px 50px -4px rgba(0, 0, 0, 0.95), 0 8px 24px -2px rgba(0, 0, 0, 0.8)"
+            : `inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.22), 0 0 16px ${config.accentColor ? `${config.accentColor}44` : "rgba(0, 140, 255, 0.35)"}, 0 12px 28px -2px rgba(0, 0, 0, 0.9)`,
         }}
       >
         <AnimatePresence initial={false}>
@@ -276,7 +279,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
               style={{
                 width: "100%",
                 height: "100%",
-                backgroundColor: "#0d0d14",
+                backgroundColor: "transparent",
               }}
             >
               <ExpandedPanel

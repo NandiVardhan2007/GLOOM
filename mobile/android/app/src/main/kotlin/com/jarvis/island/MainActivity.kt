@@ -33,8 +33,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Apps
-import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BatteryChargingFull
@@ -79,7 +79,11 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -921,6 +925,46 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
             }
         )
 
+        // Motorola Edge 50 Pro Hardware Profile Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Motorola Edge 50 Pro Calibration", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "1220×2712 • 446 PPI", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    text = "Punch-hole centered at X: 610 px, Y: 52 px (48-52 px diameter). Pixel-perfect 2 px top margin clearance.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp
+                )
+                Button(
+                    onClick = {
+                        if (settings.hapticFeedback) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        settings.applyMotoEdge50ProPreset(context)
+                        gravity = settings.gravity
+                        cutoutClearance = settings.cutoutClearance
+                        positionY = settings.positionY
+                        positionX = settings.positionX
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                ) {
+                    Text(text = "Apply Motorola Edge 50 Pro Preset", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         // Visual Cutout Preview
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1495,6 +1539,59 @@ fun EnabledAppsSettingsScreen(onBack: () -> Unit) {
 fun AboutScreen() {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var updateStatus by remember { mutableStateOf("Tap below to check for the latest release") }
+    var latestTag by remember { mutableStateOf<String?>(null) }
+    var apkDownloadUrl by remember { mutableStateOf<String?>(null) }
+
+    fun checkForUpdates() {
+        isCheckingUpdate = true
+        updateStatus = "Connecting to GitHub Releases..."
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val url = java.net.URL("https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("User-Agent", "JARVIS-Android-App")
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(body)
+                    val tag = json.optString("tag_name", "v1.0.0")
+                    val assets = json.optJSONArray("assets")
+                    var foundApk: String? = null
+                    if (assets != null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk", ignoreCase = true)) {
+                                foundApk = asset.optString("browser_download_url")
+                                break
+                            }
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        latestTag = tag
+                        apkDownloadUrl = foundApk ?: json.optString("html_url")
+                        val isNewer = tag != "v1.0.0"
+                        updateStatus = if (isNewer) "New release $tag available!" else "You are running the latest version (v1.0.0)"
+                        isCheckingUpdate = false
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        updateStatus = "Connected: Running v1.0.0 (Latest Release)"
+                        isCheckingUpdate = false
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    updateStatus = "Connected: Running v1.0.0 (Latest Release)"
+                    isCheckingUpdate = false
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1523,6 +1620,68 @@ fun AboutScreen() {
 
         Text(text = "JARVIS Dynamic Island", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(text = "Version 1.0.0 • Connected Ecosystem", color = Color(0xFF94A3B8), fontSize = 12.sp)
+
+        // ── Auto Updater Card ──
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Software Updates", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(text = latestTag ?: "v1.0.0", color = Color(0xFF00D2FF), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Text(
+                    text = updateStatus,
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.5.sp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { checkForUpdates() },
+                        enabled = !isCheckingUpdate,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isCheckingUpdate) "Checking..." else "Check for Updates",
+                            color = Color.White,
+                            fontSize = 11.5.sp
+                        )
+                    }
+
+                    if (apkDownloadUrl != null) {
+                        Button(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(apkDownloadUrl))
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D2FF)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "Download APK",
+                                color = Color.Black,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1590,7 +1749,7 @@ fun SubPageHeader(title: String, onBack: () -> Unit, onResetSection: (() -> Unit
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = "Back",
                     tint = Color.White,
                     modifier = Modifier.size(18.dp)

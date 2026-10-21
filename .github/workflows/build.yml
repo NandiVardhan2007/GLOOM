@@ -19,10 +19,10 @@ concurrency:
 
 jobs:
   # ══════════════════════════════════════════════════════════════
-  # 1. ANDROID DYNAMIC ISLAND APK BUILD
+  # 1. ANDROID DYNAMIC ISLAND RELEASE APK BUILD
   # ══════════════════════════════════════════════════════════════
   build-android:
-    name: Build Android APK
+    name: Build Android Release APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -35,27 +35,52 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configure Android Release Keystore
+        run: |
+          mkdir -p mobile/android/keystore
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using configured GitHub Secret KEYSTORE_BASE64..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > mobile/android/keystore/release.jks
+          else
+            echo "No KEYSTORE_BASE64 secret provided; generating dedicated release keystore for CI build..."
+            keytool -genkeypair -v -keystore mobile/android/keystore/release.jks \
+              -alias "${{ secrets.KEY_ALIAS || 'jarvis_release' }}" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "${{ secrets.KEYSTORE_PASSWORD || 'jarvis_island_release_key' }}" \
+              -keypass "${{ secrets.KEY_PASSWORD || 'jarvis_island_release_key' }}" \
+              -dname "CN=JARVIS Ecosystem, OU=Mobile, O=JARVIS, L=Hyderabad, ST=Telangana, C=IN"
+          fi
+
+      - name: Accept Android SDK Licenses
+        run: |
+          if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          elif [ -f "$ANDROID_HOME/tools/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/tools/bin/sdkmanager" --licenses || true
+          fi
 
       - name: Make Gradle Wrapper Executable
         run: chmod +x mobile/android/gradlew
 
-      - name: Build Android Debug APK
+      - name: Build Android Release APK
         working-directory: mobile/android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'jarvis_island_release_key' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'jarvis_release' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'jarvis_island_release_key' }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename and Prepare APK Artifact
         run: |
           mkdir -p build-artifacts
-          cp mobile/android/app/build/outputs/apk/debug/*.apk build-artifacts/JARVIS-Island-Android.apk
+          cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/JARVIS-Island-Release-v1.0.apk
 
-      - name: Upload Android APK Artifact
+      - name: Upload Android Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Island-Android-APK
-          path: build-artifacts/JARVIS-Island-Android.apk
-          retention-days: 14
+          name: JARVIS-Island-Android-Release-APK
+          path: build-artifacts/JARVIS-Island-Release-v1.0.apk
+          retention-days: 30
 
   # ══════════════════════════════════════════════════════════════
   # 2. WINDOWS DYNAMIC ISLAND EXE BUILD
@@ -106,3 +131,44 @@ jobs:
           name: JARVIS-Island-Windows-Desktop-EXE
           path: build-artifacts/JARVIS-Island-Windows.exe
           retention-days: 14
+
+  # ══════════════════════════════════════════════════════════════
+  # 3. PUBLISH GITHUB RELEASE (APK & EXE WITH TAG)
+  # ══════════════════════════════════════════════════════════════
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-Island-Android-Release-APK
+          path: release-assets
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-Island-Windows-Desktop-EXE
+          path: release-assets
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('JARVIS Dynamic Island Release {0}', github.ref_name) || format('JARVIS Dynamic Island Release v1.0.{0}', github.run_number) }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          files: |
+            release-assets/**/JARVIS-Island-Release-v1.0.apk
+            release-assets/**/JARVIS-Island-Windows.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

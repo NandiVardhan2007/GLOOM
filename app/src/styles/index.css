@@ -10,9 +10,25 @@ html, body, #root {
 }
 
 :root {
-  --bg-island: #0d0d14;
+  /*  Apple Color System Tokens */
+  --apple-pitch-black: #000000;
+  --apple-glass-bg: rgba(13, 14, 20, 0.92);
+  --apple-border: rgba(255, 255, 255, 0.14);
+  --apple-border-specular: rgba(255, 255, 255, 0.28);
+  --apple-accent-blue: #007aff;
+  --apple-accent-cyan: #32ade6;
+  --apple-accent-green: #34c759;
+  --apple-accent-orange: #ff9500;
+  --apple-accent-purple: #af52de;
+  --apple-accent-red: #ff3b30;
+  --apple-text-primary: #ffffff;
+  --apple-text-secondary: rgba(255, 255, 255, 0.72);
+  --apple-text-tertiary: rgba(255, 255, 255, 0.45);
+
+  /* Legacy aliases for backward compatibility */
+  --bg-island: #000000;
   --border-island: rgba(255, 255, 255, 0.16);
-  --accent-cyan: #38bdf8;
+  --accent-cyan: #32ade6;
   --accent-violet: #818cf8;
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.8);
@@ -26,35 +42,49 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  font-family: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Segoe UI Variable Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #ffffff;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
-/* Opaque obsidian surface for expanded island (100% crisp white text rendering in WebView2) */
-.liquid-glass {
-  background: #0d0d14 !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+/*  Apple Glassmorphic Expanded Panel */
+.liquid-glass,
+.apple-glass {
+  background: var(--apple-glass-bg) !important;
+  backdrop-filter: blur(32px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(190%) !important;
+  border: 0.5px solid var(--apple-border) !important;
   box-shadow: 
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.8),
-    0 20px 48px -4px rgba(0, 0, 0, 0.9),
-    0 8px 20px -2px rgba(0, 0, 0, 0.7) !important;
+    inset 0 0.5px 0.5px 0 var(--apple-border-specular),
+    inset 0 -0.5px 0.5px 0 rgba(0, 0, 0, 0.6),
+    0 24px 50px -4px rgba(0, 0, 0, 0.95),
+    0 8px 24px -2px rgba(0, 0, 0, 0.8) !important;
 }
 
-/* Pill specific surface */
-.pill-surface {
-  background: #000000 !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+/*  Apple Dynamic Island Pill Surface */
+.pill-surface,
+.apple-pill {
+  background: var(--apple-pitch-black) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.16) !important;
   box-shadow: 
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.16),
-    0 10px 24px -2px rgba(0, 0, 0, 0.85) !important;
+    inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.22),
+    0 12px 28px -2px rgba(0, 0, 0, 0.9) !important;
 }
 
-/* Tabular numbers for clocks and percentages */
+/*  Tabular numbers for clocks, speeds, and timestamps */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/*  Monospace code and stats */
+.apple-mono {
+  font-family: "SF Mono", Menlo, Consolas, Monaco, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Smooth edge masks for overflowing text */
@@ -65,7 +95,12 @@ body {
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 12px), transparent 100%);
 }
 
-/* Scrollbars */
+/* Micro-interaction active feedback (Emil Kowalski Kill Latency) */
+button:active {
+  transform: scale(0.97);
+}
+
+/* Apple-style minimalist scrollbars */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -74,9 +109,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.4);
 }

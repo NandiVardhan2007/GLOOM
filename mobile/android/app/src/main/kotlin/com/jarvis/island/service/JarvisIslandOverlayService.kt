@@ -332,6 +332,7 @@ class JarvisIslandOverlayService : Service() {
         ).toInt()
     }
 
+    @Suppress("DEPRECATION")
     private fun getOverlayFlags(): Int {
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or

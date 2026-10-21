@@ -14,7 +14,7 @@ import { QuickNotes } from "./QuickNotes";
 import { SystemCard } from "./SystemCard";
 import { ClipboardShelf } from "./ClipboardShelf";
 import { BluetoothView } from "./BluetoothView";
-import { NotchyDesktopView } from "./NotchyDesktopView";
+import { NetworkView } from "./NetworkView";
 import { SettingsView } from "./SettingsView";
 import { LiveBridgeView } from "./LiveBridgeView";
 import {
@@ -32,7 +32,6 @@ import {
   Settings,
   X,
   Zap,
-  Bot,
   Smartphone,
 } from "lucide-react";
 
@@ -88,13 +87,12 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
     { id: "dashboard", icon: <LayoutGrid size={13} />, label: "Dashboard" },
     { id: "media", icon: <Music size={13} />, label: "Media" },
     { id: "bridge", icon: <Smartphone size={13} />, label: "Live Bridge & Phone" },
-    { id: "notchy", icon: <Bot size={13} />, label: "Notchy & AI" },
     { id: "controls", icon: <Sliders size={13} />, label: "Controls" },
     { id: "bluetooth", icon: <Bluetooth size={13} />, label: "Bluetooth" },
     { id: "clipboard", icon: <ClipboardList size={13} />, label: "Clipboard & Notes" },
     { id: "timer", icon: <Coffee size={13} />, label: "Focus Timer" },
-    { id: "system", icon: <Activity size={13} />, label: "Activity" },
-    { id: "network", icon: <Wifi size={13} />, label: "Network" },
+    { id: "system", icon: <Activity size={13} />, label: "Hardware Stats" },
+    { id: "network", icon: <Wifi size={13} />, label: "Network & Bridge" },
   ];
 
   const batteryPercent = telemetry.batteryPercent ?? 100;
@@ -109,8 +107,9 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
         padding: "10px 14px",
         gap: "10px",
         boxSizing: "border-box",
-        backgroundColor: "#0d0e14",
+        backgroundColor: "transparent",
         color: "#ffffff",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif",
       }}
     >
       {/* ── Top Header Bar ── */}
@@ -322,17 +321,6 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
           <LiveBridgeView />
         )}
 
-        {activeTab === "notchy" && (
-          <NotchyDesktopView
-            media={media}
-            telemetry={telemetry}
-            onTogglePlay={onTogglePlay}
-            onNext={onNext}
-            onPrev={onPrev}
-            onSeek={onSeek}
-          />
-        )}
-
         {activeTab === "controls" && (
           <CommandCenter
             volume={volume}
@@ -351,8 +339,12 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
           <TimerWidget onTimerUpdate={onTimerUpdate} />
         )}
 
-        {(activeTab === "system" || activeTab === "network") && (
+        {activeTab === "system" && (
           <SystemCard telemetry={telemetry} />
+        )}
+
+        {activeTab === "network" && (
+          <NetworkView telemetry={telemetry} />
         )}
 
         {activeTab === "settings" && (
