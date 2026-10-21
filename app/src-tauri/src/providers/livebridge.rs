@@ -231,10 +231,13 @@ fn master_bridge_secret() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn paired_token_for_device_id(device_id: &str) -> Option<String> {
+fn paired_token_for_device_id(device_id: &str, ip: &str) -> Option<String> {
     with_paired_devices(|map| {
         map.values()
-            .find(|record| record.device_id == device_id)
+            .filter(|record| {
+                record.device_id == device_id && (record.ip.is_empty() || record.ip == ip)
+            })
+            .max_by_key(|record| record.paired_at_ms)
             .map(|record| record.auth_token.clone())
     })
 }
@@ -256,7 +259,7 @@ pub fn get_bridge_token_for_device(device: &BridgeDevice) -> String {
     if !is_device_paired(&device.id, &device.ip) {
         return String::new();
     }
-    paired_token_for_device_id(&device.id).unwrap_or_default()
+    paired_token_for_device_id(&device.id, &device.ip).unwrap_or_default()
 }
 
 pub fn get_bridge_token_for_ip(ip: &str) -> String {
@@ -271,7 +274,7 @@ pub fn get_bridge_token_for_ip(ip: &str) -> String {
         .find(|device| device.ip == ip)
         .map(|device| device.id.clone());
     match device_id {
-        Some(id) if is_device_paired(&id, ip) => paired_token_for_device_id(&id).unwrap_or_default(),
+        Some(id) if is_device_paired(&id, ip) => paired_token_for_device_id(&id, ip).unwrap_or_default(),
         _ => String::new(),
     }
 }
@@ -279,7 +282,8 @@ pub fn get_bridge_token_for_ip(ip: &str) -> String {
 fn peer_fingerprint_for_ip(ip: &str) -> Option<String> {
     with_paired_devices(|map| {
         map.values()
-            .find(|record| record.ip == ip && !record.peer_fingerprint.is_empty())
+            .filter(|record| record.ip == ip && !record.peer_fingerprint.is_empty())
+            .max_by_key(|record| record.paired_at_ms)
             .map(|record| record.peer_fingerprint.clone())
     })
 }
@@ -1264,6 +1268,13 @@ pub fn start_livebridge_service(app: AppHandle) {
                                 };
 
                                 with_paired_devices(|map| {
+                                    // A re-pair replaces the device's previous token and
+                                    // identity; keeping both would make the pinned
+                                    // fingerprint lookup ambiguous.
+                                    map.retain(|_, record| {
+                                        !(record.device_id == challenge.client_device_id
+                                            && record.ip == peer_ip)
+                                    });
                                     map.insert(new_token.clone(), record);
                                 });
                                 save_paired_devices();
