@@ -25,14 +25,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
+import android.app.Activity
 import com.jarvis.island.security.BiometricAuth
 import com.jarvis.island.security.JarvisSecurity
 
 @Composable
 fun SecurityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val activity = context as? FragmentActivity
+    val activity = context as? Activity
     val scrollState = rememberScrollState()
 
     var hasPattern by remember { mutableStateOf(JarvisSecurity.hasPattern(context)) }
@@ -256,7 +256,7 @@ fun SecurityScreen(onBack: () -> Unit) {
 @Composable
 fun JarvisLockScreen(onUnlock: () -> Unit) {
     val context = LocalContext.current
-    val activity = context as? FragmentActivity
+    val activity = context as? Activity
     var error by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 

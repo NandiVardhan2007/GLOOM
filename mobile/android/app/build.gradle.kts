@@ -84,7 +84,6 @@ dependencies {
 
     // Media & Coroutines
     implementation("androidx.media:media:1.7.0")
-    implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.alphacephei:vosk-android:0.3.47")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 

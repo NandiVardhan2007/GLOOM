@@ -12,6 +12,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -81,6 +82,8 @@ class VoiceUnlockActivity : ComponentActivity() {
     private var reply by mutableStateOf<String?>(null)
     private var thinking by mutableStateOf(false)
     private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingSpeech: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,11 +99,7 @@ class VoiceUnlockActivity : ComponentActivity() {
             WindowManager.LayoutParams.MATCH_PARENT
         )
 
-        tts = TextToSpeech(this) { ttsStatus ->
-            if (ttsStatus == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.US
-            }
-        }
+        initializeTts()
 
         setContent {
             VoiceUnlockUi(
@@ -146,6 +145,7 @@ class VoiceUnlockActivity : ComponentActivity() {
                 permissionDenied = true
                 status = "Microphone access is required"
                 failed = true
+                speak("Microphone access is required.")
             }
         }
     }
@@ -155,6 +155,7 @@ class VoiceUnlockActivity : ComponentActivity() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             status = "Speech recognition is unavailable"
             failed = true
+            speak("Speech recognition is unavailable.")
             return
         }
         recognizer?.destroy()
@@ -241,6 +242,7 @@ class VoiceUnlockActivity : ComponentActivity() {
         if (client == null) {
             status = "Pair with the desktop to use the assistant"
             failed = true
+            speak("Pair with the desktop to use the assistant.")
             return
         }
         thinking = true
@@ -259,14 +261,57 @@ class VoiceUnlockActivity : ComponentActivity() {
             } else {
                 status = error ?: "I couldn't reach the assistant"
                 failed = true
+                speak("I couldn't reach the assistant.")
+            }
+        }
+    }
+
+    private fun initializeTts() {
+        tts = TextToSpeech(this) { status ->
+            if (status != TextToSpeech.SUCCESS) {
+                Log.w(TAG, "Text-to-speech initialization failed (status $status)")
+            } else {
+                val engine = tts
+                if (engine == null) {
+                    Log.w(TAG, "Text-to-speech initialized without an engine handle")
+                } else {
+                    val preferred = engine.setLanguage(Locale.US)
+                    if (preferred == TextToSpeech.LANG_MISSING_DATA ||
+                        preferred == TextToSpeech.LANG_NOT_SUPPORTED
+                    ) {
+                        val fallback = engine.setLanguage(Locale.getDefault())
+                        Log.w(TAG, "en-US voice unavailable ($preferred); default locale result $fallback")
+                        if (fallback == TextToSpeech.LANG_MISSING_DATA ||
+                            fallback == TextToSpeech.LANG_NOT_SUPPORTED
+                        ) {
+                            Log.w(TAG, "No usable text-to-speech voice is installed")
+                        }
+                    }
+                    ttsReady = true
+                    pendingSpeech?.let { queued ->
+                        pendingSpeech = null
+                        speak(queued)
+                    }
+                }
             }
         }
     }
 
     private fun speak(text: String) {
+        if (text.isBlank()) return
+        val engine = tts
+        if (engine == null || !ttsReady) {
+            // Replies usually arrive while the engine is still initializing.
+            pendingSpeech = text
+            return
+        }
         try {
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-reply")
-        } catch (_: Exception) {
+            val result = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-reply")
+            if (result != TextToSpeech.SUCCESS) {
+                Log.w(TAG, "Text-to-speech speak() returned $result")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Text-to-speech speak failed", e)
         }
     }
 
@@ -348,6 +393,8 @@ class VoiceUnlockActivity : ComponentActivity() {
     override fun onDestroy() {
         recognizer?.destroy()
         recognizer = null
+        pendingSpeech = null
+        ttsReady = false
         tts?.stop()
         tts?.shutdown()
         tts = null
@@ -355,6 +402,7 @@ class VoiceUnlockActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "JarvisVoiceUnlock"
         private const val REQUEST_MIC = 4102
         private const val EXTRA_PROMPT_ONLY = "prompt_only"
         private const val SYSTEM_PROMPT =

@@ -102,7 +102,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.fragment.app.FragmentActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -141,7 +141,7 @@ import com.jarvis.island.updater.UpdateState
 import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.IslandThemePalettes
 
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
 
     private lateinit var bridgeClient: JarvisLiveBridgeClient
     private val activeScreenState = mutableStateOf("home")

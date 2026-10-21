@@ -3,6 +3,7 @@ package com.jarvis.island.voice
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -18,6 +19,7 @@ object WakeWordModel {
     const val MODEL_DIR = "vosk-model-small-en-us-0.15"
     private const val MODEL_URL = "https://alphacephei.com/vosk/models/$MODEL_DIR.zip"
     private const val MAX_BYTES = 120L * 1024 * 1024
+    private const val TAG = "JarvisWakeWord"
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -51,6 +53,7 @@ object WakeWordModel {
                 if (connection.responseCode !in 200..299) {
                     throw IllegalStateException("Model download failed (HTTP ${connection.responseCode})")
                 }
+                Log.i(TAG, "Downloading speech model (HTTP ${connection.responseCode}, ${total} bytes)")
                 var received = 0L
                 var lastPercent = -1
                 ZipInputStream(connection.inputStream.buffered()).use { zip ->
@@ -102,6 +105,7 @@ object WakeWordModel {
                 handler.post { onProgress(100) }
                 success = true
             } catch (e: Exception) {
+                Log.e(TAG, "Speech model download failed", e)
                 error = e.message ?: "Model download failed"
             }
             handler.post { onDone(success, error) }

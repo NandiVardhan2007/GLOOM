@@ -478,11 +478,34 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 points.drop(1).forEach { lineTo(it.x, it.y) }
             }
             val duration = (pattern.size * 100L).coerceIn(400L, 1800L)
-            val gesture = GestureDescription.Builder()
+            val patternGesture = GestureDescription.Builder()
                 .addStroke(GestureDescription.StrokeDescription(path, 0L, duration))
                 .build()
-            dispatchGesture(gesture, null, null)
-        } catch (_: Exception) {
+
+            // The pattern bouncer only exists after the keyguard is swiped up.
+            // Drawing straight onto the lock-screen clock silently does nothing.
+            val reveal = Path().apply {
+                moveTo(width / 2f, height * 0.9f)
+                lineTo(width / 2f, height * 0.35f)
+            }
+            val revealGesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 250L))
+                .build()
+            if (!dispatchGesture(revealGesture, null, null)) {
+                Log.w(TAG, "The system rejected the keyguard swipe-up gesture")
+                return false
+            }
+            serviceScope.launch {
+                // Give the bouncer time to finish its own entry animation before
+                // the pattern stroke starts, otherwise the first dot is dropped.
+                delay(700)
+                if (!dispatchGesture(patternGesture, null, null)) {
+                    Log.w(TAG, "The system rejected the pattern replay gesture")
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not replay the unlock pattern: ${e.message}")
             false
         }
     }
