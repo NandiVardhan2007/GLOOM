@@ -1,7 +1,6 @@
 package com.jarvis.island.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -21,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,23 +39,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatteryChargingFull
-import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.FileUpload
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +59,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
@@ -100,26 +96,41 @@ fun JarvisIslandApp(
     val haptic = LocalHapticFeedback.current
     val palette = remember(settings.themeStyle) { IslandThemePalettes.getTheme(settings.themeStyle) }
 
-    // ── Apple & HarmonyOS Critically Damped Spring Physics ──
+    val isMediaActive = mediaTrack.isPlaying || mediaTrack.title.isNotBlank()
+    val isNotificationActive = activeNotification != null
+    val isTransferActive = activeTransfer.isActive
+
+    // Apple & OriginOS Critically Damped Spring Physics
     val springSpecDp = spring<androidx.compose.ui.unit.Dp>(
         dampingRatio = 0.68f, // Subtle organic bounce
         stiffness = 360f      // Ultra-fluid responsiveness
     )
 
+    // Dynamic Width:
+    // Expanded -> 380dp
+    // Notification -> ~230-360dp
+    // Transfer or Music -> 184dp
+    // Charging -> 140dp
+    // Idle -> 104dp (pure compact punch-hole hugger, zero battery display)
     val targetWidth by animateDpAsState(
-        targetValue = if (isExpanded) {
-            settings.expandedWidth.dp
-        } else if (activeNotification != null) {
-            (settings.pillWidth + 56).coerceAtMost(360).dp
-        } else {
-            settings.pillWidth.dp
+        targetValue = when {
+            isExpanded -> settings.expandedWidth.dp
+            isNotificationActive -> (settings.pillWidth + 48).coerceAtMost(360).dp
+            isTransferActive -> 184.dp
+            isMediaActive -> 184.dp
+            isCharging -> 140.dp
+            else -> 104.dp
         },
         animationSpec = springSpecDp,
         label = "islandWidth"
     )
 
     val targetHeight by animateDpAsState(
-        targetValue = if (isExpanded) settings.expandedHeight.dp else settings.pillHeight.dp,
+        targetValue = if (isExpanded) {
+            if (isMediaActive) 250.dp else settings.expandedHeight.dp
+        } else {
+            settings.pillHeight.dp
+        },
         animationSpec = springSpecDp,
         label = "islandHeight"
     )
@@ -130,47 +141,36 @@ fun JarvisIslandApp(
         label = "islandCorner"
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "islandGlowTransition")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 0.95f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(750, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
     val boxAlignment = when (settings.gravity) {
         "Left" -> Alignment.TopStart
         "Right" -> Alignment.TopEnd
         else -> Alignment.TopCenter
     }
 
+    // Outer Screen Container:
+    // When expanded, tapping anywhere outside the island card collapses it immediately.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .then(
                 if (isExpanded) {
                     Modifier
-                        .background(Color(0x2A000000))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {
+                        .background(Color(0x28000000))
+                        .pointerInput(Unit) {
+                            detectTapGestures {
                                 if (settings.hapticFeedback) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
                                 onToggleExpand()
                             }
-                        )
+                        }
                 } else Modifier
             ),
         contentAlignment = boxAlignment
     ) {
         Box(
             modifier = Modifier
-                .padding(top = settings.positionY.dp) // Calibrated 2px top
+                .padding(top = settings.positionY.dp) // Calibrated default 2px top
                 .offset(x = settings.positionX.dp)
         ) {
             Card(
@@ -179,23 +179,16 @@ fun JarvisIslandApp(
                 modifier = Modifier
                     .width(targetWidth)
                     .height(targetHeight)
-                    .defaultMinSize(minWidth = 140.dp, minHeight = 36.dp)
+                    .defaultMinSize(minWidth = 100.dp, minHeight = 36.dp)
                     .shadow(
-                        elevation = if (isExpanded) 28.dp else 10.dp,
+                        elevation = if (isExpanded) 24.dp else 8.dp,
                         shape = RoundedCornerShape(targetCorner),
                         ambientColor = Color(0xFF000000),
-                        spotColor = if (isExpanded) palette.primaryAccent.copy(alpha = 0.4f) else Color(0x33000000)
+                        spotColor = Color(0x33000000)
                     )
                     .border(
-                        width = if (settings.showBorders) (if (activeTransfer.isActive) 1.5.dp else 1.dp) else 0.dp,
-                        brush = if (activeTransfer.isActive) {
-                            Brush.linearGradient(
-                                listOf(
-                                    palette.primaryAccent.copy(alpha = pulseAlpha),
-                                    palette.secondaryAccent.copy(alpha = pulseAlpha)
-                                )
-                            )
-                        } else palette.borderBrush,
+                        width = if (settings.showBorders) 0.5.dp else 0.dp,
+                        brush = palette.borderBrush,
                         shape = RoundedCornerShape(targetCorner)
                     )
                     .combinedClickable(
@@ -219,279 +212,195 @@ fun JarvisIslandApp(
                         }
                     )
             ) {
-            AnimatedContent(
-                targetState = isExpanded,
-                transitionSpec = {
-                    (fadeIn(animationSpec = tween(180, delayMillis = 60)) +
-                            scaleIn(initialScale = 0.90f, animationSpec = spring(0.72f, 380f)))
-                        .togetherWith(
-                            fadeOut(animationSpec = tween(120)) +
-                                    scaleOut(targetScale = 0.90f, animationSpec = tween(120))
-                        )
-                },
-                label = "islandContentMorph"
-            ) { expandedState ->
-                if (!expandedState) {
-                    // ══════════════════════════════════════════════════════════
-                    // 1. COLLAPSED PILL (Strict Center Punch-Hole Clearance)
-                    // ══════════════════════════════════════════════════════════
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // ── Left Wing: Official Vector Icons (Zero Emojis) ──
+                AnimatedContent(
+                    targetState = isExpanded,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(180, delayMillis = 60)) +
+                                scaleIn(initialScale = 0.90f, animationSpec = spring(0.72f, 380f)))
+                            .togetherWith(
+                                fadeOut(animationSpec = tween(120)) +
+                                        scaleOut(targetScale = 0.90f, animationSpec = tween(120))
+                            )
+                    },
+                    label = "islandContentMorph"
+                ) { expandedState ->
+                    if (!expandedState) {
+                        // ══════════════════════════════════════════════════════════
+                        // 1. COLLAPSED PILL (Strict Center Punch-Hole Clearance)
+                        // ══════════════════════════════════════════════════════════
                         Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (activeNotification != null) {
-                                if (activeNotification.largeIcon != null) {
-                                    Image(
-                                        bitmap = activeNotification.largeIcon.asImageBitmap(),
-                                        contentDescription = "Avatar",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .clip(CircleShape)
-                                            .border(0.8.dp, palette.primaryAccent.copy(alpha = 0.6f), CircleShape)
+                            // ── Left Wing ──
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                if (activeNotification != null) {
+                                    if (activeNotification.largeIcon != null) {
+                                        Image(
+                                            bitmap = activeNotification.largeIcon.asImageBitmap(),
+                                            contentDescription = "Avatar",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .clip(CircleShape)
+                                                .border(0.5.dp, Color(0x44FFFFFF), CircleShape)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Notifications,
+                                            contentDescription = "Notification",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (activeNotification.appName.isNotBlank()) activeNotification.appName else "ALERT",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Notifications,
-                                        contentDescription = "Notification",
-                                        tint = palette.primaryAccent,
-                                        modifier = Modifier.size(16.dp)
+                                } else if (isTransferActive) {
+                                    CyberBeamIcon(
+                                        isUpload = activeTransfer.isUpload,
+                                        accentColor = Color.White,
+                                        size = 18.dp
                                     )
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (activeNotification.appName.isNotBlank()) activeNotification.appName else "ALERT",
-                                    color = palette.primaryAccent,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            } else if (activeTransfer.isActive) {
-                                CyberBeamIcon(
-                                    isUpload = activeTransfer.isUpload,
-                                    accentColor = palette.primaryAccent,
-                                    size = 20.dp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (activeTransfer.isUpload) "UP" else "DL",
-                                    color = palette.primaryAccent,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
-                                OriginOSVinylRecord(
-                                    isPlaying = mediaTrack.isPlaying,
-                                    albumArt = mediaTrack.albumArt,
-                                    size = 20.dp,
-                                    labelColor = palette.primaryAccent
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = if (mediaTrack.title.isNotBlank()) mediaTrack.title.take(10) else (if (mediaTrack.appName.isNotBlank()) mediaTrack.appName else "MUSIC"),
-                                    color = Color(0xEEFFFFFF),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            } else {
-                                PulseConnectionDot(
-                                    isConnected = bridgeDevice.isConnected,
-                                    color = palette.secondaryAccent,
-                                    size = 14.dp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (bridgeDevice.isConnected) "JARVIS" else "STANDALONE",
-                                    color = Color(0xCCFFFFFF),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        // ── DEAD-CENTER CAMERA CUTOUT HOLE CLEARANCE ──
-                        Spacer(modifier = Modifier.width(settings.cutoutClearance.dp))
-
-                        // ── Right Wing: Canonical Battery / Transfer % / Equalizer ──
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            if (activeNotification != null) {
-                                Text(
-                                    text = if (activeNotification.title.isNotBlank()) activeNotification.title else activeNotification.text,
-                                    color = Color.White,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            } else if (activeTransfer.isActive) {
-                                Text(
-                                    text = "${(activeTransfer.progress * 100).toInt()}%",
-                                    color = palette.primaryAccent,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.SansSerif,
-                                    modifier = Modifier.padding(end = 4.dp)
-                                )
-                                OriginOSEqualizer(
-                                    isPlaying = true,
-                                    color = palette.primaryAccent
-                                )
-                            } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
-                                OriginOSEqualizer(
-                                    isPlaying = mediaTrack.isPlaying,
-                                    color = palette.secondaryAccent
-                                )
-                            } else {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (activeTransfer.isUpload) "UP" else "DL",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else if (isMediaActive) {
+                                    OriginOSVinylRecord(
+                                        isPlaying = mediaTrack.isPlaying,
+                                        albumArt = mediaTrack.albumArt,
+                                        size = 20.dp,
+                                        labelColor = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = if (mediaTrack.title.isNotBlank()) mediaTrack.title.take(10) else "MUSIC",
+                                        color = Color(0xEEFFFFFF),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else if (isCharging) {
                                     Icon(
                                         imageVector = Icons.Rounded.BatteryChargingFull,
-                                        contentDescription = "Battery",
-                                        tint = if (isCharging) Color(0xFF22C55E) else if (batteryLevel > 20) palette.primaryAccent else Color(0xFFEF4444),
-                                        modifier = Modifier.size(13.dp)
+                                        contentDescription = "Charging",
+                                        tint = Color(0xFF34C759),
+                                        modifier = Modifier.size(15.dp)
                                     )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "CHARGING",
+                                        color = Color(0xFF34C759),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    // Stealth Idle: Minimal subtle dot, zero robotic status text
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0x33FFFFFF))
+                                    )
+                                }
+                            }
+
+                            // ── DEAD-CENTER CAMERA CUTOUT HOLE CLEARANCE ──
+                            Spacer(modifier = Modifier.width(settings.cutoutClearance.dp))
+
+                            // ── Right Wing ──
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                if (activeNotification != null) {
+                                    Text(
+                                        text = if (activeNotification.title.isNotBlank()) activeNotification.title else activeNotification.text,
+                                        color = Color.White,
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else if (isTransferActive) {
+                                    Text(
+                                        text = "${(activeTransfer.progress * 100).toInt()}%",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.SansSerif,
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                    OriginOSEqualizer(
+                                        isPlaying = true,
+                                        color = Color.White
+                                    )
+                                } else if (isMediaActive) {
+                                    OriginOSEqualizer(
+                                        isPlaying = mediaTrack.isPlaying,
+                                        color = Color.White
+                                    )
+                                } else if (isCharging) {
+                                    // Battery percentage shown ONLY when actively charging!
                                     Text(
                                         text = "$batteryLevel%",
-                                        color = if (isCharging) Color(0xFF22C55E) else if (batteryLevel > 20) Color(0xEEFFFFFF) else Color(0xFFEF4444),
-                                        fontSize = 9.5.sp,
+                                        color = Color(0xFF34C759),
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.SansSerif
                                     )
+                                } else {
+                                    // Idle: Nothing shown! No battery! Completely clean and stealth.
                                 }
                             }
                         }
-                    }
-                } else {
-                    // ══════════════════════════════════════════════════════════
-                    // 2. EXPANDED STUNNING APPLE LIVE ACTIVITY CARD
-                    // ══════════════════════════════════════════════════════════
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // ── Top Camera Hole Clearance Notch ──
-                        Spacer(modifier = Modifier.height((settings.pillHeight * 0.7f).dp))
-
-                        // ── Header Bar: Apple Ecosystem & iOS Close Button ──
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(palette.primaryAccent.copy(alpha = 0.18f))
-                                        .border(0.5.dp, palette.primaryAccent.copy(alpha = 0.35f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Computer,
-                                        contentDescription = "Continuity",
-                                        tint = palette.primaryAccent,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                                Column {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Text(
-                                            text = if (bridgeDevice.isConnected) bridgeDevice.deviceName else "JARVIS Ecosystem",
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(if (bridgeDevice.isConnected) Color(0xFF34C759) else Color(0x66FFFFFF))
-                                        )
-                                    }
-                                    Text(
-                                        text = if (bridgeDevice.isConnected) "${bridgeDevice.ipAddress} • ${bridgeDevice.pingMs}ms" else "Ecosystem Standby",
-                                        color = Color(0x99FFFFFF),
-                                        fontSize = 9.5.sp
-                                    )
-                                }
-                            }
-
-                            // iOS-style Circular Glass Minimize Button
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0x22FFFFFF))
-                                    .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
-                                    .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            if (settings.hapticFeedback) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            }
-                                            onToggleExpand()
-                                        }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Close",
-                                    tint = Color(0xDDFFFFFF),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-
-                        // ── Center Live Activity Presentation (Strict Apple HIG) ──
+                    } else {
+                        // ══════════════════════════════════════════════════════════
+                        // 2. EXPANDED CLEAN APPLE LIVE ACTIVITY CARD
+                        // (Single unified header, zero duplicate IP/ping debug clutter)
+                        // ══════════════════════════════════════════════════════════
                         if (activeNotification != null) {
                             ExpressiveNotificationCard(
                                 event = activeNotification,
                                 accentColor = palette.primaryAccent,
                                 onOpen = onNotificationClick,
-                                onDismiss = onNotificationDismiss
+                                onDismiss = onNotificationDismiss,
+                                onClose = onToggleExpand
                             )
-                        } else if (activeTransfer.isActive) {
+                        } else if (isTransferActive) {
                             AppleAirDropCard(
                                 transfer = activeTransfer,
                                 accentColor = palette.primaryAccent,
-                                secondaryColor = palette.secondaryAccent
+                                secondaryColor = palette.secondaryAccent,
+                                onClose = onToggleExpand
                             )
-                        } else if (mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) {
+                        } else if (isMediaActive) {
                             OriginOSMusicCard(
                                 track = mediaTrack,
                                 accentColor = palette.primaryAccent,
                                 onPlayPause = onMediaPlayPause,
                                 onNext = onMediaNext,
                                 onPrev = onMediaPrev,
-                                onSeek = onMediaSeek
+                                onSeek = onMediaSeek,
+                                onClose = onToggleExpand
                             )
                         } else {
                             AppleContinuityCard(
@@ -501,7 +410,8 @@ fun JarvisIslandApp(
                                 accentColor = palette.primaryAccent,
                                 secondaryColor = palette.secondaryAccent,
                                 onBeamFile = onBeamSampleFile,
-                                onSyncClipboard = onSyncClipboard
+                                onSyncClipboard = onSyncClipboard,
+                                onClose = onToggleExpand
                             )
                         }
                     }
@@ -510,105 +420,129 @@ fun JarvisIslandApp(
         }
     }
 }
-}
 
 @Composable
 private fun AppleAirDropCard(
     transfer: ActiveTransferInfo,
     accentColor: Color,
     secondaryColor: Color,
+    onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0x18FFFFFF))
-            .border(0.5.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-            .padding(12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Top Camera Clearance Notch
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    CyberBeamIcon(
-                        isUpload = transfer.isUpload,
-                        accentColor = accentColor,
-                        size = 22.dp
+                CyberBeamIcon(
+                    isUpload = transfer.isUpload,
+                    accentColor = Color.White,
+                    size = 22.dp
+                )
+                Column {
+                    Text(
+                        text = transfer.fileName,
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Column {
-                        Text(
-                            text = transfer.fileName,
-                            color = Color.White,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = if (transfer.isUpload) "AirDrop Beam • Windows Desktop" else "AirDrop Incoming • JARVIS PC",
-                            color = Color(0x99FFFFFF),
-                            fontSize = 9.5.sp
-                        )
-                    }
+                    Text(
+                        text = if (transfer.isUpload) "AirDrop Beam • Windows Desktop" else "AirDrop Incoming • JARVIS PC",
+                        color = Color(0x99FFFFFF),
+                        fontSize = 9.5.sp
+                    )
                 }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(accentColor.copy(alpha = 0.2f))
+                        .background(Color(0x22FFFFFF))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = transfer.speedMbps,
-                        color = accentColor,
+                        color = Color.White,
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-            }
 
-            // Apple Progress Track
+                if (onClose != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x18FFFFFF))
+                            .border(0.5.dp, Color(0x22FFFFFF), CircleShape)
+                            .clickable { onClose() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xDDFFFFFF),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Apple Progress Track
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0x22FFFFFF))
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxWidth(transfer.progress.coerceIn(0.01f, 1f))
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0x22FFFFFF))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(transfer.progress.coerceIn(0.01f, 1f))
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(
-                            Brush.horizontalGradient(listOf(accentColor, secondaryColor))
-                        )
-                )
-            }
+                    .background(
+                        Brush.horizontalGradient(listOf(Color.White, Color(0xFF34C759)))
+                    )
+            )
+        }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${(transfer.fileSizeMb * transfer.progress).toInt()} MB of ${transfer.fileSizeMb} MB",
-                    color = Color(0x88FFFFFF),
-                    fontSize = 9.5.sp
-                )
-                Text(
-                    text = if (transfer.progress >= 1f) "Transfer Complete" else "${(transfer.progress * 100).toInt()}% • 5G Direct",
-                    color = secondaryColor,
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "${(transfer.fileSizeMb * transfer.progress).toInt()} MB of ${transfer.fileSizeMb} MB",
+                color = Color(0x88FFFFFF),
+                fontSize = 9.5.sp
+            )
+            Text(
+                text = if (transfer.progress >= 1f) "Transfer Complete" else "${(transfer.progress * 100).toInt()}% • 5G Direct",
+                color = Color(0xFF34C759),
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -622,20 +556,21 @@ private fun AppleContinuityCard(
     secondaryColor: Color,
     onBeamFile: () -> Unit,
     onSyncClipboard: () -> Unit,
+    onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Battery & System Status Pill
+        // Top Camera Hole Clearance Notch
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Clean Header (Zero technical IP addresses or ping numbers)
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color(0x18FFFFFF))
-                .border(0.5.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -643,35 +578,135 @@ private fun AppleContinuityCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.BatteryChargingFull,
-                    contentDescription = "Battery",
-                    tint = if (isCharging) Color(0xFF34C759) else if (batteryLevel > 20) accentColor else Color(0xFFFF453A),
-                    modifier = Modifier.size(20.dp)
-                )
-                Column {
-                    Text(
-                        text = "Battery: $batteryLevel%",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x18FFFFFF))
+                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Computer,
+                        contentDescription = "Continuity",
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp)
                     )
+                }
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            text = if (device.isConnected) "JARVIS Ecosystem" else "JARVIS Standby",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (device.isConnected) Color(0xFF34C759) else Color(0x66FFFFFF))
+                        )
+                    }
                     Text(
-                        text = if (isCharging) "Super-Fast Charging" else "Battery Healthy",
+                        text = if (device.isConnected) "Live Continuity Active" else "Ready to Connect",
                         color = Color(0x99FFFFFF),
                         fontSize = 9.5.sp
                     )
                 }
             }
-            Box(
+
+            if (onClose != null) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x18FFFFFF))
+                        .border(0.5.dp, Color(0x22FFFFFF), CircleShape)
+                        .clickable { onClose() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close",
+                        tint = Color(0xDDFFFFFF),
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            }
+        }
+
+        // Show Battery Status Pill ONLY IF CHARGING (Clean charging animation, no 24/7 battery clutter)
+        if (isCharging) {
+            Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(secondaryColor.copy(alpha = 0.2f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x18FFFFFF))
+                    .border(0.5.dp, Color(0x22FFFFFF), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.BatteryChargingFull,
+                        contentDescription = "Battery",
+                        tint = Color(0xFF34C759),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Super-Fast Charging • $batteryLevel%",
+                        color = Color.White,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Text(
-                    text = if (device.isConnected) "Continuity Synced" else "Standby",
-                    color = secondaryColor,
+                    text = "Active",
+                    color = Color(0xFF34C759),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
+            // Sleek Ecosystem Connectivity Pill
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x12FFFFFF))
+                    .border(0.5.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (device.isConnected) Color(0xFF34C759) else Color(0x44FFFFFF))
+                    )
+                    Text(
+                        text = if (device.isConnected) "High-Speed LAN Link" else "Local Wireless Standby",
+                        color = Color(0xCCFFFFFF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Text(
+                    text = if (device.isConnected) "Synced" else "Ready",
+                    color = if (device.isConnected) Color(0xFF34C759) else Color(0x88FFFFFF),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -688,8 +723,8 @@ private fun AppleContinuityCard(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(accentColor.copy(alpha = 0.2f))
-                    .border(0.5.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                    .background(Color(0x22FFFFFF))
+                    .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(10.dp))
                     .clickable(onClick = onBeamFile)
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
@@ -701,14 +736,14 @@ private fun AppleContinuityCard(
                     Icon(
                         imageVector = Icons.Rounded.FileUpload,
                         contentDescription = "Beam",
-                        tint = accentColor,
+                        tint = Color.White,
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
                         text = "Beam to PC",
-                        color = accentColor,
+                        color = Color.White,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -731,12 +766,12 @@ private fun AppleContinuityCard(
                     Icon(
                         imageVector = Icons.Rounded.ContentCopy,
                         contentDescription = "Sync",
-                        tint = Color.White,
+                        tint = Color(0xCCFFFFFF),
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
                         text = "Sync Clipboard",
-                        color = Color.White,
+                        color = Color(0xCCFFFFFF),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )

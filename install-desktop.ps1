@@ -8,10 +8,10 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
-Write-Host "  ╭──────────────────────────────────────────────────────────╮" -ForegroundColor Cyan
-Write-Host "  │            JARVIS DYNAMIC ISLAND FOR WINDOWS            │" -ForegroundColor Cyan
-Write-Host "  │           Apple-Grade Live Activities & Notch            │" -ForegroundColor Cyan
-Write-Host "  ╰──────────────────────────────────────────────────────────╯" -ForegroundColor Cyan
+Write-Host "  +----------------------------------------------------------+" -ForegroundColor Cyan
+Write-Host "  |             JARVIS DYNAMIC ISLAND FOR WINDOWS            |" -ForegroundColor Cyan
+Write-Host "  |             Apple-Grade Live Activities & Notch          |" -ForegroundColor Cyan
+Write-Host "  +----------------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
 
 $Repo = "NandiVardhan2007/JARVIS"
@@ -19,7 +19,8 @@ $InstallDir = "$env:LOCALAPPDATA\JARVIS-Island"
 $ExeTarget = "$InstallDir\JARVIS-Island.exe"
 $StartMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
 $StartMenuShortcut = "$StartMenuDir\JARVIS Dynamic Island.lnk"
-$DesktopShortcut = "$([Environment]::GetFolderPath('Desktop'))\JARVIS Dynamic Island.lnk"
+$DesktopDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+$DesktopShortcut = "$DesktopDir\JARVIS Dynamic Island.lnk"
 
 # 1. Stop any currently running instances
 Write-Host "[1/5] Checking for running instances..." -ForegroundColor Yellow
@@ -141,9 +142,9 @@ Write-Host "JARVIS Dynamic Island has been cleanly uninstalled." -ForegroundColo
 Set-Content -Path "$InstallDir\uninstall.ps1" -Value $UninstallScript -Force
 
 Write-Host ""
-Write-Host "  ✔ Installation completed successfully!" -ForegroundColor Green
-Write-Host "  ✔ Start Menu shortcut created." -ForegroundColor Green
-Write-Host "  ✔ Desktop shortcut created." -ForegroundColor Green
+Write-Host "  [OK] Installation completed successfully!" -ForegroundColor Green
+Write-Host "  [OK] Start Menu shortcut created." -ForegroundColor Green
+Write-Host "  [OK] Desktop shortcut created." -ForegroundColor Green
 Write-Host ""
 Write-Host "  Launching JARVIS Dynamic Island..." -ForegroundColor Cyan
 Start-Process -FilePath $ExeTarget

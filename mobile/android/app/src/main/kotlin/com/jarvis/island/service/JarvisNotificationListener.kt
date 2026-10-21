@@ -19,6 +19,7 @@ import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.jarvis.island.lyrics.JarvisLyricsProvider
 import com.jarvis.island.ui.MediaTrackInfo
 import java.util.regex.Pattern
 
@@ -327,6 +328,8 @@ class JarvisNotificationListener : NotificationListenerService() {
             }
         }
 
+        val hasLyricsAlready = currentTrackInfo.title == rawTitle && currentTrackInfo.lyrics.isNotEmpty()
+
         val track = MediaTrackInfo(
             title = if (!rawTitle.isNullOrBlank()) rawTitle else "Playing Audio",
             artist = if (!rawArtist.isNullOrBlank()) rawArtist else appName,
@@ -337,12 +340,23 @@ class JarvisNotificationListener : NotificationListenerService() {
             positionMs = position,
             progress = progress,
             appName = appName,
-            packageName = pkg
+            packageName = pkg,
+            lyrics = if (hasLyricsAlready) currentTrackInfo.lyrics else emptyList()
         )
 
         currentTrackInfo = track
         onMediaUpdate?.invoke(track)
         onMediaChanged?.invoke()
+
+        // Asynchronously fetch real synchronized lyrics if track changed or lyrics not cached
+        if (!rawTitle.isNullOrBlank() && !hasLyricsAlready) {
+            JarvisLyricsProvider.fetchLyrics(rawTitle, rawArtist ?: "", duration) { fetchedLyrics ->
+                if (currentTrackInfo.title == rawTitle && fetchedLyrics.isNotEmpty()) {
+                    currentTrackInfo = currentTrackInfo.copy(lyrics = fetchedLyrics)
+                    onMediaUpdate?.invoke(currentTrackInfo)
+                }
+            }
+        }
     }
 
     private fun startProgressTicker() {

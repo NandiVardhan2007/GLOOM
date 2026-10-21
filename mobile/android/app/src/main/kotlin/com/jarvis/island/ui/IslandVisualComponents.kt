@@ -410,8 +410,8 @@ fun OriginOSVinylRecord(
             .size(size)
             .rotate(if (isPlaying) rotation else 0f)
             .clip(CircleShape)
-            .background(Color(0xFF0F172A))
-            .border(1.dp, Color(0x33FFFFFF), CircleShape),
+            .background(Color(0xFF000000))
+            .border(0.5.dp, Color(0x22FFFFFF), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(size)) {
@@ -470,20 +470,21 @@ fun OriginOSMusicCard(
     onNext: () -> Unit,
     onPrev: () -> Unit,
     onSeek: ((Float) -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var showLyrics by remember { mutableStateOf(false) }
+    var showLyrics by remember(track.title) { mutableStateOf(track.lyrics.isNotEmpty()) }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0A0A10).copy(alpha = 0.94f))
-            .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(18.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Top App Badge, Lyrics Toggle, and Live Equalizer
+        // Top Camera Clearance Notch
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Top Header: Streaming App & Actions (Lyrics Toggle + Visualizer + Close)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -497,11 +498,11 @@ fun OriginOSMusicCard(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(if (track.isPlaying) Color(0xFF22C55E) else Color(0xFF94A3B8))
+                        .background(if (track.isPlaying) Color(0xFF34C759) else Color(0x66FFFFFF))
                 )
                 Text(
                     text = if (track.appName.isNotBlank()) track.appName.uppercase() else "NOW PLAYING",
-                    color = if (track.isPlaying) Color(0xFF22C55E) else Color(0xFF94A3B8),
+                    color = Color(0x99FFFFFF),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -515,58 +516,78 @@ fun OriginOSMusicCard(
                 // Apple Music Live Lyrics Mode Toggle
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
-                        .background(if (showLyrics) accentColor.copy(alpha = 0.25f) else Color(0x1AFFFFFF))
+                        .background(if (showLyrics) Color(0x33FFFFFF) else Color(0x18FFFFFF))
+                        .border(0.5.dp, if (showLyrics) Color.White.copy(alpha = 0.6f) else Color(0x22FFFFFF), CircleShape)
                         .clickable { showLyrics = !showLyrics },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ChatBubbleOutline,
                         contentDescription = "Live Lyrics",
-                        tint = if (showLyrics) accentColor else Color(0xAAFFFFFF),
-                        modifier = Modifier.size(13.dp)
+                        tint = if (showLyrics) Color.White else Color(0xAAFFFFFF),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
 
                 OriginOSEqualizer(
                     isPlaying = track.isPlaying,
-                    color = accentColor,
+                    color = Color.White,
                     modifier = Modifier.height(12.dp)
                 )
+
+                if (onClose != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x18FFFFFF))
+                            .border(0.5.dp, Color(0x22FFFFFF), CircleShape)
+                            .clickable { onClose() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xDDFFFFFF),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
             }
         }
 
         if (showLyrics) {
-            // Apple Music Synchronized Live Lyrics
+            // VIEW 1: APPLE MUSIC FULL LIVE SYNCHRONIZED LYRICS
             val effectiveLyrics = if (track.lyrics.isNotEmpty()) {
                 track.lyrics
             } else {
                 remember(track.title) {
                     listOf(
-                        LyricLine(0L, "♪ ${if (track.title.isNotBlank()) track.title else "Live Audio"} ♪"),
-                        LyricLine(12000L, "Streaming via ${if (track.artist.isNotBlank()) track.artist else "JARVIS Island"}"),
+                        LyricLine(0L, "♪ ${if (track.title.isNotBlank()) track.title else "Now Playing"} ♪"),
+                        LyricLine(12000L, "Listening to ${if (track.artist.isNotBlank()) track.artist else "Apple Music"}"),
                         LyricLine(24000L, "High-fidelity spatial audio active"),
-                        LyricLine(36000L, "Synchronized ecosystem playback"),
+                        LyricLine(36000L, "Synchronized live playback"),
                         LyricLine(50000L, "Feel the acoustic resonance in real time"),
-                        LyricLine(70000L, "Connected across all your devices")
+                        LyricLine(70000L, "Connected across your devices")
                     )
                 }
             }
 
-            val currentPos = if (track.durationMs > 0) track.positionMs else (track.progress * 120000L).toLong()
+            val currentPos = if (track.durationMs > 0) track.positionMs else (track.progress * 180000L).toLong()
             val activeIndex = effectiveLyrics.indexOfLast { it.timeMs <= currentPos }.coerceAtLeast(0)
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(90.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0x15FFFFFF))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .height(105.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0x12FFFFFF))
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                for (offset in -1..1) {
+                for (offset in -1..2) {
                     val idx = activeIndex + offset
                     if (idx in effectiveLyrics.indices) {
                         val line = effectiveLyrics[idx]
@@ -574,104 +595,111 @@ fun OriginOSMusicCard(
                         Text(
                             text = line.text,
                             color = if (isActive) Color.White else Color(0x55FFFFFF),
-                            fontSize = if (isActive) 13.5.sp else 11.sp,
+                            fontSize = if (isActive) 14.5.sp else 11.5.sp,
                             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 2.dp)
+                                .padding(vertical = 1.5.dp)
                                 .clickable {
                                     if (track.durationMs > 0 && onSeek != null) {
                                         onSeek(line.timeMs.toFloat() / track.durationMs.toFloat())
                                     }
                                 }
                         )
-                    } else {
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
         } else {
-            // Center: Album Art & Track Info
+            // VIEW 2: APPLE NOW PLAYING (ALBUM ART + TRACK + LIVE PREVIEW)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Album Artwork: Large 64dp Card
+                // Album Artwork Squircle (58x58 dp)
                 if (track.albumArt != null) {
                     Image(
                         bitmap = track.albumArt.asImageBitmap(),
                         contentDescription = "Album Art",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(58.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
+                            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
+                            .clickable { showLyrics = true }
                     )
                 } else {
                     OriginOSVinylRecord(
                         isPlaying = track.isPlaying,
                         albumArt = null,
-                        size = 64.dp,
-                        labelColor = accentColor
+                        size = 58.dp,
+                        labelColor = Color.White
                     )
                 }
 
-                // Track Title & Artist
+                // Title, Artist & Live Lyric Line Preview
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = if (track.title.isNotBlank()) track.title else "No Media Playing",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (track.artist.isNotBlank()) track.artist else "Apple Music • Live Audio",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 11.sp,
+                        text = if (track.artist.isNotBlank()) track.artist else "Apple Music",
+                        color = Color(0x99FFFFFF),
+                        fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (track.album.isNotBlank()) {
-                        Text(
-                            text = track.album,
-                            color = Color(0xFF64748B),
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+
+                    // Real-Time Active Lyric Preview Line
+                    if (track.lyrics.isNotEmpty()) {
+                        val currentPos = if (track.durationMs > 0) track.positionMs else (track.progress * 180000L).toLong()
+                        val activeLine = track.lyrics.lastOrNull { it.timeMs <= currentPos } ?: track.lyrics.firstOrNull()
+                        if (activeLine != null && activeLine.text.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "♪ ${activeLine.text}",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.clickable { showLyrics = true }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // OriginOS Wavy Seek Bar
+        // Apple Fluid Seek Bar
         OriginOSWavySeekBar(
             progress = track.progress,
             durationMs = track.durationMs,
             positionMs = track.positionMs,
-            accentColor = accentColor,
+            accentColor = Color.White,
             isPlaying = track.isPlaying,
             onSeek = onSeek
         )
 
-        // Transport Controls Row
+        // Apple Circular Transport Buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            // Previous Track
+            // Previous Track (Glass Circle)
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0x1AFFFFFF))
+                    .background(Color(0x18FFFFFF))
                     .clickable(onClick = onPrev),
                 contentAlignment = Alignment.Center
             ) {
@@ -683,12 +711,12 @@ fun OriginOSMusicCard(
                 )
             }
 
-            // Play / Pause (Large Circular Button)
+            // Play / Pause (Solid White Apple Circle with Black Icon)
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(accentColor)
+                    .background(Color.White)
                     .clickable(onClick = onPlayPause),
                 contentAlignment = Alignment.Center
             ) {
@@ -700,12 +728,12 @@ fun OriginOSMusicCard(
                 )
             }
 
-            // Next Track
+            // Next Track (Glass Circle)
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0x1AFFFFFF))
+                    .background(Color(0x18FFFFFF))
                     .clickable(onClick = onNext),
                 contentAlignment = Alignment.Center
             ) {
@@ -714,6 +742,24 @@ fun OriginOSMusicCard(
                     contentDescription = "Next Track",
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Lyrics Toggle Button
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (showLyrics) Color(0x33FFFFFF) else Color(0x18FFFFFF))
+                    .border(0.5.dp, if (showLyrics) Color.White.copy(alpha = 0.6f) else Color(0x22FFFFFF), CircleShape)
+                    .clickable { showLyrics = !showLyrics },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ChatBubbleOutline,
+                    contentDescription = "Toggle Lyrics",
+                    tint = if (showLyrics) Color.White else Color(0xCCFFFFFF),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -781,19 +827,20 @@ fun PulseConnectionDot(
 @Composable
 fun ExpressiveNotificationCard(
     event: NotificationIslandEvent,
-    accentColor: Color = Color(0xFF38BDF8),
+    accentColor: Color = Color.White,
     onOpen: () -> Unit = {},
-    onDismiss: () -> Unit = {}
+    onDismiss: () -> Unit = {},
+    onClose: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF0C0E14))
-            .border(1.dp, Brush.horizontalGradient(listOf(accentColor.copy(alpha = 0.4f), Color(0x22FFFFFF))), RoundedCornerShape(16.dp))
-            .padding(12.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Top Camera Clearance Notch
+        Spacer(modifier = Modifier.height(18.dp))
+
         // Top Header: App Pill & Time & Dismiss Icon
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -806,13 +853,13 @@ fun ExpressiveNotificationCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(6.dp)
                         .clip(CircleShape)
-                        .background(accentColor)
+                        .background(Color.White)
                 )
                 Text(
                     text = if (event.appName.isNotBlank()) event.appName.uppercase() else "NOTIFICATION",
-                    color = accentColor,
+                    color = Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
@@ -837,17 +884,18 @@ fun ExpressiveNotificationCard(
                 )
                 Box(
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(26.dp)
                         .clip(CircleShape)
-                        .background(Color(0x15FFFFFF))
-                        .clickable(onClick = onDismiss),
+                        .background(Color(0x18FFFFFF))
+                        .border(0.5.dp, Color(0x22FFFFFF), CircleShape)
+                        .clickable(onClick = onClose ?: onDismiss),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        contentDescription = "Dismiss",
-                        tint = Color(0xAAFFFFFF),
-                        modifier = Modifier.size(14.dp)
+                        contentDescription = "Close",
+                        tint = Color(0xDDFFFFFF),
+                        modifier = Modifier.size(13.dp)
                     )
                 }
             }
