@@ -16,6 +16,8 @@ import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.URL
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
 import kotlin.concurrent.thread
 
 /**
@@ -116,6 +118,16 @@ class JarvisLiveBridgeClient(private val context: Context) {
                                 Log.w(TAG, "Ignoring discovery beacon from non-LAN address $host:$port")
                                 continue
                             }
+                            // Pin the desktop's TLS certificate fingerprint before any
+                            // connection is made; subsequent traffic refuses any other cert.
+                            // An existing pin is never overwritten by a beacon.
+                            val fingerprint = json.optString("tlsFingerprint", "")
+                            if (fingerprint.isNotEmpty() &&
+                                !BridgeTls.pinDesktopFingerprint(context, fingerprint)
+                            ) {
+                                Log.w(TAG, "Ignoring beacon whose TLS fingerprint does not match the pinned desktop")
+                                continue
+                            }
                             onDiscovered(name, host, port, onConnected)
                             break
                         }
@@ -157,8 +169,15 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     if (isConnected) break
                     thread(isDaemon = true) {
                         try {
-                            val url = URL("http://$host:53391/api/status")
-                            val conn = url.openConnection() as HttpURLConnection
+                            // Discovery probe only: the status endpoint is unauthenticated
+                            // and carries no secrets, so it tolerates the yet-unpinned
+                            // certificate. The fingerprint it returns is pinned below.
+                            val url = URL("https://$host:53391/api/status")
+                            val conn = url.openConnection() as HttpsURLConnection
+                            BridgeTls.permissiveClientSocketFactory()?.let {
+                                conn.sslSocketFactory = it
+                            }
+                            conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
                             conn.connectTimeout = 350
                             conn.readTimeout = 350
                             conn.requestMethod = "GET"
@@ -166,6 +185,17 @@ class JarvisLiveBridgeClient(private val context: Context) {
                                 val resp = conn.inputStream.bufferedReader().readText()
                                 conn.disconnect()
                                 if (resp.contains("JARVIS") || resp.contains("LiveBridge")) {
+                                    val fingerprint = try {
+                                        JSONObject(resp).optString("tlsFingerprint", "")
+                                    } catch (_: Exception) {
+                                        ""
+                                    }
+                                    if (fingerprint.isNotEmpty()) {
+                                        if (!BridgeTls.pinDesktopFingerprint(context, fingerprint)) {
+                                            Log.w(TAG, "Subnet probe at $host does not match the pinned desktop certificate")
+                                            return@thread
+                                        }
+                                    }
                                     onDiscovered("JARVIS Desktop", host, 53391, onConnected)
                                 }
                             }
@@ -259,7 +289,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
                         put("wifiSsid", ssid)
                     }
 
-                    val code = postJson("http://$desktopIp:$desktopPort/api/telemetry", payload)
+                    val code = postJson("https://$desktopIp:$desktopPort/api/telemetry", payload)
                     if (code == 401 || code == 403) {
                         Log.w(TAG, "Desktop rejected the bridge token; dropping unverified peer ${desktopIp}")
                         isConnected = false
@@ -295,7 +325,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     put("text", text)
                     put("timestampMs", System.currentTimeMillis())
                 }
-                postJson("http://$desktopIp:$desktopPort/api/clipboard", payload)
+                postJson("https://$desktopIp:$desktopPort/api/clipboard", payload)
                 Log.i(TAG, "Successfully synced clipboard text to JARVIS Desktop")
             } catch (e: Exception) {
                 Log.w(TAG, "Clipboard sync failed: ${e.message}")
@@ -315,8 +345,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     put("button", button)
                 }.toString().toByteArray(Charsets.UTF_8)
 
-                val url = URL("http://$ip:$port/api/mouse")
-                val conn = url.openConnection() as HttpURLConnection
+                val conn = openSecureConnection("https://$ip:$port/api/mouse") ?: return@execute
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.setRequestProperty("Content-Length", payload.size.toString())
@@ -344,7 +373,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
             onComplete(false)
             return
         }
-        FileBeamReceiver.beamFileToDesktop(file, ip, desktopPort, onProgress, onComplete)
+        FileBeamReceiver.beamFileToDesktop(context, file, ip, desktopPort, onProgress, onComplete)
     }
 
     /**
@@ -365,8 +394,10 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     put("clientDeviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
                 }.toString().toByteArray(Charsets.UTF_8)
 
-                val url = URL("http://$ip:$desktopPort/api/pair/request")
-                val conn = url.openConnection() as HttpURLConnection
+                val conn = openSecureConnection("https://$ip:$desktopPort/api/pair/request") ?: run {
+                    mainHandler.post { onResult(null) }
+                    return@thread
+                }
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.doOutput = true
@@ -400,8 +431,10 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     put("pin", pin)
                 }.toString().toByteArray(Charsets.UTF_8)
 
-                val url = URL("http://$ip:$desktopPort/api/pair/confirm")
-                val conn = url.openConnection() as HttpURLConnection
+                val conn = openSecureConnection("https://$ip:$desktopPort/api/pair/confirm") ?: run {
+                    mainHandler.post { onResult(false) }
+                    return@thread
+                }
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.doOutput = true
@@ -411,9 +444,22 @@ class JarvisLiveBridgeClient(private val context: Context) {
                 val code = conn.responseCode
                 if (code in 200..299) {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val token = JSONObject(body).optString("authToken", "")
+                    val pairResponse = JSONObject(body)
+                    val token = pairResponse.optString("authToken", "")
                     if (token.isNotBlank()) {
                         FileBeamReceiver.storePairedToken(context, token)
+                        BridgeTls.storeDesktopFingerprint(
+                            context,
+                            pairResponse.optString("serverTlsFingerprint", "")
+                        )
+                        val certPem = pairResponse.optString("clientCertPem", "")
+                        val keyPem = pairResponse.optString("clientKeyPem", "")
+                        if (certPem.isNotBlank() && keyPem.isNotBlank() &&
+                            BridgeTls.storeClientIdentity(context, certPem, keyPem)
+                        ) {
+                            // Switch the companion server from bootstrap HTTP to pinned TLS.
+                            FileBeamReceiver.restartServerWithTls()
+                        }
                         paired = true
                         startTelemetryReporting()
                     }
@@ -426,9 +472,16 @@ class JarvisLiveBridgeClient(private val context: Context) {
         }
     }
 
+    private fun openSecureConnection(urlString: String): HttpsURLConnection? {
+        val factory = BridgeTls.pinnedClientSocketFactory(context) ?: return null
+        val conn = URL(urlString).openConnection() as? HttpsURLConnection ?: return null
+        conn.sslSocketFactory = factory
+        conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
+        return conn
+    }
+
     private fun postJson(urlString: String, json: JSONObject): Int {
-        val url = URL(urlString)
-        val conn = url.openConnection() as HttpURLConnection
+        val conn = openSecureConnection(urlString) ?: return -1
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/json")
         conn.setRequestProperty("X-Jarvis-Auth-Token", FileBeamReceiver.currentAuthToken)

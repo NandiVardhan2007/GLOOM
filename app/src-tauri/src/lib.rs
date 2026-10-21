@@ -339,6 +339,11 @@ fn jarvis_get_pairing_challenge() -> Option<providers::livebridge::PairingChalle
 }
 
 #[tauri::command]
+fn jarvis_get_bridge_tls_fingerprint() -> String {
+    providers::bridge_tls::local_fingerprint()
+}
+
+#[tauri::command]
 fn jarvis_send_bridge_file(app: AppHandle, device_name: Option<String>, file_name: String, file_size: u64) -> Result<(), String> {
     let name = device_name.unwrap_or_else(|| "Companion Device".to_string());
     providers::livebridge::beam_file_to_device(app, name, file_name, file_size, "".to_string(), None)
@@ -410,6 +415,7 @@ pub fn run() {
             jarvis_get_bridge_activities,
             jarvis_get_bridge_transfers,
             jarvis_get_pairing_challenge,
+            jarvis_get_bridge_tls_fingerprint,
             jarvis_send_bridge_file,
             jarvis_send_bridge_file_bytes,
             jarvis_send_bridge_file_path,

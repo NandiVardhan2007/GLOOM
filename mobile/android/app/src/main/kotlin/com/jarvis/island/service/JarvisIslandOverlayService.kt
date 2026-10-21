@@ -423,7 +423,7 @@ class JarvisIslandOverlayService : Service() {
                             val sampleFile = File(cacheDir, "JARVIS_Ecosystem_Beam.txt").apply {
                                 writeText("JARVIS AirDrop Continuity Beam\nDevice: ${Build.MANUFACTURER} ${Build.MODEL}\nTimestamp: ${System.currentTimeMillis()}\nStatus: High-Speed LAN Link Active\nPort: 53391\n")
                             }
-                            FileBeamReceiver.beamFileToDesktop(sampleFile, desktopIp, 53391, { _: Float -> }, { _: Boolean -> })
+                            FileBeamReceiver.beamFileToDesktop(this@JarvisIslandOverlayService, sampleFile, desktopIp, 53391, { _: Float -> }, { _: Boolean -> })
                         }
                     },
                     onSyncClipboard = {

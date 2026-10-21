@@ -62,6 +62,8 @@ pub struct PairedDeviceRecord {
     pub auth_token: String,
     #[serde(default)]
     pub ip: String,
+    #[serde(default)]
+    pub peer_fingerprint: String,
     pub permissions: DevicePermissions,
     pub paired_at_ms: u64,
 }
@@ -272,6 +274,46 @@ pub fn get_bridge_token_for_ip(ip: &str) -> String {
         Some(id) if is_device_paired(&id, ip) => paired_token_for_device_id(&id).unwrap_or_default(),
         _ => String::new(),
     }
+}
+
+fn peer_fingerprint_for_ip(ip: &str) -> Option<String> {
+    with_paired_devices(|map| {
+        map.values()
+            .find(|record| record.ip == ip && !record.peer_fingerprint.is_empty())
+            .map(|record| record.peer_fingerprint.clone())
+    })
+}
+
+/// Opens an encrypted, certificate-pinned connection to a paired companion.
+/// A device that has not completed PIN pairing has no pinned fingerprint and is
+/// refused rather than being downgraded to cleartext.
+fn connect_mobile_tls(
+    ip: &str,
+    connect_timeout: Duration,
+) -> Result<rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>, String> {
+    use std::net::ToSocketAddrs;
+
+    let fingerprint = peer_fingerprint_for_ip(ip).ok_or_else(|| {
+        "Companion device has no pinned TLS identity; re-pair required".to_string()
+    })?;
+    let config = crate::providers::bridge_tls::pinned_client_config(&fingerprint)?;
+    let addr = format!("{}:53391", ip);
+    let sock = addr
+        .to_socket_addrs()
+        .map_err(|e| format!("Invalid companion address: {}", e))?
+        .next()
+        .ok_or_else(|| "Could not resolve companion address".to_string())?;
+    let tcp = std::net::TcpStream::connect_timeout(&sock, connect_timeout)
+        .map_err(|e| format!("Cannot connect to companion: {}", e))?;
+    let _ = tcp.set_read_timeout(Some(Duration::from_secs(30)));
+    let _ = tcp.set_write_timeout(Some(Duration::from_secs(30)));
+
+    let server_name = rustls::pki_types::ServerName::try_from("jarvis-bridge")
+        .map_err(|e| format!("Invalid TLS server name: {}", e))?
+        .to_owned();
+    let conn = rustls::ClientConnection::new(config, server_name)
+        .map_err(|e| format!("Cannot start TLS session: {}", e))?;
+    Ok(rustls::StreamOwned::new(conn, tcp))
 }
 
 pub fn check_and_record_nonce(nonce: &str, timestamp_ms: u64) -> Result<(), &'static str> {
@@ -587,7 +629,6 @@ pub fn stream_file_to_device(
     let file_name_clone = safe_name.clone();
 
     std::thread::spawn(move || {
-        use std::net::ToSocketAddrs;
         let addr = format!("{}:53391", ip);
         let timestamp = current_time_ms();
         let nonce = generate_nonce();
@@ -608,13 +649,8 @@ pub fn stream_file_to_device(
         let mut success = false;
         let mut computed_hash = String::new();
 
-        if let Ok(mut addrs) = addr.to_socket_addrs() {
-            if let Some(sock) = addrs.next() {
-                if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_secs(8)) {
-                    let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
-                    let _ = stream.set_write_timeout(Some(Duration::from_secs(30)));
-
-                    if stream.write_all(req_headers.as_bytes()).is_ok() {
+        if let Ok(mut stream) = connect_mobile_tls(&ip, Duration::from_secs(8)) {
+            if stream.write_all(req_headers.as_bytes()).is_ok() {
                         let mut buffer = [0u8; 65536];
                         let mut sent_bytes = 0u64;
                         let mut last_progress_emit = 0u64;
@@ -656,8 +692,6 @@ pub fn stream_file_to_device(
                                 success = resp_str.contains("200 OK") || resp_str.contains("\"received\":true");
                             }
                         }
-                    }
-                }
             }
         }
 
@@ -752,34 +786,26 @@ pub fn broadcast_clipboard_to_mobile(text: &str) {
                 if token.is_empty() {
                     continue;
                 }
-                use std::net::ToSocketAddrs;
                 let addr = format!("{}:{}", dev.ip, dev.port);
-                if let Ok(mut addrs) = addr.to_socket_addrs() {
-                    if let Some(sock) = addrs.next() {
-                        if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_millis(2000)) {
-                            let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
-                            let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
+                if let Ok(mut stream) = connect_mobile_tls(&dev.ip, Duration::from_millis(2000)) {
+                    let timestamp = current_time_ms();
+                    let nonce = generate_nonce();
+                    let body = serde_json::json!({
+                        "text": text_owned,
+                        "originDeviceId": "jarvis-desktop-primary",
+                        "timestampMs": timestamp
+                    }).to_string();
 
-                            let timestamp = current_time_ms();
-                            let nonce = generate_nonce();
-                            let body = serde_json::json!({
-                                "text": text_owned,
-                                "originDeviceId": "jarvis-desktop-primary",
-                                "timestampMs": timestamp
-                            }).to_string();
-
-                            let req = format!(
-                                "POST /api/clipboard HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Jarvis-Auth-Token: {}\r\nX-Jarvis-Timestamp: {}\r\nX-Jarvis-Nonce: {}\r\nConnection: close\r\n\r\n{}",
-                                addr,
-                                body.len(),
-                                token,
-                                timestamp,
-                                nonce,
-                                body
-                            );
-                            let _ = stream.write_all(req.as_bytes());
-                        }
-                    }
+                    let req = format!(
+                        "POST /api/clipboard HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Jarvis-Auth-Token: {}\r\nX-Jarvis-Timestamp: {}\r\nX-Jarvis-Nonce: {}\r\nConnection: close\r\n\r\n{}",
+                        addr,
+                        body.len(),
+                        token,
+                        timestamp,
+                        nonce,
+                        body
+                    );
+                    let _ = stream.write_all(req.as_bytes());
                 }
             }
         }
@@ -835,22 +861,17 @@ pub fn send_control_to_device(
         body
     );
 
+    let control_ip = ip.clone();
     std::thread::spawn(move || {
-        use std::net::ToSocketAddrs;
-        if let Ok(mut addrs) = addr.to_socket_addrs() {
-            if let Some(sock) = addrs.next() {
-                if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_millis(1500)) {
-                    let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
-                    let _ = stream.write_all(req.as_bytes());
-                }
-            }
+        if let Ok(mut stream) = connect_mobile_tls(&control_ip, Duration::from_millis(1500)) {
+            let _ = stream.write_all(req.as_bytes());
         }
     });
 
     Ok(())
 }
 
-fn write_json_response(stream: &mut std::net::TcpStream, json_body: &str) {
+fn write_json_response<W: Write>(stream: &mut W, json_body: &str) {
     let resp = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         json_body.len(),
@@ -860,7 +881,7 @@ fn write_json_response(stream: &mut std::net::TcpStream, json_body: &str) {
     let _ = stream.flush();
 }
 
-fn write_error_response(stream: &mut std::net::TcpStream, code: u16, status: &str, message: &str) {
+fn write_error_response<W: Write>(stream: &mut W, code: u16, status: &str, message: &str) {
     let body = serde_json::json!({
         "error": message,
         "statusCode": code,
@@ -908,6 +929,7 @@ fn is_authorized(headers: &str, peer_ip: &str) -> Result<PairedDeviceRecord, Str
                 device_name: "Master Bridge Admin".to_string(),
                 auth_token: env_secret,
                 ip: peer_ip.to_string(),
+                peer_fingerprint: String::new(),
                 permissions: DevicePermissions {
                     status: true,
                     clipboard: true,
@@ -955,7 +977,8 @@ pub fn start_livebridge_service(app: AppHandle) {
             "type": "jarvis_beacon",
             "name": "JARVIS Desktop Island",
             "port": 53391,
-            "version": "1.0.0"
+            "version": "1.0.0",
+            "tlsFingerprint": crate::providers::bridge_tls::local_fingerprint()
         }).to_string();
 
         loop {
@@ -1032,13 +1055,32 @@ pub fn start_livebridge_service(app: AppHandle) {
             }
         };
 
+        let tls_config = match crate::providers::bridge_tls::server_config() {
+            Ok(config) => config,
+            Err(e) => {
+                log::error!("LiveBridge TLS identity unavailable, refusing to serve cleartext: {}", e);
+                return;
+            }
+        };
+
         for stream in listener.incoming() {
-            if let Ok(mut stream) = stream {
-                let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
-                let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
+            if let Ok(tcp_stream) = stream {
+                let _ = tcp_stream.set_read_timeout(Some(Duration::from_secs(10)));
+                let _ = tcp_stream.set_write_timeout(Some(Duration::from_secs(10)));
+                let peer_ip = tcp_stream
+                    .peer_addr()
+                    .map(|addr| addr.ip().to_string())
+                    .unwrap_or_default();
 
                 let app = app_tcp.clone();
+                let config = tls_config.clone();
                 std::thread::spawn(move || {
+                    let connection = match rustls::ServerConnection::new(config) {
+                        Ok(connection) => connection,
+                        Err(_) => return,
+                    };
+                    let mut stream = rustls::StreamOwned::new(connection, tcp_stream);
+
                     let mut head_data = Vec::new();
                     let mut chunk = [0u8; 4096];
                     let mut body_start = None;
@@ -1068,7 +1110,6 @@ pub fn start_livebridge_service(app: AppHandle) {
 
                     let header_str = String::from_utf8_lossy(&head_data[..body_idx]).to_string();
                     let req_line = header_str.lines().next().unwrap_or("").to_string();
-                    let peer_ip = stream.peer_addr().map(|a| a.ip().to_string()).unwrap_or_default();
 
                     let content_len = get_header_value(&header_str, "content-length")
                         .and_then(|v| v.parse::<usize>().ok())
@@ -1076,10 +1117,13 @@ pub fn start_livebridge_service(app: AppHandle) {
 
                     // 1. Read-only status endpoint (strictly unauthenticated & read-only)
                     if req_line.starts_with("GET /api/status") {
-                        write_json_response(
-                            &mut stream,
-                            "{\"status\":\"ok\",\"service\":\"JARVIS LiveBridge\",\"version\":\"1.0.0\"}",
-                        );
+                        let body = serde_json::json!({
+                            "status": "ok",
+                            "service": "JARVIS LiveBridge",
+                            "version": "1.0.0",
+                            "tlsFingerprint": crate::providers::bridge_tls::local_fingerprint()
+                        }).to_string();
+                        write_json_response(&mut stream, &body);
                         return;
                     }
 
@@ -1201,11 +1245,20 @@ pub fn start_livebridge_service(app: AppHandle) {
 
                             if let Some(challenge) = matched {
                                 let new_token = generate_secure_token();
+                                let (client_cert_pem, client_key_pem, client_fingerprint) =
+                                    match crate::providers::bridge_tls::issue_client_identity() {
+                                        Ok(identity) => identity,
+                                        Err(e) => {
+                                            write_error_response(&mut stream, 500, "Internal Server Error", &e);
+                                            return;
+                                        }
+                                    };
                                 let record = PairedDeviceRecord {
                                     device_id: challenge.client_device_id.clone(),
                                     device_name: challenge.client_device_name.clone(),
                                     auth_token: new_token.clone(),
                                     ip: peer_ip.clone(),
+                                    peer_fingerprint: client_fingerprint.clone(),
                                     permissions: DevicePermissions::default(),
                                     paired_at_ms: current_time_ms(),
                                 };
@@ -1219,7 +1272,10 @@ pub fn start_livebridge_service(app: AppHandle) {
                                     "status": "paired",
                                     "authToken": new_token,
                                     "deviceId": "jarvis-desktop-primary",
-                                    "protocolVersion": "1.0.0"
+                                    "protocolVersion": "1.0.0",
+                                    "serverTlsFingerprint": crate::providers::bridge_tls::local_fingerprint(),
+                                    "clientCertPem": client_cert_pem,
+                                    "clientKeyPem": client_key_pem
                                 }).to_string();
                                 write_json_response(&mut stream, &resp);
                                 return;

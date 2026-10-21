@@ -19,91 +19,6 @@ pub struct MediaState {
 }
 
 #[cfg(windows)]
-pub fn detect_harmonix_media() -> Option<MediaState> {
-    let appdata = std::env::var("APPDATA").ok()?;
-    let leveldb_dir = std::path::PathBuf::from(appdata)
-        .join("harmonix-desktop")
-        .join("Local Storage")
-        .join("leveldb");
-
-    if !leveldb_dir.exists() {
-        return None;
-    }
-
-    let mut entries = std::fs::read_dir(&leveldb_dir).ok()?
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            let name = e.file_name().to_string_lossy().to_string();
-            name.ends_with(".ldb") || name.ends_with(".log")
-        })
-        .collect::<Vec<_>>();
-
-    entries.sort_by_key(|e| {
-        e.metadata()
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-    });
-    entries.reverse();
-
-    for entry in entries.iter().take(6) {
-        if let Ok(bytes) = std::fs::read(entry.path()) {
-            if let Some(pos) = bytes.windows(16).rposition(|w| w == b"harmonix_history") {
-                let slice = &bytes[pos..std::cmp::min(bytes.len(), pos + 4000)];
-                let printable: String = slice
-                    .iter()
-                    .filter(|&&b| b >= 32 && b <= 126)
-                    .map(|&b| b as char)
-                    .collect();
-
-                if let Some(t_idx) = printable.find("title") {
-                    let after = &printable[t_idx + 5..];
-                    let trimmed = after.trim_start_matches(|c: char| !c.is_alphanumeric());
-                    let title_end = trimmed
-                        .find(|c: char| c == '"' || c == '(' && trimmed.starts_with("title") || c == '&' || c == '\n')
-                        .unwrap_or(std::cmp::min(40, trimmed.len()));
-                    let title = trimmed[..title_end].trim().to_string();
-
-                    if !title.is_empty() {
-                        let mut artist = "Harmonix".to_string();
-                        if printable.contains("Anirudh") {
-                            artist = "Anirudh Ravichander".to_string();
-                            if printable.contains("Sri Sai Kiran") {
-                                artist = "Sri Sai Kiran, Anirudh Ravichander".to_string();
-                            } else if printable.contains("Kasarla") {
-                                artist = "Kasarla Shyam, Anirudh Ravichander".to_string();
-                            }
-                        }
-
-                        let mut thumbnail = None;
-                        if let Some(u_idx) = printable.find("https://") {
-                            let u_after = &printable[u_idx..];
-                            let u_end = u_after
-                                .find(|c: char| c == '"' || c == '\'' || c == ' ' || c == '\\')
-                                .unwrap_or(std::cmp::min(140, u_after.len()));
-                            let url = &u_after[..u_end];
-                            if url.ends_with(".jpg") || url.ends_with(".png") || url.ends_with(".webp") {
-                                thumbnail = Some(url.to_string());
-                            }
-                        }
-
-                        return Some(MediaState {
-                            playing: true,
-                            title,
-                            artist,
-                            album: "Harmonix".to_string(),
-                            position_ms: 45_000,
-                            duration_ms: 240_000,
-                            thumbnail,
-                        });
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-#[cfg(windows)]
 pub fn start_media_service(app: AppHandle) {
     std::thread::spawn(move || {
         use windows::Media::Control::{
@@ -245,14 +160,13 @@ pub fn start_media_service(app: AppHandle) {
                     }
 
                     state.thumbnail = cached_thumbnail.clone();
-                } else if let Some(harmonix_state) = detect_harmonix_media() {
-                    state = harmonix_state;
                 } else {
                     last_track_key.clear();
                     cached_thumbnail = None;
                 }
-            } else if let Some(harmonix_state) = detect_harmonix_media() {
-                state = harmonix_state;
+            } else {
+                last_track_key.clear();
+                cached_thumbnail = None;
             }
 
             let _ = app.emit(MEDIA_EVENT, &state);

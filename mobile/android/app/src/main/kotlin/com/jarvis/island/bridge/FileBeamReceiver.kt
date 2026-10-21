@@ -21,6 +21,8 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
 import kotlin.concurrent.thread
 
 /**
@@ -39,6 +41,7 @@ class FileBeamReceiver(private val context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     fun startServer(port: Int = 53391, onFileReceived: ((File) -> Unit)? = null) {
+        activeInstance = this
         getOrInitAuthToken(context)
         if (onFileReceived != null) {
             addListener(object : FileTransferListener {
@@ -58,11 +61,19 @@ class FileBeamReceiver(private val context: Context) {
             isServerRunning = true
         }
 
+        launchListener(port)
+    }
+
+    private fun launchListener(port: Int) {
         thread(isDaemon = true, name = "Jarvis-Mobile-Bridge-Server") {
             try {
-                val server = ServerSocket(port)
+                // Once paired, the server presents the desktop-issued identity and all
+                // companion traffic is TLS with a pinned cert. Before pairing it runs a
+                // bootstrap listener that can only reject unauthenticated requests.
+                val tlsFactory = BridgeTls.serverSocketFactory(context)
+                val server = tlsFactory?.createServerSocket(port) ?: ServerSocket(port)
                 serverSocket = server
-                Log.i(TAG, "JARVIS Mobile Bridge Server listening on port $port (secure mode)")
+                Log.i(TAG, "JARVIS Mobile Bridge Server listening on port $port (${if (tlsFactory != null) "TLS" else "bootstrap cleartext"})")
 
                 while (isServerRunning) {
                     val socket = try {
@@ -407,6 +418,23 @@ class FileBeamReceiver(private val context: Context) {
         private var isServerRunning = false
         private var serverRefCount = 0
         private var serverSocket: ServerSocket? = null
+        @Volatile
+        private var activeInstance: FileBeamReceiver? = null
+
+        /** Re-binds the shared listener after pairing installs the TLS identity. */
+        fun restartServerWithTls() {
+            val instance = activeInstance ?: return
+            synchronized(serverLock) {
+                if (serverRefCount <= 0) return
+                isServerRunning = false
+                try {
+                    serverSocket?.close()
+                    serverSocket = null
+                } catch (_: Exception) {}
+                isServerRunning = true
+            }
+            instance.launchListener(53391)
+        }
         private val listeners = CopyOnWriteArrayList<FileTransferListener>()
         private val seenNonces = ConcurrentHashMap<String, Long>()
         private const val PREFS_NAME = "jarvis_bridge_auth"
@@ -435,6 +463,14 @@ class FileBeamReceiver(private val context: Context) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putString(KEY_AUTH_TOKEN, token)
+                .apply()
+        }
+
+        fun clearPairedToken(context: Context) {
+            currentAuthToken = ""
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(KEY_AUTH_TOKEN)
                 .apply()
         }
 
@@ -481,6 +517,7 @@ class FileBeamReceiver(private val context: Context) {
         }
 
         fun beamFileToDesktop(
+            context: Context,
             file: File,
             desktopIp: String,
             desktopPort: Int = 53391,
@@ -499,8 +536,15 @@ class FileBeamReceiver(private val context: Context) {
 
                     val now = System.currentTimeMillis()
                     val nonce = JarvisLiveBridgeClient.generateSecureNonce()
-                    val url = URL("http://$desktopIp:$desktopPort/api/beam/stream")
-                    val conn = url.openConnection() as HttpURLConnection
+                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context)
+                    if (tlsFactory == null) {
+                        Handler(Looper.getMainLooper()).post { onComplete(false) }
+                        return@thread
+                    }
+                    val conn = URL("https://$desktopIp:$desktopPort/api/beam/stream")
+                        .openConnection() as HttpsURLConnection
+                    conn.sslSocketFactory = tlsFactory
+                    conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
                     conn.requestMethod = "POST"
                     conn.setRequestProperty("Content-Type", "application/octet-stream")
                     conn.setRequestProperty("X-File-Name", file.name)

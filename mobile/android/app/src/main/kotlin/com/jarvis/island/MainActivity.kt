@@ -106,6 +106,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jarvis.island.bridge.BridgeTls
+import com.jarvis.island.bridge.FileBeamReceiver
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
 import com.jarvis.island.ui.RemoteTrackpad
 import com.jarvis.island.service.JarvisIslandOverlayService
@@ -482,12 +484,27 @@ fun HomeScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(pairStatus, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                    BridgeTls.desktopFingerprint(context)?.let { fp ->
+                        Text(
+                            "Desktop certificate: ${fp.take(8)}…  (must match the desktop)",
+                            color = Color(0xFF64748B),
+                            fontSize = 10.5.sp
+                        )
+                    }
                     OutlinedTextField(
                         value = pinInput,
                         onValueChange = { pinInput = it.filter(Char::isDigit).take(6) },
                         label = { Text("6-digit PIN shown on desktop") },
                         singleLine = true
                     )
+                    TextButton(
+                        onClick = {
+                            BridgeTls.clearDesktopPin(context)
+                            FileBeamReceiver.clearPairedToken(context)
+                            pairingChallengeId = null
+                            pairStatus = "Desktop forgotten. Waiting for a new discovery beacon..."
+                        }
+                    ) { Text("Forget desktop & re-pin", fontSize = 11.sp) }
                 }
             },
             confirmButton = {

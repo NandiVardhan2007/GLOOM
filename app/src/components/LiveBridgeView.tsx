@@ -169,8 +169,13 @@ export const LiveBridgeView: React.FC = () => {
     clientDeviceName: string;
     expiresAtMs: number;
   } | null>(null);
+  const [tlsFingerprint, setTlsFingerprint] = useState<string>("");
 
   useEffect(() => {
+    invoke<string>("jarvis_get_bridge_tls_fingerprint")
+      .then((fp) => setTlsFingerprint((fp || "").slice(0, 8)))
+      .catch(console.error);
+
     invoke<{ pin: string; clientDeviceName: string; expiresAtMs: number } | null>(
       "jarvis_get_pairing_challenge"
     )
@@ -236,6 +241,12 @@ export const LiveBridgeView: React.FC = () => {
                 {pairing.pin}
               </span>{" "}
               on the device within 2 minutes.
+              {tlsFingerprint && (
+                <span style={{ opacity: 0.6 }}>
+                  {" "}
+                  Certificate fingerprint: {tlsFingerprint}…
+                </span>
+              )}
             </div>
           </div>
         </div>
