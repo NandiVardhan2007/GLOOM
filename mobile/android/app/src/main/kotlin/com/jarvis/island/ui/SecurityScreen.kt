@@ -231,7 +231,7 @@ fun SecurityScreen(onBack: () -> Unit) {
         if (step == 0) {
         AppleSection(
             header = "Device Unlock",
-            footer = "Android does not allow apps to bypass your screen lock. Saying “Unlock my mobile” opens the system unlock prompt, where you confirm with your own fingerprint, PIN, or pattern."
+            footer = "Saying “Unlock my mobile” makes JARVIS draw your saved pattern on the lock screen where Android permits it; if the system blocks the gesture, the secure unlock prompt appears instead. The pattern is stored encrypted with Android Keystore — re-save it once after this update so the encrypted copy exists."
         ) {
             AppleRow(
                 title = "Voice Unlock",

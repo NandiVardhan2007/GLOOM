@@ -418,6 +418,17 @@ class JarvisLiveBridgeClient(private val context: Context) {
     }
 
     /**
+     * Adopts the endpoint and certificate from a scanned pairing QR code, then
+     * lets [confirmPairing] complete the handshake without discovery.
+     */
+    fun adoptDesktopEndpoint(ip: String, port: Int, fingerprint: String) {
+        desktopIp = ip
+        desktopPort = port
+        BridgeTls.storeDesktopFingerprint(context, fingerprint)
+        isConnected = true
+    }
+
+    /**
      * Sends a chat request to the desktop AI core over the pinned bridge.
      * Provider keys stay on the PC; the phone only receives the reply.
      */

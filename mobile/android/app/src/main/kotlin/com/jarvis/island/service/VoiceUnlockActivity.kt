@@ -5,6 +5,9 @@ import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import android.speech.tts.TextToSpeech
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -53,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
+import com.jarvis.island.security.JarvisSecurity
 import com.jarvis.island.ui.Apple
 import com.jarvis.island.ui.AppleButton
 import com.jarvis.island.ui.AppleType
@@ -83,6 +87,10 @@ class VoiceUnlockActivity : ComponentActivity() {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (intent?.getBooleanExtra(EXTRA_PROMPT_ONLY, false) == true) {
+            promptSystemUnlock()
+            return
+        }
         window.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT
@@ -264,25 +272,77 @@ class VoiceUnlockActivity : ComponentActivity() {
 
     private fun unlockDevice() {
         val keyguard = getSystemService(KeyguardManager::class.java)
-        if (keyguard?.isKeyguardLocked == true) {
-            keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
-                override fun onDismissSucceeded() {
-                    finish()
-                }
-
-                override fun onDismissError() {
-                    status = "Unlock was not completed"
-                    failed = true
-                }
-
-                override fun onDismissCancelled() {
-                    finish()
-                }
-            })
-        } else {
+        if (keyguard?.isKeyguardLocked != true) {
             status = "Your phone is already unlocked"
             matched = true
+            return
         }
+
+        // Prefer replaying the saved pattern through the accessibility service.
+        // The voice panel must leave the screen first, otherwise the gesture
+        // would be drawn into our own overlay instead of the keyguard.
+        val pattern = JarvisSecurity.loadPattern(this)
+        val accessibility = JarvisIslandAccessibilityService.instance
+        if (pattern != null && accessibility != null) {
+            val power = getSystemService(PowerManager::class.java)
+            @Suppress("DEPRECATION")
+            val wake = power?.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "jarvis:pattern-unlock"
+            )
+            try {
+                wake?.acquire(6000)
+            } catch (_: Exception) {
+            }
+            status = "Unlocking…"
+            finish()
+            val handler = Handler(Looper.getMainLooper())
+            handler.postDelayed({
+                accessibility.performUnlockPattern(pattern)
+                handler.postDelayed({
+                    try {
+                        wake?.release()
+                    } catch (_: Exception) {
+                    }
+                    val stillLocked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+                    if (stillLocked) {
+                        try {
+                            startActivity(
+                                Intent(this, VoiceUnlockActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    .putExtra(EXTRA_PROMPT_ONLY, true)
+                            )
+                        } catch (_: Exception) {
+                        }
+                    }
+                }, 2200)
+            }, 650)
+            return
+        }
+
+        promptSystemUnlock()
+    }
+
+    private fun promptSystemUnlock() {
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (keyguard?.isKeyguardLocked != true) {
+            finish()
+            return
+        }
+        keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+            override fun onDismissSucceeded() {
+                finish()
+            }
+
+            override fun onDismissError() {
+                status = "Unlock was not completed"
+                failed = true
+            }
+
+            override fun onDismissCancelled() {
+                finish()
+            }
+        })
     }
 
     override fun onDestroy() {
@@ -296,6 +356,7 @@ class VoiceUnlockActivity : ComponentActivity() {
 
     companion object {
         private const val REQUEST_MIC = 4102
+        private const val EXTRA_PROMPT_ONLY = "prompt_only"
         private const val SYSTEM_PROMPT =
             "You are JARVIS, the user's concise voice assistant on their Android phone. " +
                 "Reply in at most three short sentences unless the user asks for detail. " +

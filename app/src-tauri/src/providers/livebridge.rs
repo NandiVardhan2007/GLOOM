@@ -154,6 +154,89 @@ where
     f(map)
 }
 
+fn store_challenge(challenge: PairingChallenge) {
+    with_challenges(|challenges| {
+        let now = current_time_ms();
+        challenges.retain(|_, c| c.expires_at_ms > now);
+        if challenges.len() >= 32 {
+            if let Some(oldest) = challenges
+                .iter()
+                .min_by_key(|(_, c)| c.expires_at_ms)
+                .map(|(id, _)| id.clone())
+            {
+                challenges.remove(&oldest);
+            }
+        }
+        challenges.insert(challenge.challenge_id.clone(), challenge);
+    });
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QrPairing {
+    pub payload: String,
+    pub challenge_id: String,
+    pub pin: String,
+    pub ip: String,
+    pub port: u16,
+    pub fingerprint: String,
+    pub expires_at_ms: u64,
+}
+
+fn local_lan_ip() -> Option<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let ip = socket.local_addr().ok()?.ip();
+    if ip.is_loopback() {
+        None
+    } else {
+        Some(ip.to_string())
+    }
+}
+
+/// Creates a one-time QR pairing session. The QR carries the desktop address,
+/// its pinned certificate fingerprint, and a short-lived PIN challenge, so the
+/// phone can pair by scanning without typing anything.
+pub fn create_qr_pairing() -> Result<QrPairing, String> {
+    let ip = local_lan_ip().ok_or("No LAN address is available for QR pairing")?;
+    let fingerprint = crate::providers::bridge_tls::local_fingerprint();
+    if fingerprint.is_empty() {
+        return Err("The bridge certificate is unavailable".to_string());
+    }
+    let pin = generate_pairing_pin();
+    let challenge_id = format!("qr-{}", current_time_ms());
+    let expires_at_ms = current_time_ms() + 120_000;
+    let challenge = PairingChallenge {
+        challenge_id: challenge_id.clone(),
+        pin: pin.clone(),
+        client_device_id: "companion-device".to_string(),
+        client_device_name: "Companion Device".to_string(),
+        expires_at_ms,
+        attempts: 0,
+    };
+    store_challenge(challenge);
+    let payload = serde_json::json!({
+        "type": "jarvis_pair",
+        "v": 1,
+        "ip": ip,
+        "port": 53391,
+        "fp": fingerprint,
+        "challengeId": challenge_id,
+        "pin": pin,
+        "expiresAtMs": expires_at_ms
+    })
+    .to_string();
+    Ok(QrPairing {
+        payload,
+        challenge_id,
+        pin,
+        ip,
+        port: 53391,
+        fingerprint,
+        expires_at_ms,
+    })
+}
+
 pub fn current_time_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1179,19 +1262,7 @@ pub fn start_livebridge_service(app: AppHandle) {
                             attempts: 0,
                         };
 
-                        with_challenges(|challenges| {
-                            challenges.retain(|_, c| c.expires_at_ms > current_time_ms());
-                            if challenges.len() >= 32 {
-                                if let Some(oldest) = challenges
-                                    .iter()
-                                    .min_by_key(|(_, c)| c.expires_at_ms)
-                                    .map(|(id, _)| id.clone())
-                                {
-                                    challenges.remove(&oldest);
-                                }
-                            }
-                            challenges.insert(challenge_id.clone(), challenge.clone());
-                        });
+                        store_challenge(challenge.clone());
 
                         // Surface pairing challenge to UI
                         let _ = app.emit(BRIDGE_PAIRING_EVENT, &challenge);
@@ -1265,9 +1336,19 @@ pub fn start_livebridge_service(app: AppHandle) {
                                             return;
                                         }
                                     };
+                                let device_id = json
+                                    .get("clientDeviceId")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(&challenge.client_device_id)
+                                    .to_string();
+                                let device_name = json
+                                    .get("clientDeviceName")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(&challenge.client_device_name)
+                                    .to_string();
                                 let record = PairedDeviceRecord {
-                                    device_id: challenge.client_device_id.clone(),
-                                    device_name: challenge.client_device_name.clone(),
+                                    device_id: device_id.clone(),
+                                    device_name: device_name.clone(),
                                     auth_token: new_token.clone(),
                                     ip: peer_ip.clone(),
                                     peer_fingerprint: client_fingerprint.clone(),
@@ -1280,8 +1361,7 @@ pub fn start_livebridge_service(app: AppHandle) {
                                     // identity; keeping both would make the pinned
                                     // fingerprint lookup ambiguous.
                                     map.retain(|_, record| {
-                                        !(record.device_id == challenge.client_device_id
-                                            && record.ip == peer_ip)
+                                        !(record.device_id == device_id && record.ip == peer_ip)
                                     });
                                     map.insert(new_token.clone(), record);
                                 });

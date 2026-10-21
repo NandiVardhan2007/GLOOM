@@ -3,12 +3,14 @@ package com.jarvis.island
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import org.json.JSONObject
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -110,6 +112,8 @@ import androidx.compose.ui.unit.sp
 import com.jarvis.island.bridge.BridgeTls
 import com.jarvis.island.bridge.FileBeamReceiver
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.jarvis.island.ui.RemoteTrackpad
 import com.jarvis.island.ui.Apple
 import com.jarvis.island.ui.AppleButton
@@ -486,6 +490,13 @@ fun HomeScreen(
     var pairingChallengeId by remember { mutableStateOf<String?>(null) }
     var pinInput by remember { mutableStateOf("") }
     var pairStatus by remember { mutableStateOf("Waiting for the desktop to show a PIN.") }
+    var scanStatus by remember { mutableStateOf<String?>(null) }
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (!contents.isNullOrBlank()) {
+            pairFromQr(context, contents) { scanStatus = it }
+        }
+    }
     @Suppress("UNUSED_VARIABLE")
     val bridgePoll = bridgeTick
 
@@ -637,6 +648,24 @@ fun HomeScreen(
             )
             AppleDivider()
             AppleRow(
+                title = "Scan QR code",
+                subtitle = "Scan the code shown on the desktop to pair instantly",
+                icon = JarvisIcons.QrCode,
+                iconTint = Apple.systemTeal,
+                showChevron = true,
+                onClick = {
+                    scanLauncher.launch(
+                        ScanOptions().apply {
+                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                            setPrompt("Scan the JARVIS pairing code")
+                            setBeepEnabled(false)
+                            setOrientationLocked(false)
+                        }
+                    )
+                }
+            )
+            AppleDivider()
+            AppleRow(
                 title = "Forget desktop",
                 subtitle = "Clear the pinned certificate and pairing",
                 icon = JarvisIcons.Shield,
@@ -650,6 +679,15 @@ fun HomeScreen(
                         }
                     pairStatus = "Desktop forgotten."
                 }
+            )
+        }
+
+        if (scanStatus != null) {
+            Text(
+                text = scanStatus!!,
+                style = AppleType.footnote,
+                color = Apple.secondaryLabel,
+                modifier = Modifier.padding(start = 36.dp, end = 36.dp, top = 7.dp)
             )
         }
 
@@ -738,6 +776,45 @@ fun HomeScreen(
                 TextButton(onClick = { showPairDialog = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+private fun pairFromQr(context: Context, contents: String, onStatus: (String) -> Unit) {
+    try {
+        val json = JSONObject(contents)
+        if (json.optString("type") != "jarvis_pair") {
+            onStatus("This is not a JARVIS pairing code.")
+            return
+        }
+        val ip = json.optString("ip").trim()
+        val port = json.optInt("port", 53391)
+        val fingerprint = json.optString("fp").trim()
+        val challengeId = json.optString("challengeId").trim()
+        val pin = json.optString("pin").trim()
+        val expiresAt = json.optLong("expiresAtMs", 0L)
+        if (ip.isEmpty() || fingerprint.isEmpty() || challengeId.isEmpty() || pin.isEmpty()) {
+            onStatus("The QR code is incomplete.")
+            return
+        }
+        if (expiresAt > 0 && System.currentTimeMillis() > expiresAt) {
+            onStatus("This QR code has expired. Show a new one on the desktop.")
+            return
+        }
+        val client = JarvisLiveBridgeClient.activeClient
+        if (client == null) {
+            onStatus("JARVIS is still starting. Try again.")
+            return
+        }
+        onStatus("Connecting to $ip…")
+        client.adoptDesktopEndpoint(ip, port, fingerprint)
+        client.confirmPairing(challengeId, pin) { paired ->
+            onStatus(
+                if (paired) "Paired with the desktop."
+                else "Pairing failed. Show a new QR code on the desktop."
+            )
+        }
+    } catch (_: Exception) {
+        onStatus("Could not read the QR code.")
     }
 }
 

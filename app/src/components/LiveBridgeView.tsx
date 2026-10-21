@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import QRCode from "qrcode";
 import { BridgeActivity, BridgeDevice, BridgeTransfer } from "../types";
 import {
   Smartphone,
+  QrCode,
   Share2,
   Copy,
   Check,
@@ -41,6 +43,12 @@ export const LiveBridgeView: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [activeFileName, setActiveFileName] = useState<string>("Project_Assets.zip");
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [qrPairing, setQrPairing] = useState<{
+    dataUrl: string;
+    pin: string;
+    expiresAtMs: number;
+  } | null>(null);
+  const [qrLoading, setQrLoading] = useState<boolean>(false);
 
   useEffect(() => {
     // Fetch bridge devices & connection status from Rust backend
@@ -81,6 +89,38 @@ export const LiveBridgeView: React.FC = () => {
   const connected =
     !!activeDevice &&
     (activeDevice.status === "connected" || activeDevice.status === "syncing");
+
+  const showQrCode = async () => {
+    setQrLoading(true);
+    try {
+      const result = await invoke<{
+        payload: string;
+        pin: string;
+        expiresAtMs: number;
+      }>("jarvis_create_qr_pairing");
+      const dataUrl = await QRCode.toDataURL(result.payload, {
+        margin: 1,
+        width: 260,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      setQrPairing({ dataUrl, pin: result.pin, expiresAtMs: result.expiresAtMs });
+    } catch (error) {
+      console.error("QR pairing error:", error);
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!qrPairing) return;
+    const remaining = Math.max(0, qrPairing.expiresAtMs - Date.now());
+    const timer = window.setTimeout(() => setQrPairing(null), remaining);
+    return () => window.clearTimeout(timer);
+  }, [qrPairing]);
+
+  useEffect(() => {
+    if (connected) setQrPairing(null);
+  }, [connected]);
 
   const sendRealFile = async (file: File) => {
     setActiveFileName(file.name);
@@ -220,7 +260,7 @@ export const LiveBridgeView: React.FC = () => {
         userSelect: "none",
       }}
     >
-      {pairing && (
+      {pairing && !qrPairing && (
         <div
           style={{
             display: "flex",
@@ -252,6 +292,121 @@ export const LiveBridgeView: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {!connected && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            background: "rgba(255, 255, 255, 0.055)",
+            borderRadius: "16px",
+            padding: "12px 14px",
+            flexShrink: 0,
+          }}
+        >
+          {qrPairing ? (
+            <>
+              <img
+                src={qrPairing.dataUrl}
+                alt="Pairing QR code"
+                style={{
+                  width: "132px",
+                  height: "132px",
+                  borderRadius: "10px",
+                  background: "#ffffff",
+                  padding: "6px",
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#f5f5f7" }}>
+                  Scan with the JARVIS app
+                </div>
+                <div
+                  style={{
+                    fontSize: "11.5px",
+                    color: "rgba(235, 235, 245, 0.6)",
+                    lineHeight: 1.4,
+                    marginTop: "3px",
+                  }}
+                >
+                  On the phone open Home → Desktop → Scan QR code. The code is valid for 2 minutes.
+                </div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "rgba(235, 235, 245, 0.55)",
+                    marginTop: "4px",
+                  }}
+                >
+                  Or enter PIN <b style={{ color: "#f5f5f7", letterSpacing: "2px" }}>{qrPairing.pin}</b>
+                </div>
+                <button
+                  onClick={showQrCode}
+                  disabled={qrLoading}
+                  style={{
+                    marginTop: "6px",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: "#0a84ff",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  {qrLoading ? "Preparing…" : "New code"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "8px",
+                  background: "rgba(120, 120, 128, 0.16)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#0a84ff",
+                  flexShrink: 0,
+                }}
+              >
+                <QrCode size={16} strokeWidth={1.7} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#f5f5f7" }}>
+                  Pair a phone
+                </div>
+                <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.6)", marginTop: "2px" }}>
+                  Show a one-time QR code. Scanning connects without typing a PIN.
+                </div>
+              </div>
+              <button
+                onClick={showQrCode}
+                disabled={qrLoading}
+                style={{
+                  height: "30px",
+                  padding: "0 12px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#0a84ff",
+                  color: "#ffffff",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: qrLoading ? "wait" : "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                {qrLoading ? "Preparing…" : "Show QR"}
+              </button>
+            </>
+          )}
         </div>
       )}
 

@@ -2,10 +2,13 @@ package com.jarvis.island.service
 
 import java.io.File
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Path
+import android.graphics.PointF
 import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.media.AudioManager
@@ -446,6 +449,41 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
             delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
             activeTransfer = activeTransfer.copy(isActive = false)
             if (isExpanded) collapseIsland()
+        }
+    }
+
+    /**
+     * Draws the user's saved pattern on the lock screen. This only works on
+     * devices/ROMs that allow accessibility gestures over the secure keyguard;
+     * otherwise the caller falls back to the system unlock prompt.
+     */
+    fun performUnlockPattern(pattern: List<Int>): Boolean {
+        if (pattern.size < 4) return false
+        return try {
+            val metrics = resources.displayMetrics
+            val width = metrics.widthPixels.toFloat()
+            val height = metrics.heightPixels.toFloat()
+            val grid = width * 0.62f
+            val left = (width - grid) / 2f
+            val cell = grid / 3f
+            val top = height * 0.55f - grid / 2f
+            val points = pattern.map { index ->
+                PointF(
+                    left + cell * (index % 3) + cell / 2f,
+                    top + cell * (index / 3) + cell / 2f
+                )
+            }
+            val path = Path().apply {
+                moveTo(points.first().x, points.first().y)
+                points.drop(1).forEach { lineTo(it.x, it.y) }
+            }
+            val duration = (pattern.size * 100L).coerceIn(400L, 1800L)
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, duration))
+                .build()
+            dispatchGesture(gesture, null, null)
+        } catch (_: Exception) {
+            false
         }
     }
 

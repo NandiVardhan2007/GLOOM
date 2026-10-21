@@ -9,6 +9,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import com.jarvis.island.security.JarvisSecurity
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -102,5 +103,10 @@ class PatternUnlockTest {
         val pattern = listOf(0, 1, 4, 3)
         assertTrue("The saved pattern must verify", JarvisSecurity.verifyPattern(context, pattern))
         assertTrue("A different pattern must not verify", !JarvisSecurity.verifyPattern(context, listOf(0, 1, 2, 5)))
+        assertEquals(
+            "The encrypted copy must be available for lock-screen replay",
+            listOf(0, 1, 4, 3),
+            JarvisSecurity.loadPattern(context)
+        )
     }
 }

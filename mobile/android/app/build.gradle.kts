@@ -12,8 +12,8 @@ android {
         applicationId = "com.jarvis.island"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.7"
+        versionCode = 23
+        versionName = "1.0.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -86,6 +86,7 @@ dependencies {
     implementation("androidx.media:media:1.7.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.alphacephei:vosk-android:0.3.47")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")

@@ -328,6 +328,13 @@ object JarvisIcons {
         }
     }
 
+    val QrCode: ImageVector by lazy {
+        build("qrcode") {
+            line("M4.4 4.4h5.2v5.2H4.4zM14.4 4.4h5.2v5.2h-5.2zM4.4 14.4h5.2v5.2H4.4z")
+            line("M14.8 14.8h2v2h-2zM18.4 14.8h1.2v5.2h-3.2v-1.6M14.4 18h1.6v1.6")
+        }
+    }
+
     val HeartFill: ImageVector by lazy {
         build("heart.fill") {
             solid("M12 20.2S3.6 15 3.6 9.2A4.6 4.6 0 0 1 12 6.4a4.6 4.6 0 0 1 8.4 2.8c0 5.8-8.4 11-8.4 11z")

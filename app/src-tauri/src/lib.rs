@@ -353,6 +353,23 @@ async fn jarvis_fetch_lyrics(
 }
 
 #[tauri::command]
+fn jarvis_create_qr_pairing(app: AppHandle) -> Result<providers::livebridge::QrPairing, String> {
+    let pairing = providers::livebridge::create_qr_pairing()?;
+    let _ = app.emit(
+        providers::livebridge::BRIDGE_PAIRING_EVENT,
+        serde_json::json!({
+            "challengeId": pairing.challenge_id,
+            "pin": pairing.pin,
+            "clientDeviceId": "companion-device",
+            "clientDeviceName": "QR scan",
+            "expiresAtMs": pairing.expires_at_ms,
+            "attempts": 0
+        }),
+    );
+    Ok(pairing)
+}
+
+#[tauri::command]
 async fn jarvis_ai_chat(
     messages: Vec<providers::ai::ChatMessage>,
     provider: Option<String>,
@@ -445,6 +462,7 @@ pub fn run() {
             jarvis_get_bridge_tls_fingerprint,
             jarvis_fetch_lyrics,
             jarvis_ai_chat,
+            jarvis_create_qr_pairing,
             jarvis_send_bridge_file,
             jarvis_send_bridge_file_bytes,
             jarvis_send_bridge_file_path,
