@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
                 colorScheme = darkColorScheme(
                     background = Color(0xFF07070A),
                     surface = Color(0xFF101018),
-                    primary = Color(0xFF38BDF8)
+                    primary = Color(0xFF0A84FF)
                 )
             ) {
                 Surface(
@@ -303,7 +303,7 @@ fun JarvisMasterApp(
             if (currentScreen != "trackpad") {
                 NavigationBar(
                     containerColor = Color(0xFF0D0D14),
-                    contentColor = Color(0xFF38BDF8)
+                    contentColor = Color(0xFF0A84FF)
                 ) {
                     listOf(
                         NavigationItem("home", "Home", Icons.Rounded.Home),
@@ -336,10 +336,10 @@ fun JarvisMasterApp(
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color(0xFF38BDF8),
-                                selectedTextColor = Color(0xFF38BDF8),
-                                unselectedIconColor = Color(0xFF94A3B8),
-                                unselectedTextColor = Color(0xFF64748B),
+                                selectedIconColor = Color(0xFF0A84FF),
+                                selectedTextColor = Color(0xFF0A84FF),
+                                unselectedIconColor = Color(0xFF8E8E93),
+                                unselectedTextColor = Color(0xFF636366),
                                 indicatorColor = Color(0x2238BDF8)
                             )
                         )
@@ -483,11 +483,11 @@ fun HomeScreen(
             title = { Text("Pair with JARVIS Desktop") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(pairStatus, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                    Text(pairStatus, color = Color(0xFF8E8E93), fontSize = 12.sp)
                     BridgeTls.desktopFingerprint(context)?.let { fp ->
                         Text(
                             "Desktop certificate: ${fp.take(8)}…  (must match the desktop)",
-                            color = Color(0xFF64748B),
+                            color = Color(0xFF636366),
                             fontSize = 10.5.sp
                         )
                     }
@@ -553,7 +553,7 @@ fun HomeScreen(
                 )
                 Text(
                     text = "Connected Ecosystem Dynamic Island",
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF8E8E93),
                     fontSize = 12.sp
                 )
             }
@@ -564,14 +564,14 @@ fun HomeScreen(
                     .background(if (hasOverlayPermission && settings.isIslandEnabled) Color(0x2222C55E) else Color(0x22EF4444))
                     .border(
                         1.dp,
-                        if (hasOverlayPermission && settings.isIslandEnabled) Color(0xFF22C55E) else Color(0xFFEF4444),
+                        if (hasOverlayPermission && settings.isIslandEnabled) Color(0xFF30D158) else Color(0xFFFF453A),
                         RoundedCornerShape(8.dp)
                     )
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Text(
                     text = if (hasOverlayPermission && settings.isIslandEnabled) "Running" else "Stopped",
-                    color = if (hasOverlayPermission && settings.isIslandEnabled) Color(0xFF22C55E) else Color(0xFFEF4444),
+                    color = if (hasOverlayPermission && settings.isIslandEnabled) Color(0xFF30D158) else Color(0xFFFF453A),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -581,7 +581,7 @@ fun HomeScreen(
         // Hero Master Switch Card
         Card(
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -601,7 +601,7 @@ fun HomeScreen(
                     Text(
                         text = if (settings.isIslandEnabled) "Island overlay rendering over punch-hole camera"
                         else "Island overlay disabled",
-                        color = Color(0xFF94A3B8),
+                        color = Color(0xFF8E8E93),
                         fontSize = 11.5.sp
                     )
                 }
@@ -618,9 +618,9 @@ fun HomeScreen(
                     },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF0284C7),
-                        uncheckedThumbColor = Color(0xFF94A3B8),
-                        uncheckedTrackColor = Color(0xFF1E293B)
+                        checkedTrackColor = Color(0xFF0A84FF),
+                        uncheckedThumbColor = Color(0xFF8E8E93),
+                        uncheckedTrackColor = Color(0xFF2C2C2E)
                     )
                 )
             }
@@ -632,7 +632,7 @@ fun HomeScreen(
                 title = "Overlay Permission Required",
                 description = "Grant 'Appear on top' permission so Dynamic Island can position over your Motorola front camera.",
                 buttonText = "Grant Overlay Permission",
-                buttonColor = Color(0xFFEF4444),
+                buttonColor = Color(0xFFFF453A),
                 onClick = onRequestOverlayPermission
             )
         }
@@ -643,7 +643,7 @@ fun HomeScreen(
                 title = "Media & Now Playing Access",
                 description = "Enable Notification Access so JARVIS Island can capture currently playing songs from Spotify / YouTube Music with real controls.",
                 buttonText = "Enable Music Session Access",
-                buttonColor = Color(0xFF0284C7),
+                buttonColor = Color(0xFF0A84FF),
                 onClick = onRequestNotificationAccess
             )
         }
@@ -654,7 +654,7 @@ fun HomeScreen(
                 title = "Lock Screen Display (Accessibility)",
                 description = "Enable JARVIS Island in Accessibility to allow the dynamic island to float smoothly on your Lock Screen and Keyguard.",
                 buttonText = "Enable Lock Screen Accessibility",
-                buttonColor = Color(0xFF10B981),
+                buttonColor = Color(0xFF30D158),
                 onClick = onRequestAccessibilityPermission
             )
         }
@@ -662,7 +662,7 @@ fun HomeScreen(
         // LiveBridge Windows PC Connection Card
         Card(
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -685,7 +685,7 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Computer,
                                 contentDescription = "Windows Desktop",
-                                tint = Color(0xFF38BDF8),
+                                tint = Color(0xFF0A84FF),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -693,7 +693,7 @@ fun HomeScreen(
                             Text(text = "JARVIS Windows Desktop", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 text = bridgeAddress,
-                                color = if (bridgeConnected) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                                color = if (bridgeConnected) Color(0xFF0A84FF) else Color(0xFF8E8E93),
                                 fontSize = 10.5.sp
                             )
                         }
@@ -712,7 +712,7 @@ fun HomeScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (bridgeConnected) Color(0xFF0284C7) else Color(0xFF334155)
+                            containerColor = if (bridgeConnected) Color(0xFF0A84FF) else Color(0xFF334155)
                         ),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
@@ -730,7 +730,7 @@ fun HomeScreen(
         // PC Remote Mousepad / Trackpad Feature Card
         Card(
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -755,7 +755,7 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Rounded.Mouse,
                             contentDescription = "Mousepad",
-                            tint = Color(0xFF38BDF8),
+                            tint = Color(0xFF0A84FF),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -768,7 +768,7 @@ fun HomeScreen(
                         )
                         Text(
                             text = "Control Windows cursor, clicks & scroll via phone",
-                            color = Color(0xFF94A3B8),
+                            color = Color(0xFF8E8E93),
                             fontSize = 11.5.sp
                         )
                     }
@@ -776,7 +776,7 @@ fun HomeScreen(
                 Icon(
                     imageVector = Icons.Rounded.ChevronRight,
                     contentDescription = "Open Trackpad",
-                    tint = Color(0xFF64748B),
+                    tint = Color(0xFF636366),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -785,7 +785,7 @@ fun HomeScreen(
         // Quick Sandbox & Diagnostics Actions
         Card(
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -795,7 +795,7 @@ fun HomeScreen(
                     Button(
                         onClick = onToggleExpand,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Toggle Expand", fontSize = 11.sp, color = Color.White)
@@ -804,7 +804,7 @@ fun HomeScreen(
                     Button(
                         onClick = onSimulateBeam,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF)),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Test File Beam", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -853,7 +853,7 @@ fun PluginsScreen(onOpenTrackpad: () -> Unit = {}) {
     ) {
         Column {
             Text(text = "Island Plugins", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text(text = "Manage features rendered inside the Dynamic Island", color = Color(0xFF94A3B8), fontSize = 12.sp)
+            Text(text = "Manage features rendered inside the Dynamic Island", color = Color(0xFF8E8E93), fontSize = 12.sp)
         }
 
         // Plugin 1: File Beam
@@ -937,7 +937,7 @@ fun PluginItem(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -956,19 +956,19 @@ fun PluginItem(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF1E293B)),
+                        .background(Color(0xFF2C2C2E)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        tint = Color(0xFF38BDF8),
+                        tint = Color(0xFF0A84FF),
                         modifier = Modifier.size(20.dp)
                     )
                 }
                 Column {
                     Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(text = description, color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    Text(text = description, color = Color(0xFF8E8E93), fontSize = 11.sp)
                 }
             }
             Switch(
@@ -976,9 +976,9 @@ fun PluginItem(
                 onCheckedChange = onToggle,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF0284C7),
-                    uncheckedThumbColor = Color(0xFF94A3B8),
-                    uncheckedTrackColor = Color(0xFF1E293B)
+                    checkedTrackColor = Color(0xFF0A84FF),
+                    uncheckedThumbColor = Color(0xFF8E8E93),
+                    uncheckedTrackColor = Color(0xFF2C2C2E)
                 )
             )
         }
@@ -1004,7 +1004,7 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
     ) {
         Column {
             Text(text = "Settings", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text(text = "Material You Dynamic Island customization categories", color = Color(0xFF94A3B8), fontSize = 12.sp)
+            Text(text = "Material You Dynamic Island customization categories", color = Color(0xFF8E8E93), fontSize = 12.sp)
         }
 
         SettingsCategoryTile(
@@ -1055,7 +1055,7 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color(0xFFEF4444)
+                contentColor = Color(0xFFFF453A)
             )
         ) {
             Row(
@@ -1077,7 +1077,7 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
 fun SettingsCategoryTile(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
@@ -1098,25 +1098,25 @@ fun SettingsCategoryTile(title: String, subtitle: String, icon: ImageVector, onC
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF1E293B)),
+                        .background(Color(0xFF2C2C2E)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        tint = Color(0xFF38BDF8),
+                        tint = Color(0xFF0A84FF),
                         modifier = Modifier.size(20.dp)
                     )
                 }
                 Column {
                     Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(text = subtitle, color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    Text(text = subtitle, color = Color(0xFF8E8E93), fontSize = 11.sp)
                 }
             }
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = "Open",
-                tint = Color(0xFF64748B),
+                tint = Color(0xFF636366),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -1161,7 +1161,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
         // Motorola Edge 50 Pro Hardware Profile Card
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1171,11 +1171,11 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "Motorola Edge 50 Pro Calibration", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "1220×2712 • 446 PPI", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "1220×2712 • 446 PPI", color = Color(0xFF0A84FF), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Text(
                     text = "Punch-hole centered at X: 610 px, Y: 52 px (48-52 px diameter). Pixel-perfect 2 px top margin clearance.",
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF8E8E93),
                     fontSize = 11.sp
                 )
                 Button(
@@ -1191,7 +1191,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF))
                 ) {
                     Text(text = "Apply Motorola Edge 50 Pro Preset", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
@@ -1217,7 +1217,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                         .height(84.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Color(0xFF030712))
-                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp)),
+                        .border(1.dp, Color(0xFF2C2C2E), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Box(
@@ -1237,25 +1237,25 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                             .height((settings.pillHeight * 0.8f).dp)
                             .clip(RoundedCornerShape((settings.cornerRadius * 0.8f).dp))
                             .background(Color.Black.copy(alpha = 0.85f))
-                            .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape((settings.cornerRadius * 0.8f).dp))
+                            .border(1.dp, Color(0xFF0A84FF).copy(alpha = 0.5f), RoundedCornerShape((settings.cornerRadius * 0.8f).dp))
                             .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
+                            Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF0A84FF)))
                             Spacer(modifier = Modifier.width((cutoutClearance * 0.8f).dp))
-                            Text("JARVIS", color = Color(0xFF38BDF8), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text("JARVIS", color = Color(0xFF0A84FF), fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-                Text(text = "Clearance creates an empty dead-zone right over your center camera hole.", color = Color(0xFF64748B), fontSize = 10.5.sp)
+                Text(text = "Clearance creates an empty dead-zone right over your center camera hole.", color = Color(0xFF636366), fontSize = 10.5.sp)
             }
         }
 
         // Sliders with Individual Reset Buttons
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1267,7 +1267,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (active) Color(0xFF0284C7) else Color(0xFF1E293B))
+                                .background(if (active) Color(0xFF0A84FF) else Color(0xFF2C2C2E))
                                 .clickable {
                                     gravity = grav
                                     settings.gravity = grav
@@ -1377,7 +1377,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
 
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1522,7 +1522,7 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
 
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1534,7 +1534,7 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (active) Color(0xFF1E293B) else Color(0xFF0F172A))
+                            .background(if (active) Color(0xFF2C2C2E) else Color(0xFF0F172A))
                             .border(
                                 width = if (active) 1.5.dp else 1.dp,
                                 color = if (active) palette.primaryAccent else Color(0x22FFFFFF),
@@ -1626,7 +1626,7 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
 
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1732,11 +1732,11 @@ fun EnabledAppsSettingsScreen(onBack: () -> Unit) {
     ) {
         SubPageHeader(title = "Enabled Applications", onBack = onBack)
 
-        Text(text = "Choose which apps can present cards inside the Dynamic Island.", color = Color(0xFF94A3B8), fontSize = 12.sp)
+        Text(text = "Choose which apps can present cards inside the Dynamic Island.", color = Color(0xFF8E8E93), fontSize = 12.sp)
 
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1753,9 +1753,9 @@ fun EnabledAppsSettingsScreen(onBack: () -> Unit) {
                             onCheckedChange = { isEnabled = it },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF0284C7),
-                                uncheckedThumbColor = Color(0xFF94A3B8),
-                                uncheckedTrackColor = Color(0xFF1E293B)
+                                checkedTrackColor = Color(0xFF0A84FF),
+                                uncheckedThumbColor = Color(0xFF8E8E93),
+                                uncheckedTrackColor = Color(0xFF2C2C2E)
                             )
                         )
                     }
@@ -1789,7 +1789,7 @@ fun AboutScreen() {
             modifier = Modifier
                 .size(68.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF0284C7)),
+                .background(Color(0xFF0A84FF)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -1801,12 +1801,12 @@ fun AboutScreen() {
         }
 
         Text(text = "JARVIS Dynamic Island", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text(text = "Version 1.0.0 • Connected Ecosystem", color = Color(0xFF94A3B8), fontSize = 12.sp)
+        Text(text = "Version 1.0.0 • Connected Ecosystem", color = Color(0xFF8E8E93), fontSize = 12.sp)
 
         // ── In-App Seamless Auto Updater Card ──
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2238BDF8)),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1820,25 +1820,25 @@ fun AboutScreen() {
                         Icon(
                             imageVector = Icons.Rounded.AutoAwesome,
                             contentDescription = "Update",
-                            tint = Color(0xFF38BDF8),
+                            tint = Color(0xFF0A84FF),
                             modifier = Modifier.size(18.dp)
                         )
                         Text(text = "Software Updates", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text(text = "v1.0.0", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "v1.0.0", color = Color(0xFF8E8E93), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 when (val state = updateState) {
                     is UpdateState.Idle -> {
                         Text(
                             text = "Keep JARVIS Dynamic Island up-to-date with latest Apple HIG features & Live Activities.",
-                            color = Color(0xFF94A3B8),
+                            color = Color(0xFF8E8E93),
                             fontSize = 11.5.sp
                         )
                         Button(
                             onClick = { updater.checkForUpdates() },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
@@ -1852,7 +1852,7 @@ fun AboutScreen() {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.padding(vertical = 6.dp)
                         ) {
-                            Text("Checking GitHub Releases for latest build...", color = Color(0xFF38BDF8), fontSize = 12.sp)
+                            Text("Checking GitHub Releases for latest build...", color = Color(0xFF0A84FF), fontSize = 12.sp)
                         }
                     }
                     is UpdateState.UpToDate -> {
@@ -1861,13 +1861,13 @@ fun AboutScreen() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(vertical = 4.dp)
                         ) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                            Text("You are running the latest version (v1.0.0)", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF30D158), modifier = Modifier.size(16.dp))
+                            Text("You are running the latest version (v1.0.0)", color = Color(0xFF30D158), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Button(
                             onClick = { updater.checkForUpdates() },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Check Again", color = Color.White, fontSize = 11.5.sp)
@@ -1878,7 +1878,7 @@ fun AboutScreen() {
                         Button(
                             onClick = { updater.startDownload(state.downloadUrl, state.checksumUrl) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF)),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Rounded.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
@@ -1893,8 +1893,8 @@ fun AboutScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Downloading Update...", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${progress.percent}%", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("Downloading Update...", color = Color(0xFF0A84FF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${progress.percent}%", color = Color(0xFF0A84FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
 
                             // Glowing animated gradient progress bar
@@ -1903,7 +1903,7 @@ fun AboutScreen() {
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF1E293B))
+                                    .background(Color(0xFF2C2C2E))
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -1912,7 +1912,7 @@ fun AboutScreen() {
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(
                                             Brush.horizontalGradient(
-                                                listOf(Color(0xFF0284C7), Color(0xFF38BDF8))
+                                                listOf(Color(0xFF0A84FF), Color(0xFF0A84FF))
                                             )
                                         )
                                 )
@@ -1922,17 +1922,17 @@ fun AboutScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("${"%.1f".format(progress.downloadedMb)} MB / ${"%.1f".format(progress.totalMb)} MB", color = Color(0xFF94A3B8), fontSize = 10.5.sp)
-                                Text(progress.speedMbps, color = Color(0xFF94A3B8), fontSize = 10.5.sp)
+                                Text("${"%.1f".format(progress.downloadedMb)} MB / ${"%.1f".format(progress.totalMb)} MB", color = Color(0xFF8E8E93), fontSize = 10.5.sp)
+                                Text(progress.speedMbps, color = Color(0xFF8E8E93), fontSize = 10.5.sp)
                             }
                         }
                     }
                     is UpdateState.ReadyToInstall -> {
-                        Text("Download complete! Ready to install update.", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Download complete! Ready to install update.", color = Color(0xFF30D158), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Button(
                             onClick = { updater.installApk(state.apkFile) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF30D158)),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black)
@@ -1941,11 +1941,11 @@ fun AboutScreen() {
                         }
                     }
                     is UpdateState.Error -> {
-                        Text("Update error: ${state.message}", color = Color(0xFFEF4444), fontSize = 11.5.sp)
+                        Text("Update error: ${state.message}", color = Color(0xFFFF453A), fontSize = 11.5.sp)
                         Button(
                             onClick = { updater.checkForUpdates() },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Retry", color = Color.White, fontSize = 11.5.sp)
@@ -1957,7 +1957,7 @@ fun AboutScreen() {
 
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1965,7 +1965,7 @@ fun AboutScreen() {
                 Text(
                     text = "JARVIS Ecosystem connects Windows Desktop and Android companion devices seamlessly. " +
                             "Features real-time punch-hole cutout clearance, LiveBridge clipboard sync, and 5G WiFi Direct file beaming.",
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF8E8E93),
                     fontSize = 11.5.sp
                 )
 
@@ -1977,14 +1977,14 @@ fun AboutScreen() {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("View GitHub Repository", color = Color(0xFF38BDF8), fontSize = 12.sp)
+                    Text("View GitHub Repository", color = Color(0xFF0A84FF), fontSize = 12.sp)
                 }
             }
         }
 
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF13131C)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1992,7 +1992,7 @@ fun AboutScreen() {
                 Text(
                     text = "JARVIS Island uses Android System Alert Window (Overlay) APIs to render dynamic activity cards around your camera cutout. " +
                             "No personal data or passwords are ever accessed or collected.",
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF8E8E93),
                     fontSize = 11.sp
                 )
             }
@@ -2016,7 +2016,7 @@ fun SubPageHeader(title: String, onBack: () -> Unit, onResetSection: (() -> Unit
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF1E293B))
+                    .background(Color(0xFF2C2C2E))
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center
             ) {
@@ -2034,7 +2034,7 @@ fun SubPageHeader(title: String, onBack: () -> Unit, onResetSection: (() -> Unit
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF1E293B))
+                    .background(Color(0xFF2C2C2E))
                     .clickable(onClick = onResetSection)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
@@ -2046,12 +2046,12 @@ fun SubPageHeader(title: String, onBack: () -> Unit, onResetSection: (() -> Unit
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Reset Section",
-                        tint = Color(0xFF94A3B8),
+                        tint = Color(0xFF8E8E93),
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = "Reset",
-                        color = Color(0xFF94A3B8),
+                        color = Color(0xFF8E8E93),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -2082,13 +2082,13 @@ fun SliderRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(text = valueText, color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(text = valueText, color = Color(0xFF0A84FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 if (onReset != null) {
                     Box(
                         modifier = Modifier
                             .size(22.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E293B))
+                            .background(Color(0xFF2C2C2E))
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onReset()
@@ -2098,7 +2098,7 @@ fun SliderRow(
                         Icon(
                             imageVector = Icons.Rounded.Refresh,
                             contentDescription = "Reset $label",
-                            tint = Color(0xFF94A3B8),
+                            tint = Color(0xFF8E8E93),
                             modifier = Modifier.size(13.dp)
                         )
                     }
@@ -2110,9 +2110,9 @@ fun SliderRow(
             onValueChange = onValueChange,
             valueRange = range,
             colors = SliderDefaults.colors(
-                thumbColor = Color(0xFF38BDF8),
-                activeTrackColor = Color(0xFF38BDF8),
-                inactiveTrackColor = Color(0xFF1E293B)
+                thumbColor = Color(0xFF0A84FF),
+                activeTrackColor = Color(0xFF0A84FF),
+                inactiveTrackColor = Color(0xFF2C2C2E)
             )
         )
     }
@@ -2127,16 +2127,16 @@ fun SettingsSwitch(title: String, description: String, checked: Boolean, onCheck
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(text = title, color = Color(0xFFE2E8F0), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-            Text(text = description, color = Color(0xFF64748B), fontSize = 10.5.sp)
+            Text(text = description, color = Color(0xFF636366), fontSize = 10.5.sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF0284C7),
-                uncheckedThumbColor = Color(0xFF94A3B8),
-                uncheckedTrackColor = Color(0xFF1E293B)
+                checkedTrackColor = Color(0xFF0A84FF),
+                uncheckedThumbColor = Color(0xFF8E8E93),
+                uncheckedTrackColor = Color(0xFF2C2C2E)
             )
         )
     }
@@ -2164,7 +2164,7 @@ fun PermissionCard(
             )
             Text(
                 text = description,
-                color = Color(0xFF94A3B8),
+                color = Color(0xFF8E8E93),
                 fontSize = 11.5.sp
             )
             Button(

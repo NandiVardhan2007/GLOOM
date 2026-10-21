@@ -339,6 +339,20 @@ fn jarvis_get_pairing_challenge() -> Option<providers::livebridge::PairingChalle
 }
 
 #[tauri::command]
+async fn jarvis_fetch_lyrics(
+    title: String,
+    artist: String,
+    duration_ms: Option<u64>,
+) -> providers::lyrics::LyricsPayload {
+    let duration = duration_ms.unwrap_or(0);
+    tauri::async_runtime::spawn_blocking(move || {
+        providers::lyrics::fetch_lyrics(&title, &artist, duration)
+    })
+    .await
+    .unwrap_or_else(|_| providers::lyrics::LyricsPayload::empty())
+}
+
+#[tauri::command]
 fn jarvis_get_bridge_tls_fingerprint() -> String {
     providers::bridge_tls::local_fingerprint()
 }
@@ -416,6 +430,7 @@ pub fn run() {
             jarvis_get_bridge_transfers,
             jarvis_get_pairing_challenge,
             jarvis_get_bridge_tls_fingerprint,
+            jarvis_fetch_lyrics,
             jarvis_send_bridge_file,
             jarvis_send_bridge_file_bytes,
             jarvis_send_bridge_file_path,

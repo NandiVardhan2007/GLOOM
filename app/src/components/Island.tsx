@@ -463,22 +463,20 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
           willChange: "width, height, border-radius, top",
           transform: "translateZ(0)",
           zIndex: 9999,
-          backgroundColor: isExpanded ? "rgba(13, 14, 20, 0.94)" : "#000000",
-          backdropFilter: "blur(32px) saturate(190%)",
-          WebkitBackdropFilter: "blur(32px) saturate(190%)",
+          backgroundColor: isExpanded ? "rgba(28, 28, 30, 0.995)" : "#000000",
+          backdropFilter: "blur(40px) saturate(150%)",
+          WebkitBackdropFilter: "blur(40px) saturate(150%)",
           border: isIslandDragOver
-            ? "2px dashed #32ade6"
+            ? "2px dashed #0a84ff"
             : isExpanded
-            ? "0.5px solid rgba(255, 255, 255, 0.16)"
-            : "0.5px solid rgba(255, 255, 255, 0.18)",
+            ? "0.5px solid rgba(255, 255, 255, 0.10)"
+            : "0.5px solid rgba(255, 255, 255, 0.12)",
           borderRadius,
           boxShadow: isIslandDragOver
-            ? "0 0 30px rgba(50, 173, 230, 0.7), 0 0 60px rgba(50, 173, 230, 0.35)"
+            ? "0 0 0 4px rgba(10, 132, 255, 0.18), 0 18px 50px rgba(0, 0, 0, 0.55)"
             : isExpanded
-            ? "inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.28), 0 24px 50px -4px rgba(0, 0, 0, 0.95), 0 8px 24px -2px rgba(0, 0, 0, 0.8)"
-            : `inset 0 0.5px 0.5px 0 rgba(255, 255, 255, 0.22), 0 0 16px ${
-                config.accentColor ? `${config.accentColor}44` : "rgba(0, 140, 255, 0.35)"
-              }, 0 12px 28px -2px rgba(0, 0, 0, 0.9)`,
+            ? "inset 0 0.5px 0 0 rgba(255, 255, 255, 0.14), 0 18px 50px rgba(0, 0, 0, 0.55)"
+            : "inset 0 0.5px 0 0 rgba(255, 255, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.5)",
         }}
       >
         <AnimatePresence initial={false}>

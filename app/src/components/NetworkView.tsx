@@ -169,7 +169,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
       {/* ── Middle & Bottom: LAN LiveBridge & Connectivity Diagnostics ── */}
       <div
         style={{
-          background: "rgba(255, 255, 255, 0.04)",
+          background: "rgba(255, 255, 255, 0.055)",
           backdropFilter: "blur(24px)",
           borderRadius: "14px",
           padding: "12px 14px",
@@ -225,7 +225,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
           {/* Item 1: WiFi Direct / LAN */}
           <div
             style={{
-              background: "rgba(255, 255, 255, 0.04)",
+              background: "rgba(255, 255, 255, 0.055)",
               borderRadius: "10px",
               padding: "8px 10px",
               display: "flex",
@@ -246,7 +246,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
           {/* Item 2: Beaming Socket Port */}
           <div
             style={{
-              background: "rgba(255, 255, 255, 0.04)",
+              background: "rgba(255, 255, 255, 0.055)",
               borderRadius: "10px",
               padding: "8px 10px",
               display: "flex",
@@ -267,7 +267,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
           {/* Item 3: Companion Node */}
           <div
             style={{
-              background: "rgba(255, 255, 255, 0.04)",
+              background: "rgba(255, 255, 255, 0.055)",
               borderRadius: "10px",
               padding: "8px 10px",
               display: "flex",

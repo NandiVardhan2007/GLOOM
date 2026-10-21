@@ -79,7 +79,7 @@ export const QuickNotes: React.FC = () => {
             }}
             title="Insert timestamp"
           >
-            <Calendar size={12} color="#38bdf8" />
+            <Calendar size={12} color="#0a84ff" />
             <span>Time</span>
           </button>
 

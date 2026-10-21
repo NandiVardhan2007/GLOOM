@@ -10,6 +10,7 @@ import {
   Mic2,
 } from "lucide-react";
 import { Waveform } from "./Waveform";
+import { LyricsPanel } from "./LyricsPanel";
 
 interface MusicRoomViewProps {
   media: MediaState;
@@ -72,8 +73,8 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
       {/* ── Left Player Card ── */}
       <div
         style={{
-          background: "rgba(255, 255, 255, 0.04)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "rgba(255, 255, 255, 0.055)",
+          border: "0.5px solid rgba(255, 255, 255, 0.08)",
           borderRadius: "16px",
           padding: "12px 14px",
           display: "flex",
@@ -139,6 +140,25 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
           </div>
         </div>
 
+        {!hasTrack && (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              fontSize: "12px",
+              color: "rgba(235, 235, 245, 0.55)",
+              padding: "0 18px",
+            }}
+          >
+            Start playback in Spotify, Apple Music, or a browser.
+          </div>
+        )}
+
+        {hasTrack && (
+          <>
         {/* Scrub Bar */}
         <div style={{ display: "flex", flexDirection: "column", gap: "4px", margin: "4px 0" }}>
           <div
@@ -261,6 +281,9 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
           </button>
         </div>
 
+          </>
+        )}
+
         {/* Bottom Toolbar: Audio Device, Lyrics */}
         <div
           style={{
@@ -268,7 +291,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             alignItems: "center",
             justifyContent: "space-between",
             paddingTop: "6px",
-            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+            borderTop: "0.5px solid rgba(255, 255, 255, 0.06)",
           }}
         >
           {/* Audio Output Selector */}
@@ -282,20 +305,21 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
               border: "none",
               borderRadius: "8px",
               padding: "4px 8px",
-              color: "#38bdf8",
+              color: "#0a84ff",
               fontSize: "11px",
               fontWeight: 600,
               cursor: "pointer",
             }}
             title="Click to switch audio output device"
           >
-            <Volume2 size={12} color="#38bdf8" />
+            <Volume2 size={12} color="#0a84ff" />
             <span style={{ maxWidth: "90px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {outputDevice}
             </span>
           </button>
 
-          {/* Fullscreen / Ambient */}
+          {/* Lyrics toggle */}
+          {hasTrack && (
           <button
             onClick={() => setShowLyrics(!showLyrics)}
             style={{
@@ -316,14 +340,15 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             <Mic2 size={12} />
             <span>Lyrics</span>
           </button>
+          )}
         </div>
       </div>
 
       {/* ── Right Column: Listening Room / Waveform ── */}
       <div
         style={{
-          background: "rgba(255, 255, 255, 0.04)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "rgba(255, 255, 255, 0.055)",
+          border: "0.5px solid rgba(255, 255, 255, 0.08)",
           borderRadius: "16px",
           padding: "14px",
           display: "flex",
@@ -334,7 +359,11 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
           boxSizing: "border-box",
         }}
       >
-        {hasTrack ? (
+        {showLyrics ? (
+          <div style={{ width: "100%", height: "100%", textAlign: "left" }}>
+            <LyricsPanel media={media} />
+          </div>
+        ) : hasTrack ? (
           <div
             style={{
               display: "flex",
@@ -345,7 +374,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <Music size={20} color="#38bdf8" />
+              <Music size={20} color="#0a84ff" />
               <Waveform isPlaying={media.playing} width={40} height={20} />
             </div>
             <span style={{ fontSize: "14px", fontWeight: 700, color: "#ffffff" }}>
@@ -376,7 +405,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
                 onChange={(e) => onSetVolume(parseFloat(e.target.value))}
                 style={{
                   flex: 1,
-                  accentColor: "#38bdf8",
+                  accentColor: "#0a84ff",
                   cursor: "pointer",
                 }}
               />

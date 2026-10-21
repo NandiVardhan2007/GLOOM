@@ -30,7 +30,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   lockDrag: false,
 
   theme: "obsidian",
-  accentColor: "#00d2ff",
+  accentColor: "#0a84ff",
   bgColor: "#121214",
   idleColor: "#0a0a0c",
   cornerShape: "rounded",

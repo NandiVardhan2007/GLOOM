@@ -78,6 +78,9 @@ export const LiveBridgeView: React.FC = () => {
   }, []);
 
   const activeDevice = devices[0];
+  const connected =
+    !!activeDevice &&
+    (activeDevice.status === "connected" || activeDevice.status === "syncing");
 
   const sendRealFile = async (file: File) => {
     setActiveFileName(file.name);
@@ -223,16 +226,16 @@ export const LiveBridgeView: React.FC = () => {
             display: "flex",
             alignItems: "center",
             gap: "10px",
-            background: "rgba(245, 158, 11, 0.12)",
-            border: "1px solid rgba(245, 158, 11, 0.4)",
+            background: "rgba(255, 159, 10, 0.12)",
+            border: "1px solid rgba(255, 159, 10, 0.4)",
             borderRadius: "14px",
             padding: "10px 14px",
             flexShrink: 0,
           }}
         >
-          <Shield size={18} color="#f59e0b" />
+          <Shield size={18} color="#ff9f0a" />
           <div style={{ lineHeight: 1.35 }}>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "#f59e0b" }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "#ff9f0a" }}>
               Pairing request from {pairing.clientDeviceName || "Companion Device"}
             </div>
             <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.75)" }}>
@@ -258,49 +261,52 @@ export const LiveBridgeView: React.FC = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "rgba(255, 255, 255, 0.04)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "rgba(255, 255, 255, 0.055)",
           borderRadius: "14px",
-          padding: "10px 14px",
+          padding: "12px 14px",
           flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div
             style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "10px",
-              background: "rgba(56, 189, 248, 0.15)",
-              border: "1px solid rgba(56, 189, 248, 0.3)",
+              width: "30px",
+              height: "30px",
+              borderRadius: "8px",
+              background: "rgba(120, 120, 128, 0.16)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#38bdf8",
+              color: connected ? "#0a84ff" : "rgba(235, 235, 245, 0.55)",
             }}
           >
-            <Smartphone size={17} />
+            <Smartphone size={16} strokeWidth={1.6} />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff" }}>
-                {activeDevice ? activeDevice.name : "No Device Connected"}
+              <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f5f5f7" }}>
+                {activeDevice ? activeDevice.name : "No Device Paired"}
               </span>
               <div
                 style={{
                   width: "6px",
                   height: "6px",
                   borderRadius: "50%",
-                  background: "#10b981",
-                  boxShadow: "0 0 8px rgba(16, 185, 129, 0.6)",
+                  background: connected ? "#30d158" : "rgba(235, 235, 245, 0.35)",
                 }}
               />
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#10b981" }}>
-                Connected
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  color: connected ? "#30d158" : "rgba(235, 235, 245, 0.55)",
+                }}
+              >
+                {connected ? "Connected" : "Not connected"}
               </span>
             </div>
-            <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.45)" }}>
-              Continuity & AirDrop Active
+            <div style={{ fontSize: "11px", color: "rgba(235, 235, 245, 0.55)", letterSpacing: "0.01em" }}>
+              {connected ? "Continuity & AirDrop active" : "Pair from the JARVIS Android app"}
             </div>
           </div>
         </div>
@@ -311,17 +317,17 @@ export const LiveBridgeView: React.FC = () => {
             display: "flex",
             alignItems: "center",
             gap: "5px",
-            fontSize: "11.5px",
-            fontWeight: 700,
-            color: "#ffffff",
-            background: "rgba(255, 255, 255, 0.06)",
+            fontSize: "11px",
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+            color: "rgba(235, 235, 245, 0.72)",
+            background: "rgba(120, 120, 128, 0.16)",
             padding: "4px 9px",
-            borderRadius: "8px",
-            border: "0.5px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "7px",
           }}
         >
-          <Zap size={11} color="#10b981" fill="#10b981" />
-          <span>{activeDevice ? activeDevice.batteryPercent : 100}%</span>
+          <Zap size={11} strokeWidth={1.8} color={connected ? "#30d158" : "rgba(235, 235, 245, 0.45)"} />
+          <span>{activeDevice ? `${activeDevice.batteryPercent}%` : "—"}</span>
         </div>
       </div>
 
@@ -349,12 +355,11 @@ export const LiveBridgeView: React.FC = () => {
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
-              background: isDragOver ? "rgba(56, 189, 248, 0.1)" : "rgba(255, 255, 255, 0.03)",
-              border: isDragOver ? "2px dashed #38bdf8" : "1px dashed rgba(56, 189, 248, 0.35)",
-              boxShadow: isDragOver ? "0 0 20px rgba(56, 189, 248, 0.25)" : "none",
-              borderRadius: "14px",
+              background: isDragOver ? "rgba(10, 132, 255, 0.12)" : "rgba(255, 255, 255, 0.055)",
+              border: isDragOver ? "1.5px dashed #0a84ff" : "1.5px dashed rgba(120, 120, 128, 0.35)",
+              borderRadius: "16px",
               padding: "14px",
-              transition: "all 0.15s ease",
+              transition: "background var(--duration-quick) var(--ease-out), border-color var(--duration-quick) var(--ease-out)",
             }}
           >
             <input
@@ -366,8 +371,8 @@ export const LiveBridgeView: React.FC = () => {
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                  <Share2 size={15} color="#38bdf8" />
-                  <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
+                  <Share2 size={15} strokeWidth={1.7} color="#0a84ff" />
+                  <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f5f5f7" }}>
                     AirDrop
                   </span>
                 </div>
@@ -375,24 +380,24 @@ export const LiveBridgeView: React.FC = () => {
                   onClick={handleOpenFolder}
                   title="Open Received Folder"
                   style={{
-                    background: "rgba(255, 255, 255, 0.08)",
+                    background: "rgba(120, 120, 128, 0.16)",
                     border: "none",
                     borderRadius: "6px",
                     padding: "3px 7px",
-                    color: "#38bdf8",
+                    color: "rgba(235, 235, 245, 0.8)",
                     display: "flex",
                     alignItems: "center",
                     gap: "4px",
-                    fontSize: "10.5px",
+                    fontSize: "11px",
                     cursor: "pointer",
-                    fontWeight: 600,
+                    fontWeight: 500,
                   }}
                 >
-                  <FolderOpen size={11} />
+                  <FolderOpen size={11} strokeWidth={1.7} />
                   <span>Received</span>
                 </button>
               </div>
-              <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", lineHeight: 1.4 }}>
+              <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.6)", lineHeight: 1.45 }}>
                 {isDragOver
                   ? "Drop to send to your phone."
                   : "Drag and drop files to beam them to your phone."}
@@ -401,14 +406,14 @@ export const LiveBridgeView: React.FC = () => {
 
             {isSendingFile ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", margin: "10px 0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#38bdf8", fontWeight: 600 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#0a84ff", fontWeight: 600 }}>
                   <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     Sending {activeFileName}...
                   </span>
                   <span>{fileProgress}%</span>
                 </div>
                 <div style={{ width: "100%", height: "5px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "3px", overflow: "hidden" }}>
-                  <div style={{ width: `${fileProgress}%`, height: "100%", background: "#38bdf8", transition: "width 0.15s ease" }} />
+                  <div style={{ width: `${fileProgress}%`, height: "100%", background: "#0a84ff", transition: "width 0.15s ease" }} />
                 </div>
               </div>
             ) : (
@@ -421,18 +426,19 @@ export const LiveBridgeView: React.FC = () => {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "6px",
-                    padding: "8px 10px",
-                    borderRadius: "9px",
-                    border: "1px solid rgba(56, 189, 248, 0.3)",
-                    background: "rgba(56, 189, 248, 0.15)",
-                    color: "#38bdf8",
-                    fontSize: "11.5px",
-                    fontWeight: 700,
+                    height: "30px",
+                    padding: "0 12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#0a84ff",
+                    color: "#ffffff",
+                    fontSize: "12px",
+                    fontWeight: 600,
                     cursor: "pointer",
-                    transition: "all 0.15s ease",
+                    transition: "transform var(--duration-quick) var(--ease-out), filter var(--duration-quick) var(--ease-out)",
                   }}
                 >
-                  <UploadCloud size={13} />
+                  <UploadCloud size={13} strokeWidth={1.8} />
                   <span>Choose File</span>
                 </button>
               </div>
@@ -445,32 +451,30 @@ export const LiveBridgeView: React.FC = () => {
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              borderRadius: "14px",
+              background: "rgba(255, 255, 255, 0.055)",
+              borderRadius: "16px",
               padding: "14px",
             }}
           >
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                  <Copy size={15} color="#10b981" />
-                  <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
+                  <Copy size={15} strokeWidth={1.7} color="#30d158" />
+                  <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f5f5f7" }}>
                     Universal Clipboard
                   </span>
                 </div>
               </div>
-              <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", marginBottom: "8px" }}>
+              <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.6)", lineHeight: 1.45, marginBottom: "8px" }}>
                 Text copied on your phone is automatically available on your PC.
               </div>
               <div
                 style={{
                   padding: "8px 10px",
                   borderRadius: "8px",
-                  background: "rgba(0, 0, 0, 0.35)",
-                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                  background: "rgba(0, 0, 0, 0.28)",
                   fontSize: "11.5px",
-                  color: "#f1f5f9",
+                  color: "rgba(235, 235, 245, 0.85)",
                   fontFamily: "inherit",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -492,8 +496,8 @@ export const LiveBridgeView: React.FC = () => {
                 padding: "8px 12px",
                 borderRadius: "9px",
                 border: "none",
-                background: hasCopied ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.08)",
-                color: hasCopied ? "#10b981" : "#ffffff",
+                background: hasCopied ? "rgba(48, 209, 88, 0.2)" : "rgba(255, 255, 255, 0.08)",
+                color: hasCopied ? "#30d158" : "#ffffff",
                 fontSize: "11.5px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -512,15 +516,15 @@ export const LiveBridgeView: React.FC = () => {
             display: "flex",
             flexDirection: "column",
             gap: "10px",
-            background: "rgba(255, 255, 255, 0.03)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "rgba(255, 255, 255, 0.055)",
+            border: "0.5px solid rgba(255, 255, 255, 0.08)",
             borderRadius: "14px",
             padding: "12px 14px",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <MousePointer size={15} color="#38bdf8" />
+              <MousePointer size={15} color="#0a84ff" />
               <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
                 Universal Control & Remote Pointer
               </span>
@@ -532,8 +536,8 @@ export const LiveBridgeView: React.FC = () => {
                   fontWeight: 700,
                   padding: "2px 8px",
                   borderRadius: "9999px",
-                  background: "rgba(56, 189, 248, 0.2)",
-                  color: "#38bdf8",
+                  background: "rgba(10, 132, 255, 0.2)",
+                  color: "#0a84ff",
                   letterSpacing: "0.5px",
                 }}
               >
@@ -596,10 +600,10 @@ export const LiveBridgeView: React.FC = () => {
                     top: `${trackpadPos.y}px`,
                     transform: "translate(-2px, -2px)",
                     pointerEvents: "none",
-                    filter: "drop-shadow(0 0 6px #38bdf8)",
+                    filter: "drop-shadow(0 0 6px #0a84ff)",
                   }}
                 >
-                  <MousePointer size={14} color="#38bdf8" />
+                  <MousePointer size={14} color="#0a84ff" />
                 </div>
               )}
             </div>
@@ -614,7 +618,7 @@ export const LiveBridgeView: React.FC = () => {
                     flex: 1,
                     padding: "6px",
                     borderRadius: "6px",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
                     background: "rgba(255, 255, 255, 0.05)",
                     color: "#ffffff",
                     cursor: "pointer",
@@ -632,7 +636,7 @@ export const LiveBridgeView: React.FC = () => {
                     flex: 1,
                     padding: "6px",
                     borderRadius: "6px",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
                     background: "rgba(255, 255, 255, 0.05)",
                     color: "#ffffff",
                     cursor: "pointer",
@@ -650,7 +654,7 @@ export const LiveBridgeView: React.FC = () => {
                     flex: 1,
                     padding: "6px",
                     borderRadius: "6px",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
                     background: "rgba(255, 255, 255, 0.05)",
                     color: "#ffffff",
                     cursor: "pointer",
@@ -668,7 +672,7 @@ export const LiveBridgeView: React.FC = () => {
                     flex: 1,
                     padding: "6px",
                     borderRadius: "6px",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
                     background: "rgba(255, 255, 255, 0.05)",
                     color: "#ffffff",
                     cursor: "pointer",
@@ -853,8 +857,8 @@ export const LiveBridgeView: React.FC = () => {
                     padding: "5px",
                     borderRadius: "6px",
                     border: "none",
-                    background: "rgba(56, 189, 248, 0.2)",
-                    color: "#38bdf8",
+                    background: "rgba(10, 132, 255, 0.2)",
+                    color: "#0a84ff",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -900,8 +904,8 @@ export const LiveBridgeView: React.FC = () => {
                   justifyContent: "space-between",
                   padding: "10px 14px",
                   borderRadius: "12px",
-                  background: "rgba(255, 255, 255, 0.04)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "rgba(255, 255, 255, 0.055)",
+                  border: "0.5px solid rgba(255, 255, 255, 0.08)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -910,11 +914,11 @@ export const LiveBridgeView: React.FC = () => {
                       width: "30px",
                       height: "30px",
                       borderRadius: "8px",
-                      background: act.activityType === "otp" ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.15)",
+                      background: act.activityType === "otp" ? "rgba(255, 159, 10, 0.15)" : "rgba(10, 132, 255, 0.15)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: act.activityType === "otp" ? "#f59e0b" : "#38bdf8",
+                      color: act.activityType === "otp" ? "#ff9f0a" : "#0a84ff",
                     }}
                   >
                     {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
@@ -939,7 +943,7 @@ export const LiveBridgeView: React.FC = () => {
                       padding: "4px 10px",
                       borderRadius: "6px",
                       border: "none",
-                      background: "#38bdf8",
+                      background: "#0a84ff",
                       color: "#000000",
                       fontSize: "11px",
                       fontWeight: 700,
@@ -969,12 +973,12 @@ export const LiveBridgeView: React.FC = () => {
                   justifyContent: "space-between",
                   padding: "8px 12px",
                   borderRadius: "10px",
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                  background: "rgba(255, 255, 255, 0.055)",
+                  border: "0.5px solid rgba(255, 255, 255, 0.06)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <FileText size={15} color="#38bdf8" />
+                  <FileText size={15} color="#0a84ff" />
                   <div>
                     <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#ffffff" }}>
                       {t.fileName}
@@ -984,7 +988,7 @@ export const LiveBridgeView: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <span style={{ fontSize: "10.5px", fontWeight: 600, color: "#10b981" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 600, color: "#30d158" }}>
                   Completed
                 </span>
               </div>

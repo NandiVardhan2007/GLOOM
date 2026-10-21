@@ -84,7 +84,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
               justifyContent: "center",
             }}
           >
-            <Share2 size={12} color="#32ade6" />
+            <Share2 size={12} color="#0a84ff" />
           </div>
         ) : isTimerActive ? (
           <div
@@ -98,7 +98,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
               justifyContent: "center",
             }}
           >
-            <Timer size={12} color="#ff9500" />
+            <Timer size={12} color="#ff9f0a" />
           </div>
         ) : isPlaying ? (
           media.thumbnail ? (
@@ -119,7 +119,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
                 width: "20px",
                 height: "20px",
                 borderRadius: "5px",
-                backgroundColor: "#ff2d55",
+                backgroundColor: "#ff375f",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -135,8 +135,8 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
               width: "18px",
               height: "18px",
               borderRadius: "50%",
-              border: `2px solid ${telemetry.isCharging ? "#34c759" : "rgba(255, 255, 255, 0.25)"}`,
-              boxShadow: telemetry.isCharging ? "0 0 8px rgba(52, 199, 89, 0.7)" : "none",
+              border: `2px solid ${telemetry.isCharging ? "#30d158" : "rgba(255, 255, 255, 0.25)"}`,
+              
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -145,7 +145,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             title={`Battery: ${batteryPercent}% ${telemetry.isCharging ? "(Charging)" : ""}`}
           >
             {telemetry.isCharging ? (
-              <Zap size={10} color="#34c759" fill="#34c759" />
+              <Zap size={10} color="#30d158" fill="#30d158" />
             ) : (
               <span
                 style={{
@@ -179,7 +179,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             style={{
               fontSize: "11px",
               fontWeight: 600,
-              color: "#32ade6",
+              color: "#0a84ff",
               letterSpacing: "-0.01em",
             }}
           >
@@ -191,7 +191,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             style={{
               fontSize: "12px",
               fontWeight: 700,
-              color: "#ff9500",
+              color: "#ff9f0a",
               letterSpacing: "-0.01em",
             }}
           >
@@ -216,27 +216,17 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             </span>
           </div>
         ) : (
-          <div
+          <span
+            className="tabular-nums"
             style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "0.5px solid rgba(255, 255, 255, 0.08)",
-              borderRadius: "9999px",
-              padding: "2px 10px",
-              boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.6)",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "rgba(245, 245, 247, 0.95)",
+              letterSpacing: "-0.01em",
             }}
           >
-            <span
-              className="tabular-nums"
-              style={{
-                fontSize: "11.5px",
-                fontWeight: 600,
-                color: "rgba(255, 255, 255, 0.95)",
-                letterSpacing: "0.01em",
-              }}
-            >
-              {time}
-            </span>
-          </div>
+            {time}
+          </span>
         )}
       </div>
 
@@ -251,13 +241,13 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
         }}
       >
         {isDragging ? (
-          <Smartphone size={12} color="#32ade6" />
+          <Smartphone size={12} color="#0a84ff" />
         ) : isPlaying ? (
           <Waveform
             isPlaying={true}
             width={18}
             height={11}
-            color="#34c759"
+            color="#30d158"
             reducedMotion={reducedMotion}
           />
         ) : hasTrack ? (

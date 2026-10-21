@@ -97,7 +97,7 @@ export const SettingsWindow: React.FC<SettingsWindowProps> = ({ config, onUpdate
           justifyContent: "space-between",
           padding: "0 14px",
           backgroundColor: "#191920",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          borderBottom: "0.5px solid rgba(255, 255, 255, 0.08)",
           cursor: "grab",
         }}
       >
@@ -146,7 +146,7 @@ export const SettingsWindow: React.FC<SettingsWindowProps> = ({ config, onUpdate
               height: "26px",
               borderRadius: "6px",
               border: "none",
-              background: "rgba(239, 68, 68, 0.15)",
+              background: "rgba(255, 69, 58, 0.15)",
               color: "#f87171",
               display: "flex",
               alignItems: "center",

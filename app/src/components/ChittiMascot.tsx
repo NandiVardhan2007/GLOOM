@@ -147,8 +147,8 @@ export const ChittiMascot: React.FC<ChittiMascotProps> = ({
             width: `${Math.max(6, Math.round(size * 0.24))}px`,
             height: `${Math.max(6, Math.round(size * 0.24))}px`,
             borderRadius: "50%",
-            backgroundColor: isPlaying ? "#f59e0b" : "#22c55e",
-            boxShadow: isPlaying ? "0 0 8px #f59e0b" : "0 0 8px #22c55e",
+            backgroundColor: isPlaying ? "#ff9f0a" : "#30d158",
+            boxShadow: isPlaying ? "0 0 8px #ff9f0a" : "0 0 8px #30d158",
             border: "1.5px solid #000000",
           }}
         />

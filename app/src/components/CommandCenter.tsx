@@ -206,7 +206,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           {volume === 0 ? (
             <VolumeX size={16} color="#94a3b8" />
           ) : (
-            <Volume2 size={16} color="#38bdf8" />
+            <Volume2 size={16} color="#0a84ff" />
           )}
           <input
             type="range"
@@ -216,7 +216,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             onChange={(e) => onSetVolume(parseInt(e.target.value, 10) / 100)}
             style={{
               flex: 1,
-              accentColor: "#38bdf8",
+              accentColor: "#0a84ff",
               cursor: "pointer",
               height: "5px",
             }}
@@ -368,7 +368,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Open JARVIS Settings & Customization"
         >
-          <Settings size={13} color="#38bdf8" />
+          <Settings size={13} color="#0a84ff" />
           <span>Config</span>
         </button>
       </div>
@@ -378,7 +378,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           style={{
             textAlign: "center",
             fontSize: "11px",
-            color: "#38bdf8",
+            color: "#0a84ff",
             fontWeight: 700,
             letterSpacing: "0.04em",
           }}

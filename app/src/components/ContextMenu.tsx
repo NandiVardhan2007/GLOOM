@@ -157,7 +157,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onMouseEnter={(e) => (e.currentTarget.style.background = "#262638")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        <Settings size={14} color="#38bdf8" />
+        <Settings size={14} color="#0a84ff" />
         <span>Settings</span>
       </button>
 
@@ -253,7 +253,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onMouseEnter={(e) => (e.currentTarget.style.background = "#262638")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        <LayoutGrid size={13} color="#38bdf8" />
+        <LayoutGrid size={13} color="#0a84ff" />
         <span>Dashboard</span>
       </button>
 
@@ -283,7 +283,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onMouseEnter={(e) => (e.currentTarget.style.background = "#262638")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        <Smartphone size={13} color="#38bdf8" />
+        <Smartphone size={13} color="#0a84ff" />
         <span>Live Bridge & Phone</span>
       </button>
 
@@ -298,7 +298,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onMouseEnter={(e) => (e.currentTarget.style.background = "#262638")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        <Sliders size={13} color="#38bdf8" />
+        <Sliders size={13} color="#0a84ff" />
         <span>Command Center</span>
       </button>
 
@@ -357,7 +357,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           ...itemStyle,
           color: "#f87171",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)")}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 69, 58, 0.15)")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
         <Power size={13} color="#f87171" />

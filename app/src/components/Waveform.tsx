@@ -12,7 +12,7 @@ interface WaveformProps {
 
 export const Waveform: React.FC<WaveformProps> = ({
   isPlaying,
-  color = "#38bdf8",
+  color = "#0a84ff",
   barCount = 6,
   width = 24,
   height = 14,

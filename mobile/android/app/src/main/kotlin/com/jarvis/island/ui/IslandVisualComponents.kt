@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BatteryChargingFull
-import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
@@ -55,6 +54,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -79,43 +79,37 @@ data class IslandThemeColors(
 )
 
 object IslandThemePalettes {
+    private val hairline = SolidColor(Color(0x1FFFFFFF))
+
     fun getTheme(themeName: String): IslandThemeColors {
         return when (themeName) {
             "Cyber Cyan" -> IslandThemeColors(
                 background = Color(0xFF030712),
                 cardBackground = Color(0xFF0B132B),
-                primaryAccent = Color(0xFF38BDF8),
-                secondaryAccent = Color(0xFF00E5FF),
-                borderBrush = Brush.linearGradient(
-                    listOf(Color(0xFF38BDF8), Color(0xFF00E5FF), Color(0x3338BDF8))
-                )
+                primaryAccent = Color(0xFF0A84FF),
+                secondaryAccent = Color(0xFF64D2FF),
+                borderBrush = hairline
             )
             "Emerald Matrix", "Neon Green" -> IslandThemeColors(
                 background = Color(0xFF021008),
                 cardBackground = Color(0xFF071911),
-                primaryAccent = Color(0xFF10B981),
+                primaryAccent = Color(0xFF30D158),
                 secondaryAccent = Color(0xFF34D399),
-                borderBrush = Brush.linearGradient(
-                    listOf(Color(0xFF10B981), Color(0xFF059669), Color(0x3310B981))
-                )
+                borderBrush = hairline
             )
             "Material Purple" -> IslandThemeColors(
                 background = Color(0xFF0E0414),
                 cardBackground = Color(0xFF1B0B26),
-                primaryAccent = Color(0xFFC084FC),
+                primaryAccent = Color(0xFFBF5AF2),
                 secondaryAccent = Color(0xFFA855F7),
-                borderBrush = Brush.linearGradient(
-                    listOf(Color(0xFFC084FC), Color(0xFF9333EA), Color(0x33C084FC))
-                )
+                borderBrush = hairline
             )
             else -> IslandThemeColors( // "Obsidian Black" (Default)
                 background = Color(0xFF000000),
-                cardBackground = Color(0xFF0D0D12),
-                primaryAccent = Color(0xFF38BDF8),
-                secondaryAccent = Color(0xFF22C55E),
-                borderBrush = Brush.linearGradient(
-                    listOf(Color(0x6638BDF8), Color(0x22FFFFFF), Color(0x4438BDF8))
-                )
+                cardBackground = Color(0xFF1C1C1E),
+                primaryAccent = Color(0xFF0A84FF),
+                secondaryAccent = Color(0xFF30D158),
+                borderBrush = hairline
             )
         }
     }
@@ -127,7 +121,7 @@ object IslandThemePalettes {
 @Composable
 fun CyberBeamIcon(
     isUpload: Boolean,
-    accentColor: Color = Color(0xFF38BDF8),
+    accentColor: Color = Color(0xFF0A84FF),
     size: Dp = 22.dp
 ) {
     val transition = rememberInfiniteTransition(label = "cyberBeamMotion")
@@ -212,7 +206,7 @@ fun CyberBeamIcon(
 @Composable
 fun OriginOSEqualizer(
     isPlaying: Boolean,
-    color: Color = Color(0xFF22C55E),
+    color: Color = Color(0xFF30D158),
     modifier: Modifier = Modifier
 ) {
     val transition = rememberInfiniteTransition(label = "originEq")
@@ -266,7 +260,7 @@ fun OriginOSEqualizer(
 @Composable
 fun AnimatedEqualizer(
     isPlaying: Boolean,
-    color: Color = Color(0xFF22C55E),
+    color: Color = Color(0xFF30D158),
     modifier: Modifier = Modifier
 ) {
     OriginOSEqualizer(isPlaying = isPlaying, color = color, modifier = modifier)
@@ -370,13 +364,13 @@ fun OriginOSWavySeekBar(
         ) {
             Text(
                 text = elapsedText,
-                color = Color(0xFF94A3B8),
+                color = Color(0xFF8E8E93),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = totalText,
-                color = Color(0xFF94A3B8),
+                color = Color(0xFF8E8E93),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -392,7 +386,7 @@ fun OriginOSVinylRecord(
     isPlaying: Boolean,
     albumArt: Bitmap? = null,
     size: Dp = 46.dp,
-    labelColor: Color = Color(0xFF38BDF8)
+    labelColor: Color = Color(0xFF0A84FF)
 ) {
     val transition = rememberInfiniteTransition(label = "originVinylSpin")
     val rotation by transition.animateFloat(
@@ -473,8 +467,6 @@ fun OriginOSMusicCard(
     onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var showLyrics by remember(track.title) { mutableStateOf(track.lyrics.isNotEmpty()) }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -498,14 +490,14 @@ fun OriginOSMusicCard(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(if (track.isPlaying) Color(0xFF34C759) else Color(0x66FFFFFF))
+                        .background(if (track.isPlaying) Color(0xFF30D158) else Color(0x66FFFFFF))
                 )
                 Text(
-                    text = if (track.appName.isNotBlank()) track.appName.uppercase() else "NOW PLAYING",
+                    text = if (track.appName.isNotBlank()) track.appName else "Now Playing",
                     color = Color(0x99FFFFFF),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.sp
                 )
             }
 
@@ -513,30 +505,6 @@ fun OriginOSMusicCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Apple Music Live Lyrics Mode Toggle
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(if (showLyrics) Color(0x33FFFFFF) else Color(0x18FFFFFF))
-                        .border(0.5.dp, if (showLyrics) Color.White.copy(alpha = 0.6f) else Color(0x22FFFFFF), CircleShape)
-                        .clickable { showLyrics = !showLyrics },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChatBubbleOutline,
-                        contentDescription = "Live Lyrics",
-                        tint = if (showLyrics) Color.White else Color(0xAAFFFFFF),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-
-                OriginOSEqualizer(
-                    isPlaying = track.isPlaying,
-                    color = Color.White,
-                    modifier = Modifier.height(12.dp)
-                )
-
                 if (onClose != null) {
                     Box(
                         modifier = Modifier
@@ -558,61 +526,7 @@ fun OriginOSMusicCard(
             }
         }
 
-        if (showLyrics) {
-            // VIEW 1: APPLE MUSIC FULL LIVE SYNCHRONIZED LYRICS
-            val effectiveLyrics = if (track.lyrics.isNotEmpty()) {
-                track.lyrics
-            } else {
-                remember(track.title) {
-                    listOf(
-                        LyricLine(0L, "♪ ${if (track.title.isNotBlank()) track.title else "Now Playing"} ♪"),
-                        LyricLine(12000L, "Listening to ${if (track.artist.isNotBlank()) track.artist else "Apple Music"}"),
-                        LyricLine(24000L, "High-fidelity spatial audio active"),
-                        LyricLine(36000L, "Synchronized live playback"),
-                        LyricLine(50000L, "Feel the acoustic resonance in real time"),
-                        LyricLine(70000L, "Connected across your devices")
-                    )
-                }
-            }
 
-            val currentPos = if (track.durationMs > 0) track.positionMs else (track.progress * 180000L).toLong()
-            val activeIndex = effectiveLyrics.indexOfLast { it.timeMs <= currentPos }.coerceAtLeast(0)
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(105.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x12FFFFFF))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.Center
-            ) {
-                for (offset in -1..2) {
-                    val idx = activeIndex + offset
-                    if (idx in effectiveLyrics.indices) {
-                        val line = effectiveLyrics[idx]
-                        val isActive = idx == activeIndex
-                        Text(
-                            text = line.text,
-                            color = if (isActive) Color.White else Color(0x55FFFFFF),
-                            fontSize = if (isActive) 14.5.sp else 11.5.sp,
-                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 1.5.dp)
-                                .clickable {
-                                    if (track.durationMs > 0 && onSeek != null) {
-                                        onSeek(line.timeMs.toFloat() / track.durationMs.toFloat())
-                                    }
-                                }
-                        )
-                    }
-                }
-            }
-        } else {
-            // VIEW 2: APPLE NOW PLAYING (ALBUM ART + TRACK + LIVE PREVIEW)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -628,7 +542,6 @@ fun OriginOSMusicCard(
                             .size(58.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
-                            .clickable { showLyrics = true }
                     )
                 } else {
                     OriginOSVinylRecord(
@@ -665,18 +578,16 @@ fun OriginOSMusicCard(
                         if (activeLine != null && activeLine.text.isNotBlank()) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "♪ ${activeLine.text}",
-                                color = Color(0xFFE2E8F0),
-                                fontSize = 11.sp,
+                                text = activeLine.text,
+                                color = Color(0xB3FFFFFF),
+                                fontSize = 11.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.clickable { showLyrics = true }
                             )
                         }
                     }
                 }
             }
-        }
 
         // Apple Fluid Seek Bar
         OriginOSWavySeekBar(
@@ -744,24 +655,6 @@ fun OriginOSMusicCard(
                     modifier = Modifier.size(20.dp)
                 )
             }
-
-            // Lyrics Toggle Button
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(if (showLyrics) Color(0x33FFFFFF) else Color(0x18FFFFFF))
-                    .border(0.5.dp, if (showLyrics) Color.White.copy(alpha = 0.6f) else Color(0x22FFFFFF), CircleShape)
-                    .clickable { showLyrics = !showLyrics },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.ChatBubbleOutline,
-                    contentDescription = "Toggle Lyrics",
-                    tint = if (showLyrics) Color.White else Color(0xCCFFFFFF),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
         }
     }
 }
@@ -772,7 +665,7 @@ fun OriginOSMusicCard(
 @Composable
 fun PulseConnectionDot(
     isConnected: Boolean,
-    color: Color = Color(0xFF22C55E),
+    color: Color = Color(0xFF30D158),
     size: Dp = 16.dp
 ) {
     val transition = rememberInfiniteTransition(label = "pulseRadar")
@@ -814,7 +707,7 @@ fun PulseConnectionDot(
             modifier = Modifier
                 .size(size * 0.45f)
                 .clip(CircleShape)
-                .background(if (isConnected) color else Color(0xFFEF4444))
+                .background(if (isConnected) color else Color(0xFFFF453A))
         )
     }
 }

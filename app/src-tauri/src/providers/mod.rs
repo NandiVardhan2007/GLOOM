@@ -5,3 +5,4 @@ pub mod clipboard;
 pub mod brightness;
 pub mod bridge_tls;
 pub mod livebridge;
+pub mod lyrics;

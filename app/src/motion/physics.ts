@@ -1,27 +1,27 @@
 export const MOTION_PHYSICS = {
-  // Ultra-fluid Apple / HarmonyOS elastic spring morph with organic bouncy rebound
+  // Apple's default: critically damped, no visible overshoot. Response ≈ 0.35s.
   morph: {
     type: "spring" as const,
     stiffness: 240,
-    damping: 18,
+    damping: 29,
     mass: 0.85,
     restDelta: 0.001,
     restSpeed: 0.001,
   },
-  // Luxuriously smooth, bouncy collapse motion with extended duration and organic rebound
+  // Collapse uses the same critical damping so size changes never bounce.
   collapse: {
     type: "spring" as const,
-    stiffness: 165,
-    damping: 14,
-    mass: 0.95,
+    stiffness: 200,
+    damping: 26,
+    mass: 0.8,
     restDelta: 0.001,
     restSpeed: 0.001,
   },
-  // Responsive, fluid expand motion
+  // Expand is quicker but still critically damped.
   expand: {
     type: "spring" as const,
     stiffness: 260,
-    damping: 20,
+    damping: 29,
     mass: 0.8,
     restDelta: 0.001,
     restSpeed: 0.001,
@@ -31,31 +31,31 @@ export const MOTION_PHYSICS = {
     duration: 0.18,
     ease: [0.22, 1, 0.36, 1] as const,
   },
-  // Micro-swell when hovered in closed state
+  // Hover swell: quick and flat.
   peek: {
     type: "spring" as const,
     stiffness: 500,
-    damping: 26,
+    damping: 32,
     mass: 0.5,
   },
-  // Pop alert notifications (volume change, battery alert)
+  // Alerts settle cleanly with only a hint of life.
   alertPop: {
     type: "spring" as const,
     stiffness: 420,
-    damping: 26,
-    mass: 0.55,
-  },
-  // Snappy tab switches inside expanded panel
-  tabSwitch: {
-    type: "spring" as const,
-    stiffness: 480,
     damping: 30,
     mass: 0.55,
   },
-  // Content crossfade - ultra-rapid concurrent transition
+  // Snappy tab switches inside the expanded panel.
+  tabSwitch: {
+    type: "spring" as const,
+    stiffness: 480,
+    damping: 33,
+    mass: 0.55,
+  },
+  // Content crossfade
   fade: {
-    duration: 0.10,
-    ease: [0.25, 0.1, 0.25, 1] as const,
+    duration: 0.14,
+    ease: [0.32, 0.72, 0, 1] as const,
   },
   // Reduced motion alternative
   reducedMotion: {

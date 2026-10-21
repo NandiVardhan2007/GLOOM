@@ -83,13 +83,13 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
   };
 
   const navCapsuleItems: { id: ActiveTab; icon: React.ReactNode; label: string }[] = [
-    { id: "dashboard", icon: <LayoutGrid size={13} />, label: "Dashboard" },
-    { id: "media", icon: <Music size={13} />, label: "Music" },
-    { id: "bridge", icon: <Smartphone size={13} />, label: "File Beam & Phone" },
-    { id: "notes", icon: <FileText size={13} />, label: "Notepad" },
-    { id: "network", icon: <Activity size={13} />, label: "Network" },
-    { id: "controls", icon: <Sliders size={13} />, label: "Control Center" },
-    { id: "timer", icon: <Coffee size={13} />, label: "Focus Timer" },
+    { id: "dashboard", icon: <LayoutGrid size={14} strokeWidth={1.7} />, label: "Dashboard" },
+    { id: "media", icon: <Music size={14} strokeWidth={1.7} />, label: "Music" },
+    { id: "bridge", icon: <Smartphone size={14} strokeWidth={1.7} />, label: "File Beam & Phone" },
+    { id: "notes", icon: <FileText size={14} strokeWidth={1.7} />, label: "Notepad" },
+    { id: "network", icon: <Activity size={14} strokeWidth={1.7} />, label: "Network" },
+    { id: "controls", icon: <Sliders size={14} strokeWidth={1.7} />, label: "Control Center" },
+    { id: "timer", icon: <Coffee size={14} strokeWidth={1.7} />, label: "Focus Timer" },
   ];
 
   return (
@@ -99,8 +99,8 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
         flexDirection: "column",
         width: "100%",
         height: "100%",
-        padding: "10px 14px",
-        gap: "10px",
+        padding: "12px 16px",
+        gap: "12px",
         boxSizing: "border-box",
         backgroundColor: "transparent",
         color: "#ffffff",
@@ -122,10 +122,10 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
             display: "flex",
             alignItems: "center",
             gap: "2px",
-            background: "rgba(255, 255, 255, 0.08)",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            borderRadius: "9999px",
-            padding: "3px 4px",
+            background: "rgba(120, 120, 128, 0.16)",
+            borderRadius: "9px",
+            padding: "3px",
+            height: "32px",
           }}
         >
           {navCapsuleItems.map((item) => {
@@ -135,24 +135,26 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 title={item.label}
+                aria-label={item.label}
+                aria-pressed={isActive}
                 style={{
-                  width: "26px",
+                  width: "28px",
                   height: "26px",
-                  borderRadius: "50%",
+                  borderRadius: "7px",
                   border: "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: isActive ? "rgba(255, 255, 255, 0.22)" : "transparent",
-                  color: isActive ? "#ffffff" : "rgba(255, 255, 255, 0.45)",
+                  background: isActive ? "rgba(255, 255, 255, 0.18)" : "transparent",
+                  color: isActive ? "#f5f5f7" : "rgba(235, 235, 245, 0.52)",
                   cursor: "pointer",
-                  transition: "all 0.15s ease",
+                  transition: "background-color var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.color = "#ffffff";
+                  if (!isActive) e.currentTarget.style.color = "#f5f5f7";
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.color = "rgba(255, 255, 255, 0.45)";
+                  if (!isActive) e.currentTarget.style.color = "rgba(235, 235, 245, 0.52)";
                 }}
               >
                 {item.icon}
@@ -181,14 +183,14 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
                   width: "18px",
                   height: "18px",
                   borderRadius: "50%",
-                  border: "2px solid #10b981",
+                  border: "2px solid #30d158",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: "0 0 6px rgba(16, 185, 129, 0.4)",
+                  boxShadow: "0 0 6px rgba(48, 209, 88, 0.4)",
                 }}
               >
-                <Zap size={10} color="#10b981" fill={telemetry.isCharging ? "#10b981" : "transparent"} />
+                <Zap size={10} color="#30d158" fill={telemetry.isCharging ? "#30d158" : "transparent"} />
               </div>
             </div>
           )}
@@ -205,13 +207,13 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: isPinned ? "#0284c7" : "rgba(255, 255, 255, 0.08)",
+              background: isPinned ? "#0a84ff" : "rgba(255, 255, 255, 0.08)",
               color: "#ffffff",
               transition: "background 0.15s ease",
             }}
             title={isPinned ? "Pinned open (click to unpin)" : "Pin island open"}
           >
-            {isPinned ? <Pin size={13} /> : <PinOff size={13} />}
+            {isPinned ? <Pin size={14} strokeWidth={1.7} /> : <PinOff size={14} strokeWidth={1.7} />}
           </button>
 
           {/* Settings Button (Opens In-Island Settings Suite) */}
@@ -228,8 +230,8 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: activeTab === "settings" ? "rgba(56, 189, 248, 0.25)" : "rgba(255, 255, 255, 0.08)",
-              color: activeTab === "settings" ? "#38bdf8" : "#cbd5e1",
+              background: activeTab === "settings" ? "rgba(10, 132, 255, 0.25)" : "rgba(255, 255, 255, 0.08)",
+              color: activeTab === "settings" ? "#0a84ff" : "#cbd5e1",
               transition: "all 0.15s ease",
             }}
             title="JARVIS Settings & Customization"
@@ -246,7 +248,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               }
             }}
           >
-            <Settings size={13} />
+            <Settings size={14} strokeWidth={1.7} />
           </button>
 
           {/* Collapse / Dismiss Button */}
@@ -297,17 +299,17 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(239, 68, 68, 0.2)",
+              background: "rgba(255, 69, 58, 0.2)",
               color: "#f87171",
               transition: "all 0.15s ease",
             }}
             title="Exit JARVIS (Terminate Application Process)"
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.4)";
+              e.currentTarget.style.background = "rgba(255, 69, 58, 0.4)";
               e.currentTarget.style.color = "#ffffff";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+              e.currentTarget.style.background = "rgba(255, 69, 58, 0.2)";
               e.currentTarget.style.color = "#f87171";
             }}
           >
@@ -380,7 +382,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               height: "100%",
               borderRadius: "14px",
               overflow: "hidden",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              border: "0.5px solid rgba(255, 255, 255, 0.08)",
             }}
           >
             <SettingsView

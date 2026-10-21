@@ -126,7 +126,7 @@ export const BluetoothView: React.FC = () => {
       {/* ── Native Windows Bluetooth Pairing Section ── */}
       <div
         style={{
-          background: "rgba(255, 255, 255, 0.03)",
+          background: "rgba(255, 255, 255, 0.055)",
           borderRadius: "14px",
           padding: "14px 16px",
           border: "0.5px solid rgba(255, 255, 255, 0.08)",
@@ -147,7 +147,7 @@ export const BluetoothView: React.FC = () => {
               gap: "5px",
               background: "rgba(0, 122, 255, 0.15)",
               border: "0.5px solid rgba(0, 122, 255, 0.4)",
-              color: "#38bdf8",
+              color: "#0a84ff",
               borderRadius: "8px",
               padding: "4px 10px",
               fontSize: "11px",
@@ -168,7 +168,7 @@ export const BluetoothView: React.FC = () => {
       <div
         style={{
           flex: 1,
-          background: "rgba(255, 255, 255, 0.03)",
+          background: "rgba(255, 255, 255, 0.055)",
           borderRadius: "14px",
           padding: "12px 16px",
           border: "0.5px solid rgba(255, 255, 255, 0.08)",
@@ -228,14 +228,14 @@ export const BluetoothView: React.FC = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                background: "rgba(255, 255, 255, 0.04)",
+                background: "rgba(255, 255, 255, 0.055)",
                 padding: "8px 12px",
                 borderRadius: "10px",
                 border: "0.5px solid rgba(255, 255, 255, 0.06)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Smartphone size={15} color="#38bdf8" />
+                <Smartphone size={15} color="#0a84ff" />
                 <div>
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>
                     {dev.name}
@@ -246,8 +246,8 @@ export const BluetoothView: React.FC = () => {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <ShieldCheck size={13} color="#10b981" />
-                <span style={{ fontSize: "11px", fontWeight: 600, color: dev.status === "connected" ? "#10b981" : "rgba(255, 255, 255, 0.4)" }}>
+                <ShieldCheck size={13} color="#30d158" />
+                <span style={{ fontSize: "11px", fontWeight: 600, color: dev.status === "connected" ? "#30d158" : "rgba(255, 255, 255, 0.4)" }}>
                   {dev.status === "connected" ? "Connected" : "Saved"}
                 </span>
               </div>

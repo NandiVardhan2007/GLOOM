@@ -11,8 +11,8 @@ export const VolumeHUD: React.FC<VolumeHUDProps> = ({ volume, isMuted }) => {
 
   const getIcon = () => {
     if (isMuted || percent === 0) return <VolumeX size={16} color="#f87171" />;
-    if (percent < 50) return <Volume1 size={16} color="#38bdf8" />;
-    return <Volume2 size={16} color="#38bdf8" />;
+    if (percent < 50) return <Volume1 size={16} color="#0a84ff" />;
+    return <Volume2 size={16} color="#0a84ff" />;
   };
 
   return (
@@ -56,7 +56,7 @@ export const VolumeHUD: React.FC<VolumeHUDProps> = ({ volume, isMuted }) => {
             height: "100%",
             width: `${isMuted ? 0 : percent}%`,
             borderRadius: "3px",
-            background: "linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)",
+            background: "linear-gradient(90deg, #0a84ff 0%, #818cf8 100%)",
             transition: "width 0.12s ease-out",
           }}
         />

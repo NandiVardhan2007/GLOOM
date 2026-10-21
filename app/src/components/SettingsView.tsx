@@ -48,13 +48,13 @@ interface SettingsViewProps {
 }
 
 const ACCENT_COLORS = [
-  { id: "#00d2ff", name: "Cyan", hex: "#00d2ff" },
-  { id: "#38bdf8", name: "Sky", hex: "#38bdf8" },
-  { id: "#a855f7", name: "Purple", hex: "#a855f7" },
-  { id: "#10b981", name: "Emerald", hex: "#10b981" },
-  { id: "#f59e0b", name: "Amber", hex: "#f59e0b" },
-  { id: "#f43f5e", name: "Rose", hex: "#f43f5e" },
-  { id: "#ffffff", name: "White", hex: "#ffffff" },
+  { id: "#0a84ff", name: "Blue", hex: "#0a84ff" },
+  { id: "#64d2ff", name: "Cyan", hex: "#64d2ff" },
+  { id: "#bf5af2", name: "Purple", hex: "#bf5af2" },
+  { id: "#30d158", name: "Green", hex: "#30d158" },
+  { id: "#ff9f0a", name: "Orange", hex: "#ff9f0a" },
+  { id: "#ff375f", name: "Pink", hex: "#ff375f" },
+  { id: "#8e8e93", name: "Graphite", hex: "#8e8e93" },
 ];
 
 const parseVersionParts = (version: string): number[] =>
@@ -147,7 +147,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       pinMode: false,
       lockDrag: false,
       theme: "obsidian",
-      accentColor: "#00d2ff",
+      accentColor: "#0a84ff",
       bgColor: "#121214",
       idleColor: "#0a0a0c",
       cornerShape: "rounded",
@@ -305,10 +305,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* ── Left Sidebar ── */}
       <aside
         style={{
-          width: standalone ? "220px" : "150px",
+          width: standalone ? "224px" : "150px",
           flexShrink: 0,
-          backgroundColor: standalone ? "rgba(0, 0, 0, 0.25)" : "rgba(255, 255, 255, 0.03)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+          backgroundColor: standalone ? "rgba(0, 0, 0, 0.18)" : "rgba(255, 255, 255, 0.055)",
+          borderRight: standalone ? "0.5px solid rgba(255, 255, 255, 0.06)" : "none",
           display: "flex",
           flexDirection: "column",
           padding: standalone ? "16px 12px" : "8px 6px",
@@ -323,16 +323,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 alignItems: "center",
                 gap: "10px",
                 padding: "4px 8px 18px 8px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+                borderBottom: "0.5px solid rgba(255, 255, 255, 0.06)",
                 marginBottom: "12px",
               }}
             >
               <ChittiLogo size={30} />
               <div style={{ lineHeight: 1.2 }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#f5f5f7", letterSpacing: "-0.01em" }}>
                   JARVIS
                 </div>
-                <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)" }}>
+                <div style={{ fontSize: "11px", color: "rgba(235, 235, 245, 0.55)" }}>
                   Settings
                 </div>
               </div>
@@ -352,18 +352,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     alignItems: "center",
                     gap: "10px",
                     width: "100%",
-                    height: standalone ? "36px" : "28px",
+                    height: standalone ? "34px" : "28px",
                     padding: standalone ? "0 12px" : "0 8px",
-                    borderRadius: "8px",
+                    borderRadius: "7px",
                     border: "none",
                     cursor: "pointer",
                     fontSize: standalone ? "13px" : "11px",
                     fontWeight: isActive ? 600 : 500,
                     textAlign: "left",
-                    background: isActive ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                    color: isActive ? "#ffffff" : "rgba(255, 255, 255, 0.55)",
+                    background: isActive ? "rgba(255, 255, 255, 0.10)" : "transparent",
+                    color: isActive ? "#f5f5f7" : "rgba(235, 235, 245, 0.62)",
                     position: "relative",
-                    transition: "all 0.15s ease",
+                    transition: "background-color var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
                   }}
                   onMouseEnter={(e) => {
                     if (!isActive) e.currentTarget.style.color = "#ffffff";
@@ -382,7 +382,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         width: "3px",
                         height: "16px",
                         borderRadius: "2px",
-                        backgroundColor: config.accentColor || "#00d2ff",
+                        backgroundColor: config.accentColor || "#0a84ff",
                       }}
                     />
                   )}
@@ -412,8 +412,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 fontWeight: 600,
                 borderRadius: "6px",
                 border: "1px solid rgba(255, 255, 255, 0.15)",
-                background: "rgba(56, 189, 248, 0.1)",
-                color: "#38bdf8",
+                background: "rgba(10, 132, 255, 0.1)",
+                color: "#0a84ff",
                 cursor: "pointer",
               }}
               title="Open full massive settings in standalone window"
@@ -434,7 +434,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               }}
             >
               <span>v1.0.0</span>
-              <span style={{ color: "#10b981", fontWeight: 600 }}>Active</span>
+              <span style={{ color: "#30d158", fontWeight: 600 }}>Active</span>
             </div>
           )}
         </div>
@@ -459,7 +459,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            borderBottom: "0.5px solid rgba(255, 255, 255, 0.08)",
             flexShrink: 0,
           }}
         >
@@ -513,7 +513,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Display Style Group */}
               <SettingCard title="Display Style">
                 <SettingRow
-                  icon={<Sliders size={15} color="#38bdf8" />}
+                  icon={<Sliders size={15} color="#0a84ff" />}
                   title="Notch / Island Mode"
                   desc="An edge notch, a floating pill, or a full-width bar."
                 >
@@ -536,7 +536,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Clock size={15} color="#38bdf8" />}
+                  icon={<Clock size={15} color="#0a84ff" />}
                   title="Clock Format"
                   desc="Choose how time is formatted across headers and cards."
                 >
@@ -552,7 +552,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 {config.mode === "island" && (
                   <SettingRow
-                    icon={<Maximize2 size={15} color="#38bdf8" />}
+                    icon={<Maximize2 size={15} color="#0a84ff" />}
                     title="Distance from Screen Edge"
                     desc="Offset distance of the floating pill from the top bezel."
                   >
@@ -571,9 +571,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             topOffset: gap,
                           });
                         }}
-                        style={{ width: "110px", accentColor: config.accentColor || "#00d2ff" }}
+                        style={{ width: "110px", accentColor: config.accentColor || "#0a84ff" }}
                       />
-                      <span style={{ fontSize: "11px", fontWeight: 700, minWidth: "32px", color: "#38bdf8" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, minWidth: "32px", color: "#0a84ff" }}>
                         {config.pillEdgeGap ?? 12}px
                       </span>
                     </div>
@@ -581,7 +581,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
 
                 <SettingRow
-                  icon={<Maximize2 size={15} color="#38bdf8" />}
+                  icon={<Maximize2 size={15} color="#0a84ff" />}
                   title="Island Scale"
                   desc="Adjust overall sizing of the collapsed and expanded capsule."
                 >
@@ -593,16 +593,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       step={0.05}
                       value={config.islandScale ?? 1.0}
                       onChange={(e) => updateField("islandScale", parseFloat(e.target.value))}
-                      style={{ width: "110px", accentColor: config.accentColor || "#00d2ff" }}
+                      style={{ width: "110px", accentColor: config.accentColor || "#0a84ff" }}
                     />
-                    <span style={{ fontSize: "11px", fontWeight: 700, minWidth: "36px", color: "#38bdf8" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, minWidth: "36px", color: "#0a84ff" }}>
                       {Math.round((config.islandScale ?? 1.0) * 100)}%
                     </span>
                   </div>
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Monitor size={15} color="#38bdf8" />}
+                  icon={<Monitor size={15} color="#0a84ff" />}
                   title="Target Monitor"
                   desc="Choose which display the notch overlay centers on."
                 >
@@ -627,7 +627,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Behavior & Gestures Group */}
               <SettingCard title="Behavior & Gestures">
                 <SettingRow
-                  icon={<Check size={15} color="#10b981" />}
+                  icon={<Check size={15} color="#30d158" />}
                   title="Open at Sign-in"
                   desc="Launch JARVIS automatically when Windows starts."
                 >
@@ -639,7 +639,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Maximize2 size={15} color="#10b981" />}
+                  icon={<Maximize2 size={15} color="#30d158" />}
                   title="Expand on Hover"
                   desc="Automatically expand the notch when cursor hovers over it."
                 >
@@ -651,7 +651,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Shield size={15} color="#10b981" />}
+                  icon={<Shield size={15} color="#30d158" />}
                   title="Hide behind Maximised Windows"
                   desc="Step out of the way when games or applications fill the screen."
                 >
@@ -663,7 +663,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Pin size={15} color="#10b981" />}
+                  icon={<Pin size={15} color="#30d158" />}
                   title="Keep Open (Pin Mode)"
                   desc="Don't collapse the expanded notch when cursor leaves."
                 >
@@ -688,7 +688,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     {ACCENT_COLORS.map((col) => {
-                      const isSelected = (config.accentColor || "#00d2ff").toLowerCase() === col.hex.toLowerCase();
+                      const isSelected = (config.accentColor || "#0a84ff").toLowerCase() === col.hex.toLowerCase();
                       return (
                         <button
                           key={col.hex}
@@ -799,7 +799,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {activeTab === "widgets" && (
             <SettingCard title="Show in the Notch">
               <SettingRow
-                icon={<Music size={15} color="#38bdf8" />}
+                icon={<Music size={15} color="#0a84ff" />}
                 title="Now Playing"
                 desc="Artwork, track title, progress bar and playback controls."
               >
@@ -811,7 +811,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Activity size={15} color="#38bdf8" />}
+                icon={<Activity size={15} color="#0a84ff" />}
                 title="Music Lights Visualizer"
                 desc="Animated waveform frequency bars while music is playing."
               >
@@ -823,7 +823,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Volume2 size={15} color="#38bdf8" />}
+                icon={<Volume2 size={15} color="#0a84ff" />}
                 title="Volume Mixer"
                 desc="Master volume slider and quick audio mute controls."
               >
@@ -835,7 +835,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Bot size={15} color="#38bdf8" />}
+                icon={<Bot size={15} color="#0a84ff" />}
                 title="AI Coding Agents & Mascot"
                 desc="Working state, turn completions, and avatar companion."
               >
@@ -847,7 +847,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<ClipboardList size={15} color="#38bdf8" />}
+                icon={<ClipboardList size={15} color="#0a84ff" />}
                 title="Clipboard History & Shelf"
                 desc="Saved text snippets, links, and quick 1-click re-copy."
               >
@@ -859,7 +859,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Activity size={15} color="#38bdf8" />}
+                icon={<Activity size={15} color="#0a84ff" />}
                 title="System Telemetry"
                 desc="Live processor (CPU) and memory (RAM) usage bars."
               >
@@ -871,7 +871,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Wifi size={15} color="#38bdf8" />}
+                icon={<Wifi size={15} color="#0a84ff" />}
                 title="Network Speed Monitor"
                 desc="Real-time download and upload transfer rates."
               >
@@ -883,7 +883,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<CloudSun size={15} color="#38bdf8" />}
+                icon={<CloudSun size={15} color="#0a84ff" />}
                 title="Weather & Temperature"
                 desc="Current weather conditions badge in the header capsule."
               >
@@ -895,7 +895,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Coffee size={15} color="#38bdf8" />}
+                icon={<Coffee size={15} color="#0a84ff" />}
                 title="Focus Timer & Pomodoro"
                 desc="Work and break interval timer with task tracking."
               >
@@ -907,7 +907,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Volume2 size={15} color="#38bdf8" />}
+                icon={<Volume2 size={15} color="#0a84ff" />}
                 title="Volume HUD Overlay"
                 desc="Popup miniature island overlay when adjusting volume keys."
               >
@@ -977,8 +977,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     gap: "16px",
                     padding: "14px 16px",
                     borderRadius: "12px",
-                    background: "rgba(255, 255, 255, 0.04)",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    background: "rgba(255, 255, 255, 0.055)",
+                    border: "0.5px solid rgba(255, 255, 255, 0.08)",
                     marginBottom: "12px",
                   }}
                 >
@@ -994,17 +994,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <SettingRow
-                  icon={<Sparkles size={15} color="#38bdf8" />}
+                  icon={<Sparkles size={15} color="#0a84ff" />}
                   title="JARVIS Dynamic Notch"
                   desc="Pixel-perfect dynamic island & notch experience for Windows 10/11."
                 >
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#38bdf8" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#0a84ff" }}>
                     {currentVersion ? `Version ${currentVersion.replace(/^v/i, "")}` : "Version —"}
                   </span>
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Bot size={15} color="#38bdf8" />}
+                  icon={<Bot size={15} color="#0a84ff" />}
                   title="Developer & Architecture"
                   desc="Built with Tauri 2 + Rust + React 18 + TypeScript + Tailwind."
                 >
@@ -1014,7 +1014,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Download size={15} color="#38bdf8" />}
+                  icon={<Download size={15} color="#0a84ff" />}
                   title="Software Updates"
                   desc={updateStatus}
                 >
@@ -1028,8 +1028,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         fontWeight: 600,
                         borderRadius: "6px",
                         border: "none",
-                        background: "rgba(56, 189, 248, 0.2)",
-                        color: "#38bdf8",
+                        background: "rgba(10, 132, 255, 0.2)",
+                        color: "#0a84ff",
                         cursor: isCheckingUpdate ? "wait" : "pointer",
                       }}
                     >
@@ -1046,7 +1046,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             fontWeight: 600,
                             borderRadius: "6px",
                             border: "none",
-                            background: "#38bdf8",
+                            background: "#0a84ff",
                             color: "#000",
                             cursor: "pointer",
                             display: "flex",
@@ -1067,9 +1067,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             fontSize: "11px",
                             fontWeight: 600,
                             borderRadius: "6px",
-                            border: "1px solid rgba(56, 189, 248, 0.4)",
-                            background: "rgba(56, 189, 248, 0.12)",
-                            color: "#38bdf8",
+                            border: "1px solid rgba(10, 132, 255, 0.4)",
+                            background: "rgba(10, 132, 255, 0.12)",
+                            color: "#0a84ff",
                             cursor: isInstallingUpdate ? "wait" : "pointer",
                           }}
                         >
@@ -1087,9 +1087,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           fontSize: "11px",
                           fontWeight: 600,
                           borderRadius: "6px",
-                          border: "1px solid rgba(16, 185, 129, 0.4)",
-                          background: "rgba(16, 185, 129, 0.12)",
-                          color: "#10b981",
+                          border: "1px solid rgba(48, 209, 88, 0.4)",
+                          background: "rgba(48, 209, 88, 0.12)",
+                          color: "#30d158",
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
@@ -1104,7 +1104,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<ExternalLink size={15} color="#10b981" />}
+                  icon={<ExternalLink size={15} color="#30d158" />}
                   title="PowerShell Setup Installer"
                   desc="Run a single command in PowerShell to automatically install or update JARVIS Desktop"
                 >
@@ -1120,9 +1120,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       fontSize: "11px",
                       fontWeight: 600,
                       borderRadius: "6px",
-                      border: "1px solid rgba(16, 185, 129, 0.4)",
-                      background: "rgba(16, 185, 129, 0.15)",
-                      color: "#10b981",
+                      border: "1px solid rgba(48, 209, 88, 0.4)",
+                      background: "rgba(48, 209, 88, 0.15)",
+                      color: "#30d158",
                       cursor: "pointer",
                     }}
                   >
@@ -1197,10 +1197,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 const SettingCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div
     style={{
-      backgroundColor: "rgba(255, 255, 255, 0.04)",
-      border: "1px solid rgba(255, 255, 255, 0.08)",
-      borderRadius: "12px",
-      padding: "12px 14px",
+      backgroundColor: "rgba(255, 255, 255, 0.055)",
+      borderRadius: "14px",
+      padding: "14px 16px",
       display: "flex",
       flexDirection: "column",
       gap: "10px",
@@ -1208,11 +1207,10 @@ const SettingCard: React.FC<{ title: string; children: React.ReactNode }> = ({ t
   >
     <div
       style={{
-        fontSize: "11px",
-        fontWeight: 700,
-        color: "rgba(255, 255, 255, 0.45)",
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
+        fontSize: "12px",
+        fontWeight: 600,
+        color: "rgba(235, 235, 245, 0.62)",
+        letterSpacing: "0.005em",
       }}
     >
       {title}
@@ -1232,23 +1230,23 @@ const SettingRow: React.FC<{
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: "6px 0",
-      borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+      padding: "8px 0",
+      borderBottom: "0.5px solid rgba(255, 255, 255, 0.06)",
       gap: "12px",
     }}
   >
     <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", minWidth: 0 }}>
-      {icon && <div style={{ marginTop: "2px", flexShrink: 0 }}>{icon}</div>}
+      {icon && <div style={{ marginTop: "1px", flexShrink: 0, opacity: 0.9 }}>{icon}</div>}
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff", lineHeight: 1.2 }}>
+        <div style={{ fontSize: "13px", fontWeight: 500, color: "#f5f5f7", lineHeight: 1.3 }}>
           {title}
         </div>
         {desc && (
           <div
             style={{
-              fontSize: "10.5px",
-              color: "rgba(255, 255, 255, 0.45)",
-              lineHeight: 1.3,
+              fontSize: "11.5px",
+              color: "rgba(235, 235, 245, 0.6)",
+              lineHeight: 1.4,
               marginTop: "2px",
             }}
           >
@@ -1269,10 +1267,12 @@ const SegmentedControl: React.FC<{
   <div
     style={{
       display: "flex",
-      background: "rgba(255, 255, 255, 0.08)",
-      borderRadius: "8px",
+      background: "rgba(120, 120, 128, 0.16)",
+      borderRadius: "7px",
       padding: "2px",
       gap: "2px",
+      height: "26px",
+      alignItems: "center",
     }}
   >
     {options.map((opt) => {
@@ -1282,15 +1282,16 @@ const SegmentedControl: React.FC<{
           key={opt.id}
           onClick={() => onChange(opt.id)}
           style={{
-            padding: "4px 8px",
-            fontSize: "10.5px",
-            fontWeight: 600,
-            borderRadius: "6px",
+            padding: "0 9px",
+            height: "22px",
+            fontSize: "11.5px",
+            fontWeight: isSelected ? 600 : 500,
+            borderRadius: "5px",
             border: "none",
             cursor: "pointer",
-            background: isSelected ? "rgba(56, 189, 248, 0.25)" : "transparent",
-            color: isSelected ? "#38bdf8" : "rgba(255, 255, 255, 0.55)",
-            transition: "all 0.15s ease",
+            background: isSelected ? "rgba(255, 255, 255, 0.20)" : "transparent",
+            color: isSelected ? "#ffffff" : "rgba(235, 235, 245, 0.62)",
+            transition: "background-color var(--duration-quick) var(--ease-out)",
           }}
         >
           {opt.label}
@@ -1304,30 +1305,32 @@ const ToggleSwitch: React.FC<{
   checked: boolean;
   onChange: (checked: boolean) => void;
   accentColor?: string;
-}> = ({ checked, onChange, accentColor = "#00d2ff" }) => (
+}> = ({ checked, onChange, accentColor = "#30d158" }) => (
   <div
     onClick={() => onChange(!checked)}
+    role="switch"
+    aria-checked={checked}
     style={{
-      width: "36px",
-      height: "20px",
+      width: "38px",
+      height: "22px",
       borderRadius: "9999px",
-      backgroundColor: checked ? accentColor : "rgba(255, 255, 255, 0.15)",
+      backgroundColor: checked ? accentColor : "rgba(120, 120, 128, 0.32)",
       position: "relative",
       cursor: "pointer",
-      transition: "background-color 0.2s ease",
-      boxShadow: checked ? `0 0 8px ${accentColor}40` : "none",
+      transition: "background-color var(--duration-base) var(--ease-in-out)",
     }}
   >
     <div
       style={{
-        width: "16px",
-        height: "16px",
+        width: "18px",
+        height: "18px",
         borderRadius: "50%",
         backgroundColor: "#ffffff",
         position: "absolute",
         top: "2px",
         left: checked ? "18px" : "2px",
-        transition: "left 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.35)",
+        transition: "left var(--duration-base) var(--ease-out)",
       }}
     />
   </div>
@@ -1338,11 +1341,11 @@ const TipCard: React.FC<{ title: string; desc: string }> = ({ title, desc }) => 
     style={{
       padding: "10px",
       borderRadius: "8px",
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-      border: "1px solid rgba(255, 255, 255, 0.06)",
+      backgroundColor: "rgba(255, 255, 255, 0.055)",
+      border: "0.5px solid rgba(255, 255, 255, 0.06)",
     }}
   >
-    <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#38bdf8", marginBottom: "2px" }}>
+    <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#0a84ff", marginBottom: "2px" }}>
       {title}
     </div>
     <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.6)", lineHeight: 1.3 }}>

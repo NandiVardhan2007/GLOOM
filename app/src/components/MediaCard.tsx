@@ -8,9 +8,9 @@ import {
   Music,
   Volume2,
   Mic2,
-  Headphones,
 } from "lucide-react";
 import { Waveform } from "./Waveform";
+import { LyricsPanel } from "./LyricsPanel";
 
 interface MediaCardProps {
   media: MediaState;
@@ -32,6 +32,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   onSetVolume,
 }) => {
   const [showLyrics, setShowLyrics] = useState<boolean>(false);
+  const hasTrack = !!(media.title || media.artist);
 
   const formatTime = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
@@ -63,17 +64,6 @@ export const MediaCard: React.FC<MediaCardProps> = ({
     onSetVolume(parseFloat(e.target.value));
   };
 
-  // Truthful track info when lyrics are unavailable
-  const trackLyrics = media.title
-    ? [
-        media.title,
-        media.artist ? `by ${media.artist}` : "",
-        media.album ? `Album: ${media.album}` : "",
-        "",
-        "No synchronized lyrics available for this track.",
-      ].filter((l) => l !== "")
-    : ["No media track active.", "Play a song in Spotify, YouTube, or Apple Music."];
-
   return (
     <div
       style={{
@@ -86,206 +76,130 @@ export const MediaCard: React.FC<MediaCardProps> = ({
       }}
     >
       {showLyrics ? (
-        /* Lyrics Sheet View */
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            flex: 1,
-            height: "140px",
-            background: "#181820",
-            borderRadius: "14px",
-            padding: "10px 14px",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            overflowY: "auto",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              borderBottom: "1px solid #262632",
-              paddingBottom: "6px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: 800,
-                color: "#38bdf8",
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-              }}
-            >
-              Lyrics View
-            </span>
-            <button
-              onClick={() => setShowLyrics(false)}
-              style={{
-                background: "#262632",
-                border: "none",
-                color: "#ffffff",
-                padding: "3px 10px",
-                borderRadius: "6px",
-                fontSize: "11px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Back
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "4px",
-              paddingTop: "4px",
-            }}
-          >
-            {trackLyrics.map((line, idx) => (
-              <p
-                key={idx}
-                style={{
-                  margin: 0,
-                  fontSize: idx === 1 || idx === 9 ? "13px" : "12px",
-                  fontWeight: idx === 1 || idx === 9 ? 800 : 500,
-                  color:
-                    idx === 1 || idx === 9
-                      ? "#ffffff"
-                      : "#cbd5e1",
-                  lineHeight: "1.5",
-                  textShadow:
-                    idx === 1 || idx === 9
-                      ? "0 0 10px rgba(56, 189, 248, 0.5)"
-                      : "none",
-                }}
-              >
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
+        <LyricsPanel media={media} onBack={() => setShowLyrics(false)} compact />
       ) : (
         /* Standard Media Card View */
         <>
           {/* Top row: Artwork & Track Metadata */}
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-            {/* Album Artwork */}
-            <div
-              style={{
-                width: "56px",
-                height: "56px",
-                borderRadius: "14px",
-                overflow: "hidden",
-                background: "#1e1e28",
-                border: "1px solid rgba(255, 255, 255, 0.16)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                boxShadow: "0 8px 18px rgba(0, 0, 0, 0.4)",
-              }}
-            >
-              {media.thumbnail ? (
-                <img
-                  src={media.thumbnail}
-                  alt="Art"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <Music size={26} color="#818cf8" />
-              )}
-            </div>
-
-            {/* Title & Artist */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "3px",
-                flex: 1,
-                minWidth: 0,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: hasTrack ? undefined : 1 }}>
+            {hasTrack ? (
+              <>
+                <div
                   style={{
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    color: "#ffffff",
-                    whiteSpace: "nowrap",
+                    width: "56px",
+                    height: "56px",
+                    borderRadius: "12px",
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    letterSpacing: "-0.01em",
+                    background: "rgba(120, 120, 128, 0.18)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  {media.title || "No Media Playing"}
-                </span>
-                {media.playing && <Waveform isPlaying={true} />}
-              </div>
+                  {media.thumbnail ? (
+                    <img
+                      src={media.thumbnail}
+                      alt="Album art"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <Music size={24} strokeWidth={1.6} color="rgba(235, 235, 245, 0.55)" />
+                  )}
+                </div>
 
-              <span
-                style={{
-                  fontSize: "12px",
-                  color: "#cbd5e1",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {media.artist || "Launch Spotify, Apple Music, or Browser"}
-              </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "#f5f5f7",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      {media.title}
+                    </span>
+                    {media.playing && <Waveform isPlaying={true} />}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "rgba(235, 235, 245, 0.6)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {media.artist || media.album || "Unknown Artist"}
+                  </span>
+                </div>
 
+                <button
+                  onClick={() => setShowLyrics(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    height: "30px",
+                    padding: "0 11px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "rgba(120, 120, 128, 0.20)",
+                    color: "rgba(235, 235, 245, 0.9)",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                  title="View lyrics"
+                >
+                  <Mic2 size={13} strokeWidth={1.7} />
+                  <span>Lyrics</span>
+                </button>
+              </>
+            ) : (
               <div
                 style={{
+                  flex: 1,
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
+                  justifyContent: "center",
                   gap: "6px",
-                  marginTop: "2px",
+                  padding: "18px 0",
+                  textAlign: "center",
                 }}
               >
-                <Headphones size={12} color="#38bdf8" />
-                <span
+                <div
                   style={{
-                    fontSize: "11px",
-                    color: "#94a3b8",
-                    fontWeight: 500,
+                    width: "46px",
+                    height: "46px",
+                    borderRadius: "13px",
+                    background: "rgba(120, 120, 128, 0.16)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "2px",
                   }}
                 >
-                  Windows Audio Device
-                </span>
+                  <Music size={21} strokeWidth={1.6} color="rgba(235, 235, 245, 0.55)" />
+                </div>
+                <div style={{ fontSize: "15px", fontWeight: 600, color: "#f5f5f7" }}>
+                  Nothing Playing
+                </div>
+                <div style={{ fontSize: "12px", color: "rgba(235, 235, 245, 0.55)" }}>
+                  Start playback in Spotify, Apple Music, or a browser.
+                </div>
               </div>
-            </div>
-
-            {/* Lyrics toggle button */}
-            <button
-              onClick={() => setShowLyrics(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "6px 12px",
-                borderRadius: "10px",
-                border: "1px solid rgba(255, 255, 255, 0.14)",
-                background: "#1e1e28",
-                color: "#ffffff",
-                fontSize: "11px",
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-              title="View lyrics"
-            >
-              <Mic2 size={13} color="#38bdf8" />
-              <span>Lyrics</span>
-            </button>
+            )}
           </div>
 
           {/* Progress scrubber */}
+          {hasTrack && (
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             <div
               onClick={handleSeekClick}
@@ -304,7 +218,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                   height: "100%",
                   borderRadius: "3px",
                   background:
-                    "linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)",
+                    "#f5f5f7",
                 }}
               />
             </div>
@@ -321,13 +235,14 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               <span>{formatRemaining(media.positionMs, media.durationMs)}</span>
             </div>
           </div>
+          )}
         </>
       )}
 
       {/* Controls row */}
       <div
         style={{
-          display: "flex",
+          display: hasTrack ? "flex" : "none",
           alignItems: "center",
           justifyContent: "space-between",
           paddingTop: "2px",
@@ -395,7 +310,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
         {/* Volume slider */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Volume2 size={15} color="#38bdf8" />
+          <Volume2 size={15} color="#0a84ff" />
           <input
             type="range"
             min="0"
@@ -405,7 +320,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             onChange={handleVolumeChange}
             style={{
               width: "80px",
-              accentColor: "#38bdf8",
+              accentColor: "#0a84ff",
               cursor: "pointer",
               height: "4px",
             }}

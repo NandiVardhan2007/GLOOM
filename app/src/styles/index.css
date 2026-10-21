@@ -10,31 +10,76 @@ html, body, #root {
 }
 
 :root {
-  /* ── Cross-Platform Typography Tokens ── */
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: Consolas, "SF Mono", Menlo, Monaco, monospace;
+  /* ── Cross-Platform Typography Tokens (system face, per HIG) ── */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display", Roboto, sans-serif;
+  --font-mono: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
+
+  /* Type scale: 11 / 12 / 13 / 15 / 17 / 20 / 24 with size-specific tracking */
+  --type-caption: 11px;
+  --type-footnote: 12px;
+  --type-body: 13px;
+  --type-callout: 15px;
+  --type-headline: 17px;
+  --type-title3: 20px;
+  --type-title2: 24px;
+  --tracking-caption: 0.01em;
+  --tracking-body: -0.006em;
+  --tracking-headline: -0.014em;
+  --tracking-title: -0.02em;
+  --leading-tight: 1.22;
+  --leading-body: 1.46;
+
+  /* Spacing: 4pt base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Radii: nested, concentric */
+  --radius-chip: 6px;
+  --radius-control: 9px;
+  --radius-card: 14px;
+  --radius-panel: 22px;
+  --radius-pill: 999px;
+
+  /* Motion: springs expressed as easings */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-quick: 140ms;
+  --duration-base: 240ms;
+  --duration-slow: 380ms;
 
   /* ── Core Surface & Glass Tokens ── */
   --island-pitch-black: #000000;
-  --island-glass-bg: rgba(13, 14, 20, 0.94);
-  --island-glass-opaque: #0d0e14;
-  --island-border: rgba(255, 255, 255, 0.14);
-  --island-border-specular: rgba(255, 255, 255, 0.28);
-  --island-divider: rgba(255, 255, 255, 0.08);
+  --island-material-base: #1c1c1e;
+  --island-material-raised: #2c2c2e;
+  --island-material-sunken: #141416;
+  --island-glass-bg: rgba(28, 28, 30, 0.965);
+  --island-glass-opaque: #1c1c1e;
+  --island-glass-strong: rgba(20, 20, 22, 0.985);
+  --island-border: rgba(255, 255, 255, 0.10);
+  --island-border-specular: rgba(255, 255, 255, 0.20);
+  --island-divider: rgba(255, 255, 255, 0.07);
 
-  /* ── Semantic Text Hierarchy ── */
-  --island-text-primary: #ffffff;
-  --island-text-secondary: rgba(255, 255, 255, 0.72);
-  --island-text-tertiary: rgba(255, 255, 255, 0.45);
+  /* ── Semantic Text Hierarchy (≥4.5:1 on the material) ── */
+  --island-text-primary: #f5f5f7;
+  --island-text-secondary: rgba(235, 235, 245, 0.72);
+  --island-text-tertiary: rgba(235, 235, 245, 0.52);
 
-  /* ── Dynamic Island Accent Tokens ── */
-  --island-accent-blue: #007aff;
-  --island-accent-cyan: #32ade6;
-  --island-accent-green: #34c759;
-  --island-accent-orange: #ff9500;
-  --island-accent-purple: #af52de;
-  --island-accent-red: #ff3b30;
-  --island-focus-ring: #007aff;
+  /* ── Semantic Colors: system palette ── */
+  --island-accent-blue: #0a84ff;
+  --island-accent-cyan: #64d2ff;
+  --island-accent-green: #30d158;
+  --island-accent-orange: #ff9f0a;
+  --island-accent-purple: #bf5af2;
+  --island-accent-red: #ff453a;
+  --island-fill-secondary: rgba(120, 120, 128, 0.20);
+  --island-fill-tertiary: rgba(120, 120, 128, 0.12);
+  --island-focus-ring: #0a84ff;
 
   /* ── Backward Compatibility Aliases ── */
   --apple-pitch-black: var(--island-pitch-black);

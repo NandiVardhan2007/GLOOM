@@ -94,13 +94,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ── Left Card: Media Player ── */}
       <div
         style={{
-          background: "rgba(255, 255, 255, 0.04)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "rgba(255, 255, 255, 0.055)",
           borderRadius: "16px",
           padding: "14px 16px",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "space-between",
+          justifyContent: hasTrack ? "space-between" : "center",
           boxSizing: "border-box",
         }}
       >
@@ -136,20 +135,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span
               style={{
                 fontSize: "15px",
-                fontWeight: 700,
-                color: "#ffffff",
+                fontWeight: 600,
+                color: "#f5f5f7",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 letterSpacing: "-0.01em",
               }}
             >
-              {hasTrack ? media.title : "Not playing"}
+              {hasTrack ? media.title : "Nothing Playing"}
             </span>
             <span
               style={{
                 fontSize: "12px",
-                color: "rgba(255, 255, 255, 0.55)",
+                color: "rgba(235, 235, 245, 0.58)",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -158,12 +157,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             >
               {hasTrack
                 ? media.artist || media.album || "Unknown Artist"
-                : "Play something to see it here"}
+                : "Start playback in Spotify, Apple Music, or a browser."}
             </span>
           </div>
         </div>
 
         {/* Progress Scrubber */}
+        {hasTrack && (
         <div style={{ display: "flex", flexDirection: "column", gap: "5px", margin: "6px 0" }}>
           <div
             onClick={handleSeek}
@@ -216,11 +216,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>{media.durationMs > 0 ? formatTime(media.durationMs) : "--:--"}</span>
           </div>
         </div>
+        )}
 
         {/* Playback Controls */}
         <div
           style={{
-            display: "flex",
+            display: hasTrack ? "flex" : "none",
             alignItems: "center",
             justifyContent: "center",
             gap: "28px",
@@ -312,8 +313,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: "rgba(255, 255, 255, 0.04)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "rgba(255, 255, 255, 0.055)",
+            border: "0.5px solid rgba(255, 255, 255, 0.08)",
             borderRadius: "14px",
             padding: "8px 12px",
             cursor: "pointer",
@@ -321,7 +322,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             transition: "background 0.15s ease",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.055)")}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Coffee size={15} color="#fbbf24" />
@@ -349,8 +350,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div
           onClick={() => onSelectTab("system")}
           style={{
-            background: "rgba(255, 255, 255, 0.04)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "rgba(255, 255, 255, 0.055)",
+            border: "0.5px solid rgba(255, 255, 255, 0.08)",
             borderRadius: "14px",
             padding: "9px 12px",
             display: "flex",
@@ -386,7 +387,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   width: `${Math.round(telemetry.cpuPercent)}%`,
                   height: "100%",
                   borderRadius: "3px",
-                  background: "linear-gradient(90deg, #f59e0b, #f97316)",
+                  background: "linear-gradient(90deg, #ff9f0a, #f97316)",
                   transition: "width 0.4s ease",
                 }}
               />
@@ -431,7 +432,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   width: `${ramPercent}%`,
                   height: "100%",
                   borderRadius: "3px",
-                  background: "linear-gradient(90deg, #f59e0b, #f97316)",
+                  background: "linear-gradient(90deg, #ff9f0a, #f97316)",
                   transition: "width 0.4s ease",
                 }}
               />
@@ -500,8 +501,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             onClick={() => handleToolAction("calc")}
             style={{
-              background: "rgba(255, 255, 255, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "rgba(255, 255, 255, 0.055)",
+              border: "0.5px solid rgba(255, 255, 255, 0.08)",
               borderRadius: "12px",
               padding: "7px 0",
               display: "flex",
@@ -517,7 +518,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               e.currentTarget.style.color = "#ffffff";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.055)";
               e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
             }}
           >
@@ -527,8 +528,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             onClick={() => handleToolAction("snip")}
             style={{
-              background: "rgba(255, 255, 255, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "rgba(255, 255, 255, 0.055)",
+              border: "0.5px solid rgba(255, 255, 255, 0.08)",
               borderRadius: "12px",
               padding: "7px 0",
               display: "flex",
@@ -544,7 +545,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               e.currentTarget.style.color = "#ffffff";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.055)";
               e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
             }}
           >
@@ -554,8 +555,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             onClick={() => handleToolAction("taskmgr")}
             style={{
-              background: "rgba(255, 255, 255, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "rgba(255, 255, 255, 0.055)",
+              border: "0.5px solid rgba(255, 255, 255, 0.08)",
               borderRadius: "12px",
               padding: "7px 0",
               display: "flex",
@@ -571,7 +572,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               e.currentTarget.style.color = "#ffffff";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.055)";
               e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
             }}
           >

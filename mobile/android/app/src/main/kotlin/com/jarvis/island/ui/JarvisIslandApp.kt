@@ -109,8 +109,8 @@ fun JarvisIslandApp(
         tween<androidx.compose.ui.unit.Dp>(durationMillis = 90, easing = FastOutSlowInEasing)
     } else {
         spring<androidx.compose.ui.unit.Dp>(
-            dampingRatio = 0.68f, // Subtle organic bounce
-            stiffness = 360f      // Ultra-fluid responsiveness
+            dampingRatio = 0.9f, // Near-critical: settles cleanly, no visible bounce
+            stiffness = 320f
         )
     }
 
@@ -135,7 +135,7 @@ fun JarvisIslandApp(
 
     val targetHeight by animateDpAsState(
         targetValue = if (isExpanded) {
-            if (isMediaActive) 250.dp else settings.expandedHeight.dp
+            if (isMediaActive) 250.dp else settings.expandedHeight.dp.coerceIn(176.dp, 220.dp)
         } else {
             settings.pillHeight.dp
         },
@@ -196,10 +196,10 @@ fun JarvisIslandApp(
                         }
                     }
                     .shadow(
-                        elevation = if (isExpanded) 24.dp else 8.dp,
+                        elevation = if (isExpanded) 16.dp else 6.dp,
                         shape = RoundedCornerShape(targetCorner),
                         ambientColor = Color(0xFF000000),
-                        spotColor = Color(0x33000000)
+                        spotColor = Color(0x40000000)
                     )
                     .border(
                         width = if (settings.showBorders) 0.5.dp else 0.dp,
@@ -316,13 +316,13 @@ fun JarvisIslandApp(
                                     Icon(
                                         imageVector = Icons.Rounded.BatteryChargingFull,
                                         contentDescription = "Charging",
-                                        tint = Color(0xFF34C759),
+                                        tint = Color(0xFF30D158),
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = "CHARGING",
-                                        color = Color(0xFF34C759),
+                                        color = Color(0xFF30D158),
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -377,7 +377,7 @@ fun JarvisIslandApp(
                                     // Battery percentage shown ONLY when actively charging!
                                     Text(
                                         text = "$batteryLevel%",
-                                        color = Color(0xFF34C759),
+                                        color = Color(0xFF30D158),
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.SansSerif
@@ -539,7 +539,7 @@ private fun AppleAirDropCard(
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
                     .background(
-                        Brush.horizontalGradient(listOf(Color.White, Color(0xFF34C759)))
+                        Brush.horizontalGradient(listOf(Color.White, Color(0xFF30D158)))
                     )
             )
         }
@@ -555,7 +555,7 @@ private fun AppleAirDropCard(
             )
             Text(
                 text = if (transfer.progress >= 1f) "Transfer Complete" else "${(transfer.progress * 100).toInt()}% • 5G Direct",
-                color = Color(0xFF34C759),
+                color = Color(0xFF30D158),
                 fontSize = 9.5.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -598,9 +598,8 @@ private fun AppleContinuityCard(
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x18FFFFFF))
-                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape),
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0x18FFFFFF)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -611,27 +610,16 @@ private fun AppleContinuityCard(
                     )
                 }
                 Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Text(
-                            text = if (device.isConnected) "JARVIS Ecosystem" else "JARVIS Standby",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(if (device.isConnected) Color(0xFF34C759) else Color(0x66FFFFFF))
-                        )
-                    }
+                    Text(
+                        text = if (device.isConnected) "JARVIS Ecosystem" else "JARVIS Standby",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     Text(
                         text = if (device.isConnected) "Live Continuity Active" else "Ready to Connect",
                         color = Color(0x99FFFFFF),
-                        fontSize = 9.5.sp
+                        fontSize = 11.5.sp
                     )
                 }
             }
@@ -675,7 +663,7 @@ private fun AppleContinuityCard(
                     Icon(
                         imageVector = Icons.Rounded.BatteryChargingFull,
                         contentDescription = "Battery",
-                        tint = Color(0xFF34C759),
+                        tint = Color(0xFF30D158),
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
@@ -687,7 +675,7 @@ private fun AppleContinuityCard(
                 }
                 Text(
                     text = "Active",
-                    color = Color(0xFF34C759),
+                    color = Color(0xFF30D158),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -697,9 +685,8 @@ private fun AppleContinuityCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0x12FFFFFF))
-                    .border(0.5.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x10FFFFFF))
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -712,20 +699,20 @@ private fun AppleContinuityCard(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(if (device.isConnected) Color(0xFF34C759) else Color(0x44FFFFFF))
+                            .background(if (device.isConnected) Color(0xFF30D158) else Color(0x44FFFFFF))
                     )
                     Text(
                         text = if (device.isConnected) "High-Speed LAN Link" else "Local Wireless Standby",
                         color = Color(0xCCFFFFFF),
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
                 Text(
                     text = if (device.isConnected) "Synced" else "Ready",
-                    color = if (device.isConnected) Color(0xFF34C759) else Color(0x88FFFFFF),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
+                    color = if (device.isConnected) Color(0xFF30D158) else Color(0x88FFFFFF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -739,11 +726,10 @@ private fun AppleContinuityCard(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x22FFFFFF))
-                    .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x1AFFFFFF))
                     .clickable(onClick = onBeamFile)
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -759,7 +745,7 @@ private fun AppleContinuityCard(
                     Text(
                         text = "Beam to PC",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -769,11 +755,10 @@ private fun AppleContinuityCard(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x18FFFFFF))
-                    .border(0.5.dp, Color(0x28FFFFFF), RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x1AFFFFFF))
                     .clickable(onClick = onSyncClipboard)
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -788,8 +773,8 @@ private fun AppleContinuityCard(
                     )
                     Text(
                         text = "Sync Clip",
-                        color = Color(0xCCFFFFFF),
-                        fontSize = 11.sp,
+                        color = Color(0xE6FFFFFF),
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -799,11 +784,10 @@ private fun AppleContinuityCard(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x18FFFFFF))
-                    .border(0.5.dp, Color(0x28FFFFFF), RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x1AFFFFFF))
                     .clickable(onClick = onOpenTrackpad)
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -813,13 +797,13 @@ private fun AppleContinuityCard(
                     Icon(
                         imageVector = Icons.Rounded.Mouse,
                         contentDescription = "Mouse",
-                        tint = Color(0xFF38BDF8),
+                        tint = Color(0xE6FFFFFF),
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
                         text = "Mousepad",
-                        color = Color(0xFF38BDF8),
-                        fontSize = 11.sp,
+                        color = Color.White,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

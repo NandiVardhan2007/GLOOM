@@ -110,12 +110,12 @@ fun RemoteTrackpad(
                             modifier = Modifier
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .background(if (isConnected) Color(0xFF22C55E) else Color(0xFFEF4444))
+                                .background(if (isConnected) Color(0xFF30D158) else Color(0xFFFF453A))
                         )
                     }
                     Text(
                         text = if (isConnected) "Connected • ${bridgeClient?.desktopIp ?: "Desktop"}" else "Connecting to PC...",
-                        color = Color(0xFF94A3B8),
+                        color = Color(0xFF8E8E93),
                         fontSize = 11.5.sp
                     )
                 }
@@ -134,7 +134,7 @@ fun RemoteTrackpad(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(7.dp))
-                            .background(if (isSelected) Color(0xFF38BDF8) else Color.Transparent)
+                            .background(if (isSelected) Color(0xFF0A84FF) else Color.Transparent)
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 sensitivity = speed
@@ -144,7 +144,7 @@ fun RemoteTrackpad(
                     ) {
                         Text(
                             text = label,
-                            color = if (isSelected) Color.Black else Color(0xFF94A3B8),
+                            color = if (isSelected) Color.Black else Color(0xFF8E8E93),
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -329,7 +329,7 @@ fun RemoteTrackpad(
             ) {
                 Text(
                     text = "Middle",
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF8E8E93),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )

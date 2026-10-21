@@ -70,7 +70,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <Cpu size={15} color="#38bdf8" />
+            <Cpu size={15} color="#0a84ff" />
             <span
               style={{
                 fontSize: "12px",
@@ -83,7 +83,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           </div>
           <span
             className="tabular-nums"
-            style={{ fontSize: "13px", fontWeight: 800, color: "#38bdf8" }}
+            style={{ fontSize: "13px", fontWeight: 800, color: "#0a84ff" }}
           >
             {Math.round(telemetry.cpuPercent)}%
           </span>
@@ -102,7 +102,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
               width: `${Math.min(100, Math.max(0, telemetry.cpuPercent))}%`,
               height: "100%",
               borderRadius: "3px",
-              background: telemetry.cpuPercent > 80 ? "#f87171" : "#38bdf8",
+              background: telemetry.cpuPercent > 80 ? "#f87171" : "#0a84ff",
               transition: "width 0.3s ease",
             }}
           />
