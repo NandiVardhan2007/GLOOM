@@ -1197,9 +1197,9 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                             .offset(x = positionX.dp)
                             .width((settings.pillWidth * 0.8f).dp)
                             .height((settings.pillHeight * 0.8f).dp)
-                            .clip(RoundedCornerShape((settings.cornerRadius * 0.8f).dp))
+                            .clip(RoundedCornerShape((settings.pillHeight * 0.8f / 2).dp))
                             .background(Color.Black.copy(alpha = 0.85f))
-                            .border(1.dp, Color(0xFF0A84FF).copy(alpha = 0.5f), RoundedCornerShape((settings.cornerRadius * 0.8f).dp))
+                            .border(1.dp, Color(0xFF0A84FF).copy(alpha = 0.5f), RoundedCornerShape((settings.pillHeight * 0.8f / 2).dp))
                             .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1210,7 +1210,7 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-                Text(text = "Clearance creates an empty dead-zone right over your center camera hole.", color = Color(0xFF636366), fontSize = 10.5.sp)
+                Text(text = "The camera band mirrors Apple's 125 dp TrueDepth gap; content lives in the 52 dp wings on either side.", color = Color(0xFF636366), fontSize = 10.5.sp)
             }
         }
 
@@ -1244,10 +1244,10 @@ fun PositionSettingsScreen(onBack: () -> Unit) {
                 }
 
                 SliderRow(
-                    label = "Punch-Hole Clearance Gap",
+                    label = "Camera Band (TrueDepth Gap)",
                     value = cutoutClearance.toFloat(),
                     valueText = "${cutoutClearance} dp",
-                    range = 20f..80f,
+                    range = 40f..160f,
                     onReset = {
                         cutoutClearance = JarvisIslandSettings.DEFAULT_CUTOUT_CLEARANCE
                         settings.cutoutClearance = cutoutClearance
@@ -1310,7 +1310,6 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
     var pillHeight by remember { mutableIntStateOf(settings.pillHeight) }
     var expandedWidth by remember { mutableIntStateOf(settings.expandedWidth) }
     var expandedHeight by remember { mutableIntStateOf(settings.expandedHeight) }
-    var cornerRadius by remember { mutableIntStateOf(settings.cornerRadius) }
     var expandedCornerRadius by remember { mutableIntStateOf(settings.expandedCornerRadius) }
 
     Column(
@@ -1332,7 +1331,6 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                 pillHeight = settings.pillHeight
                 expandedWidth = settings.expandedWidth
                 expandedHeight = settings.expandedHeight
-                cornerRadius = settings.cornerRadius
                 expandedCornerRadius = settings.expandedCornerRadius
             }
         )
@@ -1347,7 +1345,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Collapsed Pill Width",
                     value = pillWidth.toFloat(),
                     valueText = "${pillWidth} dp",
-                    range = 140f..260f,
+                    range = 140f..320f,
                     onReset = {
                         pillWidth = JarvisIslandSettings.DEFAULT_PILL_WIDTH
                         settings.pillWidth = pillWidth
@@ -1381,7 +1379,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Card Width",
                     value = expandedWidth.toFloat(),
                     valueText = "${expandedWidth} dp",
-                    range = 300f..400f,
+                    range = 300f..420f,
                     onReset = {
                         expandedWidth = JarvisIslandSettings.DEFAULT_EXPANDED_WIDTH
                         settings.expandedWidth = expandedWidth
@@ -1398,7 +1396,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Card Height",
                     value = expandedHeight.toFloat(),
                     valueText = "${expandedHeight} dp",
-                    range = 200f..340f,
+                    range = 160f..220f,
                     onReset = {
                         expandedHeight = JarvisIslandSettings.DEFAULT_EXPANDED_HEIGHT
                         settings.expandedHeight = expandedHeight
@@ -1412,27 +1410,10 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                 )
 
                 SliderRow(
-                    label = "Collapsed Corner Radius",
-                    value = cornerRadius.toFloat(),
-                    valueText = "${cornerRadius} dp",
-                    range = 10f..30f,
-                    onReset = {
-                        cornerRadius = JarvisIslandSettings.DEFAULT_CORNER_RADIUS
-                        settings.cornerRadius = cornerRadius
-                        settings.save(context)
-                    },
-                    onValueChange = {
-                        cornerRadius = it.toInt()
-                        settings.cornerRadius = cornerRadius
-                        settings.save(context)
-                    }
-                )
-
-                SliderRow(
                     label = "Expanded Corner Radius",
                     value = expandedCornerRadius.toFloat(),
                     valueText = "${expandedCornerRadius} dp",
-                    range = 18f..36f,
+                    range = 30f..56f,
                     onReset = {
                         expandedCornerRadius = JarvisIslandSettings.DEFAULT_EXPANDED_CORNER_RADIUS
                         settings.expandedCornerRadius = expandedCornerRadius

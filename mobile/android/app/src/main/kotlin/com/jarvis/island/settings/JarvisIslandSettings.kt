@@ -27,19 +27,19 @@ class JarvisIslandSettings {
         const val ACTION_MEDIA_NEXT = "com.jarvis.island.ACTION_MEDIA_NEXT"
         const val ACTION_MEDIA_PREV = "com.jarvis.island.ACTION_MEDIA_PREV"
 
-        // Motorola Edge 50 Pro Calibrated Hardware Specifications:
-        // Screen: 1220 x 2712 px, 446 PPI (~2.79 dp density), 144 Hz
-        // Punch hole: Center at X=610 px, Y=52 px (~18.6 dp from top), Diameter=48-52 px (~18 dp)
+        // Apple Live Activity geometry (HIG, iOS 393 x 852 class):
+        // rest 126 x 37, compact 230 x 37 (camera band 125.34),
+        // expanded 371 x 160 with 44 dp corners.
         const val DEFAULT_GRAVITY = "Center"
-        const val DEFAULT_POSITION_Y = 2  // User requirement: 2px default top margin
-        const val DEFAULT_POSITION_X = 0  // Dead-center at 610 px
-        const val DEFAULT_CUTOUT_CLEARANCE = 32 // 48-52 px physical hole + 7 dp safe margin each side
-        const val DEFAULT_PILL_WIDTH = 184 // Optimal wingspan across 437 dp screen
-        const val DEFAULT_PILL_HEIGHT = 38 // Completely envelops punch-hole from top 2 dp to 40 dp
-        const val DEFAULT_EXPANDED_WIDTH = 380
-        const val DEFAULT_EXPANDED_HEIGHT = 260
-        const val DEFAULT_CORNER_RADIUS = 19
-        const val DEFAULT_EXPANDED_CORNER_RADIUS = 32
+        const val DEFAULT_POSITION_Y = 2  // Hug the status bar
+        const val DEFAULT_POSITION_X = 0  // Dead-center
+        const val DEFAULT_CUTOUT_CLEARANCE = 125
+        const val DEFAULT_PILL_WIDTH = 230
+        const val DEFAULT_PILL_HEIGHT = 37
+        const val DEFAULT_EXPANDED_WIDTH = 371
+        const val DEFAULT_EXPANDED_HEIGHT = 160
+        const val DEFAULT_CORNER_RADIUS = 18
+        const val DEFAULT_EXPANDED_CORNER_RADIUS = 44
         const val DEFAULT_THEME = "Obsidian Black"
         const val DEFAULT_SHOW_BORDERS = true
         const val DEFAULT_BORDER_GLOW = true
@@ -96,6 +96,7 @@ class JarvisIslandSettings {
 
     fun load(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        migrateLegacyGeometry(prefs)
         isIslandEnabled = prefs.getBoolean("island_enabled", true)
         pluginMedia = prefs.getBoolean("plugin_media", true)
         pluginFileBeam = prefs.getBoolean("plugin_file_beam", true)
@@ -128,6 +129,35 @@ class JarvisIslandSettings {
         longPressToExpand = prefs.getBoolean("long_press_expand", DEFAULT_LONG_PRESS_EXPAND)
         reducedMotion = prefs.getBoolean("reduced_motion", DEFAULT_REDUCED_MOTION)
         highContrast = prefs.getBoolean("high_contrast", DEFAULT_HIGH_CONTRAST)
+    }
+
+    /**
+     * One-time move from the pre-Apple geometry (184 x 38 / 380 x 260 / 32 dp
+     * corners) to the HIG Live Activity dimensions. User-customized geometry
+     * is left alone.
+     */
+    private fun migrateLegacyGeometry(prefs: android.content.SharedPreferences) {
+        if (prefs.getBoolean("apple_island_v2", false)) return
+        val editor = prefs.edit()
+        val legacy = prefs.getInt("pill_width", -1) == 184 &&
+            prefs.getInt("pill_height", -1) == 38 &&
+            prefs.getInt("expanded_width", -1) == 380 &&
+            prefs.getInt("expanded_height", -1) == 260
+        if (legacy) {
+            editor
+                .putInt("pill_width", DEFAULT_PILL_WIDTH)
+                .putInt("pill_height", DEFAULT_PILL_HEIGHT)
+                .putInt("expanded_width", DEFAULT_EXPANDED_WIDTH)
+                .putInt("expanded_height", DEFAULT_EXPANDED_HEIGHT)
+                .putInt("corner_radius", DEFAULT_CORNER_RADIUS)
+                .putInt("expanded_corner_radius", DEFAULT_EXPANDED_CORNER_RADIUS)
+        }
+        // The camera band changed meaning from a 32 dp punch-hole pad to Apple's
+        // 125 dp TrueDepth band. Move the old default even if size was customized.
+        if (prefs.getInt("cutout_clearance", -1) == 32) {
+            editor.putInt("cutout_clearance", DEFAULT_CUTOUT_CLEARANCE)
+        }
+        editor.putBoolean("apple_island_v2", true).apply()
     }
 
     fun save(context: Context) {

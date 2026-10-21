@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { SystemTelemetry } from "../types";
+import { isTauriRuntime, safeListen } from "../lib/tauri";
 
 const DEFAULT_TELEMETRY: SystemTelemetry = {
   cpuPercent: 0,
@@ -12,10 +12,26 @@ const DEFAULT_TELEMETRY: SystemTelemetry = {
   hasBattery: false,
 };
 
+// Browser-only fixture so the island can be reviewed outside Tauri.
+const PREVIEW_TELEMETRY: SystemTelemetry = {
+  ...DEFAULT_TELEMETRY,
+  cpuPercent: 18,
+  ramUsedMb: 9420,
+  batteryPercent: 76,
+  isCharging: false,
+  hasBattery: true,
+  netDownloadKbps: 1200,
+  netUploadKbps: 320,
+};
+
 export function useSystemTelemetry() {
-  const [telemetry, setTelemetry] = useState<SystemTelemetry>(DEFAULT_TELEMETRY);
+  const [telemetry, setTelemetry] = useState<SystemTelemetry>(() =>
+    isTauriRuntime() ? DEFAULT_TELEMETRY : PREVIEW_TELEMETRY
+  );
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
+
     // 1. Immediate initial fetch from Rust backend
     invoke<SystemTelemetry>("jarvis_get_telemetry")
       .then((data) => {
@@ -27,7 +43,7 @@ export function useSystemTelemetry() {
 
     // 2. Real-time event listener
     let unlisten: (() => void) | undefined;
-    listen<SystemTelemetry>("jarvis://system-update", (event) => {
+    safeListen<SystemTelemetry>("jarvis://system-update", (event) => {
       if (event.payload) {
         setTelemetry(event.payload);
       }

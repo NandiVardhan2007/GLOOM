@@ -1,6 +1,7 @@
 import { useEffect, RefObject, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { HitRect } from "../types";
+import { isTauriRuntime } from "../lib/tauri";
 
 export function useHitTest(
   ref: RefObject<HTMLElement | null>,
@@ -11,6 +12,7 @@ export function useHitTest(
   const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     if (!isVisible || !ref.current) {
       invoke("jarvis_update_hit_rects", { rects: [] }).catch(console.error);
       lastRectsRef.current = [];

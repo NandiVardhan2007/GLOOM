@@ -11,9 +11,11 @@ html, body, #root {
 
 :root {
   /* ── Cross-Platform Typography Tokens (system face, per HIG) ── */
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display", Roboto, sans-serif;
-  --font-mono: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
+  /* SF Pro is used where the OS provides it; Windows renders Segoe UI
+     Variable with optical sizing. No Apple font files are bundled. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
 
   /* Type scale: 11 / 12 / 13 / 15 / 17 / 20 / 24 with size-specific tracking */
   --type-caption: 11px;
@@ -114,9 +116,17 @@ body {
   font-family: var(--font-sans);
   color: var(--island-text-primary);
   text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0;
+}
+
+/* Apple's continuous corners where the engine supports them (Chromium 139+).
+   Older engines keep the circular radius as a graceful fallback. */
+.island-continuous {
+  corner-shape: squircle;
 }
 
 /* ── Keyboard Focus Indicator ── */

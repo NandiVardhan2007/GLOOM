@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Island } from "./components/Island";
 import { SettingsWindow } from "./components/SettingsWindow";
 import { AppConfig } from "./types";
+import { isTauriRuntime, safeListen } from "./lib/tauri";
 import "./styles/index.css";
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -107,6 +107,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     // Fetch initial saved config from Rust backend
     invoke<AppConfig>("jarvis_get_config")
       .then((cfg) => {
@@ -118,7 +119,7 @@ export function App() {
 
     // Listen to tray "Toggle Mode" event
     let unlisten: (() => void) | undefined;
-    listen("jarvis://toggle-mode", () => {
+    safeListen("jarvis://toggle-mode", () => {
       setConfig((prev) => {
         const nextMode = prev.mode === "island" ? "notch" : "island";
         const updated: AppConfig = {
@@ -135,7 +136,7 @@ export function App() {
 
     // Listen to real-time config changes from Settings window
     let unlistenConfig: (() => void) | undefined;
-    listen<AppConfig>("jarvis://config-updated", (event) => {
+    safeListen<AppConfig>("jarvis://config-updated", (event) => {
       if (event.payload) {
         setConfig(event.payload);
       }

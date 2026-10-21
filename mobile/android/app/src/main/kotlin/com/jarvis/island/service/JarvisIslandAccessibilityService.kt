@@ -96,6 +96,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var collapseJob: Job? = null
+    private var windowResizeJob: Job? = null
     private var notificationJob: Job? = null
 
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -332,7 +333,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         cutoutMetrics = CutoutDetector.detectCutout(this, null)
 
         val initialHeight = if (isExpanded) {
-            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 20).toFloat())
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
@@ -446,7 +447,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private fun updateOverlayParameters() {
         layoutParams.flags = getOverlayFlags()
         layoutParams.height = if (isExpanded) {
-            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
@@ -459,7 +460,8 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
     private fun expandIsland() {
         isExpanded = true
-        layoutParams.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
+        windowResizeJob?.cancel()
+        layoutParams.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         layoutParams.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
             composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
@@ -470,12 +472,17 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
     private fun collapseIsland() {
         isExpanded = false
-        layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
-        layoutParams.flags = getOverlayFlags()
-        try {
-            composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        windowResizeJob?.cancel()
+        windowResizeJob = serviceScope.launch {
+            delay(380)
+            if (isExpanded) return@launch
+            layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
+            layoutParams.flags = getOverlayFlags()
+            try {
+                composeView?.let { windowManager.updateViewLayout(it, layoutParams) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

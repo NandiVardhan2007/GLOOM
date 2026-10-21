@@ -1,12 +1,13 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { ActiveTab, AppConfig, IslandState, TimerState } from "../types";
+import { isTauriRuntime, safeListen } from "../lib/tauri";
+import { ActiveTab, AppConfig, TimerState } from "../types";
 import { MOTION_PHYSICS } from "../motion/physics";
-import { CollapsedPill } from "./CollapsedPill";
-import { PeekGlance } from "./PeekGlance";
+import { ISLAND, clampScale, px } from "../design/island";
+import { CollapsedPill, CompactKind } from "./CollapsedPill";
+import { PeekGlance, ActivityKind, TransferActivity, NotificationActivity } from "./PeekGlance";
 import { VolumeHUD } from "./VolumeHUD";
 import { ExpandedPanel } from "./ExpandedPanel";
 import { ContextMenu } from "./ContextMenu";
@@ -21,34 +22,152 @@ interface IslandProps {
   onUpdateConfig: (cfg: AppConfig) => void;
 }
 
+interface BridgeTransferPayload {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  bytesTransferred: number;
+  isUpload: boolean;
+  progress: number;
+  status: "transferring" | "completed" | "failed";
+}
+
+type Phase = "closed" | "compact" | "peek" | "expanded";
+
 export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
-  const [islandState, setIslandState] = useState<IslandState>("closed");
+  const [phase, setPhase] = useState<Phase>("closed");
   const [isPinned, setIsPinned] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [activeTimer, setActiveTimer] = useState<TimerState | null>(null);
   const [isIslandDragOver, setIsIslandDragOver] = useState<boolean>(false);
   const [isForegroundFullscreen, setIsForegroundFullscreen] = useState<boolean>(false);
-  const [peekMessage, setPeekMessage] = useState<string | null>(null);
+  const [transfer, setTransfer] = useState<TransferActivity | null>(null);
+  const [notification] = useState<NotificationActivity | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const collapseTimerRef = useRef<number | null>(null);
-  const peekTimerRef = useRef<number | null>(null);
+  const transferClearRef = useRef<number | null>(null);
   const prevTrackRef = useRef<string>("");
 
   const { media, togglePlay, nextTrack, prevTrack, seek } = useMediaSession();
   const telemetry = useSystemTelemetry();
   const { volume, isMuted, showHUD, setVolume } = useVolumeHUD();
 
-  // Fullscreen suppression condition
   const isSuppressed = isForegroundFullscreen && config.avoidFullscreen;
+  const scale = clampScale(config.islandScale);
 
-  // Register interactive hit rects with Rust backend (disabled when suppressed)
   useHitTest(containerRef, !isSuppressed, contextMenuRef);
 
-  // Persistent Timer sync across tabs, collapse, and window state
+  const activityKind: ActivityKind | null = useMemo(() => {
+    if (notification) return "notification";
+    if (transfer && transfer.status !== "failed") return "transfer";
+    if (media.title || media.artist || media.playing) return "media";
+    if (activeTimer) return "timer";
+    return null;
+  }, [notification, transfer, media.title, media.artist, media.playing, activeTimer]);
+
+  const isCharging = !!(telemetry.hasBattery && telemetry.isCharging);
+  const hasActivity = activityKind !== null || isCharging;
+
+  const compactKind: CompactKind = (() => {
+    if (isIslandDragOver) return "drop";
+    if (notification) return "notification";
+    if (transfer && transfer.status !== "failed") return "transfer";
+    if (media.title || media.artist || media.playing) return "media";
+    if (activeTimer) return "timer";
+    if (isCharging) return "charging";
+    return "idle";
+  })();
+
+  // ── Geometry: Apple's Live Activity specifications ─────────────────────
+  const restW = px(ISLAND.rest.width, scale);
+  const compactW = px(ISLAND.compact.width, scale);
+  const compactH = px(ISLAND.compact.height, scale);
+  const capsuleRadius = compactH / 2;
+  const expandedRadius = px(ISLAND.expanded.radius, scale);
+
+  const hudActive =
+    showHUD && phase !== "expanded" && phase !== "peek" && !isSuppressed;
+
+  let targetWidth = restW;
+  let targetHeight = compactH;
+  let targetRadius = capsuleRadius;
+
+  if (phase === "expanded") {
+    if (activeTab === "settings") {
+      targetWidth = Math.max(config.expandedWidth, 880);
+      targetHeight = 560;
+    } else if (activeTab === "bridge") {
+      targetWidth = 700;
+      targetHeight = 500;
+    } else if (activeTab === "dashboard") {
+      targetWidth = 660;
+      targetHeight = 400;
+    } else if (activeTab === "media") {
+      targetWidth = 620;
+      targetHeight = 380;
+    } else if (activeTab === "network") {
+      targetWidth = 600;
+      targetHeight = 380;
+    } else if (activeTab === "controls") {
+      targetWidth = 580;
+      targetHeight = 380;
+    } else if (activeTab === "notes") {
+      targetWidth = 600;
+      targetHeight = 400;
+    } else if (activeTab === "clipboard") {
+      targetWidth = 600;
+      targetHeight = 400;
+    } else if (activeTab === "bluetooth") {
+      targetWidth = 580;
+      targetHeight = 380;
+    } else if (activeTab === "timer") {
+      targetWidth = 520;
+      targetHeight = 360;
+    } else {
+      targetWidth = Math.max(config.expandedWidth, 640);
+      targetHeight = Math.max(config.expandedHeight, 400);
+    }
+    targetRadius = expandedRadius;
+  } else if (phase === "peek") {
+    targetWidth = px(ISLAND.expanded.width, scale);
+    // HIG: the expanded presentation is 84–160 tall. Shorter activities use
+    // less height so the card hugs its content.
+    targetHeight = px(activityKind === "transfer" ? 132 : ISLAND.expanded.height, scale);
+    targetRadius = expandedRadius;
+  } else if (hudActive) {
+    targetWidth = px(180, scale);
+    targetHeight = compactH;
+    targetRadius = capsuleRadius;
+  } else if (phase === "compact") {
+    targetWidth = compactW;
+    targetHeight = compactH;
+    targetRadius = capsuleRadius;
+  }
+
+  if (isSuppressed) {
+    targetHeight = 0;
+    targetRadius = 0;
+  }
+
+  const topOffset = config.mode === "notch" ? 0 : config.topOffset;
+  const borderRadius =
+    config.mode === "notch"
+      ? `0 0 ${targetRadius}px ${targetRadius}px`
+      : targetRadius;
+
+  const motionTransition = config.reducedMotion
+    ? MOTION_PHYSICS.reducedMotion
+    : phase === "expanded" || phase === "peek"
+    ? MOTION_PHYSICS.expand
+    : phase === "compact"
+    ? MOTION_PHYSICS.morph
+    : MOTION_PHYSICS.collapse;
+
+  // ── Lifecycle subscriptions ────────────────────────────────────────────
   useEffect(() => {
     return subscribeTimer((data) => {
       if (
@@ -64,10 +183,9 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     });
   }, []);
 
-  // Listen to background fullscreen change events
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    listen<boolean>("jarvis://fullscreen-changed", (event) => {
+    safeListen<boolean>("jarvis://fullscreen-changed", (event) => {
       setIsForegroundFullscreen(event.payload);
     })
       .then((fn) => {
@@ -80,21 +198,30 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     };
   }, []);
 
-  // Listen to bridge transfers for peek alerts
+  // Bridge transfers drive the transfer Live Activity.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    listen<any[]>("jarvis://bridge-transfers", (event) => {
-      const transfers = event.payload;
-      if (transfers && transfers.length > 0 && islandState === "closed" && !isSuppressed) {
-        const latest = transfers[0];
-        if (!latest) return;
-        setPeekMessage(`${latest.fileName} (${latest.status})`);
-        setIslandState("peek");
-        if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
-        peekTimerRef.current = window.setTimeout(() => {
-          setIslandState("closed");
-          setPeekMessage(null);
-        }, 3000);
+    safeListen<BridgeTransferPayload[]>("jarvis://bridge-transfers", (event) => {
+      const list = event.payload;
+      if (!list || list.length === 0) return;
+      const latest = list[0];
+      if (!latest) return;
+
+      const next: TransferActivity = {
+        fileName: latest.fileName,
+        fileSizeMb: latest.fileSize / (1024 * 1024),
+        progress: Math.min(1, Math.max(0, latest.progress ?? 0)),
+        speedMbps: latest.status === "completed" ? "Complete" : "LAN Direct",
+        isUpload: latest.isUpload,
+        status: latest.status,
+      };
+      setTransfer(next);
+
+      if (transferClearRef.current) window.clearTimeout(transferClearRef.current);
+      if (latest.status === "completed") {
+        transferClearRef.current = window.setTimeout(() => setTransfer(null), 3200);
+      } else if (latest.status === "failed") {
+        transferClearRef.current = window.setTimeout(() => setTransfer(null), 3600);
       }
     })
       .then((fn) => {
@@ -104,33 +231,16 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
 
     return () => {
       if (unlisten) unlisten();
+      if (transferClearRef.current) window.clearTimeout(transferClearRef.current);
     };
-  }, [islandState, isSuppressed]);
+  }, []);
 
-  // Track changes trigger a transient peek glance if closed
-  useEffect(() => {
-    if (
-      media.title &&
-      prevTrackRef.current &&
-      media.title !== prevTrackRef.current &&
-      islandState === "closed" &&
-      !isSuppressed
-    ) {
-      setIslandState("peek");
-      if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
-      peekTimerRef.current = window.setTimeout(() => {
-        setIslandState("closed");
-      }, 2600);
-    }
-    prevTrackRef.current = media.title;
-  }, [media.title, islandState, isSuppressed]);
-
-  // Listen to global open-settings events (tray, shortcuts, external)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    listen("jarvis://open-settings", () => {
+    safeListen("jarvis://open-settings", () => {
       setActiveTab("settings");
-      setIslandState("expanded");
+      setPhase("expanded");
+      setIsPinned(true);
     })
       .then((fn) => {
         unlisten = fn;
@@ -142,13 +252,12 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     };
   }, []);
 
-  // A pairing request must be visible immediately: bring the island to the
-  // bridge tab so the PIN banner is on screen, whichever tab was open.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    listen("jarvis://bridge-pairing-request", () => {
+    safeListen("jarvis://bridge-pairing-request", () => {
       setActiveTab("bridge");
-      setIslandState("expanded");
+      setPhase("expanded");
+      setIsPinned(true);
     })
       .then((fn) => {
         unlisten = fn;
@@ -160,8 +269,8 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     };
   }, []);
 
-  // Listen to Tauri native window drag-drop events (from Windows Explorer)
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
     getCurrentWebview()
       .onDragDropEvent(async (event) => {
@@ -178,7 +287,8 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
               await invoke("jarvis_send_bridge_file_path", { filePath }).catch(console.error);
             }
             setActiveTab("bridge");
-            setIslandState("expanded");
+            setPhase("expanded");
+            setIsPinned(true);
           }
         }
       })
@@ -192,14 +302,10 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     };
   }, []);
 
-  // Disable default browser context menu outside editable fields
   useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
-      if (
-        target?.isContentEditable ||
-        target?.closest("input, textarea, [contenteditable='true']")
-      ) {
+      if (target?.isContentEditable || target?.closest("input, textarea, [contenteditable='true']")) {
         return;
       }
       e.preventDefault();
@@ -208,61 +314,92 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     return () => window.removeEventListener("contextmenu", handleGlobalContextMenu);
   }, []);
 
-  // Cancel pending state timers on unmount
   useEffect(
     () => () => {
-      if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
       if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
       if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+      if (transferClearRef.current) window.clearTimeout(transferClearRef.current);
     },
     []
   );
 
-  // Keyboard shortcut: Escape to collapse and unpin
+  // Resting state follows the presence of a Live Activity.
+  useEffect(() => {
+    setPhase((current) => {
+      if (current === "expanded" || current === "peek") return current;
+      return hasActivity ? "compact" : "closed";
+    });
+  }, [hasActivity]);
+
+  // A new track is a Live Activity update: show the compact presentation.
+  useEffect(() => {
+    if (
+      media.title &&
+      prevTrackRef.current &&
+      media.title !== prevTrackRef.current &&
+      phase === "closed" &&
+      !isSuppressed
+    ) {
+      setPhase("compact");
+    }
+    prevTrackRef.current = media.title;
+  }, [media.title, phase, isSuppressed]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && islandState === "expanded") {
-        setIslandState("closed");
-        setIsPinned(false);
-        containerRef.current?.focus();
+      if (e.key === "Escape" && phase === "expanded") {
+        collapseToRest();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [islandState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
-  // Click outside to collapse
   useEffect(() => {
     const handlePointerDown = (e: MouseEvent) => {
-      if (islandState === "expanded" && containerRef.current) {
+      if (phase === "expanded" && containerRef.current) {
         if (!containerRef.current.contains(e.target as Node)) {
-          setIslandState("closed");
-          setIsPinned(false);
+          collapseToRest();
         }
       }
     };
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [islandState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
-  // Hover management: supports Peek and Expand
+  // ── Interaction ────────────────────────────────────────────────────────
+  const clearTimers = () => {
+    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
+    hoverTimerRef.current = null;
+    collapseTimerRef.current = null;
+  };
+
+  const collapseToRest = () => {
+    clearTimers();
+    setIsPinned(false);
+    setPhase(hasActivity ? "compact" : "closed");
+    containerRef.current?.focus();
+  };
+
   const handleMouseEnter = () => {
     if (collapseTimerRef.current) {
       window.clearTimeout(collapseTimerRef.current);
       collapseTimerRef.current = null;
     }
-    if (islandState === "expanded") return;
+    if (phase === "expanded") return;
 
-    if (config.expandOnHover) {
-      // Immediate peek glance, followed by full expand after dwell
-      setIslandState("peek");
-      if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = window.setTimeout(() => {
-        setIslandState("expanded");
-      }, 180);
-    } else {
-      setIslandState("peek");
-    }
+    if (phase === "closed" && hasActivity) setPhase("compact");
+
+    if (!config.expandOnHover) return;
+
+    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+    // Apple's touch-and-hold equivalent on a pointer device.
+    hoverTimerRef.current = window.setTimeout(() => {
+      setPhase("peek");
+    }, 300);
   };
 
   const handleMouseLeave = () => {
@@ -270,38 +407,20 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
       window.clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
-    if (peekTimerRef.current) {
-      window.clearTimeout(peekTimerRef.current);
-      peekTimerRef.current = null;
-    }
+    if (isPinned || activeTab === "settings" || phase === "expanded") return;
 
-    // If pinned by user or currently on settings tab, do not collapse
-    if (isPinned || activeTab === "settings") return;
-
-    // Grace period to avoid accidental collapse
     if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
     collapseTimerRef.current = window.setTimeout(() => {
-      setIslandState("closed");
-    }, 140);
+      setPhase(hasActivity ? "compact" : "closed");
+    }, 160);
   };
 
-  // Immediate expansion on click
   const handleClick = () => {
-    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
-    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
-    if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
-    if (islandState !== "expanded") {
-      setIslandState("expanded");
+    clearTimers();
+    if (phase !== "expanded") {
+      setPhase("expanded");
+      setIsPinned(true);
     }
-  };
-
-  const handleCollapse = () => {
-    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
-    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
-    if (peekTimerRef.current) window.clearTimeout(peekTimerRef.current);
-    setIslandState("closed");
-    setIsPinned(false);
-    containerRef.current?.focus();
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -310,97 +429,156 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
-  // Keyboard navigation within island region
   const handleRegionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      if (islandState !== "expanded") {
-        e.preventDefault();
-        setIslandState("expanded");
-      }
+    if ((e.key === "Enter" || e.key === " ") && phase !== "expanded") {
+      e.preventDefault();
+      setPhase("expanded");
+      setIsPinned(true);
     }
   };
 
-  // Compute animated dimensions
-  const isExpanded = islandState === "expanded";
-  const isPeek = islandState === "peek";
+  // ── Shell styling ──────────────────────────────────────────────────────
+  const isExpandedLike = phase === "expanded" || phase === "peek";
+  const shellStyle: React.CSSProperties & Record<string, string | number> = {
+    position: "absolute",
+    top: `${topOffset}px`,
+    pointerEvents: isSuppressed ? "none" : "auto",
+    overflow: "hidden",
+    transformOrigin: "top center",
+    willChange: "width, height, border-radius",
+    backgroundColor: ISLAND.surface,
+    border: isIslandDragOver
+      ? "1.5px dashed rgba(10, 132, 255, 0.9)"
+      : isExpandedLike
+      ? `0.5px solid ${ISLAND.keyline}`
+      : "none",
+    borderRadius,
+    boxShadow: isIslandDragOver
+      ? "0 0 0 4px rgba(10,132,255,0.16), 0 12px 28px rgba(0,0,0,0.45)"
+      : isExpandedLike
+      ? "inset 0 0.5px 0 rgba(255,255,255,0.14), 0 12px 28px rgba(0, 0, 0, 0.45)"
+      : "inset 0 0.5px 0 rgba(255,255,255,0.10), 0 0 0 0.5px rgba(255,255,255,0.07)",
+    zIndex: 9999,
+    isolation: "isolate",
+  };
 
-  let targetWidth = config.islandWidth;
-  let targetHeight = config.islandHeight;
-  let targetRadius = config.islandHeight / 2;
+  // Chromium 139+ renders Apple's continuous corners natively. Older engines
+  // fall back to the circular radius above.
+  shellStyle["cornerShape"] = isExpandedLike ? "squircle" : "round";
 
-  if (isSuppressed) {
-    targetWidth = config.islandWidth;
-    targetHeight = 0;
-    targetRadius = 0;
-  } else if (showHUD && !isExpanded) {
-    targetWidth = 240;
-    targetHeight = 38;
-    targetRadius = 19;
-  } else if (isPeek) {
-    targetWidth = 320;
-    targetHeight = 44;
-    targetRadius = 22;
-  } else if (isExpanded) {
-    if (activeTab === "settings") {
-      targetWidth = Math.max(config.expandedWidth, 880);
-      targetHeight = 560;
-      targetRadius = 24;
-    } else if (activeTab === "bridge") {
-      targetWidth = 700;
-      targetHeight = 500;
-      targetRadius = 24;
-    } else if (activeTab === "dashboard") {
-      targetWidth = 660;
-      targetHeight = 380;
-      targetRadius = 24;
-    } else if (activeTab === "media") {
-      targetWidth = 620;
-      targetHeight = 360;
-      targetRadius = 24;
-    } else if (activeTab === "network") {
-      targetWidth = 600;
-      targetHeight = 380;
-      targetRadius = 24;
-    } else if (activeTab === "controls") {
-      targetWidth = 580;
-      targetHeight = 360;
-      targetRadius = 24;
-    } else if (activeTab === "notes") {
-      targetWidth = 600;
-      targetHeight = 400;
-      targetRadius = 24;
-    } else if (activeTab === "clipboard") {
-      targetWidth = 600;
-      targetHeight = 400;
-      targetRadius = 24;
-    } else if (activeTab === "bluetooth") {
-      targetWidth = 580;
-      targetHeight = 360;
-      targetRadius = 24;
-    } else if (activeTab === "timer") {
-      targetWidth = 520;
-      targetHeight = 340;
-      targetRadius = 24;
-    } else {
-      targetWidth = Math.max(config.expandedWidth, 640);
-      targetHeight = Math.max(config.expandedHeight, 380);
-      targetRadius = 24;
+  const contentTransition = config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade;
+  const contentStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+  };
+
+  const content = (() => {
+    if (hudActive) {
+      return (
+        <motion.div
+          key="hud"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={contentTransition}
+          style={contentStyle}
+        >
+          <VolumeHUD volume={volume} isMuted={isMuted} />
+        </motion.div>
+      );
     }
-  }
 
-  const topOffset = config.mode === "notch" ? 0 : config.topOffset;
-  const borderRadius =
-    config.mode === "notch"
-      ? `0 0 ${targetRadius}px ${targetRadius}px`
-      : `${targetRadius}px`;
+    if (phase === "expanded") {
+      return (
+        <motion.div
+          key="expanded"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={contentTransition}
+          style={contentStyle}
+        >
+          <ExpandedPanel
+            media={media}
+            telemetry={telemetry}
+            volume={volume}
+            config={config}
+            isPinned={isPinned}
+            timer={activeTimer}
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            onTogglePin={() => setIsPinned(!isPinned)}
+            onCollapse={collapseToRest}
+            onTogglePlay={togglePlay}
+            onNext={nextTrack}
+            onPrev={prevTrack}
+            onSeek={seek}
+            onSetVolume={setVolume}
+            onUpdateConfig={onUpdateConfig}
+            onTimerUpdate={setActiveTimer}
+          />
+        </motion.div>
+      );
+    }
 
-  const motionTransition = config.reducedMotion
-    ? MOTION_PHYSICS.reducedMotion
-    : isExpanded
-    ? MOTION_PHYSICS.expand
-    : isPeek
-    ? MOTION_PHYSICS.peek
-    : MOTION_PHYSICS.collapse;
+    if (phase === "peek") {
+      return (
+        <motion.div
+          key={`peek-${activityKind ?? "continuity"}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={contentTransition}
+          style={contentStyle}
+        >
+          <PeekGlance
+            kind={activityKind ?? "continuity"}
+            media={media}
+            telemetry={telemetry}
+            timer={activeTimer}
+            transfer={transfer}
+            notification={notification}
+            scale={scale}
+            reducedMotion={config.reducedMotion}
+            onPlayPause={togglePlay}
+            onNext={nextTrack}
+            onPrev={prevTrack}
+            onSeek={seek}
+            onOpen={() => {
+              setPhase("expanded");
+              setIsPinned(true);
+            }}
+            onClose={collapseToRest}
+          />
+        </motion.div>
+      );
+    }
+
+    return (
+      <motion.div
+        key={`compact-${compactKind}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={contentTransition}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <CollapsedPill
+          kind={compactKind}
+          media={media}
+          telemetry={telemetry}
+          timer={activeTimer}
+          transfer={transfer}
+          notification={notification}
+          scale={scale}
+          reducedMotion={config.reducedMotion}
+          onClick={handleClick}
+        />
+      </motion.div>
+    );
+  })();
 
   return (
     <div
@@ -421,7 +599,7 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
         ref={containerRef}
         role="region"
         aria-label="JARVIS Dynamic Island"
-        aria-expanded={isExpanded}
+        aria-expanded={phase === "expanded"}
         tabIndex={0}
         onKeyDown={handleRegionKeyDown}
         onMouseEnter={handleMouseEnter}
@@ -461,10 +639,10 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
               }
             }
             setActiveTab("bridge");
-            setIslandState("expanded");
+            setPhase("expanded");
+            setIsPinned(true);
           }
         }}
-        whileTap={!isExpanded && !isPeek ? { scale: 0.98 } : undefined}
         animate={{
           width: targetWidth,
           height: targetHeight,
@@ -472,142 +650,33 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
           top: topOffset,
         }}
         transition={motionTransition}
-        style={{
-          position: "absolute",
-          top: `${topOffset}px`,
-          pointerEvents: isSuppressed ? "none" : "auto",
-          overflow: "hidden",
-          transformOrigin: "top center",
-          willChange: "width, height, border-radius, top",
-          transform: "translateZ(0)",
-          zIndex: 9999,
-          backgroundColor: isExpanded ? "rgba(28, 28, 30, 0.995)" : "#000000",
-          backdropFilter: "blur(40px) saturate(150%)",
-          WebkitBackdropFilter: "blur(40px) saturate(150%)",
-          border: isIslandDragOver
-            ? "2px dashed #0a84ff"
-            : isExpanded
-            ? "0.5px solid rgba(255, 255, 255, 0.10)"
-            : "0.5px solid rgba(255, 255, 255, 0.12)",
-          borderRadius,
-          boxShadow: isIslandDragOver
-            ? "0 0 0 4px rgba(10, 132, 255, 0.18), 0 18px 50px rgba(0, 0, 0, 0.55)"
-            : isExpanded
-            ? "inset 0 0.5px 0 0 rgba(255, 255, 255, 0.14), 0 18px 50px rgba(0, 0, 0, 0.55)"
-            : "inset 0 0.5px 0 0 rgba(255, 255, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.5)",
-        }}
+        style={shellStyle}
       >
-        <AnimatePresence initial={false}>
-          {showHUD && !isExpanded ? (
-            <motion.div
-              key="volume-hud"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
-              style={{ width: "100%", height: "100%" }}
-            >
-              <VolumeHUD volume={volume} isMuted={isMuted} />
-            </motion.div>
-          ) : isExpanded ? (
-            <motion.div
-              key="expanded"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
-              style={{
-                width: "100%",
-                height: "100%",
-                backgroundColor: "transparent",
-              }}
-            >
-              <ExpandedPanel
-                media={media}
-                telemetry={telemetry}
-                volume={volume}
-                config={config}
-                isPinned={isPinned}
-                timer={activeTimer}
-                activeTab={activeTab}
-                onSelectTab={setActiveTab}
-                onTogglePin={() => setIsPinned(!isPinned)}
-                onCollapse={handleCollapse}
-                onTogglePlay={togglePlay}
-                onNext={nextTrack}
-                onPrev={prevTrack}
-                onSeek={seek}
-                onSetVolume={setVolume}
-                onUpdateConfig={onUpdateConfig}
-                onTimerUpdate={setActiveTimer}
-              />
-            </motion.div>
-          ) : isPeek ? (
-            <motion.div
-              key="peek"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
-              style={{
-                width: "100%",
-                height: "100%",
-                backgroundColor: "#000000",
-              }}
-            >
-              <PeekGlance
-                media={media}
-                telemetry={telemetry}
-                timer={activeTimer}
-                message={peekMessage}
-                reducedMotion={config.reducedMotion}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="collapsed"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={config.reducedMotion ? MOTION_PHYSICS.reducedMotion : MOTION_PHYSICS.fade}
-              style={{
-                width: "100%",
-                height: "100%",
-                backgroundColor: "#000000",
-              }}
-            >
-              <CollapsedPill
-                media={media}
-                telemetry={telemetry}
-                timer={activeTimer}
-                clockFormat={config.clockFormat}
-                isDragging={isIslandDragOver}
-                reducedMotion={config.reducedMotion}
-              />
-            </motion.div>
-          )}
+        <AnimatePresence initial={false} mode="popLayout">
+          {content}
         </AnimatePresence>
       </motion.div>
 
-      {/* Custom Desktop Right-Click Context Menu */}
       {contextMenu && (
         <ContextMenu
           menuRef={contextMenuRef}
           x={contextMenu.x}
           y={contextMenu.y}
-          isExpanded={isExpanded}
+          isExpanded={phase === "expanded"}
           isPinned={isPinned}
           config={config}
           onClose={() => setContextMenu(null)}
           onSelectTab={(tab) => {
             setActiveTab(tab);
-            if (!isExpanded) setIslandState("expanded");
+            setPhase("expanded");
+            setIsPinned(true);
           }}
           onToggleExpand={() => {
-            if (isExpanded) {
-              handleCollapse();
+            if (phase === "expanded") {
+              collapseToRest();
             } else {
-              setIslandState("expanded");
+              setPhase("expanded");
+              setIsPinned(true);
             }
           }}
           onTogglePin={() => setIsPinned(!isPinned)}

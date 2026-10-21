@@ -76,6 +76,9 @@ class JarvisIslandOverlayService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var collapseJob: Job? = null
     private var notificationJob: Job? = null
+    private var demoMediaJob: Job? = null
+    private var windowResizeJob: Job? = null
+    private var demoMediaActive = false
 
     // Real System Battery & Power Receiver
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -110,7 +113,7 @@ class JarvisIslandOverlayService : Service() {
                     simulateTestTransfer()
                 }
                 JarvisIslandSettings.ACTION_TEST_MUSIC -> {
-                    refreshActiveMediaSession()
+                    startDemoMedia()
                 }
                 JarvisIslandSettings.ACTION_MEDIA_PLAY_PAUSE -> {
                     toggleMediaPlayback()
@@ -216,6 +219,11 @@ class JarvisIslandOverlayService : Service() {
     private fun setupRealMediaSessions() {
         JarvisNotificationListener.onMediaUpdate = { liveTrack ->
             serviceScope.launch {
+                // Keep the sample track until a real session starts playing.
+                if (demoMediaActive && !(liveTrack.isPlaying && liveTrack.title.isNotBlank())) {
+                    return@launch
+                }
+                demoMediaActive = false
                 mediaTrack = liveTrack
             }
         }
@@ -245,6 +253,36 @@ class JarvisIslandOverlayService : Service() {
             }
         }
         JarvisNotificationListener.instance?.checkActiveMedia()
+    }
+
+    /**
+     * "Preview music activity" in the app: shows the real Apple music card with
+     * a sample track so the layout can be reviewed without another app playing.
+     * Clears itself after 12 seconds or as soon as a real media session appears.
+     */
+    private fun startDemoMedia() {
+        demoMediaJob?.cancel()
+        demoMediaActive = true
+        mediaTrack = MediaTrackInfo(
+            title = "Midnight City",
+            artist = "M83",
+            album = "Hurry Up, We're Dreaming",
+            isPlaying = true,
+            durationMs = 244000L,
+            positionMs = 82000L,
+            progress = 0.34f,
+            appName = "JARVIS Preview"
+        )
+        if (!isExpanded) {
+            expandIsland()
+        }
+        demoMediaJob = serviceScope.launch {
+            delay(12000)
+            if (demoMediaActive) {
+                demoMediaActive = false
+                mediaTrack = MediaTrackInfo()
+            }
+        }
     }
 
     private fun refreshActiveMediaSession() {
@@ -392,7 +430,7 @@ class JarvisIslandOverlayService : Service() {
         cutoutMetrics = CutoutDetector.detectCutout(this, null)
 
         val initialHeight = if (isExpanded) {
-            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 20).toFloat())
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
@@ -516,7 +554,7 @@ class JarvisIslandOverlayService : Service() {
         val params = layoutParams ?: return
         params.flags = getOverlayFlags()
         params.height = if (isExpanded) {
-            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
+            dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
@@ -529,8 +567,9 @@ class JarvisIslandOverlayService : Service() {
 
     private fun expandIsland() {
         isExpanded = true
+        windowResizeJob?.cancel()
         val params = layoutParams ?: return
-        params.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 24).toFloat())
+        params.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         params.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
             composeView?.let { windowManager.updateViewLayout(it, params) }
@@ -541,13 +580,20 @@ class JarvisIslandOverlayService : Service() {
 
     private fun collapseIsland() {
         isExpanded = false
-        val params = layoutParams ?: return
-        params.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
-        params.flags = getOverlayFlags()
-        try {
-            composeView?.let { windowManager.updateViewLayout(it, params) }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        windowResizeJob?.cancel()
+        // Let the Compose collapse spring finish before shrinking the window,
+        // otherwise the card is clipped mid-animation.
+        windowResizeJob = serviceScope.launch {
+            delay(380)
+            if (isExpanded) return@launch
+            val params = layoutParams ?: return@launch
+            params.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
+            params.flags = getOverlayFlags()
+            try {
+                composeView?.let { windowManager.updateViewLayout(it, params) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

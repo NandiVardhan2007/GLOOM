@@ -1,6 +1,7 @@
 package com.jarvis.island.ui
 
 import android.graphics.Bitmap
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,7 +9,12 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,11 +22,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,50 +37,31 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.BatteryChargingFull
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.sin
+import com.jarvis.island.ui.Apple
+import java.util.Locale
 
-/**
- * Visual Theme Colors & Brushes for JARVIS Dynamic Island
- */
+/** Colors for custom themes. The island surface itself is always black. */
 data class IslandThemeColors(
     val background: Color,
     val cardBackground: Color,
@@ -88,218 +78,799 @@ object IslandThemePalettes {
             "Cyber Cyan" -> IslandThemeColors(
                 background = Color(0xFF030712),
                 cardBackground = Color(0xFF0B132B),
-                primaryAccent = Color(0xFF0A84FF),
-                secondaryAccent = Color(0xFF64D2FF),
+                primaryAccent = Apple.systemBlue,
+                secondaryAccent = Apple.systemTeal,
                 borderBrush = hairline
             )
             "Emerald Matrix", "Neon Green" -> IslandThemeColors(
                 background = Color(0xFF021008),
                 cardBackground = Color(0xFF071911),
-                primaryAccent = Color(0xFF30D158),
-                secondaryAccent = Color(0xFF34D399),
+                primaryAccent = Apple.systemGreen,
+                secondaryAccent = Apple.systemGreen,
                 borderBrush = hairline
             )
             "Material Purple" -> IslandThemeColors(
                 background = Color(0xFF0E0414),
                 cardBackground = Color(0xFF1B0B26),
-                primaryAccent = Color(0xFFBF5AF2),
-                secondaryAccent = Color(0xFFA855F7),
+                primaryAccent = Apple.systemPurple,
+                secondaryAccent = Apple.systemIndigo,
                 borderBrush = hairline
             )
-            else -> IslandThemeColors( // "Obsidian Black" (Default)
-                background = Color(0xFF000000),
-                cardBackground = Color(0xFF1C1C1E),
-                primaryAccent = Color(0xFF0A84FF),
-                secondaryAccent = Color(0xFF30D158),
+            else -> IslandThemeColors(
+                background = Color.Black,
+                cardBackground = Apple.secondaryGroupedBackground,
+                primaryAccent = Apple.systemBlue,
+                secondaryAccent = Apple.systemGreen,
                 borderBrush = hairline
             )
         }
     }
 }
 
-/**
- * Animated Cyber Beaming Icon with vertical motion oscillation and radiant glow.
- */
-@Composable
-fun CyberBeamIcon(
-    isUpload: Boolean,
-    accentColor: Color = Color(0xFF0A84FF),
-    size: Dp = 22.dp
-) {
-    val transition = rememberInfiniteTransition(label = "cyberBeamMotion")
-    val offsetY by transition.animateFloat(
-        initialValue = if (isUpload) 2f else -2f,
-        targetValue = if (isUpload) -2f else 2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "arrowOffset"
-    )
-
-    val pulseAlpha by transition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "haloAlpha"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(accentColor.copy(alpha = 0.18f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(size * 0.7f)) {
-            val w = this.size.width
-            val h = this.size.height
-            val cx = w / 2f
-            val cy = h / 2f + offsetY
-
-            // Outer subtle glowing ring
-            drawCircle(
-                color = accentColor.copy(alpha = pulseAlpha),
-                radius = w / 2f - 1f,
-                style = Stroke(width = 1.2f)
-            )
-
-            // Dynamic Arrow Path (Up for Upload, Down for Download)
-            val path = Path()
-            if (isUpload) {
-                drawLine(
-                    color = accentColor,
-                    start = Offset(cx, cy + h * 0.35f),
-                    end = Offset(cx, cy - h * 0.25f),
-                    strokeWidth = 2.2f,
-                    cap = StrokeCap.Round
-                )
-                path.moveTo(cx - w * 0.28f, cy - h * 0.05f)
-                path.lineTo(cx, cy - h * 0.35f)
-                path.lineTo(cx + w * 0.28f, cy - h * 0.05f)
-            } else {
-                drawLine(
-                    color = accentColor,
-                    start = Offset(cx, cy - h * 0.35f),
-                    end = Offset(cx, cy + h * 0.25f),
-                    strokeWidth = 2.2f,
-                    cap = StrokeCap.Round
-                )
-                path.moveTo(cx - w * 0.28f, cy + h * 0.05f)
-                path.lineTo(cx, cy + h * 0.35f)
-                path.lineTo(cx + w * 0.28f, cy + h * 0.05f)
-            }
-
-            drawPath(
-                path = path,
-                color = accentColor,
-                style = Stroke(width = 2.2f, cap = StrokeCap.Round)
-            )
-        }
-    }
+enum class IslandCompactKind {
+    MEDIA, TIMER, TRANSFER, NOTIFICATION, CHARGING, DROP, IDLE
 }
 
-/**
- * OriginOS Style Animated 4-Bar Soundwave Equalizer.
- */
+/** Small 4-bar equalizer in the SF Symbols waveform spirit. */
 @Composable
-fun OriginOSEqualizer(
+fun AppleEqualizer(
     isPlaying: Boolean,
-    color: Color = Color(0xFF30D158),
+    color: Color = Apple.systemGreen,
+    height: Dp = 14.dp,
     modifier: Modifier = Modifier
 ) {
-    val transition = rememberInfiniteTransition(label = "originEq")
-    val b1 by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 0.95f,
-        animationSpec = infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "b1"
-    )
-    val b2 by transition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 0.30f,
-        animationSpec = infiniteRepeatable(tween(560, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "b2"
-    )
-    val b3 by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(tween(380, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "b3"
-    )
-    val b4 by transition.animateFloat(
-        initialValue = 0.70f,
-        targetValue = 0.20f,
-        animationSpec = infiniteRepeatable(tween(510, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "b4"
-    )
+    val transition = rememberInfiniteTransition(label = "apple-eq")
+    val finals = listOf(0.42f, 0.92f, 0.58f, 1f)
+    val bars = finals.mapIndexed { index, factor ->
+        transition.animateFloat(
+            initialValue = 0.28f,
+            targetValue = if (isPlaying) factor else 0.2f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = if (isPlaying) 820 + index * 120 else 180,
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bar-$index"
+        )
+    }
 
     Row(
-        modifier = modifier.height(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+        modifier = modifier.height(height),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val bars = listOf(b1, b2, b3, b4)
-        bars.forEach { hFraction ->
-            val actualH = if (isPlaying) (16.dp * hFraction).coerceAtLeast(3.dp) else 3.dp
+        bars.forEach { value ->
+            val barHeight = (height * value.value).coerceAtLeast(3.dp)
             Box(
                 modifier = Modifier
-                    .width(3.dp)
-                    .height(actualH)
-                    .clip(RoundedCornerShape(2.dp))
+                    .width(2.5.dp)
+                    .height(barHeight)
+                    .clip(RoundedCornerShape(1.25.dp))
                     .background(color)
             )
         }
     }
 }
 
-/**
- * Legacy Equalizer alias for compatibility
- */
+/** 22dp artwork for the compact wings. */
 @Composable
-fun AnimatedEqualizer(
-    isPlaying: Boolean,
-    color: Color = Color(0xFF30D158),
-    modifier: Modifier = Modifier
-) {
-    OriginOSEqualizer(isPlaying = isPlaying, color = color, modifier = modifier)
+fun AppleCompactArtwork(track: MediaTrackInfo) {
+    val size = AppleIslandSpec.compactArtwork
+    val shape = RoundedCornerShape(6.5.dp)
+    if (track.albumArt != null) {
+        Image(
+            bitmap = track.albumArt.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(size)
+                .clip(shape)
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(shape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Apple.systemPink, Color(0xFFB3123F))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            JarvisIcon(JarvisIcons.MusicNote, Color.White, size * 0.58f)
+        }
+    }
 }
 
 /**
- * OriginOS-Inspired Wavy Audio SeekBar with live elapsed and remaining timer.
+ * Apple's compact presentation: leading and trailing elements on either side
+ * of the camera band, with no padding between content and the camera.
  */
 @Composable
-fun OriginOSWavySeekBar(
-    progress: Float,
-    durationMs: Long,
-    positionMs: Long,
+fun AppleCompactContent(
+    kind: IslandCompactKind,
+    track: MediaTrackInfo,
+    transfer: ActiveTransferInfo,
+    notification: NotificationIslandEvent?,
+    batteryLevel: Int,
+    isCharging: Boolean,
+    timerText: String,
+    wingWidth: Dp,
+    cameraGap: Dp,
+    inset: Dp,
+    modifier: Modifier = Modifier
+) {
+    val contentTransition = (
+        fadeIn(tween(160)) + scaleIn(initialScale = 0.94f, animationSpec = spring(1f, 320f))
+        ).togetherWith(fadeOut(tween(100)))
+
+    Row(
+        modifier = modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(wingWidth)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(modifier = Modifier.padding(start = inset)) {
+                AnimatedContent(
+                    targetState = kind,
+                    transitionSpec = { contentTransition },
+                    label = "compactLeading"
+                ) { state ->
+                    when (state) {
+                        IslandCompactKind.MEDIA -> AppleCompactArtwork(track)
+                        IslandCompactKind.TIMER -> CompactGlyphCircle(
+                            icon = JarvisIcons.Timer,
+                            tint = Apple.systemOrange,
+                            background = Apple.systemOrange.copy(alpha = 0.18f)
+                        )
+                        IslandCompactKind.TRANSFER -> CompactGlyphCircle(
+                            icon = if (transfer.isUpload) JarvisIcons.Beam else JarvisIcons.DownloadDoc,
+                            tint = Apple.systemBlue,
+                            background = Apple.systemBlue.copy(alpha = 0.18f)
+                        )
+                        IslandCompactKind.NOTIFICATION -> {
+                            if (notification?.largeIcon != null) {
+                                Image(
+                                    bitmap = notification.largeIcon.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(AppleIslandSpec.compactArtwork)
+                                        .clip(CircleShape)
+                                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
+                                )
+                            } else {
+                                CompactGlyphCircle(
+                                    icon = JarvisIcons.Bell,
+                                    tint = Color.White,
+                                    background = Color(0x1FFFFFFF)
+                                )
+                            }
+                        }
+                        IslandCompactKind.CHARGING -> JarvisIcon(
+                            icon = JarvisIcons.BoltFill,
+                            tint = Apple.systemGreen,
+                            size = 16.dp
+                        )
+                        IslandCompactKind.DROP -> CompactGlyphCircle(
+                            icon = JarvisIcons.Beam,
+                            tint = Apple.systemBlue,
+                            background = Apple.systemBlue.copy(alpha = 0.18f)
+                        )
+                        IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
+                    }
+                }
+            }
+        }
+
+        // TrueDepth camera band. Never place content here.
+        Spacer(Modifier.width(cameraGap).height(1.dp))
+
+        Box(
+            modifier = Modifier
+                .width(wingWidth)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Box(modifier = Modifier.padding(end = inset)) {
+                AnimatedContent(
+                    targetState = kind,
+                    transitionSpec = { contentTransition },
+                    label = "compactTrailing"
+                ) { state ->
+                    when (state) {
+                        IslandCompactKind.MEDIA -> if (track.isPlaying) {
+                            AppleEqualizer(isPlaying = true, height = 13.dp)
+                        } else {
+                            JarvisIcon(JarvisIcons.Waveform, Apple.secondaryLabel, 15.dp)
+                        }
+                        IslandCompactKind.TIMER -> Text(
+                            text = timerText,
+                            style = IslandType.compactNumber,
+                            color = Apple.systemOrange,
+                            maxLines = 1
+                        )
+                        IslandCompactKind.TRANSFER -> Text(
+                            text = "${(transfer.progress * 100).toInt()}%",
+                            style = IslandType.compactNumber,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                        IslandCompactKind.NOTIFICATION -> Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Apple.systemBlue)
+                        )
+                        IslandCompactKind.CHARGING -> Text(
+                            text = "$batteryLevel%",
+                            style = IslandType.compactNumber,
+                            color = Apple.systemGreen,
+                            maxLines = 1
+                        )
+                        IslandCompactKind.DROP -> Text(
+                            text = "Beam",
+                            style = IslandType.compactNumber.copy(fontSize = 12.sp),
+                            color = Apple.systemBlue,
+                            maxLines = 1
+                        )
+                        IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactGlyphCircle(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    background: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(AppleIslandSpec.compactArtwork)
+            .clip(CircleShape)
+            .background(background),
+        contentAlignment = Alignment.Center
+    ) {
+        JarvisIcon(icon, tint, 13.dp)
+    }
+}
+
+/**
+ * Apple's expanded music Live Activity, 371 x 160.
+ */
+@Composable
+fun AppleMusicActivity(
+    track: MediaTrackInfo,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onSeek: ((Float) -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                start = AppleIslandSpec.contentMargin,
+                end = AppleIslandSpec.contentMargin,
+                top = 32.dp,
+                bottom = 8.dp
+            )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            val artworkShape = RoundedCornerShape(10.dp)
+            if (track.albumArt != null) {
+                Image(
+                    bitmap = track.albumArt.asImageBitmap(),
+                    contentDescription = "Album artwork",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(AppleIslandSpec.artwork)
+                        .clip(artworkShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(AppleIslandSpec.artwork)
+                        .clip(artworkShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Apple.systemPink, Color(0xFFB3123F))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    JarvisIcon(JarvisIcons.MusicNote, Color.White, 18.dp)
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = track.title.ifBlank { "Nothing Playing" },
+                    style = IslandType.title,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = track.artist.ifBlank { "Start playback in any app" },
+                    style = IslandType.subtitle,
+                    color = Apple.secondaryLabel,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            AppleEqualizer(
+                isPlaying = track.isPlaying,
+                color = if (track.isPlaying) Apple.systemGreen else Apple.tertiaryLabel,
+                height = 14.dp
+            )
+            ActivityCloseButton(onClose)
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        AppleSeekBar(
+            progress = track.progress,
+            positionMs = track.positionMs,
+            durationMs = track.durationMs,
+            onSeek = onSeek
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            ActivityTransportButton(
+                label = "Previous track",
+                onClick = onPrev
+            ) {
+                JarvisIcon(JarvisIcons.SkipBackFill, Color.White, 19.dp)
+            }
+            Spacer(Modifier.width(26.dp))
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onPlayPause
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                JarvisIcon(
+                    icon = if (track.isPlaying) JarvisIcons.PauseFill else JarvisIcons.PlayFill,
+                    tint = Color.Black,
+                    size = 18.dp
+                )
+            }
+            Spacer(Modifier.width(26.dp))
+            ActivityTransportButton(
+                label = "Next track",
+                onClick = onNext
+            ) {
+                JarvisIcon(JarvisIcons.SkipForwardFill, Color.White, 19.dp)
+            }
+        }
+    }
+}
+
+/**
+ * Apple's expanded transfer Live Activity.
+ */
+@Composable
+fun AppleTransferActivity(
+    transfer: ActiveTransferInfo,
     accentColor: Color,
-    isPlaying: Boolean,
+    onClose: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val done = transfer.progress >= 1f || transfer.speedMbps.equals("Completed", ignoreCase = true)
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                start = AppleIslandSpec.contentMargin,
+                end = AppleIslandSpec.contentMargin,
+                top = 34.dp,
+                bottom = 8.dp
+            )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(AppleIslandSpec.artwork)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (done) Apple.systemGreen.copy(alpha = 0.18f)
+                        else Apple.systemBlue.copy(alpha = 0.18f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                JarvisIcon(
+                    icon = if (done) JarvisIcons.CheckCircleFill
+                    else if (transfer.isUpload) JarvisIcons.Beam else JarvisIcons.DownloadDoc,
+                    tint = if (done) Apple.systemGreen else Apple.systemBlue,
+                    size = 22.dp
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = transfer.fileName.ifBlank { "Transfer" },
+                    style = IslandType.title,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (done) "Transfer complete"
+                    else if (transfer.isUpload) "Sending to JARVIS PC" else "Receiving from JARVIS PC",
+                    style = IslandType.subtitle,
+                    color = Apple.secondaryLabel,
+                    maxLines = 1
+                )
+            }
+
+            Text(
+                text = if (done) "Complete" else transfer.speedMbps,
+                style = IslandType.time,
+                color = if (done) Apple.systemGreen else Apple.secondaryLabel,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0x1FFFFFFF))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+            ActivityCloseButton(onClose)
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0x24FFFFFF))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(transfer.progress.coerceIn(0.02f, 1f))
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(if (done) Apple.systemGreen else accentColor)
+            )
+        }
+
+        Spacer(Modifier.height(7.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = String.format(
+                    Locale.US,
+                    "%.1f MB of %.1f MB",
+                    transfer.fileSizeMb * transfer.progress,
+                    transfer.fileSizeMb
+                ),
+                style = IslandType.time,
+                color = Apple.secondaryLabel
+            )
+            Text(
+                text = "${(transfer.progress * 100).toInt()}%",
+                style = IslandType.time,
+                color = if (done) Apple.systemGreen else Apple.secondaryLabel
+            )
+        }
+    }
+}
+
+/**
+ * Apple's expanded notification presentation.
+ */
+@Composable
+fun AppleNotificationActivity(
+    event: NotificationIslandEvent,
+    accentColor: Color,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                start = AppleIslandSpec.contentMargin,
+                end = AppleIslandSpec.contentMargin,
+                top = 28.dp,
+                bottom = 8.dp
+            )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (event.largeIcon != null) {
+                Image(
+                    bitmap = event.largeIcon.asImageBitmap(),
+                    contentDescription = "Sender avatar",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(AppleIslandSpec.artwork)
+                        .clip(CircleShape)
+                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(AppleIslandSpec.artwork)
+                        .clip(CircleShape)
+                        .background(Color(0x1FFFFFFF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    JarvisIcon(JarvisIcons.Bell, Color.White, 20.dp)
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = event.appName.ifBlank { "Notification" }.uppercase(),
+                    style = IslandType.caption,
+                    color = Apple.secondaryLabel,
+                    maxLines = 1
+                )
+                Text(
+                    text = event.title.ifBlank { "New message" },
+                    style = IslandType.title,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            ActivityCloseButton(onDismiss)
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = event.text,
+            style = IslandType.subtitle.copy(lineHeight = 16.sp),
+            color = Apple.secondaryLabel,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppleActivityButton(
+                text = "Open App",
+                background = accentColor,
+                foreground = Color.White,
+                modifier = Modifier.weight(1f),
+                onClick = onOpen
+            )
+            AppleActivityButton(
+                text = "Dismiss",
+                background = Color(0x24FFFFFF),
+                foreground = Color.White,
+                modifier = Modifier.weight(1f),
+                onClick = onDismiss
+            )
+        }
+    }
+}
+
+/**
+ * Expanded continuity card used when no Live Activity is active.
+ */
+@Composable
+fun AppleContinuityActivity(
+    device: BridgeDeviceInfo,
+    batteryLevel: Int,
+    isCharging: Boolean,
+    accentColor: Color,
+    secondaryColor: Color,
+    onBeamFile: () -> Unit,
+    onSyncClipboard: () -> Unit,
+    onOpenTrackpad: () -> Unit,
+    onClose: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                start = AppleIslandSpec.contentMargin,
+                end = AppleIslandSpec.contentMargin,
+                top = 28.dp,
+                bottom = 8.dp
+            )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(AppleIslandSpec.artwork)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x18FFFFFF)),
+                contentAlignment = Alignment.Center
+            ) {
+                JarvisIcon(JarvisIcons.Laptop, Color.White, 22.dp)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (device.isConnected) "JARVIS Ecosystem" else "JARVIS Standby",
+                    style = IslandType.title,
+                    color = Color.White,
+                    maxLines = 1
+                )
+                Text(
+                    text = if (device.isConnected) "Live Continuity Active" else "Ready to Connect",
+                    style = IslandType.subtitle,
+                    color = Apple.secondaryLabel,
+                    maxLines = 1
+                )
+            }
+            ActivityCloseButton(onClose)
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(Color(0x10FFFFFF))
+                .padding(horizontal = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isCharging) Apple.systemGreen
+                            else if (device.isConnected) secondaryColor
+                            else Apple.systemRed
+                        )
+                )
+                Text(
+                    text = if (isCharging) "Charging · $batteryLevel%"
+                    else if (device.isConnected) "High-Speed Link" else "Local Wireless Standby",
+                    style = IslandType.subtitle.copy(fontSize = 12.sp),
+                    color = Apple.secondaryLabel,
+                    maxLines = 1
+                )
+            }
+            Text(
+                text = if (device.isConnected) "Synced" else "Ready",
+                style = IslandType.time,
+                color = if (device.isConnected) Apple.systemGreen else Apple.tertiaryLabel
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ContinuityButton(
+                icon = JarvisIcons.Beam,
+                label = "Beam",
+                modifier = Modifier.weight(1f),
+                onClick = onBeamFile
+            )
+            ContinuityButton(
+                icon = JarvisIcons.Clipboard,
+                label = "Clipboard",
+                modifier = Modifier.weight(1f),
+                onClick = onSyncClipboard
+            )
+            ContinuityButton(
+                icon = JarvisIcons.Mouse,
+                label = "Trackpad",
+                modifier = Modifier.weight(1f),
+                onClick = onOpenTrackpad
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContinuityButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0x1AFFFFFF))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            JarvisIcon(icon, Color.White, 14.dp)
+            Text(
+                text = label,
+                style = IslandType.button.copy(fontSize = 11.5.sp),
+                color = Color.White,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+fun AppleSeekBar(
+    progress: Float,
+    positionMs: Long,
+    durationMs: Long,
     onSeek: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    fun formatMs(ms: Long): String {
-        val total = (ms / 1000).coerceAtLeast(0)
-        val minutes = total / 60
-        val seconds = total % 60
-        return "%02d:%02d".format(minutes, seconds)
-    }
-
-    val target = progress.coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
-        targetValue = target,
-        animationSpec = tween(durationMillis = 320, easing = LinearEasing),
-        label = "seekProgress"
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 300, easing = LinearEasing),
+        label = "seek-progress"
     )
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Canvas(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(22.dp)
+                .height(10.dp)
+                .pointerInput(onSeek) {
+                    detectTapGestures { offset ->
+                        onSeek?.invoke((offset.x / size.width.toFloat()).coerceIn(0f, 1f))
+                    }
+                }
                 .pointerInput(onSeek) {
                     detectHorizontalDragGestures(
                         onDragStart = { offset ->
@@ -310,567 +881,119 @@ fun OriginOSWavySeekBar(
                         }
                     )
                 }
-                .pointerInput(onSeek) {
-                    detectTapGestures { offset ->
-                        onSeek?.invoke((offset.x / size.width.toFloat()).coerceIn(0f, 1f))
-                    }
-                }
         ) {
-            val midY = size.height / 2f
-            val stroke = 3.dp.toPx()
-            val x = size.width * animatedProgress
-            drawLine(
-                color = Color(0x33FFFFFF),
-                start = Offset(0f, midY),
-                end = Offset(size.width, midY),
-                strokeWidth = stroke,
-                cap = StrokeCap.Round
-            )
-            if (x > 0f) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val midY = size.height / 2f
+                val stroke = 4.dp.toPx()
                 drawLine(
-                    color = Color.White,
+                    color = Color(0x29FFFFFF),
                     start = Offset(0f, midY),
-                    end = Offset(x, midY),
+                    end = Offset(size.width, midY),
                     strokeWidth = stroke,
                     cap = StrokeCap.Round
                 )
-                drawCircle(
-                    color = Color.White,
-                    radius = 5.dp.toPx(),
-                    center = Offset(x, midY)
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = formatMs(positionMs),
-                color = Color(0x99FFFFFF),
-                fontSize = 11.sp
-            )
-            Text(
-                text = if (durationMs > 0) formatMs(durationMs) else "--:--",
-                color = Color(0x99FFFFFF),
-                fontSize = 11.sp
-            )
-        }
-    }
-}
-
-/**
- * OriginOS Style Spinning Vinyl Record (Displays real album artwork bitmap when available).
- */
-@Composable
-fun OriginOSVinylRecord(
-    isPlaying: Boolean,
-    albumArt: Bitmap? = null,
-    size: Dp = 46.dp,
-    labelColor: Color = Color(0xFF0A84FF)
-) {
-    val transition = rememberInfiniteTransition(label = "originVinylSpin")
-    val rotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "originVinylRotation"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(size)
-            .rotate(if (isPlaying) rotation else 0f)
-            .clip(CircleShape)
-            .background(Color(0xFF000000))
-            .border(0.5.dp, Color(0x22FFFFFF), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(size)) {
-            val r = this.size.width / 2f
-            // Vinyl grooves
-            drawCircle(color = Color(0x28FFFFFF), radius = r * 0.88f, style = Stroke(width = 1f))
-            drawCircle(color = Color(0x1FFFFFFF), radius = r * 0.72f, style = Stroke(width = 1f))
-            drawCircle(color = Color(0x28FFFFFF), radius = r * 0.56f, style = Stroke(width = 1f))
-        }
-
-        if (albumArt != null) {
-            Image(
-                bitmap = albumArt.asImageBitmap(),
-                contentDescription = "Album Artwork",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(size * 0.65f)
-                    .clip(CircleShape)
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(size * 0.55f)
-                    .clip(CircleShape)
-                    .background(labelColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = JarvisIcons.MusicNote,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(size * 0.3f)
-                )
-            }
-        }
-
-        // Center spindle hole
-        Box(
-            modifier = Modifier
-                .size(size * 0.16f)
-                .clip(CircleShape)
-                .background(Color(0xFF050508))
-                .border(0.8.dp, Color(0x88FFFFFF), CircleShape)
-        )
-    }
-}
-
-/**
- * OriginOS Style Dynamic Island Music Card.
- */
-@Composable
-fun OriginOSMusicCard(
-    track: MediaTrackInfo,
-    accentColor: Color,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    onPrev: () -> Unit,
-    onSeek: ((Float) -> Unit)? = null,
-    onClose: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Top Camera Clearance Notch
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Top Header: Streaming App & Actions (Lyrics Toggle + Visualizer + Close)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(if (track.isPlaying) Color(0xFF30D158) else Color(0x66FFFFFF))
-                )
-                Text(
-                    text = if (track.appName.isNotBlank()) track.appName else "Now Playing",
-                    color = Color(0x99FFFFFF),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.sp
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (onClose != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x1FFFFFFF))
-                            .clickable { onClose() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        JarvisIcon(
-                            icon = JarvisIcons.Close,
-                            tint = Color(0xDDFFFFFF),
-                            size = 13.dp
-                        )
-                    }
-                }
-            }
-        }
-
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Album Artwork Squircle (58x58 dp)
-                if (track.albumArt != null) {
-                    Image(
-                        bitmap = track.albumArt.asImageBitmap(),
-                        contentDescription = "Album Art",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x1FFFFFFF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        JarvisIcon(JarvisIcons.MusicNote, Color(0x8CFFFFFF), 24.dp)
-                    }
-                }
-
-                // Title, Artist & Live Lyric Line Preview
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (track.title.isNotBlank()) track.title else "Nothing Playing",
+                val x = size.width * animatedProgress
+                if (x > 0f) {
+                    drawLine(
                         color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        start = Offset(0f, midY),
+                        end = Offset(x, midY),
+                        strokeWidth = stroke,
+                        cap = StrokeCap.Round
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (track.artist.isNotBlank()) track.artist else "Start playback in any app",
-                        color = Color(0x99FFFFFF),
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Real-Time Active Lyric Preview Line
-                    if (track.lyrics.isNotEmpty()) {
-                        val currentPos = if (track.durationMs > 0) track.positionMs else (track.progress * 180000L).toLong()
-                        val activeLine = track.lyrics.lastOrNull { it.timeMs <= currentPos } ?: track.lyrics.firstOrNull()
-                        if (activeLine != null && activeLine.text.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = activeLine.text,
-                                color = Color(0x9EFFFFFF),
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
                 }
             }
-
-        // Apple Fluid Seek Bar
-        OriginOSWavySeekBar(
-            progress = track.progress,
-            durationMs = track.durationMs,
-            positionMs = track.positionMs,
-            accentColor = Color.White,
-            isPlaying = track.isPlaying,
-            onSeek = onSeek
-        )
-
-        // Apple Circular Transport Buttons
+        }
+        Spacer(Modifier.height(1.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            // Previous Track (Glass Circle)
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onPrev),
-                contentAlignment = Alignment.Center
-            ) {
-                JarvisIcon(JarvisIcons.SkipBackFill, Color(0xE6FFFFFF), 22.dp)
-            }
-
-            // Play / Pause (Solid White Apple Circle with Black Icon)
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .clickable(onClick = onPlayPause),
-                contentAlignment = Alignment.Center
-            ) {
-                JarvisIcon(
-                    icon = if (track.isPlaying) JarvisIcons.PauseFill else JarvisIcons.PlayFill,
-                    tint = Color.Black,
-                    size = 22.dp
-                )
-            }
-
-            // Next Track (Glass Circle)
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onNext),
-                contentAlignment = Alignment.Center
-            ) {
-                JarvisIcon(JarvisIcons.SkipForwardFill, Color(0xE6FFFFFF), 22.dp)
-            }
-        }
-    }
-}
-
-/**
- * Animated LAN LiveBridge Status Pulse with Expanding Radar Waves.
- */
-@Composable
-fun PulseConnectionDot(
-    isConnected: Boolean,
-    color: Color = Color(0xFF30D158),
-    size: Dp = 16.dp
-) {
-    val transition = rememberInfiniteTransition(label = "pulseRadar")
-    val waveScale by transition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "radarScale"
-    )
-
-    val waveAlpha by transition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 0.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "radarAlpha"
-    )
-
-    Box(
-        modifier = Modifier.size(size),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isConnected) {
-            Canvas(modifier = Modifier.size(size)) {
-                drawCircle(
-                    color = color.copy(alpha = waveAlpha),
-                    radius = (size.toPx() / 2f) * waveScale,
-                    style = Stroke(width = 1.5f)
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .size(size * 0.45f)
-                .clip(CircleShape)
-                .background(if (isConnected) color else Color(0xFFFF453A))
-        )
-    }
-}
-
-/**
- * Expressive Notification Card (Apple Dynamic Island & Expressive-Cutout style)
- * Intercepts WhatsApp, Telegram, Phone, SMS, System notifications and presents
- * a polished heads-up notification card with quick action triggers.
- */
-@Composable
-fun ExpressiveNotificationCard(
-    event: NotificationIslandEvent,
-    accentColor: Color = Color.White,
-    onOpen: () -> Unit = {},
-    onDismiss: () -> Unit = {},
-    onClose: (() -> Unit)? = null
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Top Camera Clearance Notch
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Top Header: App Pill & Time & Dismiss Icon
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                )
-                Text(
-                    text = if (event.appName.isNotBlank()) event.appName.uppercase() else "NOTIFICATION",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
-                if (event.subText.isNotBlank()) {
-                    Text(
-                        text = "• ${event.subText}",
-                        color = Color(0x88FFFFFF),
-                        fontSize = 9.5.sp
-                    )
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = "Just now",
-                    color = Color(0x66FFFFFF),
-                    fontSize = 9.5.sp
-                )
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x18FFFFFF))
-                        .border(0.5.dp, Color(0x22FFFFFF), CircleShape)
-                        .clickable(onClick = onClose ?: onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = JarvisIcons.Close,
-                        contentDescription = "Close",
-                        tint = Color(0xDDFFFFFF),
-                        modifier = Modifier.size(13.dp)
-                    )
-                }
-            }
-        }
-
-        // Body: Avatar + Title & Message
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (event.largeIcon != null) {
-                Image(
-                    bitmap = event.largeIcon.asImageBitmap(),
-                    contentDescription = "Sender Avatar",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .border(1.dp, Color(0x33FFFFFF), CircleShape)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.18f))
-                        .border(1.dp, accentColor.copy(alpha = 0.35f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = JarvisIcons.Bell,
-                        contentDescription = "Notification",
-                        tint = accentColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (event.title.isNotBlank()) event.title else (if (event.appName.isNotBlank()) event.appName else "New Notification"),
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (event.text.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = event.text,
-                        color = Color(0xCCFFFFFF),
-                        fontSize = 11.5.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 15.sp
-                    )
-                }
-            }
-        }
-
-        // Action Buttons Row: Open App & Dismiss
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(accentColor.copy(alpha = 0.22f))
-                    .border(1.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                .clickable(onClick = onOpen)
-                .padding(vertical = 7.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Icon(
-                    imageVector = JarvisIcons.Globe,
-                    contentDescription = "Open",
-                    tint = accentColor,
-                    modifier = Modifier.size(13.dp)
-                )
-                Text(
-                    text = "Open App",
-                    color = accentColor,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0x15FFFFFF))
-                .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(8.dp))
-                .clickable(onClick = onDismiss)
-                .padding(vertical = 7.dp),
-            contentAlignment = Alignment.Center
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Dismiss",
-                color = Color(0xCCFFFFFF),
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.SemiBold
+                text = formatClock(positionMs),
+                style = IslandType.time,
+                color = Apple.tertiaryLabel
+            )
+            Text(
+                text = if (durationMs > 0) "-${formatClock((durationMs - positionMs).coerceAtLeast(0))}" else "--:--",
+                style = IslandType.time,
+                color = Apple.tertiaryLabel
             )
         }
     }
 }
+
+@Composable
+private fun ActivityTransportButton(
+    label: String,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .semanticsLabel(label),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun ActivityCloseButton(onClose: (() -> Unit)?) {
+    if (onClose == null) return
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(Color(0x1FFFFFFF))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClose
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        JarvisIcon(JarvisIcons.Close, Apple.secondaryLabel, 10.dp)
+    }
+}
+
+@Composable
+private fun AppleActivityButton(
+    text: String,
+    background: Color,
+    foreground: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text, style = IslandType.button, color = foreground, maxLines = 1)
+    }
+}
+
+private fun Modifier.semanticsLabel(label: String): Modifier =
+    this.then(
+        Modifier.semantics { contentDescription = label }
+    )
+
+private fun formatClock(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    return String.format(Locale.US, "%d:%02d", total / 60, total % 60)
 }

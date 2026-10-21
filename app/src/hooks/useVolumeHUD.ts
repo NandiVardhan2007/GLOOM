@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { VolumeState } from "../types";
+import { isTauriRuntime, safeListen } from "../lib/tauri";
 
 export function useVolumeHUD() {
   const [volumeState, setVolumeState] = useState<VolumeState>({ volume: 0.5, isMuted: false });
@@ -10,9 +10,10 @@ export function useVolumeHUD() {
   const isInitialMount = useRef<boolean>(true);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
 
-    listen<VolumeState>("jarvis://volume-update", (event) => {
+    safeListen<VolumeState>("jarvis://volume-update", (event) => {
       setVolumeState(event.payload);
 
       // Don't pop HUD on very first initial reading
@@ -28,9 +29,11 @@ export function useVolumeHUD() {
       hideTimerRef.current = window.setTimeout(() => {
         setShowHUD(false);
       }, 2200);
-    }).then((fn) => {
-      unlisten = fn;
-    }).catch(console.error);
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
 
     return () => {
       if (unlisten) unlisten();

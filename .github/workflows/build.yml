@@ -85,17 +85,17 @@ jobs:
       - name: Rename and Prepare APK Artifact
         run: |
           mkdir -p build-artifacts
-          cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/JARVIS-Island-Release-v1.0.apk
+          cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/JARVIS-Island-Release.apk
           cd build-artifacts
-          sha256sum JARVIS-Island-Release-v1.0.apk > JARVIS-Island-Release-v1.0.apk.sha256
+          sha256sum JARVIS-Island-Release.apk > JARVIS-Island-Release.apk.sha256
 
       - name: Upload Android Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Island-Android-Release-APK
           path: |
-            build-artifacts/JARVIS-Island-Release-v1.0.apk
-            build-artifacts/JARVIS-Island-Release-v1.0.apk.sha256
+            build-artifacts/JARVIS-Island-Release.apk
+            build-artifacts/JARVIS-Island-Release.apk.sha256
           retention-days: 30
 
   # ══════════════════════════════════════════════════════════════
@@ -203,14 +203,15 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### Important
-            - Desktop builds before v1.0.12 could load `localhost:1420` instead of the bundled UI. If that affected you, reinstall from this release.
-            - Media no longer shows a stale track as "playing" when nothing is playing.
-            - LiveBridge now uses certificate-pinned TLS. Re-pair the Android companion after updating both apps.
+            ### JARVIS 1.1.0 — Dynamic Island redesign
+            - Rebuilt the desktop and Android Dynamic Islands to Apple's Live Activities specifications: exact geometry, black surface, SF-metric tracking, SF-style icons, and response/damping springs.
+            - Compact, expanded, minimal, media, transfer, notification, and continuity presentations. Android's expanded card clears the status bar; transfer cards use the shorter 132 dp height.
+            - No Apple font or symbol assets are bundled. The platform system face and original vector icons are used.
+            - Includes the LiveBridge TLS pairing and the v1.0.18 clipboard, file-beam, and app-launch fixes.
           generate_release_notes: true
           files: |
-            release-assets/**/JARVIS-Island-Release-v1.0.apk
-            release-assets/**/JARVIS-Island-Release-v1.0.apk.sha256
+            release-assets/**/JARVIS-Island-Release.apk
+            release-assets/**/JARVIS-Island-Release.apk.sha256
             release-assets/**/JARVIS-Island-Windows.exe
             release-assets/**/JARVIS-Island-Windows.exe.sha256
         env:

@@ -74,6 +74,11 @@ __pycache__/
 # External reference clones
 /references/
 
+# Agent tooling (local skills, locks, Claude Code settings)
+.agents/
+.claude/
+skills-lock.json
+
 # Ignored Internal Audits, Roadmaps & Specs
 ARCHITECTURE.md
 IMPLEMENTATION_ROADMAP.md

@@ -173,6 +173,13 @@ object JarvisIcons {
         }
     }
 
+    val DownloadDoc: ImageVector by lazy {
+        build("arrow.down.doc") {
+            line("M6.2 9.2h2.4a1.6 1.6 0 0 1 1.6 1.6v7.6a1.6 1.6 0 0 1-1.6 1.6H6.2a1.6 1.6 0 0 1-1.6-1.6v-7.6a1.6 1.6 0 0 1 1.6-1.6z")
+            line("M16.4 4.2v12.2M13.2 13.2l3.2 3.2 3.2-3.2")
+        }
+    }
+
     val Mouse: ImageVector by lazy {
         build("computer.mouse") {
             line("M8 3.6h8a2.4 2.4 0 0 1 2.4 2.4v12a2.4 2.4 0 0 1-2.4 2.4H8a2.4 2.4 0 0 1-2.4-2.4V6A2.4 2.4 0 0 1 8 3.6z")

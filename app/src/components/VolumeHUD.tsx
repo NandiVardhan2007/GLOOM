@@ -1,78 +1,69 @@
 import React from "react";
-import { Volume2, VolumeX, Volume1 } from "lucide-react";
+import { ISLAND_COLOR, ISLAND_TYPE } from "../design/island";
+import { SpeakerIcon, SpeakerMutedIcon } from "./IslandIcons";
 
 interface VolumeHUDProps {
-  volume: number; // 0.0 to 1.0
+  volume: number;
   isMuted: boolean;
 }
 
+/** Apple's volume HUD: a compact capsule with a speaker glyph and a bar. */
 export const VolumeHUD: React.FC<VolumeHUDProps> = ({ volume, isMuted }) => {
   const percent = Math.round(volume * 100);
-
-  const getIcon = () => {
-    if (isMuted || percent === 0) return <VolumeX size={16} color="#f87171" />;
-    if (percent < 50) return <Volume1 size={16} color="#0a84ff" />;
-    return <Volume2 size={16} color="#0a84ff" />;
-  };
+  const value = isMuted ? 0 : percent;
+  const accent = isMuted || percent === 0 ? ISLAND_COLOR.tertiary : ISLAND_COLOR.label;
 
   return (
     <div
+      role="status"
+      aria-label={isMuted ? "Muted" : `Volume ${percent} percent`}
       style={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
         width: "100%",
         height: "100%",
-        padding: "0 16px",
-        gap: "12px",
+        padding: "0 12px",
+        gap: 10,
+        boxSizing: "border-box",
+        fontFamily: "var(--font-sans)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        {getIcon()}
-        <span
-          style={{
-            fontSize: "12px",
-            fontWeight: 600,
-            color: "rgba(255, 255, 255, 0.9)",
-          }}
-        >
-          {isMuted ? "Muted" : "Volume"}
-        </span>
-      </div>
+      {isMuted || percent === 0 ? (
+        <SpeakerMutedIcon size={15} color={accent} strokeWidth={1.9} />
+      ) : (
+        <SpeakerIcon size={15} color={accent} strokeWidth={1.9} />
+      )}
 
-      {/* Progress track */}
       <div
         style={{
           flex: 1,
-          height: "6px",
-          borderRadius: "3px",
-          background: "rgba(255, 255, 255, 0.15)",
+          height: 5,
+          borderRadius: 999,
+          background: "rgba(255, 255, 255, 0.16)",
           overflow: "hidden",
-          position: "relative",
         }}
       >
         <div
           style={{
+            width: `${value}%`,
             height: "100%",
-            width: `${isMuted ? 0 : percent}%`,
-            borderRadius: "3px",
-            background: "linear-gradient(90deg, #0a84ff 0%, #818cf8 100%)",
-            transition: "width 0.12s ease-out",
+            borderRadius: 999,
+            background: "#ffffff",
+            transition: "width 120ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         />
       </div>
 
       <span
-        className="tabular-nums"
         style={{
-          fontSize: "12px",
-          fontWeight: 600,
-          color: "rgba(255, 255, 255, 0.95)",
-          minWidth: "32px",
+          ...ISLAND_TYPE.compactNumber,
+          fontSize: 12,
+          color: ISLAND_COLOR.secondary,
+          minWidth: 30,
           textAlign: "right",
         }}
       >
-        {isMuted ? "0%" : `${percent}%`}
+        {value}%
       </span>
     </div>
   );
