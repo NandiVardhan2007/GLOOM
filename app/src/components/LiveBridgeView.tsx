@@ -99,8 +99,8 @@ export const LiveBridgeView: React.FC = () => {
         expiresAtMs: number;
       }>("jarvis_create_qr_pairing");
       const dataUrl = await QRCode.toDataURL(result.payload, {
-        margin: 1,
-        width: 260,
+        margin: 2,
+        width: 520,
         color: { dark: "#000000", light: "#ffffff" },
       });
       setQrPairing({ dataUrl, pin: result.pin, expiresAtMs: result.expiresAtMs });
@@ -299,8 +299,9 @@ export const LiveBridgeView: React.FC = () => {
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "14px",
+            flexDirection: qrPairing ? "column" : "row",
+            alignItems: qrPairing ? "stretch" : "center",
+            gap: qrPairing ? "10px" : "14px",
             background: "rgba(255, 255, 255, 0.055)",
             borderRadius: "16px",
             padding: "12px 14px",
@@ -313,11 +314,12 @@ export const LiveBridgeView: React.FC = () => {
                 src={qrPairing.dataUrl}
                 alt="Pairing QR code"
                 style={{
-                  width: "132px",
-                  height: "132px",
+                  width: "188px",
+                  height: "188px",
+                  alignSelf: "center",
                   borderRadius: "10px",
                   background: "#ffffff",
-                  padding: "6px",
+                  padding: "8px",
                   flexShrink: 0,
                 }}
               />

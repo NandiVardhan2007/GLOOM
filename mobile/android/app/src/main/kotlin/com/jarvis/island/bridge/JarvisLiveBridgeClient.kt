@@ -13,9 +13,12 @@ import java.io.OutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.HttpURLConnection
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
+import java.net.SocketTimeoutException
 import java.net.URL
+import java.util.Collections
 import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.HttpsURLConnection
 import kotlin.concurrent.thread
@@ -93,6 +96,7 @@ class JarvisLiveBridgeClient(private val context: Context) {
                     reuseAddress = true
                     bind(java.net.InetSocketAddress("0.0.0.0", 53390))
                     broadcast = true
+                    soTimeout = 4000
                 }
                 val buffer = ByteArray(2048)
 
@@ -103,7 +107,14 @@ class JarvisLiveBridgeClient(private val context: Context) {
 
                 while (!isConnected) {
                     val packet = DatagramPacket(buffer, buffer.size)
-                    socket.receive(packet)
+                    try {
+                        socket.receive(packet)
+                    } catch (_: SocketTimeoutException) {
+                        // Re-announce so the desktop can see a phone that joined
+                        // after the desktop's own beacon cycle.
+                        broadcastMobileBeacon(socket)
+                        continue
+                    }
                     val msg = String(packet.data, 0, packet.length)
 
                     try {
@@ -150,61 +161,67 @@ class JarvisLiveBridgeClient(private val context: Context) {
 
         // 2. Fallback Active Subnet Scan (for networks with AP/broadcast isolation)
         thread(isDaemon = true, name = "Jarvis-Subnet-Scanner") {
-            try {
-                Thread.sleep(2500)
-                if (isConnected) return@thread
-
-                val localIp = getLocalIpv4Address() ?: return@thread
-                val prefix = localIp.substringBeforeLast(".") + "."
-
-                val testHosts = mutableListOf<String>()
-                for (i in 1..254) {
-                    val target = "$prefix$i"
-                    if (target != localIp) {
-                        testHosts.add(target)
-                    }
-                }
-
-                for (host in testHosts) {
+            while (!isConnected) {
+                try {
+                    Thread.sleep(2500)
                     if (isConnected) break
-                    thread(isDaemon = true) {
-                        try {
-                            // Discovery probe only: the status endpoint is unauthenticated
-                            // and carries no secrets, so it tolerates the yet-unpinned
-                            // certificate. The fingerprint it returns is pinned below.
-                            val url = URL("https://$host:53391/api/status")
-                            val conn = url.openConnection() as HttpsURLConnection
-                            BridgeTls.permissiveClientSocketFactory()?.let {
-                                conn.sslSocketFactory = it
-                            }
-                            conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
-                            conn.connectTimeout = 350
-                            conn.readTimeout = 350
-                            conn.requestMethod = "GET"
-                            if (conn.responseCode in 200..299) {
-                                val resp = conn.inputStream.bufferedReader().readText()
-                                conn.disconnect()
-                                if (resp.contains("JARVIS") || resp.contains("LiveBridge")) {
-                                    val fingerprint = try {
-                                        JSONObject(resp).optString("tlsFingerprint", "")
-                                    } catch (_: Exception) {
-                                        ""
-                                    }
-                                    if (fingerprint.isNotEmpty()) {
-                                        if (!BridgeTls.pinDesktopFingerprint(context, fingerprint)) {
-                                            Log.w(TAG, "Subnet probe at $host does not match the pinned desktop certificate")
-                                            return@thread
-                                        }
-                                    }
-                                    onDiscovered("JARVIS Desktop", host, 53391, onConnected)
-                                }
-                            }
-                        } catch (_: Exception) {}
+
+                    val localIp = getLocalIpv4Address()
+                    if (localIp == null) {
+                        // Discovery often starts before Wi-Fi finishes associating.
+                        Log.w(TAG, "No private LAN address yet; retrying discovery")
+                        continue
                     }
-                    Thread.sleep(8)
+                    val prefix = localIp.substringBeforeLast(".") + "."
+
+                    for (i in 1..254) {
+                        if (isConnected) break
+                        val target = "$prefix$i"
+                        if (target == localIp) continue
+                        thread(isDaemon = true) {
+                            try {
+                                // Discovery probe only: the status endpoint is unauthenticated
+                                // and carries no secrets, so it tolerates the yet-unpinned
+                                // certificate. The fingerprint it returns is pinned below.
+                                val url = URL("https://$target:53391/api/status")
+                                val conn = url.openConnection() as HttpsURLConnection
+                                BridgeTls.permissiveClientSocketFactory()?.let {
+                                    conn.sslSocketFactory = it
+                                }
+                                conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
+                                conn.connectTimeout = 350
+                                conn.readTimeout = 350
+                                conn.requestMethod = "GET"
+                                if (conn.responseCode in 200..299) {
+                                    val resp = conn.inputStream.bufferedReader().readText()
+                                    conn.disconnect()
+                                    if (resp.contains("JARVIS") || resp.contains("LiveBridge")) {
+                                        val fingerprint = try {
+                                            JSONObject(resp).optString("tlsFingerprint", "")
+                                        } catch (_: Exception) {
+                                            ""
+                                        }
+                                        if (fingerprint.isNotEmpty()) {
+                                            if (!BridgeTls.pinDesktopFingerprint(context, fingerprint)) {
+                                                Log.w(TAG, "Subnet probe at $target does not match the pinned desktop certificate")
+                                                return@thread
+                                            }
+                                        }
+                                        onDiscovered("JARVIS Desktop", target, 53391, onConnected)
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        Thread.sleep(8)
+                    }
+                    if (!isConnected) {
+                        Log.w(TAG, "No desktop answered on ${prefix}0/24; retrying")
+                        Thread.sleep(5000)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Subnet scan error: ${e.message}")
+                    Thread.sleep(3000)
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Subnet scan error: ${e.message}")
             }
         }
     }
@@ -219,6 +236,9 @@ class JarvisLiveBridgeClient(private val context: Context) {
         desktopIp = host
         desktopPort = port
         isConnected = true
+        // The instance that actually found the desktop becomes the one the UI
+        // pairs through; otherwise the dialog can talk to a client with no IP.
+        activeClient = this
         releaseMulticastLock()
         Log.i(TAG, "Successfully connected to JARVIS Desktop at $desktopIp:$desktopPort ($name)")
         onConnected(name, host)
@@ -252,17 +272,24 @@ class JarvisLiveBridgeClient(private val context: Context) {
 
     private fun getLocalIpv4Address(): String? {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val intf = interfaces.nextElement()
-                val addrs = intf.inetAddresses
-                while (addrs.hasMoreElements()) {
-                    val addr = addrs.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                        return addr.hostAddress
+            val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
+            var fallback: String? = null
+            for (intf in interfaces) {
+                if (!intf.isUp || intf.isLoopback) continue
+                val name = intf.name.lowercase()
+                for (addr in Collections.list(intf.inetAddresses)) {
+                    if (addr !is Inet4Address || addr.isLoopbackAddress || addr.isLinkLocalAddress) continue
+                    val ip = addr.hostAddress ?: continue
+                    // Exclude carrier CGNAT (100.64.0.0/10) and other non-LAN
+                    // addresses: scanning the cellular subnet never finds the PC.
+                    if (!isPrivateIpv4(ip)) continue
+                    if (name.startsWith("wlan") || name.startsWith("ap") || name.startsWith("eth")) {
+                        return ip
                     }
+                    if (fallback == null) fallback = ip
                 }
             }
+            return fallback
         } catch (_: Exception) {}
         return null
     }
@@ -381,12 +408,19 @@ class JarvisLiveBridgeClient(private val context: Context) {
      * 6-digit PIN which the user then enters via [confirmPairing].
      */
     fun requestPairing(onResult: (challengeId: String?) -> Unit) {
-        val ip = desktopIp
-        if (ip == null) {
-            onResult(null)
-            return
-        }
         thread(isDaemon = true, name = "Jarvis-Pairing-Request") {
+            // The dialog is often opened while discovery is still sweeping; give
+            // the beacon or subnet probe time to land instead of failing at once.
+            var waited = 0L
+            while (desktopIp == null && waited < 8000) {
+                Thread.sleep(250)
+                waited += 250
+            }
+            val ip = desktopIp
+            if (ip == null) {
+                mainHandler.post { onResult(null) }
+                return@thread
+            }
             var challengeId: String? = null
             try {
                 val payload = JSONObject().apply {
@@ -408,6 +442,8 @@ class JarvisLiveBridgeClient(private val context: Context) {
                 if (code in 200..299) {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
                     challengeId = JSONObject(body).optString("challengeId", "").ifBlank { null }
+                } else {
+                    Log.w(TAG, "Pairing request rejected with HTTP $code")
                 }
                 conn.disconnect()
             } catch (e: Exception) {

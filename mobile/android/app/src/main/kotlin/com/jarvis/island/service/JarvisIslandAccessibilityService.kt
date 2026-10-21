@@ -463,10 +463,14 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
             val metrics = resources.displayMetrics
             val width = metrics.widthPixels.toFloat()
             val height = metrics.heightPixels.toFloat()
-            val grid = width * 0.62f
+            // Measured from this device's keyguard (1220x2712): the lock-screen
+            // pattern view is ~0.71 of the screen width and its centre sits at
+            // ~0.658 of the screen height. The previous 0.62/0.55 estimate drew
+            // the whole pattern one row too high, so the keyguard rejected it.
+            val grid = width * 0.71f
             val left = (width - grid) / 2f
             val cell = grid / 3f
-            val top = height * 0.55f - grid / 2f
+            val top = height * 0.658f - grid / 2f
             val points = pattern.map { index ->
                 PointF(
                     left + cell * (index % 3) + cell / 2f,
@@ -477,7 +481,9 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 moveTo(points.first().x, points.first().y)
                 points.drop(1).forEach { lineTo(it.x, it.y) }
             }
-            val duration = (pattern.size * 100L).coerceIn(400L, 1800L)
+            // A human draws this in about 6 s; 150 ms per dot stays well inside
+            // the keyguard's sampling window without feeling sluggish.
+            val duration = (pattern.size * 150L).coerceIn(600L, 2200L)
             val patternGesture = GestureDescription.Builder()
                 .addStroke(GestureDescription.StrokeDescription(path, 0L, duration))
                 .build()
@@ -495,10 +501,15 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "The system rejected the keyguard swipe-up gesture")
                 return false
             }
+            Log.i(
+                TAG,
+                "Replaying unlock pattern ${pattern.map { it + 1 }} on a ${grid.toInt()}px grid " +
+                    "centred at ${left.toInt()},${(top + grid / 2).toInt()}"
+            )
             serviceScope.launch {
                 // Give the bouncer time to finish its own entry animation before
                 // the pattern stroke starts, otherwise the first dot is dropped.
-                delay(700)
+                delay(900)
                 if (!dispatchGesture(patternGesture, null, null)) {
                     Log.w(TAG, "The system rejected the pattern replay gesture")
                 }
