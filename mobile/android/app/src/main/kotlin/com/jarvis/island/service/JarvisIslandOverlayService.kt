@@ -253,9 +253,14 @@ class JarvisIslandOverlayService : Service() {
             if (controllers.isNotEmpty()) {
                 val playingController = controllers.firstOrNull {
                     it.playbackState?.state == PlaybackState.STATE_PLAYING
-                } ?: controllers.first()
-
-                bindMediaController(playingController)
+                }
+                if (playingController != null) {
+                    bindMediaController(playingController)
+                } else {
+                    // A paused/empty session must not be presented as an active song.
+                    activeMediaController = null
+                    mediaTrack = MediaTrackInfo(title = "", artist = "", isPlaying = false, progress = 0f)
+                }
             } else {
                 val isMusicActive = audioManager.isMusicActive
                 if (!isMusicActive) {
@@ -265,7 +270,8 @@ class JarvisIslandOverlayService : Service() {
         } catch (e: SecurityException) {
             val isMusicActive = audioManager.isMusicActive
             if (isMusicActive) {
-                mediaTrack = MediaTrackInfo(title = "Playing Audio", artist = "System Media", isPlaying = true, progress = 0.5f)
+                // Notification access is missing, so the track cannot be identified.
+                mediaTrack = MediaTrackInfo(title = "Audio Playing", artist = "System Media", isPlaying = true, progress = 0f)
             } else {
                 mediaTrack = MediaTrackInfo(title = "", artist = "", isPlaying = false, progress = 0f)
             }
@@ -284,8 +290,14 @@ class JarvisIslandOverlayService : Service() {
         val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
         val isPlaying = state?.state == PlaybackState.STATE_PLAYING
 
+        if (title.isBlank() && artist.isBlank() && !isPlaying) {
+            // Nothing identifiable is playing; never invent a track.
+            mediaTrack = MediaTrackInfo(title = "", artist = "", isPlaying = false, progress = 0f)
+            return
+        }
+
         mediaTrack = MediaTrackInfo(
-            title = if (title.isNotBlank()) title else "Playing Audio",
+            title = if (title.isNotBlank()) title else "Audio Playing",
             artist = if (artist.isNotBlank()) artist else "Media Session",
             isPlaying = isPlaying,
             progress = 0.35f

@@ -256,20 +256,22 @@ class JarvisNotificationListener : NotificationListenerService() {
                 val component = ComponentName(this, JarvisNotificationListener::class.java)
                 val controllers = mm?.getActiveSessions(component) ?: emptyList()
 
-                // Find currently playing session first
+                // Only an actively playing session may drive the island. A paused or
+                // metadata-less session must not look like a song is playing.
                 val target = controllers.firstOrNull {
                     it.playbackState?.state == PlaybackState.STATE_PLAYING
-                } ?: controllers.firstOrNull()
+                }
 
                 if (target != null) {
                     attachController(target)
                 } else {
-                    // Check if system audio manager reports music is playing
+                    activeController?.unregisterCallback(mediaCallback)
+                    activeController = null
                     val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                     val isMusicActive = am?.isMusicActive == true
                     if (isMusicActive && currentTrackInfo.title.isNotBlank()) {
                         currentTrackInfo = currentTrackInfo.copy(isPlaying = true)
-                    } else if (!isMusicActive) {
+                    } else {
                         currentTrackInfo = MediaTrackInfo()
                     }
                     onMediaUpdate?.invoke(currentTrackInfo)
@@ -301,6 +303,13 @@ class JarvisNotificationListener : NotificationListenerService() {
         val rawTitle = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
         val rawArtist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
         val rawAlbum = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM)
+
+        if (rawTitle.isNullOrBlank() && rawArtist.isNullOrBlank()) {
+            // No identifiable track yet; keep the island empty rather than inventing one.
+            currentTrackInfo = MediaTrackInfo()
+            onMediaUpdate?.invoke(currentTrackInfo)
+            return
+        }
 
         val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
         val position = state?.position ?: 0L
