@@ -229,6 +229,27 @@ class JarvisNotificationListener : NotificationListenerService() {
             mainHandler.post {
                 onNotificationEvent?.invoke(event)
             }
+
+            // The island is now the single surface for this alert. Dismiss the
+            // copy in the status bar so it is not delivered twice, but never
+            // touch ongoing/foreground notifications, calls, alarms or anything
+            // the system marks as non-clearable.
+            val protectedCategory = sbn.notification.category == Notification.CATEGORY_CALL ||
+                sbn.notification.category == Notification.CATEGORY_ALARM ||
+                sbn.notification.category == Notification.CATEGORY_EVENT
+            val protectedFlags =
+                (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
+                    (sbn.notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
+            val systemPackage = sbn.packageName == "android" || sbn.packageName == "com.android.systemui"
+            if (onNotificationEvent != null && sbn.isClearable && !sbn.isOngoing &&
+                !protectedCategory && !protectedFlags && !systemPackage
+            ) {
+                try {
+                    cancelNotification(sbn.key)
+                } catch (_: Exception) {
+                    // Some OEMs restrict cancellation; the island still shows the alert.
+                }
+            }
         }
     }
 

@@ -41,6 +41,12 @@ pub struct DevicePermissions {
     pub clipboard: bool,
     pub file_transfer: bool,
     pub remote_control: bool,
+    #[serde(default = "default_true")]
+    pub ai: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for DevicePermissions {
@@ -50,6 +56,7 @@ impl Default for DevicePermissions {
             clipboard: true,
             file_transfer: true,
             remote_control: false, // Opt-in required for remote control
+            ai: true,
         }
     }
 }
@@ -939,6 +946,7 @@ fn is_authorized(headers: &str, peer_ip: &str) -> Result<PairedDeviceRecord, Str
                     clipboard: true,
                     file_transfer: true,
                     remote_control: true,
+                    ai: true,
                 },
                 paired_at_ms: current_time_ms(),
             });
@@ -1535,6 +1543,55 @@ pub fn start_livebridge_service(app: AppHandle) {
                     }
 
                     let body_str = String::from_utf8_lossy(&body_bytes);
+
+                    if req_line.starts_with("POST /api/ai/chat") {
+                        if !paired_device.permissions.ai {
+                            write_error_response(&mut stream, 403, "Forbidden", "AI access is not permitted for this device");
+                            return;
+                        }
+                        let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str) else {
+                            write_error_response(&mut stream, 400, "Bad Request", "Invalid JSON body");
+                            return;
+                        };
+                        let messages: Vec<crate::providers::ai::ChatMessage> = json
+                            .get("messages")
+                            .and_then(|value| value.as_array())
+                            .map(|items| {
+                                items
+                                    .iter()
+                                    .filter_map(|item| {
+                                        let role = item.get("role")?.as_str()?;
+                                        let content = item.get("content")?.as_str()?;
+                                        if content.trim().is_empty() {
+                                            return None;
+                                        }
+                                        Some(crate::providers::ai::ChatMessage {
+                                            role: role.to_string(),
+                                            content: content.to_string(),
+                                        })
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        if messages.is_empty() {
+                            write_error_response(&mut stream, 400, "Bad Request", "No messages supplied");
+                            return;
+                        }
+                        let provider = json.get("provider").and_then(|v| v.as_str()).map(str::to_string);
+                        let model = json.get("model").and_then(|v| v.as_str()).map(str::to_string);
+                        match crate::providers::ai::chat(messages, provider, model) {
+                            Ok(reply) => {
+                                let response = serde_json::to_string(&reply)
+                                    .unwrap_or_else(|_| "{\"content\":\"\"}".to_string());
+                                write_json_response(&mut stream, &response);
+                            }
+                            Err(error) => {
+                                log::warn!("AI request failed: {}", error);
+                                write_error_response(&mut stream, 502, "Bad Gateway", &error);
+                            }
+                        }
+                        return;
+                    }
 
                     if req_line.starts_with("POST /api/telemetry") {
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str) {

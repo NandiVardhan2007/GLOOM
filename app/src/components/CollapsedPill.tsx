@@ -149,8 +149,8 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             ) : (
               <span
                 style={{
-                  fontSize: "10px",
-                  fontWeight: 700,
+                  fontSize: "11px",
+                  fontWeight: 600,
                   color: "rgba(255, 255, 255, 0.9)",
                   fontVariantNumeric: "tabular-nums",
                 }}
@@ -190,7 +190,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
             className="tabular-nums"
             style={{
               fontSize: "12px",
-              fontWeight: 700,
+              fontWeight: 600,
               color: "#ff9f0a",
               letterSpacing: "-0.01em",
             }}
@@ -256,7 +256,7 @@ export const CollapsedPill: React.FC<CollapsedPillProps> = ({
           <span
             className="tabular-nums"
             style={{
-              fontSize: "10.5px",
+              fontSize: "11.5px",
               fontWeight: 500,
               color: "rgba(255, 255, 255, 0.5)",
               letterSpacing: "0.02em",

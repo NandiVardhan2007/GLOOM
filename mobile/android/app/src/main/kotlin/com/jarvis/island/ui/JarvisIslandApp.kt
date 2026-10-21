@@ -268,7 +268,7 @@ fun JarvisIslandApp(
                                         )
                                     } else {
                                         Icon(
-                                            imageVector = Icons.Rounded.Notifications,
+                                            imageVector = JarvisIcons.Bell,
                                             contentDescription = "Notification",
                                             tint = Color.White,
                                             modifier = Modifier.size(16.dp)
@@ -314,7 +314,7 @@ fun JarvisIslandApp(
                                     )
                                 } else if (isCharging) {
                                     Icon(
-                                        imageVector = Icons.Rounded.BatteryChargingFull,
+                                        imageVector = JarvisIcons.BoltFill,
                                         contentDescription = "Charging",
                                         tint = Color(0xFF30D158),
                                         modifier = Modifier.size(15.dp)
@@ -515,7 +515,7 @@ private fun AppleAirDropCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = JarvisIcons.Close,
                             contentDescription = "Close",
                             tint = Color(0xDDFFFFFF),
                             modifier = Modifier.size(13.dp)
@@ -603,7 +603,7 @@ private fun AppleContinuityCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Computer,
+                        imageVector = JarvisIcons.Laptop,
                         contentDescription = "Continuity",
                         tint = Color.White,
                         modifier = Modifier.size(15.dp)
@@ -635,7 +635,7 @@ private fun AppleContinuityCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = JarvisIcons.Close,
                         contentDescription = "Close",
                         tint = Color(0xDDFFFFFF),
                         modifier = Modifier.size(13.dp)
@@ -661,7 +661,7 @@ private fun AppleContinuityCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.BatteryChargingFull,
+                        imageVector = JarvisIcons.BoltFill,
                         contentDescription = "Battery",
                         tint = Color(0xFF30D158),
                         modifier = Modifier.size(18.dp)
@@ -737,7 +737,7 @@ private fun AppleContinuityCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FileUpload,
+                        imageVector = JarvisIcons.Beam,
                         contentDescription = "Beam",
                         tint = Color.White,
                         modifier = Modifier.size(15.dp)
@@ -766,7 +766,7 @@ private fun AppleContinuityCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ContentCopy,
+                        imageVector = JarvisIcons.Clipboard,
                         contentDescription = "Sync",
                         tint = Color(0xCCFFFFFF),
                         modifier = Modifier.size(15.dp)
@@ -795,7 +795,7 @@ private fun AppleContinuityCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Mouse,
+                        imageVector = JarvisIcons.Mouse,
                         contentDescription = "Mouse",
                         tint = Color(0xE6FFFFFF),
                         modifier = Modifier.size(15.dp)

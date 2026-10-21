@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex};
 
 use sha2::{Digest, Sha256};
 
@@ -6,11 +6,16 @@ use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, Server
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
 use rustls::{ClientConfig, DigitallySignedStruct, ServerConfig, SignatureScheme};
 
-static SERVER_CONFIG: OnceLock<Result<Arc<ServerConfig>, String>> = OnceLock::new();
-static LOCAL_FINGERPRINT: OnceLock<String> = OnceLock::new();
+static IDENTITY_LOCK: Mutex<()> = Mutex::new(());
+static IDENTITY: Mutex<Option<(Vec<u8>, Vec<u8>)>> = Mutex::new(None);
+static SERVER_CONFIG: Mutex<Option<Arc<ServerConfig>>> = Mutex::new(None);
 
 fn install_crypto_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn identity_dir() -> std::path::PathBuf {
@@ -40,21 +45,34 @@ pub fn normalize_fingerprint(raw: &str) -> Option<[u8; 32]> {
     Some(out)
 }
 
-fn load_or_create_server_identity() -> Result<(Vec<u8>, Vec<u8>), String> {
+fn read_identity_files() -> Option<(Vec<u8>, Vec<u8>)> {
+    let dir = identity_dir();
+    let cert = std::fs::read(dir.join("bridge_cert.der")).ok()?;
+    let key = std::fs::read(dir.join("bridge_key.der")).ok()?;
+    if cert.is_empty() || key.is_empty() {
+        return None;
+    }
+    Some((cert, key))
+}
+
+fn write_identity_files(cert: &[u8], key: &[u8]) -> Result<(), String> {
     let dir = identity_dir();
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("Cannot create bridge identity directory: {}", e))?;
-    let cert_path = dir.join("bridge_cert.der");
-    let key_path = dir.join("bridge_key.der");
+    // Write to temporary files first so a crash can never leave a cert and key
+    // from different generations on disk.
+    let cert_tmp = dir.join("bridge_cert.der.tmp");
+    let key_tmp = dir.join("bridge_key.der.tmp");
+    std::fs::write(&cert_tmp, cert).map_err(|e| format!("Cannot persist bridge certificate: {}", e))?;
+    std::fs::write(&key_tmp, key).map_err(|e| format!("Cannot persist bridge key: {}", e))?;
+    std::fs::rename(&cert_tmp, dir.join("bridge_cert.der"))
+        .map_err(|e| format!("Cannot install bridge certificate: {}", e))?;
+    std::fs::rename(&key_tmp, dir.join("bridge_key.der"))
+        .map_err(|e| format!("Cannot install bridge key: {}", e))?;
+    Ok(())
+}
 
-    if cert_path.exists() && key_path.exists() {
-        if let (Ok(cert), Ok(key)) = (std::fs::read(&cert_path), std::fs::read(&key_path)) {
-            if !cert.is_empty() && !key.is_empty() {
-                return Ok((cert, key));
-            }
-        }
-    }
-
+fn generate_identity() -> Result<(Vec<u8>, Vec<u8>), String> {
     let key_pair = rcgen::KeyPair::generate()
         .map_err(|e| format!("Cannot generate bridge TLS key: {}", e))?;
     let params = rcgen::CertificateParams::new(vec!["jarvis-bridge".to_string()])
@@ -62,41 +80,77 @@ fn load_or_create_server_identity() -> Result<(Vec<u8>, Vec<u8>), String> {
     let cert = params
         .self_signed(&key_pair)
         .map_err(|e| format!("Cannot self-sign bridge certificate: {}", e))?;
+    Ok((cert.der().to_vec(), key_pair.serialize_der()))
+}
 
-    let cert_der = cert.der().to_vec();
-    let key_der = key_pair.serialize_der();
-    std::fs::write(&cert_path, &cert_der)
-        .map_err(|e| format!("Cannot persist bridge certificate: {}", e))?;
-    std::fs::write(&key_path, &key_der)
-        .map_err(|e| format!("Cannot persist bridge key: {}", e))?;
-    Ok((cert_der, key_der))
+fn reset_identity() {
+    let _guard = lock(&IDENTITY_LOCK);
+    let dir = identity_dir();
+    let _ = std::fs::remove_file(dir.join("bridge_cert.der"));
+    let _ = std::fs::remove_file(dir.join("bridge_key.der"));
+    let _ = std::fs::remove_file(dir.join("bridge_cert.der.tmp"));
+    let _ = std::fs::remove_file(dir.join("bridge_key.der.tmp"));
+    *lock(&IDENTITY) = None;
+    *lock(&SERVER_CONFIG) = None;
+}
+
+fn ensure_identity() -> Result<(Vec<u8>, Vec<u8>), String> {
+    if let Some(identity) = lock(&IDENTITY).clone() {
+        return Ok(identity);
+    }
+    let _guard = lock(&IDENTITY_LOCK);
+    if let Some(identity) = lock(&IDENTITY).clone() {
+        return Ok(identity);
+    }
+    let identity = match read_identity_files() {
+        Some(identity) => identity,
+        None => {
+            let identity = generate_identity()?;
+            write_identity_files(&identity.0, &identity.1)?;
+            identity
+        }
+    };
+    *lock(&IDENTITY) = Some(identity.clone());
+    Ok(identity)
 }
 
 pub fn local_fingerprint() -> String {
-    LOCAL_FINGERPRINT
-        .get_or_init(|| {
-            load_or_create_server_identity()
-                .map(|(cert, _)| fingerprint_hex(&cert))
-                .unwrap_or_default()
-        })
-        .clone()
+    ensure_identity()
+        .map(|(cert, _)| fingerprint_hex(&cert))
+        .unwrap_or_default()
+}
+
+fn build_server_config(cert_der: Vec<u8>, key_der: Vec<u8>) -> Result<Arc<ServerConfig>, String> {
+    ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![CertificateDer::from(cert_der)],
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der)),
+        )
+        .map(Arc::new)
+        .map_err(|e| format!("Cannot build bridge TLS server config: {}", e))
 }
 
 pub fn server_config() -> Result<Arc<ServerConfig>, String> {
-    SERVER_CONFIG
-        .get_or_init(|| {
-            install_crypto_provider();
-            let (cert_der, key_der) = load_or_create_server_identity()?;
-            let config = ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(
-                    vec![CertificateDer::from(cert_der)],
-                    PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der)),
-                )
-                .map_err(|e| format!("Cannot build bridge TLS server config: {}", e))?;
-            Ok(Arc::new(config))
-        })
-        .clone()
+    if let Some(config) = lock(&SERVER_CONFIG).clone() {
+        return Ok(config);
+    }
+    install_crypto_provider();
+    let (cert, key) = ensure_identity()?;
+    let config = match build_server_config(cert, key) {
+        Ok(config) => config,
+        Err(first_error) => {
+            // A pair left mismatched by an interrupted write cannot serve TLS.
+            // Regenerate once, which also repairs installations created by the
+            // older racing identity code.
+            log::warn!("Bridge identity is unusable ({}); regenerating", first_error);
+            reset_identity();
+            let (cert, key) = ensure_identity()?;
+            build_server_config(cert, key)?
+        }
+    };
+    *lock(&SERVER_CONFIG) = Some(config.clone());
+    Ok(config)
 }
 
 /// Issues the companion device its own self-signed identity. The desktop is the

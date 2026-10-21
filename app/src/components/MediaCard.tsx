@@ -226,7 +226,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                fontSize: "10px",
+                fontSize: "11px",
                 color: "rgba(255, 255, 255, 0.6)",
               }}
               className="tabular-nums"

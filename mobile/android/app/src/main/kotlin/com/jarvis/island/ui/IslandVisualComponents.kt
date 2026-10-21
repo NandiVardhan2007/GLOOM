@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -13,6 +14,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -279,81 +281,63 @@ fun OriginOSWavySeekBar(
     onSeek: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val transition = rememberInfiniteTransition(label = "waveProgress")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = if (isPlaying) 6.28f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wavePhase"
-    )
-
     fun formatMs(ms: Long): String {
-        val s = (ms / 1000).coerceAtLeast(0)
-        val m = s / 60
-        val remSec = s % 60
-        return "%02d:%02d".format(m, remSec)
+        val total = (ms / 1000).coerceAtLeast(0)
+        val minutes = total / 60
+        val seconds = total % 60
+        return "%02d:%02d".format(minutes, seconds)
     }
 
-    val elapsedText = formatMs(positionMs)
-    val totalText = if (durationMs > 0) formatMs(durationMs) else "--:--"
+    val target = progress.coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = target,
+        animationSpec = tween(durationMillis = 320, easing = LinearEasing),
+        label = "seekProgress"
+    )
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Canvas(
             modifier = Modifier
-                .height(18.dp)
                 .fillMaxWidth()
-                .pointerInput(Unit) {
+                .height(22.dp)
+                .pointerInput(onSeek) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            onSeek?.invoke((offset.x / size.width.toFloat()).coerceIn(0f, 1f))
+                        },
+                        onHorizontalDrag = { change, _ ->
+                            onSeek?.invoke((change.position.x / size.width.toFloat()).coerceIn(0f, 1f))
+                        }
+                    )
+                }
+                .pointerInput(onSeek) {
                     detectTapGestures { offset ->
-                        val ratio = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        onSeek?.invoke(ratio)
+                        onSeek?.invoke((offset.x / size.width.toFloat()).coerceIn(0f, 1f))
                     }
                 }
         ) {
-            val w = size.width
-            val h = size.height
-            val midY = h / 2f
-            val filledW = (w * progress.coerceIn(0f, 1f))
-
-            // Background Track
+            val midY = size.height / 2f
+            val stroke = 3.dp.toPx()
+            val x = size.width * animatedProgress
             drawLine(
                 color = Color(0x33FFFFFF),
                 start = Offset(0f, midY),
-                end = Offset(w, midY),
-                strokeWidth = 3f,
+                end = Offset(size.width, midY),
+                strokeWidth = stroke,
                 cap = StrokeCap.Round
             )
-
-            // Dynamic Wave Active Progress
-            if (filledW > 2f) {
-                val path = Path()
-                path.moveTo(0f, midY)
-                val step = 4f
-                var x = 0f
-                while (x <= filledW) {
-                    val waveAmplitude = if (isPlaying) 3.5f else 0f
-                    val y = midY + sin((x / 14f) + phase) * waveAmplitude
-                    path.lineTo(x, y)
-                    x += step
-                }
-                drawPath(
-                    path = path,
-                    color = accentColor,
-                    style = Stroke(width = 3.5f, cap = StrokeCap.Round)
+            if (x > 0f) {
+                drawLine(
+                    color = Color.White,
+                    start = Offset(0f, midY),
+                    end = Offset(x, midY),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
                 )
-
-                // Glowing Playhead Dot
                 drawCircle(
                     color = Color.White,
-                    radius = 5.5f,
-                    center = Offset(filledW, midY)
-                )
-                drawCircle(
-                    color = accentColor.copy(alpha = 0.5f),
-                    radius = 8.5f,
-                    center = Offset(filledW, midY)
+                    radius = 5.dp.toPx(),
+                    center = Offset(x, midY)
                 )
             }
         }
@@ -363,16 +347,14 @@ fun OriginOSWavySeekBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = elapsedText,
-                color = Color(0xFF8E8E93),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
+                text = formatMs(positionMs),
+                color = Color(0x99FFFFFF),
+                fontSize = 11.sp
             )
             Text(
-                text = totalText,
-                color = Color(0xFF8E8E93),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
+                text = if (durationMs > 0) formatMs(durationMs) else "--:--",
+                color = Color(0x99FFFFFF),
+                fontSize = 11.sp
             )
         }
     }
@@ -434,7 +416,7 @@ fun OriginOSVinylRecord(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.MusicNote,
+                    imageVector = JarvisIcons.MusicNote,
                     contentDescription = null,
                     tint = Color.Black,
                     modifier = Modifier.size(size * 0.3f)
@@ -510,16 +492,14 @@ fun OriginOSMusicCard(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0x18FFFFFF))
-                            .border(0.5.dp, Color(0x22FFFFFF), CircleShape)
+                            .background(Color(0x1FFFFFFF))
                             .clickable { onClose() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close",
+                        JarvisIcon(
+                            icon = JarvisIcons.Close,
                             tint = Color(0xDDFFFFFF),
-                            modifier = Modifier.size(13.dp)
+                            size = 13.dp
                         )
                     }
                 }
@@ -539,34 +519,36 @@ fun OriginOSMusicCard(
                         contentDescription = "Album Art",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(58.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     )
                 } else {
-                    OriginOSVinylRecord(
-                        isPlaying = track.isPlaying,
-                        albumArt = null,
-                        size = 58.dp,
-                        labelColor = Color.White
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x1FFFFFFF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        JarvisIcon(JarvisIcons.MusicNote, Color(0x8CFFFFFF), 24.dp)
+                    }
                 }
 
                 // Title, Artist & Live Lyric Line Preview
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (track.title.isNotBlank()) track.title else "No Media Playing",
+                        text = if (track.title.isNotBlank()) track.title else "Nothing Playing",
                         color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (track.artist.isNotBlank()) track.artist else "Apple Music",
+                        text = if (track.artist.isNotBlank()) track.artist else "Start playback in any app",
                         color = Color(0x99FFFFFF),
-                        fontSize = 12.sp,
+                        fontSize = 15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -579,8 +561,8 @@ fun OriginOSMusicCard(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = activeLine.text,
-                                color = Color(0xB3FFFFFF),
-                                fontSize = 11.5.sp,
+                                color = Color(0x9EFFFFFF),
+                                fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -608,52 +590,39 @@ fun OriginOSMusicCard(
             // Previous Track (Glass Circle)
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color(0x18FFFFFF))
                     .clickable(onClick = onPrev),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.SkipPrevious,
-                    contentDescription = "Previous Track",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+                JarvisIcon(JarvisIcons.SkipBackFill, Color(0xE6FFFFFF), 22.dp)
             }
 
             // Play / Pause (Solid White Apple Circle with Black Icon)
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
                     .background(Color.White)
                     .clickable(onClick = onPlayPause),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (track.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (track.isPlaying) "Pause" else "Play",
+                JarvisIcon(
+                    icon = if (track.isPlaying) JarvisIcons.PauseFill else JarvisIcons.PlayFill,
                     tint = Color.Black,
-                    modifier = Modifier.size(26.dp)
+                    size = 22.dp
                 )
             }
 
             // Next Track (Glass Circle)
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color(0x18FFFFFF))
                     .clickable(onClick = onNext),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.SkipNext,
-                    contentDescription = "Next Track",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+                JarvisIcon(JarvisIcons.SkipForwardFill, Color(0xE6FFFFFF), 22.dp)
             }
         }
     }
@@ -785,7 +754,7 @@ fun ExpressiveNotificationCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = JarvisIcons.Close,
                         contentDescription = "Close",
                         tint = Color(0xDDFFFFFF),
                         modifier = Modifier.size(13.dp)
@@ -820,7 +789,7 @@ fun ExpressiveNotificationCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Notifications,
+                        imageVector = JarvisIcons.Bell,
                         contentDescription = "Notification",
                         tint = accentColor,
                         modifier = Modifier.size(22.dp)
@@ -871,7 +840,7 @@ fun ExpressiveNotificationCard(
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                    imageVector = JarvisIcons.Globe,
                     contentDescription = "Open",
                     tint = accentColor,
                     modifier = Modifier.size(13.dp)

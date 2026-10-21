@@ -84,6 +84,13 @@ dependencies {
 
     // Media & Coroutines
     implementation("androidx.media:media:1.7.0")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("com.alphacephei:vosk-android:0.3.47")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation("junit:junit:4.13.2")

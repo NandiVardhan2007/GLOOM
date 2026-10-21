@@ -142,6 +142,24 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     };
   }, []);
 
+  // A pairing request must be visible immediately: bring the island to the
+  // bridge tab so the PIN banner is on screen, whichever tab was open.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("jarvis://bridge-pairing-request", () => {
+      setActiveTab("bridge");
+      setIslandState("expanded");
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
   // Listen to Tauri native window drag-drop events (from Windows Explorer)
   useEffect(() => {
     let unlisten: (() => void) | undefined;

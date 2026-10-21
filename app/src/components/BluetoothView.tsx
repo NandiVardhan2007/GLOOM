@@ -94,7 +94,7 @@ export const BluetoothView: React.FC = () => {
             <Bluetooth size={18} color={btEnabled ? "#007aff" : "rgba(255, 255, 255, 0.4)"} />
           </div>
           <div>
-            <div style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff" }}>
               Bluetooth & Wireless Devices
             </div>
             <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)" }}>
@@ -216,7 +216,7 @@ export const BluetoothView: React.FC = () => {
           >
             <Smartphone size={24} strokeWidth={1.5} />
             <span>No companion mobile devices paired yet</span>
-            <span style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.3)" }}>
+            <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.3)" }}>
               Pair via PIN in the File Beam & Phone tab
             </span>
           </div>
@@ -240,7 +240,7 @@ export const BluetoothView: React.FC = () => {
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>
                     {dev.name}
                   </div>
-                  <div style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.45)" }}>
+                  <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)" }}>
                     {dev.ip ? `${dev.ip}:${dev.port}` : "Offline"}
                   </div>
                 </div>

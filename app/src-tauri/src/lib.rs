@@ -353,6 +353,19 @@ async fn jarvis_fetch_lyrics(
 }
 
 #[tauri::command]
+async fn jarvis_ai_chat(
+    messages: Vec<providers::ai::ChatMessage>,
+    provider: Option<String>,
+    model: Option<String>,
+) -> Result<providers::ai::AiReply, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        providers::ai::chat(messages, provider, model)
+    })
+    .await
+    .map_err(|e| format!("AI task failed: {}", e))?
+}
+
+#[tauri::command]
 fn jarvis_get_bridge_tls_fingerprint() -> String {
     providers::bridge_tls::local_fingerprint()
 }
@@ -431,6 +444,7 @@ pub fn run() {
             jarvis_get_pairing_challenge,
             jarvis_get_bridge_tls_fingerprint,
             jarvis_fetch_lyrics,
+            jarvis_ai_chat,
             jarvis_send_bridge_file,
             jarvis_send_bridge_file_bytes,
             jarvis_send_bridge_file_path,

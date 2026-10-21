@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
@@ -101,22 +100,44 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvis.island.bridge.BridgeTls
 import com.jarvis.island.bridge.FileBeamReceiver
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
 import com.jarvis.island.ui.RemoteTrackpad
+import com.jarvis.island.ui.Apple
+import com.jarvis.island.ui.AppleButton
+import com.jarvis.island.ui.AppleDivider
+import com.jarvis.island.ui.AppleLargeTitle
+import com.jarvis.island.ui.AppleRow
+import com.jarvis.island.ui.AppleSection
+import com.jarvis.island.ui.AppleSegmentedControl
+import com.jarvis.island.ui.AppleSliderRow
+import com.jarvis.island.ui.AppleSubHeader
+import com.jarvis.island.ui.AppleSwitch
+import com.jarvis.island.ui.AppleSwitchRow
+import com.jarvis.island.ui.AppleTab
+import com.jarvis.island.ui.AppleTabBar
+import com.jarvis.island.ui.AppleType
+import com.jarvis.island.ui.JarvisIcons
+import com.jarvis.island.ui.JarvisIcon
+import com.jarvis.island.ui.JarvisLockScreen
+import com.jarvis.island.ui.SecurityScreen
+import com.jarvis.island.ui.VoiceSettingsScreen
+import com.jarvis.island.security.JarvisSecurity
 import com.jarvis.island.service.JarvisIslandOverlayService
 import com.jarvis.island.updater.JarvisAppUpdater
 import com.jarvis.island.updater.UpdateState
 import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.IslandThemePalettes
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private lateinit var bridgeClient: JarvisLiveBridgeClient
     private val activeScreenState = mutableStateOf("home")
@@ -145,6 +166,16 @@ class MainActivity : ComponentActivity() {
         bridgeClient = JarvisLiveBridgeClient(this)
         bridgeClient.startDiscovery { _, _ -> }
         JarvisIslandSettings.instance.load(this)
+
+        if (com.jarvis.island.voice.VoicePrefs.isWakeWordEnabled(this) &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
+            com.jarvis.island.voice.WakeWordModel.isInstalled(this)
+        ) {
+            try {
+                com.jarvis.island.voice.WakeWordService.start(this)
+            } catch (_: Exception) {
+            }
+        }
 
         if (hasOverlayState.value && JarvisIslandSettings.instance.isIslandEnabled) {
             startOverlayService()
@@ -285,6 +316,13 @@ fun JarvisMasterApp(
     onSyncClipboard: () -> Unit,
     onRestartService: () -> Unit
 ) {
+    val lockContext = LocalContext.current
+    var unlocked by remember { mutableStateOf(!JarvisSecurity.shouldLock(lockContext)) }
+    if (!unlocked) {
+        JarvisLockScreen(onUnlock = { unlocked = true })
+        return
+    }
+
     val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
     var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) } // "home", "plugins", "settings", "about", "trackpad"
@@ -298,53 +336,25 @@ fun JarvisMasterApp(
         }
     }
 
+    val tabs = listOf(
+        AppleTab("home", "Home", JarvisIcons.House),
+        AppleTab("plugins", "Features", JarvisIcons.Puzzle),
+        AppleTab("settings", "Settings", JarvisIcons.Gear),
+        AppleTab("about", "About", JarvisIcons.Info)
+    )
+
     Scaffold(
+        containerColor = Apple.background,
         bottomBar = {
             if (currentScreen != "trackpad") {
-                NavigationBar(
-                    containerColor = Color(0xFF0D0D14),
-                    contentColor = Color(0xFF0A84FF)
-                ) {
-                    listOf(
-                        NavigationItem("home", "Home", Icons.Rounded.Home),
-                        NavigationItem("plugins", "Plugins", Icons.Rounded.Extension),
-                        NavigationItem("settings", "Settings", Icons.Rounded.Settings),
-                        NavigationItem("about", "About", Icons.Rounded.Info)
-                    ).forEach { item ->
-                        val selected = currentScreen == item.id
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                if (settings.hapticFeedback) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                }
-                                currentScreen = item.id
-                                settingsSubPage = null
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = item.label,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color(0xFF0A84FF),
-                                selectedTextColor = Color(0xFF0A84FF),
-                                unselectedIconColor = Color(0xFF8E8E93),
-                                unselectedTextColor = Color(0xFF636366),
-                                indicatorColor = Color(0x2238BDF8)
-                            )
-                        )
+                AppleTabBar(
+                    tabs = tabs,
+                    selectedId = currentScreen,
+                    onSelect = { id ->
+                        currentScreen = id
+                        settingsSubPage = null
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
@@ -352,7 +362,7 @@ fun JarvisMasterApp(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color(0xFF07070A))
+                .background(Apple.background)
         ) {
             AnimatedContent(
                 targetState = currentScreen to settingsSubPage,
@@ -403,6 +413,12 @@ fun JarvisMasterApp(
                     }
                     screen == "settings" && subPage == "behavior" -> {
                         BehaviorSettingsScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "security" -> {
+                        SecurityScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "voice" -> {
+                        VoiceSettingsScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "settings" && subPage == "apps" -> {
                         EnabledAppsSettingsScreen(onBack = { settingsSubPage = null })
@@ -465,46 +481,240 @@ fun HomeScreen(
     }
     val bridgeClient = JarvisLiveBridgeClient.activeClient
     val bridgeConnected = bridgeClient?.isConnected == true
-    val bridgeAddress = bridgeClient?.desktopIp?.let { "$it:${bridgeClient.desktopPort}" }
-        ?: "Searching for desktop on LAN..."
-
+    val desktopAddress = bridgeClient?.desktopIp
     var showPairDialog by remember { mutableStateOf(false) }
     var pairingChallengeId by remember { mutableStateOf<String?>(null) }
     var pinInput by remember { mutableStateOf("") }
-    var pairStatus by remember { mutableStateOf("Waiting for the desktop to display a PIN...") }
-
-    // Referenced so Compose re-reads the polled bridge state above.
+    var pairStatus by remember { mutableStateOf("Waiting for the desktop to show a PIN.") }
     @Suppress("UNUSED_VARIABLE")
-    val bridgePollTick = bridgeTick
+    val bridgePoll = bridgeTick
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+    ) {
+        Spacer(Modifier.height(8.dp))
+        AppleLargeTitle("JARVIS")
+        Text(
+            text = "Dynamic Island",
+            style = AppleType.subheadline,
+            color = Apple.secondaryLabel,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 18.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Apple.secondaryGroupedBackground)
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IslandPreview()
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("JARVIS Island", style = AppleType.title3, color = Apple.label)
+                    Text(
+                        text = if (settings.isIslandEnabled) "Active" else "Off",
+                        style = AppleType.footnote,
+                        color = if (settings.isIslandEnabled) Apple.systemGreen else Apple.secondaryLabel,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+                AppleSwitch(
+                    checked = settings.isIslandEnabled,
+                    onCheckedChange = { enabled ->
+                        settings.isIslandEnabled = enabled
+                        settings.save(context)
+                        if (enabled) {
+                            onRestartService()
+                        } else {
+                            context.stopService(Intent(context, JarvisIslandOverlayService::class.java))
+                        }
+                    }
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            AppleButton(text = "Preview Island", onClick = onToggleExpand)
+        }
+
+        AppleSection(header = "Permissions") {
+            PermissionRow(
+                title = "Overlay",
+                subtitle = "Draw the island over other apps",
+                granted = hasOverlayPermission,
+                icon = JarvisIcons.Display,
+                tint = Apple.systemBlue,
+                onClick = onRequestOverlayPermission
+            )
+            AppleDivider()
+            PermissionRow(
+                title = "Media & Notifications",
+                subtitle = "Show now playing and incoming alerts",
+                granted = hasNotificationAccess,
+                icon = JarvisIcons.Bell,
+                tint = Apple.systemRed,
+                onClick = onRequestNotificationAccess
+            )
+            AppleDivider()
+            PermissionRow(
+                title = "Accessibility",
+                subtitle = "Enable island gestures and remote control",
+                granted = hasAccessibilityPermission,
+                icon = JarvisIcons.HandTap,
+                tint = Apple.systemIndigo,
+                onClick = onRequestAccessibilityPermission
+            )
+        }
+
+        AppleSection(header = "Quick Actions") {
+            AppleRow(
+                title = "Open Island",
+                icon = JarvisIcons.Island,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = onToggleExpand
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Beam a sample file",
+                icon = JarvisIcons.Beam,
+                iconTint = Apple.systemTeal,
+                showChevron = true,
+                onClick = onSimulateBeam
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Sync clipboard",
+                icon = JarvisIcons.Clipboard,
+                iconTint = Apple.systemGreen,
+                showChevron = true,
+                onClick = onSyncClipboard
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Remote trackpad",
+                icon = JarvisIcons.Mouse,
+                iconTint = Apple.systemIndigo,
+                showChevron = true,
+                onClick = onOpenTrackpad
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Preview music activity",
+                icon = JarvisIcons.MusicNote,
+                iconTint = Apple.systemPink,
+                showChevron = true,
+                onClick = onSimulateMusic
+            )
+        }
+
+        AppleSection(
+            header = "Desktop",
+            footer = "Pair with the JARVIS desktop app on the same Wi-Fi. The desktop shows the PIN and its certificate fingerprint."
+        ) {
+            AppleRow(
+                title = if (bridgeConnected) "JARVIS Desktop" else "Pair with PC",
+                subtitle = if (bridgeConnected) (desktopAddress ?: "Connected") else "Find and pair your desktop",
+                icon = JarvisIcons.Laptop,
+                iconTint = Apple.systemBlue,
+                trailingIcon = if (bridgeConnected) JarvisIcons.CheckCircleFill else JarvisIcons.ChevronRight,
+                trailingTint = if (bridgeConnected) Apple.systemGreen else Apple.tertiaryLabel,
+                onClick = {
+                    pinInput = ""
+                    pairingChallengeId = null
+                    pairStatus = "Waiting for the desktop to show a PIN."
+                    showPairDialog = true
+                    JarvisLiveBridgeClient.activeClient?.requestPairing { id ->
+                        pairingChallengeId = id
+                        if (id == null) {
+                            pairStatus = "No desktop found. Keep both devices on the same Wi-Fi with the desktop app open."
+                        }
+                    }
+                }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Forget desktop",
+                subtitle = "Clear the pinned certificate and pairing",
+                icon = JarvisIcons.Shield,
+                iconTint = Apple.systemRed,
+                destructive = true,
+                onClick = {
+                    JarvisLiveBridgeClient.activeClient?.forgetDesktop()
+                        ?: run {
+                            BridgeTls.clearDesktopPin(context)
+                            FileBeamReceiver.clearPairedToken(context)
+                        }
+                    pairStatus = "Desktop forgotten."
+                }
+            )
+        }
+
+        AppleSection(header = "Device") {
+            AppleRow(
+                title = "Model",
+                value = Build.MANUFACTURER + " " + Build.MODEL
+            )
+            AppleDivider()
+            AppleRow(
+                title = "System",
+                value = "Android " + Build.VERSION.RELEASE
+            )
+            if (settings.isIslandEnabled) {
+                AppleDivider()
+                AppleRow(
+                    title = "Island service",
+                    icon = JarvisIcons.BoltFill,
+                    iconTint = Apple.systemGreen,
+                    value = "Running"
+                )
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+    }
 
     if (showPairDialog) {
         AlertDialog(
             onDismissRequest = { showPairDialog = false },
-            title = { Text("Pair with JARVIS Desktop") },
+            containerColor = Apple.secondaryGroupedBackground,
+            titleContentColor = Apple.label,
+            textContentColor = Apple.secondaryLabel,
+            title = {
+                Text("Pair with JARVIS Desktop", style = AppleType.headline, color = Apple.label)
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(pairStatus, color = Color(0xFF8E8E93), fontSize = 12.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(pairStatus, style = AppleType.footnote, color = Apple.secondaryLabel)
                     BridgeTls.desktopFingerprint(context)?.let { fp ->
                         Text(
-                            "Desktop certificate: ${fp.take(8)}…  (must match the desktop)",
-                            color = Color(0xFF636366),
-                            fontSize = 10.5.sp
+                            "Desktop certificate: " + fp.take(8) + "...",
+                            style = AppleType.caption1,
+                            color = Apple.secondaryLabel
                         )
                     }
                     OutlinedTextField(
                         value = pinInput,
                         onValueChange = { pinInput = it.filter(Char::isDigit).take(6) },
-                        label = { Text("6-digit PIN shown on desktop") },
+                        label = { Text("6-digit PIN") },
                         singleLine = true
                     )
                     TextButton(
                         onClick = {
-                            BridgeTls.clearDesktopPin(context)
-                            FileBeamReceiver.clearPairedToken(context)
+                            JarvisLiveBridgeClient.activeClient?.forgetDesktop()
+                                ?: run {
+                                    BridgeTls.clearDesktopPin(context)
+                                    FileBeamReceiver.clearPairedToken(context)
+                                }
                             pairingChallengeId = null
-                            pairStatus = "Desktop forgotten. Waiting for a new discovery beacon..."
+                            pairStatus = "Desktop forgotten. Searching for a new beacon..."
                         }
-                    ) { Text("Forget desktop & re-pin", fontSize = 11.sp) }
+                    ) {
+                        Text("Forget desktop and re-pin", fontSize = 12.sp)
+                    }
                 }
             },
             confirmButton = {
@@ -515,7 +725,7 @@ fun HomeScreen(
                         pairStatus = "Verifying PIN..."
                         JarvisLiveBridgeClient.activeClient?.confirmPairing(challenge, pinInput) { paired ->
                             if (paired) {
-                                pairStatus = "Paired successfully."
+                                pairStatus = "Paired."
                                 showPairDialog = false
                             } else {
                                 pairStatus = "Incorrect or expired PIN. Start pairing again."
@@ -529,601 +739,276 @@ fun HomeScreen(
             }
         )
     }
+}
 
-    Column(
+@Composable
+private fun PermissionRow(
+    title: String,
+    subtitle: String,
+    granted: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    AppleRow(
+        title = title,
+        subtitle = if (granted) subtitle else subtitle + " - required",
+        icon = icon,
+        iconTint = tint,
+        trailingIcon = if (granted) JarvisIcons.CheckCircleFill else JarvisIcons.XCircleFill,
+        trailingTint = if (granted) Apple.systemGreen else Apple.systemOrange,
+        onClick = if (granted) null else onClick
+    )
+}
+
+@Composable
+private fun IslandPreview() {
+    Box(
         modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .width(96.dp)
+            .height(30.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(Color.Black)
+            .border(0.5.dp, Apple.quaternary, RoundedCornerShape(15.dp)),
+        contentAlignment = Alignment.Center
     ) {
-        // App Header
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            Column {
-                Text(
-                    text = "JARVIS Island",
-                    color = Color.White,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif
-                )
-                Text(
-                    text = "Connected Ecosystem Dynamic Island",
-                    color = Color(0xFF8E8E93),
-                    fontSize = 12.sp
-                )
-            }
-
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (hasOverlayPermission && settings.isIslandEnabled) Color(0x2222C55E) else Color(0x22EF4444))
-                    .border(
-                        1.dp,
-                        if (hasOverlayPermission && settings.isIslandEnabled) Color(0xFF30D158) else Color(0xFFFF453A),
-                        RoundedCornerShape(8.dp)
-                    )
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-            ) {
-                Text(
-                    text = if (hasOverlayPermission && settings.isIslandEnabled) "Running" else "Stopped",
-                    color = if (hasOverlayPermission && settings.isIslandEnabled) Color(0xFF30D158) else Color(0xFFFF453A),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // Hero Master Switch Card
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(Apple.systemGreen)
+            )
+            Text("9:41", style = AppleType.caption1, color = Apple.label)
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Dynamic Island Active",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (settings.isIslandEnabled) "Island overlay rendering over punch-hole camera"
-                        else "Island overlay disabled",
-                        color = Color(0xFF8E8E93),
-                        fontSize = 11.5.sp
-                    )
-                }
-                Switch(
-                    checked = settings.isIslandEnabled,
-                    onCheckedChange = {
-                        settings.isIslandEnabled = it
-                        settings.save(context)
-                        if (it) {
-                            onRestartService()
-                        } else {
-                            context.stopService(Intent(context, JarvisIslandOverlayService::class.java))
-                        }
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF0A84FF),
-                        uncheckedThumbColor = Color(0xFF8E8E93),
-                        uncheckedTrackColor = Color(0xFF2C2C2E)
-                    )
-                )
-            }
-        }
-
-        // Permission Card 1: Overlay
-        if (!hasOverlayPermission) {
-            PermissionCard(
-                title = "Overlay Permission Required",
-                description = "Grant 'Appear on top' permission so Dynamic Island can position over your Motorola front camera.",
-                buttonText = "Grant Overlay Permission",
-                buttonColor = Color(0xFFFF453A),
-                onClick = onRequestOverlayPermission
+                    .width(12.dp)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Apple.systemGreen)
             )
-        }
-
-        // Permission Card 2: Media Session / Notification Access
-        if (!hasNotificationAccess) {
-            PermissionCard(
-                title = "Media & Now Playing Access",
-                description = "Enable Notification Access so JARVIS Island can capture currently playing songs from Spotify / YouTube Music with real controls.",
-                buttonText = "Enable Music Session Access",
-                buttonColor = Color(0xFF0A84FF),
-                onClick = onRequestNotificationAccess
-            )
-        }
-
-        // Permission Card 3: Lock Screen Accessibility
-        if (!hasAccessibilityPermission) {
-            PermissionCard(
-                title = "Lock Screen Display (Accessibility)",
-                description = "Enable JARVIS Island in Accessibility to allow the dynamic island to float smoothly on your Lock Screen and Keyguard.",
-                buttonText = "Enable Lock Screen Accessibility",
-                buttonColor = Color(0xFF30D158),
-                onClick = onRequestAccessibilityPermission
-            )
-        }
-
-        // LiveBridge Windows PC Connection Card
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x2238BDF8)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Computer,
-                                contentDescription = "Windows Desktop",
-                                tint = Color(0xFF0A84FF),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Column {
-                            Text(text = "JARVIS Windows Desktop", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = bridgeAddress,
-                                color = if (bridgeConnected) Color(0xFF0A84FF) else Color(0xFF8E8E93),
-                                fontSize = 10.5.sp
-                            )
-                        }
-                    }
-                    Button(
-                        onClick = {
-                            pinInput = ""
-                            pairingChallengeId = null
-                            pairStatus = "Waiting for the desktop to display a PIN..."
-                            showPairDialog = true
-                            JarvisLiveBridgeClient.activeClient?.requestPairing { id ->
-                                pairingChallengeId = id
-                                if (id == null) {
-                                    pairStatus = "Could not reach the desktop. Ensure both devices share the same Wi-Fi and JARVIS is running."
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (bridgeConnected) Color(0xFF0A84FF) else Color(0xFF334155)
-                        ),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (bridgeConnected) "Pair" else "Retry",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        // PC Remote Mousepad / Trackpad Feature Card
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenTrackpad() }
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0x2238BDF8)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Mouse,
-                            contentDescription = "Mousepad",
-                            tint = Color(0xFF0A84FF),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = "PC Remote Mousepad",
-                            color = Color.White,
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Control Windows cursor, clicks & scroll via phone",
-                            color = Color(0xFF8E8E93),
-                            fontSize = 11.5.sp
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = "Open Trackpad",
-                    tint = Color(0xFF636366),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // Quick Sandbox & Diagnostics Actions
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Quick Interactive Tests", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Toggle Expand", fontSize = 11.sp, color = Color.White)
-                    }
-
-                    Button(
-                        onClick = onSimulateBeam,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Test File Beam", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onSimulateMusic,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Test Music Card", fontSize = 11.sp, color = Color.White)
-                    }
-
-                    Button(
-                        onClick = onSyncClipboard,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Sync Clipboard", fontSize = 11.sp, color = Color.White)
-                    }
-                }
-            }
         }
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// SCREEN 2: PLUGINS SCREEN
-// ══════════════════════════════════════════════════════════════════════
 @Composable
 fun PluginsScreen(onOpenTrackpad: () -> Unit = {}) {
-    val context = LocalContext.current
-    val settings = remember { JarvisIslandSettings.instance }
     val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column {
-            Text(text = "Island Plugins", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text(text = "Manage features rendered inside the Dynamic Island", color = Color(0xFF8E8E93), fontSize = 12.sp)
-        }
-
-        // Plugin 1: File Beam
-        PluginItem(
-            title = "High-Speed File Beam",
-            description = "Animates live file transfers between Windows PC and phone with MB/s speedometer.",
-            icon = Icons.Rounded.SwapHoriz,
-            enabled = settings.pluginFileBeam,
-            onToggle = {
-                settings.pluginFileBeam = it
-                settings.save(context)
-            }
+        Spacer(Modifier.height(8.dp))
+        AppleLargeTitle("Features")
+        Text(
+            text = "Everything the island can do",
+            style = AppleType.subheadline,
+            color = Apple.secondaryLabel,
+            modifier = Modifier.padding(horizontal = 20.dp)
         )
 
-        // Plugin 2: Media Player
-        PluginItem(
-            title = "Now Playing Media Session",
-            description = "Displays rotating vinyl disk art, wavy seekbar, and real music playback controls.",
-            icon = Icons.Rounded.MusicNote,
-            enabled = settings.pluginMedia,
-            onToggle = {
-                settings.pluginMedia = it
-                settings.save(context)
-            }
-        )
-
-        // Plugin 3: Smart Notifications
-        PluginItem(
-            title = "Smart Heads-Up Notifications",
-            description = "Pill alerts for incoming messaging and system notifications.",
-            icon = Icons.Rounded.Notifications,
-            enabled = settings.pluginNotifications,
-            onToggle = {
-                settings.pluginNotifications = it
-                settings.save(context)
-            }
-        )
-
-        // Plugin 4: Battery & Charging
-        PluginItem(
-            title = "Charging & Battery Status",
-            description = "Real-time battery level and charging badge when connected to charger.",
-            icon = Icons.Rounded.BatteryChargingFull,
-            enabled = settings.pluginBattery,
-            onToggle = {
-                settings.pluginBattery = it
-                settings.save(context)
-            }
-        )
-
-        // Plugin 5: Clipboard Continuity
-        PluginItem(
-            title = "Universal Clipboard Mirroring",
-            description = "Live 2-way clipboard synchronization with Windows Desktop.",
-            icon = Icons.Rounded.ContentCopy,
-            enabled = settings.pluginClipboard,
-            onToggle = {
-                settings.pluginClipboard = it
-                settings.save(context)
-            }
-        )
-
-        // Plugin 6: Wireless PC Trackpad & Cursor
-        PluginItem(
-            title = "Wireless PC Trackpad & Cursor",
-            description = "KDE Connect-style trackpad controlling Windows cursor, clicks and vertical scrolling.",
-            icon = Icons.Rounded.Mouse,
-            enabled = true,
-            onToggle = { onOpenTrackpad() }
-        )
-    }
-}
-
-@Composable
-fun PluginItem(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier.weight(1f).padding(end = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF2C2C2E)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = title,
-                        tint = Color(0xFF0A84FF),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Column {
-                    Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(text = description, color = Color(0xFF8E8E93), fontSize = 11.sp)
-                }
-            }
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF0A84FF),
-                    uncheckedThumbColor = Color(0xFF8E8E93),
-                    uncheckedTrackColor = Color(0xFF2C2C2E)
-                )
+        AppleSection(header = "Live Activities") {
+            AppleRow(
+                title = "Now Playing",
+                subtitle = "Album art, transport controls and progress",
+                icon = JarvisIcons.MusicNote,
+                iconTint = Apple.systemPink
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Live Lyrics",
+                subtitle = "Synced lines highlight as the song plays",
+                icon = JarvisIcons.Waveform,
+                iconTint = Apple.systemPurple
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Notifications",
+                subtitle = "Incoming alerts appear inside the island",
+                icon = JarvisIcons.Bell,
+                iconTint = Apple.systemRed
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Focus Timer",
+                subtitle = "Pomodoro and stopwatch live in the pill",
+                icon = JarvisIcons.Timer,
+                iconTint = Apple.systemOrange
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Charging",
+                subtitle = "Battery state while the device charges",
+                icon = JarvisIcons.BoltFill,
+                iconTint = Apple.systemGreen
             )
         }
+
+        AppleSection(
+            header = "Continuity",
+            footer = "These features activate automatically when the island is running."
+        ) {
+            AppleRow(
+                title = "Universal Clipboard",
+                subtitle = "Copy on one device, paste on the other",
+                icon = JarvisIcons.Clipboard,
+                iconTint = Apple.systemGreen
+            )
+            AppleDivider()
+            AppleRow(
+                title = "File Beam",
+                subtitle = "Send files to and from your PC over the LAN",
+                icon = JarvisIcons.Beam,
+                iconTint = Apple.systemTeal
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Remote Trackpad",
+                subtitle = "Control the Windows pointer from your phone",
+                icon = JarvisIcons.Mouse,
+                iconTint = Apple.systemIndigo,
+                showChevron = true,
+                onClick = onOpenTrackpad
+            )
+        }
+
+        AppleSection(header = "Privacy") {
+            AppleRow(
+                title = "On-device processing",
+                subtitle = "Island state and media data stay on this device",
+                icon = JarvisIcons.Shield,
+                iconTint = Apple.systemBlue
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Pinned connections",
+                subtitle = "The PC link is encrypted and certificate-pinned",
+                icon = JarvisIcons.Globe,
+                iconTint = Apple.systemGreen
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// SCREEN 3: SETTINGS HUB & SUB-PAGES
-// ══════════════════════════════════════════════════════════════════════
 @Composable
 fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column {
-            Text(text = "Settings", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text(text = "Material You Dynamic Island customization categories", color = Color(0xFF8E8E93), fontSize = 12.sp)
-        }
-
-        SettingsCategoryTile(
-            title = "Position & Alignment",
-            subtitle = "Camera punch-hole clearance, X/Y margins (top 2px default)",
-            icon = Icons.Rounded.Place,
-            onClick = { onNavigateSubPage("position") }
+        Spacer(Modifier.height(8.dp))
+        AppleLargeTitle("Settings")
+        Text(
+            text = "Appearance and behavior",
+            style = AppleType.subheadline,
+            color = Apple.secondaryLabel,
+            modifier = Modifier.padding(horizontal = 20.dp)
         )
 
-        SettingsCategoryTile(
-            title = "Size & Geometry",
-            subtitle = "Pill width, height, expanded card bounds, corner radii",
-            icon = Icons.Rounded.AspectRatio,
-            onClick = { onNavigateSubPage("size") }
-        )
-
-        SettingsCategoryTile(
-            title = "Themes & Styling",
-            subtitle = "Obsidian Black, Cyber Cyan, Emerald Matrix, border glows",
-            icon = Icons.Rounded.Palette,
-            onClick = { onNavigateSubPage("themes") }
-        )
-
-        SettingsCategoryTile(
-            title = "Behavior & Lock Screen",
-            subtitle = "Lock screen overlay, haptic feedback, gestures, auto-collapse",
-            icon = Icons.Rounded.Lock,
-            onClick = { onNavigateSubPage("behavior") }
-        )
-
-        SettingsCategoryTile(
-            title = "Enabled Applications",
-            subtitle = "Filter which apps can trigger Dynamic Island heads-up cards",
-            icon = Icons.Rounded.Apps,
-            onClick = { onNavigateSubPage("apps") }
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Reset All Settings Button
-        OutlinedButton(
-            onClick = {
-                if (settings.hapticFeedback) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                }
-                settings.resetDefaults(context)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color(0xFFFF453A)
+        AppleSection(header = "Island") {
+            AppleRow(
+                title = "Position & Clearance",
+                subtitle = "Gravity, camera clearance and offsets",
+                icon = JarvisIcons.Move,
+                iconTint = Apple.systemIndigo,
+                value = settings.gravity,
+                showChevron = true,
+                onClick = { onNavigateSubPage("position") }
             )
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.RestartAlt,
-                    contentDescription = "Reset All",
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(text = "Reset All Settings to Defaults", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-            }
+            AppleDivider()
+            AppleRow(
+                title = "Size & Shape",
+                subtitle = "Pill dimensions in density-independent pixels",
+                icon = JarvisIcons.ArrowsUpDown,
+                iconTint = Apple.systemBlue,
+                value = settings.pillWidth.toString() + " x " + settings.pillHeight.toString(),
+                showChevron = true,
+                onClick = { onNavigateSubPage("size") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Theme",
+                subtitle = "Palette and accent color",
+                icon = JarvisIcons.Palette,
+                iconTint = Apple.systemPink,
+                value = settings.themeStyle,
+                showChevron = true,
+                onClick = { onNavigateSubPage("themes") }
+            )
         }
+
+        AppleSection(header = "Behavior") {
+            AppleRow(
+                title = "Gestures & Behavior",
+                subtitle = "Haptics, expansion and auto-collapse",
+                icon = JarvisIcons.Sliders,
+                iconTint = Apple.systemOrange,
+                showChevron = true,
+                onClick = { onNavigateSubPage("behavior") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Enabled Apps",
+                subtitle = "Choose which apps can show Live Activities",
+                icon = JarvisIcons.Apps,
+                iconTint = Apple.systemGreen,
+                showChevron = true,
+                onClick = { onNavigateSubPage("apps") }
+            )
+        }
+
+        AppleSection(header = "Voice") {
+            AppleRow(
+                title = "Hey JARVIS & AI",
+                subtitle = "Offline wake word with desktop AI replies",
+                icon = JarvisIcons.Waveform,
+                iconTint = Apple.systemPurple,
+                value = if (com.jarvis.island.voice.VoicePrefs.isWakeWordEnabled(context)) "On" else "Off",
+                showChevron = true,
+                onClick = { onNavigateSubPage("voice") }
+            )
+        }
+
+        AppleSection(header = "Security") {
+            AppleRow(
+                title = "App Lock",
+                subtitle = "Pattern, fingerprint and voice unlock",
+                icon = JarvisIcons.Shield,
+                iconTint = Apple.systemBlue,
+                value = if (JarvisSecurity.isAppLockEnabled(context)) "On" else "Off",
+                showChevron = true,
+                onClick = { onNavigateSubPage("security") }
+            )
+        }
+
+        AppleSection(
+            header = "About",
+            footer = "JARVIS " + BuildConfig.VERSION_NAME
+        ) {
+            AppleRow(
+                title = "Privacy",
+                subtitle = "No account, no cloud, no tracking",
+                icon = JarvisIcons.Shield,
+                iconTint = Apple.systemBlue
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
     }
 }
 
-@Composable
-fun SettingsCategoryTile(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier.weight(1f).padding(end = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF2C2C2E)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = title,
-                        tint = Color(0xFF0A84FF),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Column {
-                    Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(text = subtitle, color = Color(0xFF8E8E93), fontSize = 11.sp)
-                }
-            }
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = "Open",
-                tint = Color(0xFF636366),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-// ── Position & Clearance Sub-Page ──
 @Composable
 fun PositionSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -1774,291 +1659,209 @@ fun AboutScreen() {
     val scrollState = rememberScrollState()
     val updater = remember { JarvisAppUpdater(context) }
     val updateState by updater.state.collectAsState()
+    val version = BuildConfig.VERSION_NAME
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(10.dp))
-
+        Spacer(Modifier.height(26.dp))
         Box(
             modifier = Modifier
-                .size(68.dp)
+                .size(72.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF0A84FF)),
+                .background(Apple.systemBlue),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Rounded.AutoAwesome,
-                contentDescription = "JARVIS",
-                tint = Color.White,
-                modifier = Modifier.size(36.dp)
+            JarvisIcon(JarvisIcons.Sparkles, Color.White, 40.dp)
+        }
+        Spacer(Modifier.height(12.dp))
+        Text("JARVIS", style = AppleType.title1, color = Apple.label)
+        Text(
+            text = "Dynamic Island · " + version,
+            style = AppleType.subheadline,
+            color = Apple.secondaryLabel
+        )
+
+        AppleSection(header = "Software Update") {
+            when (val state = updateState) {
+                is UpdateState.Checking -> {
+                    AppleRow(
+                        title = "Checking for updates",
+                        subtitle = "Contacting GitHub Releases",
+                        icon = JarvisIcons.ArrowClockwise,
+                        iconTint = Apple.systemBlue
+                    )
+                }
+                is UpdateState.UpToDate -> {
+                    AppleRow(
+                        title = "You're up to date",
+                        subtitle = "JARVIS " + version,
+                        icon = JarvisIcons.CheckCircleFill,
+                        iconTint = Apple.systemGreen
+                    )
+                    AppleDivider()
+                    AppleRow(
+                        title = "Check Again",
+                        icon = JarvisIcons.ArrowClockwise,
+                        iconTint = Apple.systemGray,
+                        showChevron = true,
+                        onClick = { updater.checkForUpdates() }
+                    )
+                }
+                is UpdateState.Available -> {
+                    AppleRow(
+                        title = state.tag + " is available",
+                        subtitle = "%.1f MB · verified download".format(state.sizeMb),
+                        icon = JarvisIcons.ArrowClockwise,
+                        iconTint = Apple.systemBlue
+                    )
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        AppleButton(
+                            text = "Download & Install",
+                            icon = JarvisIcons.Beam,
+                            onClick = { updater.startDownload(state.downloadUrl, state.checksumUrl) }
+                        )
+                    }
+                }
+                is UpdateState.Downloading -> {
+                    val progress = state.progress
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Downloading", style = AppleType.body, color = Apple.label)
+                            Text(
+                                progress.percent.toString() + "%",
+                                style = AppleType.body,
+                                color = Apple.secondaryLabel
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Apple.quaternary)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(progress.percent / 100f)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Apple.systemBlue)
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "%.1f of %.1f MB".format(progress.downloadedMb, progress.totalMb),
+                                style = AppleType.caption1,
+                                color = Apple.secondaryLabel
+                            )
+                            Text(progress.speedMbps, style = AppleType.caption1, color = Apple.secondaryLabel)
+                        }
+                    }
+                }
+                is UpdateState.ReadyToInstall -> {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            JarvisIcon(JarvisIcons.CheckCircleFill, Apple.systemGreen, 20.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Download verified", style = AppleType.body, color = Apple.label)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        AppleButton(
+                            text = "Install Update",
+                            icon = JarvisIcons.Sparkles,
+                            onClick = { updater.installApk(state.apkFile) }
+                        )
+                    }
+                }
+                is UpdateState.Error -> {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Text(
+                            text = state.message,
+                            style = AppleType.footnote,
+                            color = Apple.systemRed
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        AppleButton(
+                            text = "Try Again",
+                            primary = false,
+                            onClick = { updater.checkForUpdates() }
+                        )
+                    }
+                }
+                else -> {
+                    AppleRow(
+                        title = "Check for Updates",
+                        subtitle = "You are running JARVIS " + version,
+                        icon = JarvisIcons.ArrowClockwise,
+                        iconTint = Apple.systemBlue,
+                        showChevron = true,
+                        onClick = { updater.checkForUpdates() }
+                    )
+                }
+            }
+        }
+
+        AppleSection(header = "About") {
+            AppleRow(
+                title = "Platform",
+                subtitle = "Android companion with a Windows desktop island",
+                icon = JarvisIcons.Laptop,
+                iconTint = Apple.systemBlue
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Privacy",
+                subtitle = "No account, no cloud, no tracking",
+                icon = JarvisIcons.Shield,
+                iconTint = Apple.systemGreen
+            )
+            AppleDivider()
+            AppleRow(
+                title = "GitHub",
+                subtitle = "Source, releases and issue tracker",
+                icon = JarvisIcons.Globe,
+                iconTint = Apple.systemGray,
+                showChevron = true,
+                onClick = {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/NandiVardhan2007/JARVIS"))
+                    )
+                }
             )
         }
 
-        Text(text = "JARVIS Dynamic Island", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text(text = "Version 1.0.0 • Connected Ecosystem", color = Color(0xFF8E8E93), fontSize = 12.sp)
+        Text(
+            text = "JARVIS uses Android overlay and notification access to draw Live Activities around the camera cutout. No personal data, messages or passwords are collected or uploaded.",
+            style = AppleType.footnote,
+            color = Apple.secondaryLabel,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 36.dp, vertical = 18.dp)
+        )
 
-        // ── In-App Seamless Auto Updater Card ──
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2238BDF8)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(
-                            imageVector = Icons.Rounded.AutoAwesome,
-                            contentDescription = "Update",
-                            tint = Color(0xFF0A84FF),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(text = "Software Updates", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Text(text = "v1.0.0", color = Color(0xFF8E8E93), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                }
-
-                when (val state = updateState) {
-                    is UpdateState.Idle -> {
-                        Text(
-                            text = "Keep JARVIS Dynamic Island up-to-date with latest Apple HIG features & Live Activities.",
-                            color = Color(0xFF8E8E93),
-                            fontSize = 11.5.sp
-                        )
-                        Button(
-                            onClick = { updater.checkForUpdates() },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Check for Updates", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    is UpdateState.Checking -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        ) {
-                            Text("Checking GitHub Releases for latest build...", color = Color(0xFF0A84FF), fontSize = 12.sp)
-                        }
-                    }
-                    is UpdateState.UpToDate -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF30D158), modifier = Modifier.size(16.dp))
-                            Text("You are running the latest version (v1.0.0)", color = Color(0xFF30D158), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Button(
-                            onClick = { updater.checkForUpdates() },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Check Again", color = Color.White, fontSize = 11.5.sp)
-                        }
-                    }
-                    is UpdateState.Available -> {
-                        Text("New release ${state.tag} is ready for installation (${"%.1f".format(state.sizeMb)} MB).", color = Color.White, fontSize = 12.sp)
-                        Button(
-                            onClick = { updater.startDownload(state.downloadUrl, state.checksumUrl) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A84FF)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Rounded.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Download & Install Update", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    is UpdateState.Downloading -> {
-                        val progress = state.progress
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Downloading Update...", color = Color(0xFF0A84FF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text("${progress.percent}%", color = Color(0xFF0A84FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            // Glowing animated gradient progress bar
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF2C2C2E))
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(progress.percent / 100f)
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(Color(0xFF0A84FF), Color(0xFF0A84FF))
-                                            )
-                                        )
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("${"%.1f".format(progress.downloadedMb)} MB / ${"%.1f".format(progress.totalMb)} MB", color = Color(0xFF8E8E93), fontSize = 10.5.sp)
-                                Text(progress.speedMbps, color = Color(0xFF8E8E93), fontSize = 10.5.sp)
-                            }
-                        }
-                    }
-                    is UpdateState.ReadyToInstall -> {
-                        Text("Download complete! Ready to install update.", color = Color(0xFF30D158), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Button(
-                            onClick = { updater.installApk(state.apkFile) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF30D158)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Install Update Now", color = Color.Black, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    is UpdateState.Error -> {
-                        Text("Update error: ${state.message}", color = Color(0xFFFF453A), fontSize = 11.5.sp)
-                        Button(
-                            onClick = { updater.checkForUpdates() },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C2E)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Retry", color = Color.White, fontSize = 11.5.sp)
-                        }
-                    }
-                }
-            }
-        }
-
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Platform Architecture", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    text = "JARVIS Ecosystem connects Windows Desktop and Android companion devices seamlessly. " +
-                            "Features real-time punch-hole cutout clearance, LiveBridge clipboard sync, and 5G WiFi Direct file beaming.",
-                    color = Color(0xFF8E8E93),
-                    fontSize = 11.5.sp
-                )
-
-                OutlinedButton(
-                    onClick = {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/NandiVardhan2007/JARVIS.git"))
-                        context.startActivity(browserIntent)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("View GitHub Repository", color = Color(0xFF0A84FF), fontSize = 12.sp)
-                }
-            }
-        }
-
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(text = "Accessibility & Overlay Disclosure", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    text = "JARVIS Island uses Android System Alert Window (Overlay) APIs to render dynamic activity cards around your camera cutout. " +
-                            "No personal data or passwords are ever accessed or collected.",
-                    color = Color(0xFF8E8E93),
-                    fontSize = 11.sp
-                )
-            }
-        }
+        Spacer(Modifier.height(20.dp))
     }
 }
 
-// ── Shared UI Helpers ──
 @Composable
 fun SubPageHeader(title: String, onBack: () -> Unit, onResetSection: (() -> Unit)? = null) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF2C2C2E))
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Text(text = title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
-
-        if (onResetSection != null) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF2C2C2E))
-                    .clickable(onClick = onResetSection)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Reset Section",
-                        tint = Color(0xFF8E8E93),
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "Reset",
-                        color = Color(0xFF8E8E93),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
+    AppleSubHeader(
+        title = title,
+        onBack = onBack,
+        actionLabel = if (onResetSection != null) "Reset" else null,
+        onAction = onResetSection
+    )
 }
 
 @Composable
@@ -2070,76 +1873,23 @@ fun SliderRow(
     onReset: (() -> Unit)? = null,
     onValueChange: (Float) -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = label, color = Color(0xFFE2E8F0), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(text = valueText, color = Color(0xFF0A84FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                if (onReset != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF2C2C2E))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onReset()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Reset $label",
-                            tint = Color(0xFF8E8E93),
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
-            }
-        }
-        Slider(
-            value = value.coerceIn(range.start, range.endInclusive),
-            onValueChange = onValueChange,
-            valueRange = range,
-            colors = SliderDefaults.colors(
-                thumbColor = Color(0xFF0A84FF),
-                activeTrackColor = Color(0xFF0A84FF),
-                inactiveTrackColor = Color(0xFF2C2C2E)
-            )
-        )
-    }
+    AppleSliderRow(
+        title = label,
+        valueText = valueText,
+        value = value.coerceIn(range.start, range.endInclusive),
+        onValueChange = onValueChange,
+        valueRange = range
+    )
 }
 
 @Composable
 fun SettingsSwitch(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(text = title, color = Color(0xFFE2E8F0), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-            Text(text = description, color = Color(0xFF636366), fontSize = 10.5.sp)
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF0A84FF),
-                uncheckedThumbColor = Color(0xFF8E8E93),
-                uncheckedTrackColor = Color(0xFF2C2C2E)
-            )
-        )
-    }
+    AppleSwitchRow(
+        title = title,
+        description = description,
+        checked = checked,
+        onCheckedChange = onCheckedChange
+    )
 }
 
 @Composable

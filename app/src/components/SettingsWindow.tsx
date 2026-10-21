@@ -109,7 +109,7 @@ export const SettingsWindow: React.FC<SettingsWindowProps> = ({ config, onUpdate
             alignItems: "center",
             gap: "9px",
             fontSize: "12.5px",
-            fontWeight: 700,
+            fontWeight: 600,
             color: "#ffffff",
             letterSpacing: "0.02em",
           }}

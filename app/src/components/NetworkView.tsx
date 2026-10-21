@@ -80,7 +80,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
             </div>
             <span
               className="tabular-nums"
-              style={{ fontSize: "13px", fontWeight: 700, color: "#32ade6" }}
+              style={{ fontSize: "13px", fontWeight: 600, color: "#32ade6" }}
             >
               {formatSpeed(downSpeed)}
             </span>
@@ -98,7 +98,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               style={{
                 width: `${downPercent}%`,
                 height: "100%",
-                background: "linear-gradient(90deg, #007aff, #32ade6)",
+                background: "#0a84ff",
                 borderRadius: "9999px",
                 transition: "width 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
               }}
@@ -139,7 +139,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
             </div>
             <span
               className="tabular-nums"
-              style={{ fontSize: "13px", fontWeight: 700, color: "#34c759" }}
+              style={{ fontSize: "13px", fontWeight: 600, color: "#34c759" }}
             >
               {formatSpeed(upSpeed)}
             </span>
@@ -157,7 +157,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               style={{
                 width: `${upPercent}%`,
                 height: "100%",
-                background: "linear-gradient(90deg, #28a745, #34c759)",
+                background: "#30d158",
                 borderRadius: "9999px",
                 transition: "width 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
               }}
@@ -189,8 +189,8 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
           </div>
           <span
             style={{
-              fontSize: "9.5px",
-              fontWeight: 700,
+              fontSize: "11px",
+              fontWeight: 600,
               padding: "2px 8px",
               borderRadius: "9999px",
               background: "rgba(50, 173, 230, 0.18)",
@@ -234,7 +234,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               border: "0.5px solid rgba(255, 255, 255, 0.06)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "11px" }}>
               <Wifi size={11} />
               <span>Interface</span>
             </div>
@@ -255,7 +255,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               border: "0.5px solid rgba(255, 255, 255, 0.06)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "11px" }}>
               <Zap size={11} color="#32ade6" />
               <span>Beam Socket</span>
             </div>
@@ -276,7 +276,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
               border: "0.5px solid rgba(255, 255, 255, 0.06)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "11px" }}>
               <Smartphone size={11} color="#af52de" />
               <span>Android Bridge</span>
             </div>

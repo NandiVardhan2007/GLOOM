@@ -66,7 +66,7 @@ export const VolumeHUD: React.FC<VolumeHUDProps> = ({ volume, isMuted }) => {
         className="tabular-nums"
         style={{
           fontSize: "12px",
-          fontWeight: 700,
+          fontWeight: 600,
           color: "rgba(255, 255, 255, 0.95)",
           minWidth: "32px",
           textAlign: "right",

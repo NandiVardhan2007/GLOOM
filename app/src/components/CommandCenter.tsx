@@ -101,7 +101,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             borderRadius: "12px",
             border: "none",
             cursor: "pointer",
-            background: wifiActive ? "#0369a1" : "#1e1e28",
+            background: wifiActive ? "#0a84ff" : "#2c2c2e",
             color: wifiActive ? "#ffffff" : "#94a3b8",
             transition: "all 0.15s ease",
             gap: "4px",
@@ -109,7 +109,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           title="Wi-Fi / Network Toggle"
         >
           <Wifi size={16} />
-          <span style={{ fontSize: "11px", fontWeight: 700 }}>Wi-Fi</span>
+          <span style={{ fontSize: "11px", fontWeight: 600 }}>Wi-Fi</span>
         </button>
 
         {/* Bluetooth */}
@@ -129,7 +129,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             borderRadius: "12px",
             border: "none",
             cursor: "pointer",
-            background: btActive ? "#1d4ed8" : "#1e1e28",
+            background: btActive ? "#0a84ff" : "#2c2c2e",
             color: btActive ? "#ffffff" : "#94a3b8",
             transition: "all 0.15s ease",
             gap: "4px",
@@ -137,7 +137,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           title="Toggle Bluetooth"
         >
           <Bluetooth size={16} />
-          <span style={{ fontSize: "11px", fontWeight: 700 }}>Bluetooth</span>
+          <span style={{ fontSize: "11px", fontWeight: 600 }}>Bluetooth</span>
         </button>
 
         {/* DND / Focus */}
@@ -152,7 +152,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             borderRadius: "12px",
             border: "none",
             cursor: "pointer",
-            background: dndActive ? "#7e22ce" : "#1e1e28",
+            background: dndActive ? "#5e5ce6" : "#2c2c2e",
             color: dndActive ? "#ffffff" : "#94a3b8",
             transition: "all 0.15s ease",
             gap: "4px",
@@ -160,7 +160,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           title="Do Not Disturb / Focus"
         >
           {dndActive ? <BellOff size={16} /> : <Bell size={16} />}
-          <span style={{ fontSize: "11px", fontWeight: 700 }}>Focus</span>
+          <span style={{ fontSize: "11px", fontWeight: 600 }}>Focus</span>
         </button>
 
         {/* Mute */}
@@ -175,7 +175,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             borderRadius: "12px",
             border: "none",
             cursor: "pointer",
-            background: volume === 0 ? "#b91c1c" : "#1e1e28",
+            background: volume === 0 ? "#ff453a" : "#2c2c2e",
             color: volume === 0 ? "#ffffff" : "#94a3b8",
             transition: "all 0.15s ease",
             gap: "4px",
@@ -183,7 +183,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           title="Toggle Mute"
         >
           {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          <span style={{ fontSize: "11px", fontWeight: 700 }}>
+          <span style={{ fontSize: "11px", fontWeight: 600 }}>
             {volume === 0 ? "Muted" : "Mute"}
           </span>
         </button>
@@ -195,7 +195,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           display: "flex",
           flexDirection: "column",
           gap: "8px",
-          background: "#181820",
+          background: "#2c2c2e",
           padding: "10px 14px",
           borderRadius: "14px",
           border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -224,7 +224,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           <span
             style={{
               fontSize: "12px",
-              fontWeight: 700,
+              fontWeight: 600,
               width: "36px",
               textAlign: "right",
               color: "#ffffff",
@@ -255,7 +255,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           <span
             style={{
               fontSize: "12px",
-              fontWeight: 700,
+              fontWeight: 600,
               width: "36px",
               textAlign: "right",
               color: "#ffffff",
@@ -284,7 +284,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             padding: "8px 6px",
             borderRadius: "10px",
             border: "1px solid rgba(255, 255, 255, 0.1)",
-            background: "#1e1e28",
+            background: "#2c2c2e",
             color: "#ffffff",
             fontSize: "11px",
             fontWeight: 600,
@@ -307,7 +307,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             padding: "8px 6px",
             borderRadius: "10px",
             border: "1px solid rgba(255, 255, 255, 0.1)",
-            background: "#1e1e28",
+            background: "#2c2c2e",
             color: "#ffffff",
             fontSize: "11px",
             fontWeight: 600,
@@ -330,7 +330,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             padding: "8px 6px",
             borderRadius: "10px",
             border: "1px solid rgba(255, 255, 255, 0.1)",
-            background: "#1e1e28",
+            background: "#2c2c2e",
             color: "#ffffff",
             fontSize: "11px",
             fontWeight: 600,
@@ -359,7 +359,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             padding: "8px 6px",
             borderRadius: "10px",
             border: "1px solid rgba(255, 255, 255, 0.1)",
-            background: "#1e1e28",
+            background: "#2c2c2e",
             color: "#ffffff",
             fontSize: "11px",
             fontWeight: 600,
@@ -379,7 +379,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             textAlign: "center",
             fontSize: "11px",
             color: "#0a84ff",
-            fontWeight: 700,
+            fontWeight: 600,
             letterSpacing: "0.04em",
           }}
         >

@@ -62,3 +62,13 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# Local iteration profile: no LTO, parallel codegen, incremental linking.
+# CI/releases keep the optimized `release` profile above.
+[profile.fast-release]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
+strip = false
+panic = "unwind"

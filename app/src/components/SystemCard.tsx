@@ -53,7 +53,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
       {/* CPU Card */}
       <div
         style={{
-          background: "#181820",
+          background: "#2c2c2e",
           borderRadius: "14px",
           padding: "10px 14px",
           display: "flex",
@@ -74,7 +74,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             <span
               style={{
                 fontSize: "12px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
               }}
             >
@@ -83,7 +83,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           </div>
           <span
             className="tabular-nums"
-            style={{ fontSize: "13px", fontWeight: 800, color: "#0a84ff" }}
+            style={{ fontSize: "13px", fontWeight: 600, color: "#0a84ff" }}
           >
             {Math.round(telemetry.cpuPercent)}%
           </span>
@@ -93,7 +93,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             width: "100%",
             height: "5px",
             borderRadius: "3px",
-            background: "#262632",
+            background: "#3a3a3c",
             overflow: "hidden",
           }}
         >
@@ -121,7 +121,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
       {/* RAM Card */}
       <div
         style={{
-          background: "#181820",
+          background: "#2c2c2e",
           borderRadius: "14px",
           padding: "10px 14px",
           display: "flex",
@@ -142,7 +142,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             <span
               style={{
                 fontSize: "12px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
               }}
             >
@@ -151,7 +151,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           </div>
           <span
             className="tabular-nums"
-            style={{ fontSize: "13px", fontWeight: 800, color: "#a78bfa" }}
+            style={{ fontSize: "13px", fontWeight: 600, color: "#a78bfa" }}
           >
             {ramPercent}%
           </span>
@@ -161,7 +161,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             width: "100%",
             height: "5px",
             borderRadius: "3px",
-            background: "#262632",
+            background: "#3a3a3c",
             overflow: "hidden",
           }}
         >
@@ -190,7 +190,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
       {/* Network I/O Speed Card */}
       <div
         style={{
-          background: "#181820",
+          background: "#2c2c2e",
           borderRadius: "14px",
           padding: "10px 14px",
           display: "flex",
@@ -209,7 +209,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           <span
             style={{
               fontSize: "12px",
-              fontWeight: 700,
+              fontWeight: 600,
               color: "#ffffff",
             }}
           >
@@ -232,7 +232,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             </div>
             <span
               className="tabular-nums"
-              style={{ fontWeight: 700, color: "#34d399" }}
+              style={{ fontWeight: 600, color: "#34d399" }}
             >
               {formatNetSpeed(telemetry.netDownloadKbps)}
             </span>
@@ -252,7 +252,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             </div>
             <span
               className="tabular-nums"
-              style={{ fontWeight: 700, color: "#60a5fa" }}
+              style={{ fontWeight: 600, color: "#60a5fa" }}
             >
               {formatNetSpeed(telemetry.netUploadKbps)}
             </span>
@@ -263,7 +263,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
       {/* Storage & Power Card */}
       <div
         style={{
-          background: "#181820",
+          background: "#2c2c2e",
           borderRadius: "14px",
           padding: "10px 14px",
           display: "flex",
@@ -284,7 +284,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             <span
               style={{
                 fontSize: "12px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
               }}
             >
@@ -304,7 +304,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             width: "100%",
             height: "5px",
             borderRadius: "3px",
-            background: "#262632",
+            background: "#3a3a3c",
             overflow: "hidden",
           }}
         >
@@ -348,7 +348,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
               <span
                 className="tabular-nums"
                 style={{
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: telemetry.isCharging ? "#34d399" : "#ffffff",
                 }}
               >

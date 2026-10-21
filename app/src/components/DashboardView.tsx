@@ -206,7 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              fontSize: "10px",
+              fontSize: "11px",
               fontWeight: 600,
               color: "rgba(255, 255, 255, 0.4)",
               fontVariantNumeric: "tabular-nums",
@@ -326,7 +326,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Coffee size={15} color="#fbbf24" />
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff" }}>
               Focus timer
             </span>
           </div>
@@ -335,7 +335,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span
               style={{
                 fontSize: "13px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
                 fontVariantNumeric: "tabular-nums",
               }}
@@ -366,7 +366,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span
               style={{
                 fontSize: "11px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "rgba(255, 255, 255, 0.7)",
                 width: "28px",
               }}
@@ -395,7 +395,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span
               style={{
                 fontSize: "11px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
                 width: "32px",
                 textAlign: "right",
@@ -411,7 +411,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span
               style={{
                 fontSize: "11px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "rgba(255, 255, 255, 0.7)",
                 width: "28px",
               }}
@@ -440,7 +440,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span
               style={{
                 fontSize: "11px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
                 width: "32px",
                 textAlign: "right",
@@ -462,7 +462,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               borderTop: "1px solid rgba(255, 255, 255, 0.05)",
             }}
           >
-            <span style={{ fontWeight: 700, color: "rgba(255, 255, 255, 0.6)" }}>
+            <span style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.6)" }}>
               Network
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -471,7 +471,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span
                   style={{
                     fontSize: "11px",
-                    fontWeight: 700,
+                    fontWeight: 600,
                     color: "#34d399",
                     fontVariantNumeric: "tabular-nums",
                   }}
@@ -484,7 +484,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span
                   style={{
                     fontSize: "11px",
-                    fontWeight: 700,
+                    fontWeight: 600,
                     color: "#60a5fa",
                     fontVariantNumeric: "tabular-nums",
                   }}

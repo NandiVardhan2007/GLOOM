@@ -17,6 +17,16 @@
     <!-- Hardware Feedback -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Voice unlock shortcut (Siri-style) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <!-- In-App Seamless Updates -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -39,6 +49,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Voice unlock: transparent, appears over the lock screen -->
+        <activity
+            android:name=".service.VoiceUnlockActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.JarvisIsland.Transparent" />
 
         <!-- FileProvider for In-App Updates and File Sharing -->
         <provider
@@ -72,6 +92,13 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- Hey JARVIS wake word -->
+        <service
+            android:name=".voice.WakeWordService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Notification & Media Session Listener -->
         <service

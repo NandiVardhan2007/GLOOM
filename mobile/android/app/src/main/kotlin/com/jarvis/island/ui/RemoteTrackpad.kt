@@ -88,7 +88,7 @@ fun RemoteTrackpad(
                         .background(Color(0xFF14141E))
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = JarvisIcons.ChevronLeft,
                         contentDescription = "Back",
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
@@ -206,7 +206,7 @@ fun RemoteTrackpad(
                     modifier = Modifier.padding(24.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Mouse,
+                        imageVector = JarvisIcons.Mouse,
                         contentDescription = "Trackpad",
                         tint = Color(0x3338BDF8),
                         modifier = Modifier.size(48.dp)
@@ -256,7 +256,7 @@ fun RemoteTrackpad(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        imageVector = JarvisIcons.ChevronUp,
                         contentDescription = "Scroll Up",
                         tint = Color(0x66FFFFFF),
                         modifier = Modifier.padding(top = 12.dp)
@@ -275,7 +275,7 @@ fun RemoteTrackpad(
                         }
                     }
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        imageVector = JarvisIcons.ChevronDown,
                         contentDescription = "Scroll Down",
                         tint = Color(0x66FFFFFF),
                         modifier = Modifier.padding(bottom = 12.dp)

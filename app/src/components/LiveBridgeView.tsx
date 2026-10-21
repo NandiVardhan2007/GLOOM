@@ -235,12 +235,12 @@ export const LiveBridgeView: React.FC = () => {
         >
           <Shield size={18} color="#ff9f0a" />
           <div style={{ lineHeight: 1.35 }}>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "#ff9f0a" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#ff9f0a" }}>
               Pairing request from {pairing.clientDeviceName || "Companion Device"}
             </div>
             <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.75)" }}>
               Enter PIN{" "}
-              <span style={{ fontWeight: 800, letterSpacing: "3px", color: "#ffffff" }}>
+              <span style={{ fontWeight: 600, letterSpacing: "3px", color: "#ffffff" }}>
                 {pairing.pin}
               </span>{" "}
               on the device within 2 minutes.
@@ -525,15 +525,15 @@ export const LiveBridgeView: React.FC = () => {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <MousePointer size={15} color="#0a84ff" />
-              <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#ffffff" }}>
                 Universal Control & Remote Pointer
               </span>
             </div>
             {controlFeedback && (
               <span
                 style={{
-                  fontSize: "10px",
-                  fontWeight: 700,
+                  fontSize: "11px",
+                  fontWeight: 600,
                   padding: "2px 8px",
                   borderRadius: "9999px",
                   background: "rgba(10, 132, 255, 0.2)",
@@ -764,7 +764,7 @@ export const LiveBridgeView: React.FC = () => {
                     border: "none",
                     background: "rgba(255, 255, 255, 0.06)",
                     color: "#94a3b8",
-                    fontSize: "10.5px",
+                    fontSize: "11.5px",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -784,7 +784,7 @@ export const LiveBridgeView: React.FC = () => {
                     border: "none",
                     background: "rgba(255, 255, 255, 0.06)",
                     color: "#94a3b8",
-                    fontSize: "10.5px",
+                    fontSize: "11.5px",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -892,7 +892,7 @@ export const LiveBridgeView: React.FC = () => {
         {/* Live Activities / OTP notifications if any */}
         {activities.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255, 255, 255, 0.45)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255, 255, 255, 0.45)",  }}>
               Live Activities
             </span>
             {activities.map((act) => (
@@ -924,7 +924,7 @@ export const LiveBridgeView: React.FC = () => {
                     {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
                   </div>
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>
                       {act.title}
                     </div>
                     <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)" }}>
@@ -946,7 +946,7 @@ export const LiveBridgeView: React.FC = () => {
                       background: "#0a84ff",
                       color: "#000000",
                       fontSize: "11px",
-                      fontWeight: 700,
+                      fontWeight: 600,
                       cursor: "pointer",
                     }}
                   >
@@ -961,7 +961,7 @@ export const LiveBridgeView: React.FC = () => {
         {/* Recent Transfers */}
         {transfers.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255, 255, 255, 0.45)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255, 255, 255, 0.45)",  }}>
               Recent Transfers
             </span>
             {transfers.slice(0, 3).map((t) => (
@@ -983,12 +983,12 @@ export const LiveBridgeView: React.FC = () => {
                     <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#ffffff" }}>
                       {t.fileName}
                     </div>
-                    <div style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.4)" }}>
+                    <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.4)" }}>
                       {(t.fileSize / (1024 * 1024)).toFixed(1)} MB • {t.deviceName}
                     </div>
                   </div>
                 </div>
-                <span style={{ fontSize: "10.5px", fontWeight: 600, color: "#30d158" }}>
+                <span style={{ fontSize: "11.5px", fontWeight: 600, color: "#30d158" }}>
                   Completed
                 </span>
               </div>

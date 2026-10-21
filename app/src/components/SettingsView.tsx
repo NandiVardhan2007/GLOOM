@@ -408,7 +408,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 gap: "6px",
                 width: "100%",
                 padding: "5px 8px",
-                fontSize: "10px",
+                fontSize: "11px",
                 fontWeight: 600,
                 borderRadius: "6px",
                 border: "1px solid rgba(255, 255, 255, 0.15)",
@@ -464,7 +464,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: standalone ? "14px" : "12px", fontWeight: 700, color: "#ffffff" }}>
+            <span style={{ fontSize: standalone ? "14px" : "12px", fontWeight: 600, color: "#ffffff" }}>
               {navItems.find((n) => n.id === activeTab)?.label}
             </span>
           </div>
@@ -573,7 +573,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         }}
                         style={{ width: "110px", accentColor: config.accentColor || "#0a84ff" }}
                       />
-                      <span style={{ fontSize: "11px", fontWeight: 700, minWidth: "32px", color: "#0a84ff" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 600, minWidth: "32px", color: "#0a84ff" }}>
                         {config.pillEdgeGap ?? 12}px
                       </span>
                     </div>
@@ -595,7 +595,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       onChange={(e) => updateField("islandScale", parseFloat(e.target.value))}
                       style={{ width: "110px", accentColor: config.accentColor || "#0a84ff" }}
                     />
-                    <span style={{ fontSize: "11px", fontWeight: 700, minWidth: "36px", color: "#0a84ff" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, minWidth: "36px", color: "#0a84ff" }}>
                       {Math.round((config.islandScale ?? 1.0) * 100)}%
                     </span>
                   </div>
@@ -984,7 +984,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 >
                   <ChittiLogo size={48} />
                   <div>
-                    <div style={{ fontSize: "16px", fontWeight: 700, color: "#ffffff" }}>
+                    <div style={{ fontSize: "16px", fontWeight: 600, color: "#ffffff" }}>
                       JARVIS Dynamic Island & Notch
                     </div>
                     <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.6)", marginTop: "2px" }}>
@@ -998,7 +998,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   title="JARVIS Dynamic Notch"
                   desc="Pixel-perfect dynamic island & notch experience for Windows 10/11."
                 >
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#0a84ff" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#0a84ff" }}>
                     {currentVersion ? `Version ${currentVersion.replace(/^v/i, "")}` : "Version —"}
                   </span>
                 </SettingRow>
@@ -1345,10 +1345,10 @@ const TipCard: React.FC<{ title: string; desc: string }> = ({ title, desc }) => 
       border: "0.5px solid rgba(255, 255, 255, 0.06)",
     }}
   >
-    <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#0a84ff", marginBottom: "2px" }}>
+    <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#0a84ff", marginBottom: "2px" }}>
       {title}
     </div>
-    <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.6)", lineHeight: 1.3 }}>
+    <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.6)", lineHeight: 1.3 }}>
       {desc}
     </div>
   </div>
@@ -1365,8 +1365,8 @@ const ShortcutRow: React.FC<{ keys: string[]; action: string }> = ({ keys, actio
             padding: "2px 6px",
             borderRadius: "4px",
             background: "rgba(255, 255, 255, 0.1)",
-            fontSize: "10px",
-            fontWeight: 700,
+            fontSize: "11px",
+            fontWeight: 600,
             color: "#ffffff",
           }}
         >

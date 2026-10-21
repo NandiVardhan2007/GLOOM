@@ -113,7 +113,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             <span
               style={{
                 fontSize: "15px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ffffff",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -202,7 +202,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              fontSize: "10px",
+              fontSize: "11px",
               fontWeight: 600,
               color: "rgba(255, 255, 255, 0.4)",
               fontVariantNumeric: "tabular-nums",
@@ -377,7 +377,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
               <Music size={20} color="#0a84ff" />
               <Waveform isPlaying={media.playing} width={40} height={20} />
             </div>
-            <span style={{ fontSize: "14px", fontWeight: 700, color: "#ffffff" }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#ffffff" }}>
               Now Playing
             </span>
             <span
@@ -414,7 +414,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
             <Music size={28} color="rgba(255, 255, 255, 0.35)" />
-            <span style={{ fontSize: "16px", fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em" }}>
+            <span style={{ fontSize: "16px", fontWeight: 600, color: "#ffffff", letterSpacing: "-0.01em" }}>
               Your listening room
             </span>
             <span

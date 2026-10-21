@@ -38,6 +38,7 @@ import com.jarvis.island.bridge.FileBeamReceiver
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
 import com.jarvis.island.cutout.CutoutDetector
 import com.jarvis.island.cutout.CutoutMetrics
+import com.jarvis.island.security.JarvisSecurity
 import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.ActiveTransferInfo
 import com.jarvis.island.ui.BridgeDeviceInfo
@@ -333,7 +334,16 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 JarvisIslandApp(
                     isExpanded = isExpanded,
                     onToggleExpand = { toggleIslandExpansion() },
-                    onLongPressExpand = { expandIsland() },
+                                        onLongPressExpand = {
+                        try {
+                            startActivity(
+                                Intent(this@JarvisIslandAccessibilityService, VoiceUnlockActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (_: Exception) {
+                            expandIsland()
+                        }
+                    },
                     onBeamSampleFile = {
                         val desktopIp = bridgeClient.desktopIp ?: if (bridgeDevice.ipAddress != "192.168.1.4") bridgeDevice.ipAddress else null
                         if (bridgeDevice.isConnected && !desktopIp.isNullOrBlank()) {

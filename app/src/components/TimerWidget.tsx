@@ -87,7 +87,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
           alignItems: "center",
           justifyContent: "center",
           gap: "8px",
-          background: "#181820",
+          background: "#2c2c2e",
           borderRadius: "14px",
           padding: "4px",
           width: "fit-content",
@@ -102,7 +102,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
             borderRadius: "11px",
             border: "none",
             fontSize: "11px",
-            fontWeight: 700,
+            fontWeight: 600,
             cursor: "pointer",
             background: subMode === "pomodoro" ? "#0a84ff" : "transparent",
             color: subMode === "pomodoro" ? "#ffffff" : "#94a3b8",
@@ -118,7 +118,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
             borderRadius: "11px",
             border: "none",
             fontSize: "11px",
-            fontWeight: 700,
+            fontWeight: 600,
             cursor: "pointer",
             background: subMode === "stopwatch" ? "#0a84ff" : "transparent",
             color: subMode === "stopwatch" ? "#ffffff" : "#94a3b8",
@@ -149,7 +149,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
               justifyContent: "center",
               width: "100%",
               padding: "10px 0",
-              background: "#181820",
+              background: "#2c2c2e",
               borderRadius: "16px",
               border: "1px solid rgba(255, 255, 255, 0.1)",
             }}
@@ -157,7 +157,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
             <div
               style={{
                 fontSize: "36px",
-                fontWeight: 800,
+                fontWeight: 600,
                 letterSpacing: "0.04em",
                 fontVariantNumeric: "tabular-nums",
                 color: remainingSeconds === 0 ? "#f87171" : "#ffffff",
@@ -174,7 +174,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
               style={{
                 width: "80%",
                 height: "5px",
-                background: "#262632",
+                background: "#3a3a3c",
                 borderRadius: "3px",
                 marginTop: "6px",
                 overflow: "hidden",
@@ -187,7 +187,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                   background:
                     remainingSeconds === 0
                       ? "#f87171"
-                      : "linear-gradient(90deg, #0a84ff, #818cf8)",
+                      : "#0a84ff",
                   transition: "width 0.3s ease",
                 }}
               />
@@ -220,10 +220,10 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                     borderRadius: "8px",
                     border: "1px solid rgba(255, 255, 255, 0.12)",
                     background:
-                      totalSeconds === p.mins * 60 ? "#0a84ff" : "#1e1e28",
+                      totalSeconds === p.mins * 60 ? "#0a84ff" : "#2c2c2e",
                     color: "#ffffff",
                     fontSize: "11px",
-                    fontWeight: 700,
+                    fontWeight: 600,
                     cursor: "pointer",
                   }}
                 >
@@ -241,7 +241,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                   height: "30px",
                   borderRadius: "50%",
                   border: "none",
-                  background: "#262632",
+                  background: "#3a3a3c",
                   color: "#ffffff",
                   cursor: "pointer",
                   display: "flex",
@@ -280,7 +280,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                   height: "30px",
                   borderRadius: "50%",
                   border: "none",
-                  background: "#262632",
+                  background: "#3a3a3c",
                   color: "#ffffff",
                   cursor: "pointer",
                   display: "flex",
@@ -299,7 +299,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                   height: "30px",
                   borderRadius: "50%",
                   border: "none",
-                  background: "#1e1e28",
+                  background: "#2c2c2e",
                   color: "#94a3b8",
                   cursor: "pointer",
                   display: "flex",
@@ -331,7 +331,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
               justifyContent: "center",
               width: "100%",
               padding: "12px 0",
-              background: "#181820",
+              background: "#2c2c2e",
               borderRadius: "16px",
               border: "1px solid rgba(255, 255, 255, 0.1)",
             }}
@@ -339,7 +339,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
             <div
               style={{
                 fontSize: "34px",
-                fontWeight: 800,
+                fontWeight: 600,
                 letterSpacing: "0.04em",
                 fontVariantNumeric: "tabular-nums",
                 color: "#ffffff",
@@ -370,7 +370,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 alignItems: "center",
                 gap: "6px",
                 fontSize: "12px",
-                fontWeight: 700,
+                fontWeight: 600,
               }}
             >
               {isStopwatchRunning ? (
@@ -391,14 +391,14 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 padding: "8px 16px",
                 borderRadius: "20px",
                 border: "1px solid rgba(255, 255, 255, 0.15)",
-                background: isStopwatchRunning ? "#1e1e28" : "#14141a",
+                background: isStopwatchRunning ? "#2c2c2e" : "#14141a",
                 color: isStopwatchRunning ? "#ffffff" : "#64748b",
                 cursor: isStopwatchRunning ? "pointer" : "default",
                 display: "flex",
                 alignItems: "center",
                 gap: "5px",
                 fontSize: "12px",
-                fontWeight: 700,
+                fontWeight: 600,
               }}
             >
               <Flag size={13} /> Lap
@@ -410,14 +410,14 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 padding: "8px 14px",
                 borderRadius: "20px",
                 border: "none",
-                background: "#1e1e28",
+                background: "#2c2c2e",
                 color: "#cbd5e1",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "5px",
                 fontSize: "12px",
-                fontWeight: 700,
+                fontWeight: 600,
               }}
             >
               <RotateCcw size={13} /> Reset

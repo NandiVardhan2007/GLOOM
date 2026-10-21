@@ -115,8 +115,8 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
             ) : (
               <span
                 style={{
-                  fontSize: "10px",
-                  fontWeight: 700,
+                  fontSize: "11px",
+                  fontWeight: 600,
                   color: "#ffffff",
                   fontVariantNumeric: "tabular-nums",
                 }}
@@ -161,8 +161,7 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
                 fontSize: "11px",
                 fontWeight: 500,
                 color: "rgba(255, 255, 255, 0.7)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
+                
               }}
             >
               Focus Timer
@@ -171,7 +170,7 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
               className="tabular-nums"
               style={{
                 fontSize: "13px",
-                fontWeight: 700,
+                fontWeight: 600,
                 color: "#ff9500",
                 lineHeight: 1.1,
               }}
@@ -195,7 +194,7 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
             </span>
             <span
               style={{
-                fontSize: "10.5px",
+                fontSize: "11.5px",
                 fontWeight: 400,
                 color: "rgba(255, 255, 255, 0.65)",
                 whiteSpace: "nowrap",
@@ -236,7 +235,7 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
               padding: "2px 6px",
               borderRadius: "4px",
               backgroundColor: "rgba(255, 149, 0, 0.15)",
-              fontSize: "10px",
+              fontSize: "11px",
               fontWeight: 600,
               color: "#ff9500",
             }}

@@ -417,6 +417,86 @@ class JarvisLiveBridgeClient(private val context: Context) {
         }
     }
 
+    /**
+     * Sends a chat request to the desktop AI core over the pinned bridge.
+     * Provider keys stay on the PC; the phone only receives the reply.
+     */
+    fun requestAi(
+        messages: List<Pair<String, String>>,
+        onResult: (reply: String?, error: String?) -> Unit
+    ) {
+        val ip = desktopIp
+        if (ip == null) {
+            onResult(null, "No desktop connected")
+            return
+        }
+        thread(isDaemon = true, name = "Jarvis-AI-Request") {
+            var reply: String? = null
+            var error: String? = null
+            try {
+                val conn = openSecureConnection("https://$ip:$desktopPort/api/ai/chat")
+                if (conn == null) {
+                    mainHandler.post { onResult(null, "Pair with the desktop first") }
+                    return@thread
+                }
+                val payload = JSONObject().apply {
+                    put("messages", org.json.JSONArray().apply {
+                        messages.forEach { (role, content) ->
+                            put(JSONObject().apply {
+                                put("role", role)
+                                put("content", content)
+                            })
+                        }
+                    })
+                }.toString().toByteArray(Charsets.UTF_8)
+
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("X-Jarvis-Auth-Token", FileBeamReceiver.currentAuthToken)
+                conn.setRequestProperty("X-Jarvis-Timestamp", System.currentTimeMillis().toString())
+                conn.setRequestProperty("X-Jarvis-Nonce", generateSecureNonce())
+                conn.doOutput = true
+                conn.connectTimeout = 4000
+                conn.readTimeout = 60_000
+                conn.outputStream.use { it.write(payload) }
+
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                conn.disconnect()
+
+                if (code in 200..299) {
+                    reply = JSONObject(body).optString("content", "").ifBlank { null }
+                    if (reply == null) error = "The assistant returned an empty reply."
+                } else {
+                    error = try {
+                        JSONObject(body).optString("error", "AI request failed")
+                    } catch (_: Exception) {
+                        "AI request failed (HTTP $code)"
+                    }
+                }
+            } catch (e: Exception) {
+                error = e.message ?: "AI request failed"
+            }
+            mainHandler.post { onResult(reply, error) }
+        }
+    }
+
+    /**
+     * Drops the pinned desktop identity and the paired token, then restarts
+     * discovery so a rotated desktop certificate can be re-pinned.
+     */
+    fun forgetDesktop() {
+        isConnected = false
+        desktopIp = null
+        FileBeamReceiver.clearPairedToken(context)
+        BridgeTls.clearDesktopPin(context)
+        synchronized(JarvisLiveBridgeClient::class.java) {
+            isDiscoveringGlobally = false
+        }
+        startDiscovery { _, _ -> }
+    }
+
     fun confirmPairing(challengeId: String, pin: String, onResult: (Boolean) -> Unit) {
         val ip = desktopIp
         if (ip == null) {
