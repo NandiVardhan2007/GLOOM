@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ActiveTab, AppConfig, IslandState, TimerState } from "../types";
 import { MOTION_PHYSICS } from "../motion/physics";
 import { CollapsedPill } from "./CollapsedPill";
@@ -47,6 +48,38 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     }).then((fn) => {
       unlisten = fn;
     }).catch(console.error);
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  // Listen to Tauri native window drag-drop events (from Windows Explorer)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview()
+      .onDragDropEvent(async (event) => {
+        const payload = event.payload;
+        if (payload.type === "enter" || payload.type === "over") {
+          setIsIslandDragOver(true);
+        } else if (payload.type === "leave") {
+          setIsIslandDragOver(false);
+        } else if (payload.type === "drop") {
+          setIsIslandDragOver(false);
+          const paths = payload.paths;
+          if (paths && paths.length > 0) {
+            for (const filePath of paths) {
+              await invoke("jarvis_send_bridge_file_path", { filePath }).catch(console.error);
+            }
+            setActiveTab("bridge");
+            setIslandState("expanded");
+          }
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
 
     return () => {
       if (unlisten) unlisten();
@@ -203,22 +236,24 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
           setIsIslandDragOver(false);
           const files = e.dataTransfer.files;
           if (files && files.length > 0) {
-            const file = files[0];
-            const filePath = (file as any).path;
-            if (filePath) {
-              await invoke("jarvis_send_bridge_file_path", { filePath }).catch(console.error);
-            } else {
-              const reader = new FileReader();
-              reader.onload = async () => {
-                const b64 = (reader.result as string).split(",")[1];
-                await invoke("jarvis_send_bridge_file_bytes", {
-                  deviceName: "Motorola Edge 50 Pro",
-                  fileName: file.name,
-                  fileSize: file.size,
-                  dataBase64: b64,
-                }).catch(console.error);
-              };
-              reader.readAsDataURL(file);
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              const filePath = (file as any).path;
+              if (filePath) {
+                await invoke("jarvis_send_bridge_file_path", { filePath }).catch(console.error);
+              } else {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                  const b64 = (reader.result as string).split(",")[1];
+                  await invoke("jarvis_send_bridge_file_bytes", {
+                    deviceName: "Motorola Edge 50 Pro",
+                    fileName: file.name,
+                    fileSize: file.size,
+                    dataBase64: b64,
+                  }).catch(console.error);
+                };
+                reader.readAsDataURL(file);
+              }
             }
             setActiveTab("bridge");
             setIslandState("expanded");

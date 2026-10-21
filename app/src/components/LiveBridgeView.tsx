@@ -13,6 +13,21 @@ import {
   Clock,
   Shield,
   FolderOpen,
+  MousePointer,
+  ChevronLeft,
+  Circle,
+  Square,
+  Bell,
+  Lock,
+  Volume2,
+  VolumeX,
+  Play,
+  SkipForward,
+  SkipBack,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 
 export const LiveBridgeView: React.FC = () => {
@@ -118,6 +133,32 @@ export const LiveBridgeView: React.FC = () => {
     navigator.clipboard.writeText(textToCopy);
     setHasCopied(true);
     setTimeout(() => setHasCopied(false), 2000);
+  };
+
+  const [controlFeedback, setControlFeedback] = useState<string | null>(null);
+  const [trackpadPos, setTrackpadPos] = useState<{ x: number; y: number } | null>(null);
+
+  const handleSendControl = async (
+    action: string,
+    x?: number,
+    y?: number,
+    deltaX?: number,
+    deltaY?: number
+  ) => {
+    try {
+      setControlFeedback(action.toUpperCase().replace("_", " "));
+      setTimeout(() => setControlFeedback(null), 1200);
+      await invoke("jarvis_send_mobile_control", {
+        action,
+        x,
+        y,
+        deltaX,
+        deltaY,
+        targetIp: activeDevice?.ip || undefined,
+      });
+    } catch (e) {
+      console.error("Control error:", e);
+    }
   };
 
   return (
@@ -383,6 +424,385 @@ export const LiveBridgeView: React.FC = () => {
               {hasCopied ? <Check size={14} /> : <Copy size={14} />}
               <span>{hasCopied ? "Copied!" : "Copy to PC"}</span>
             </button>
+          </div>
+        </div>
+
+        {/* Universal Control: Remote Pointer, Gestures & Mobile Display Control */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            background: "rgba(255, 255, 255, 0.03)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "14px",
+            padding: "12px 14px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <MousePointer size={15} color="#38bdf8" />
+              <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
+                Universal Control & Remote Pointer
+              </span>
+            </div>
+            {controlFeedback && (
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: "9999px",
+                  background: "rgba(56, 189, 248, 0.2)",
+                  color: "#38bdf8",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                {controlFeedback}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "10px" }}>
+            {/* Interactive Screen Trackpad / Pointer Area */}
+            <div
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTrackpadPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+              }}
+              onMouseLeave={() => setTrackpadPos(null)}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+                handleSendControl("tap", x, y);
+              }}
+              style={{
+                position: "relative",
+                height: "105px",
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(15, 23, 42, 0.4))",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                cursor: "crosshair",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                userSelect: "none",
+              }}
+            >
+              {/* Virtual phone notch preview */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "6px",
+                  width: "36px",
+                  height: "8px",
+                  borderRadius: "9999px",
+                  background: "#000000",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                }}
+              />
+
+              <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)", fontWeight: 500 }}>
+                Click or drag to control mobile pointer
+              </span>
+
+              {trackpadPos && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${trackpadPos.x}px`,
+                    top: `${trackpadPos.y}px`,
+                    transform: "translate(-2px, -2px)",
+                    pointerEvents: "none",
+                    filter: "drop-shadow(0 0 6px #38bdf8)",
+                  }}
+                >
+                  <MousePointer size={14} color="#38bdf8" />
+                </div>
+              )}
+            </div>
+
+            {/* Quick Swipe & Navigation Controls */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button
+                  onClick={() => handleSendControl("swipe_up")}
+                  title="Swipe Up"
+                  style={{
+                    flex: 1,
+                    padding: "6px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ArrowUp size={13} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("swipe_down")}
+                  title="Swipe Down"
+                  style={{
+                    flex: 1,
+                    padding: "6px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ArrowDown size={13} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("swipe_left")}
+                  title="Swipe Left"
+                  style={{
+                    flex: 1,
+                    padding: "6px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ArrowLeft size={13} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("swipe_right")}
+                  title="Swipe Right"
+                  style={{
+                    flex: 1,
+                    padding: "6px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+
+              {/* Hardware / System Buttons */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px" }}>
+                <button
+                  onClick={() => handleSendControl("back")}
+                  title="Back"
+                  style={{
+                    padding: "6px 4px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    color: "#cbd5e1",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "3px",
+                  }}
+                >
+                  <ChevronLeft size={12} />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  onClick={() => handleSendControl("home")}
+                  title="Home"
+                  style={{
+                    padding: "6px 4px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    color: "#cbd5e1",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "3px",
+                  }}
+                >
+                  <Circle size={10} />
+                  <span>Home</span>
+                </button>
+
+                <button
+                  onClick={() => handleSendControl("recents")}
+                  title="Recents / Apps"
+                  style={{
+                    padding: "6px 4px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    color: "#cbd5e1",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "3px",
+                  }}
+                >
+                  <Square size={10} />
+                  <span>Apps</span>
+                </button>
+              </div>
+
+              {/* Secondary System Actions */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                <button
+                  onClick={() => handleSendControl("notifications")}
+                  style={{
+                    padding: "5px 6px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.06)",
+                    color: "#94a3b8",
+                    fontSize: "10.5px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Bell size={11} />
+                  <span>Shade</span>
+                </button>
+
+                <button
+                  onClick={() => handleSendControl("lock")}
+                  style={{
+                    padding: "5px 6px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.06)",
+                    color: "#94a3b8",
+                    fontSize: "10.5px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Lock size={11} />
+                  <span>Lock</span>
+                </button>
+              </div>
+
+              {/* Media & Volume Quick Remote */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "4px" }}>
+                <button
+                  onClick={() => handleSendControl("vol_down")}
+                  title="Volume Down"
+                  style={{
+                    padding: "5px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.06)",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <VolumeX size={12} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("vol_up")}
+                  title="Volume Up"
+                  style={{
+                    padding: "5px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.06)",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Volume2 size={12} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("media_prev")}
+                  title="Previous Track"
+                  style={{
+                    padding: "5px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.06)",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <SkipBack size={12} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("media_toggle")}
+                  title="Play / Pause"
+                  style={{
+                    padding: "5px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(56, 189, 248, 0.2)",
+                    color: "#38bdf8",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Play size={12} />
+                </button>
+                <button
+                  onClick={() => handleSendControl("media_next")}
+                  title="Next Track"
+                  style={{
+                    padding: "5px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "rgba(255, 255, 255, 0.06)",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <SkipForward size={12} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

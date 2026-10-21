@@ -431,6 +431,55 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         }
     }
 
+    fun handleRemoteControl(action: String, x: Float, y: Float, deltaX: Float, deltaY: Float) {
+        val displayMetrics = resources.displayMetrics
+        val screenW = displayMetrics.widthPixels.toFloat()
+        val screenH = displayMetrics.heightPixels.toFloat()
+
+        when (action) {
+            "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
+            "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
+            "recents" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            "notifications" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+            "lock" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            "tap" -> {
+                val tapX = (x * screenW).coerceIn(10f, screenW - 10f)
+                val tapY = (y * screenH).coerceIn(10f, screenH - 10f)
+                injectTap(tapX, tapY)
+            }
+            "swipe_up" -> injectSwipe(screenW * 0.5f, screenH * 0.75f, screenW * 0.5f, screenH * 0.25f)
+            "swipe_down" -> injectSwipe(screenW * 0.5f, screenH * 0.25f, screenW * 0.5f, screenH * 0.75f)
+            "swipe_left" -> injectSwipe(screenW * 0.8f, screenH * 0.5f, screenW * 0.2f, screenH * 0.5f)
+            "swipe_right" -> injectSwipe(screenW * 0.2f, screenH * 0.5f, screenW * 0.8f, screenH * 0.5f)
+            "vol_up" -> audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+            "vol_down" -> audioManager.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+            "media_toggle" -> toggleMediaPlayback()
+            "media_next" -> skipToNextMedia()
+            "media_prev" -> skipToPrevMedia()
+        }
+    }
+
+    private fun injectTap(tapX: Float, tapY: Float) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val path = android.graphics.Path().apply { moveTo(tapX, tapY) }
+            val stroke = android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 50)
+            val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(stroke).build()
+            dispatchGesture(gesture, null, null)
+        }
+    }
+
+    private fun injectSwipe(startX: Float, startY: Float, endX: Float, endY: Float, durationMs: Long = 250) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val path = android.graphics.Path().apply {
+                moveTo(startX, startY)
+                lineTo(endX, endY)
+            }
+            val stroke = android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, durationMs)
+            val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(stroke).build()
+            dispatchGesture(gesture, null, null)
+        }
+    }
+
     private fun simulateTestTransfer() {
         collapseJob?.cancel()
         serviceScope.launch {

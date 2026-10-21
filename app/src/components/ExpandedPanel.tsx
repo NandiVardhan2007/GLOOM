@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   ActiveTab,
   AppConfig,
@@ -26,9 +27,12 @@ import {
   Pin,
   PinOff,
   Settings,
+  ChevronUp,
   X,
   Zap,
   Smartphone,
+  FileText,
+  Activity,
 } from "lucide-react";
 
 interface ExpandedPanelProps {
@@ -83,6 +87,8 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
     { id: "dashboard", icon: <LayoutGrid size={13} />, label: "Dashboard" },
     { id: "media", icon: <Music size={13} />, label: "Music" },
     { id: "bridge", icon: <Smartphone size={13} />, label: "AirDrop & Phone" },
+    { id: "notes", icon: <FileText size={13} />, label: "Notepad" },
+    { id: "network", icon: <Activity size={13} />, label: "Network" },
     { id: "controls", icon: <Sliders size={13} />, label: "Control Center" },
     { id: "timer", icon: <Coffee size={13} />, label: "Focus Timer" },
   ];
@@ -259,7 +265,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
             <Settings size={13} />
           </button>
 
-          {/* Close / Collapse Button */}
+          {/* Collapse / Dismiss Button */}
           <button
             onClick={onCollapse}
             style={{
@@ -273,11 +279,54 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               justifyContent: "center",
               background: "rgba(255, 255, 255, 0.08)",
               color: "#cbd5e1",
-              transition: "background 0.15s ease",
+              transition: "all 0.15s ease",
             }}
-            title="Collapse Island"
+            title="Dismiss / Collapse Island to Notch"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)";
+              e.currentTarget.style.color = "#ffffff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+              e.currentTarget.style.color = "#cbd5e1";
+            }}
           >
-            <X size={13} />
+            <ChevronUp size={14} />
+          </button>
+
+          {/* Close & Stop JARVIS Process Button */}
+          <button
+            onClick={async () => {
+              try {
+                await invoke("jarvis_exit");
+              } catch (e) {
+                console.error("Failed to exit:", e);
+              }
+            }}
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(239, 68, 68, 0.15)",
+              color: "#f87171",
+              transition: "all 0.15s ease",
+            }}
+            title="Stop & Clear JARVIS Process (Exit Application)"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.35)";
+              e.currentTarget.style.color = "#ffffff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+              e.currentTarget.style.color = "#f87171";
+            }}
+          >
+            <X size={14} />
           </button>
         </div>
       </div>

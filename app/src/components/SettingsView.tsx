@@ -28,8 +28,6 @@ import {
   ClipboardList,
   Pin,
   FolderOpen,
-  Lock,
-  Unlock,
 } from "lucide-react";
 
 export type SettingsCategory =
@@ -37,7 +35,6 @@ export type SettingsCategory =
   | "appearance"
   | "widgets"
   | "tips"
-  | "pro"
   | "about";
 
 interface SettingsViewProps {
@@ -66,8 +63,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   initialTab = "general",
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsCategory>(initialTab);
-  const [updateStatus, setUpdateStatus] = useState<string>("v1.0.0 (Latest)");
+  const [updateStatus, setUpdateStatus] = useState<string>("v1.0.7 (Latest)");
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState<boolean>(false);
   const [updateInfo, setUpdateInfo] = useState<{
     hasUpdate: boolean;
     latestTag: string;
@@ -160,11 +158,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         throw new Error(`Status ${res.status}`);
       }
       const data = await res.json();
-      const latestTag = data.tag_name || "v1.0.0";
+      const latestTag = data.tag_name || "v1.0.7";
       const assets = data.assets || [];
       const exe = assets.find((a: any) => a.name.endsWith(".exe"));
       const apk = assets.find((a: any) => a.name.endsWith(".apk"));
-      const currentVersion = "v1.0.0";
+      const currentVersion = "v1.0.7";
       const hasUpdate = latestTag !== currentVersion;
 
       if (hasUpdate) {
@@ -176,24 +174,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setUpdateInfo({
         hasUpdate,
         latestTag,
-        downloadUrl: exe?.browser_download_url || data.html_url,
+        downloadUrl: exe?.browser_download_url || `https://github.com/NandiVardhan2007/JARVIS/releases/download/${latestTag}/JARVIS-Island-Windows.exe`,
         apkDownloadUrl: apk?.browser_download_url || data.html_url,
       });
     } catch {
-      setUpdateStatus("Running v1.0.0 (Latest Release)");
+      setUpdateStatus("Running v1.0.7 (Latest Release)");
     } finally {
       setIsCheckingUpdate(false);
     }
   };
 
-  const isProActive = config.isPro !== false;
+  const handleInstallUpdate = async () => {
+    if (!updateInfo?.downloadUrl) return;
+    setIsInstallingUpdate(true);
+    setUpdateStatus(`Downloading and installing ${updateInfo.latestTag}...`);
+    try {
+      await invoke("jarvis_install_update", { downloadUrl: updateInfo.downloadUrl });
+      setUpdateStatus("Restarting JARVIS with latest version...");
+    } catch (e: any) {
+      setUpdateStatus(`Update failed: ${e?.message || e}`);
+      setIsInstallingUpdate(false);
+    }
+  };
 
-  const navItems: { id: SettingsCategory; label: string; icon: React.ReactNode; isPro?: boolean }[] = [
+  const navItems: { id: SettingsCategory; label: string; icon: React.ReactNode }[] = [
     { id: "general", label: "General", icon: <Sliders size={15} /> },
     { id: "appearance", label: "Appearance", icon: <Palette size={15} /> },
     { id: "widgets", label: "Widgets", icon: <LayoutGrid size={15} /> },
     { id: "tips", label: "Tips & Hotkeys", icon: <Lightbulb size={15} /> },
-    { id: "pro", label: isProActive ? "JARVIS Pro" : "Buy Pro", icon: <Sparkles size={15} /> },
     { id: "about", label: "About", icon: <Info size={15} /> },
   ];
 
@@ -299,23 +307,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {item.icon}
                   </span>
                   <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.isPro && !isProActive && (
-                    <span
-                      style={{
-                        fontSize: "9px",
-                        fontWeight: 700,
-                        padding: "1px 4px",
-                        borderRadius: "4px",
-                        background: "rgba(245, 158, 11, 0.2)",
-                        color: "#fbbf24",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "2px",
-                      }}
-                    >
-                      <Lock size={8} /> PRO
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -889,165 +880,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </>
           )}
 
-          {/* ═════════ 6. PRO / BUY PRO TAB ═════════ */}
-          {activeTab === "pro" && (
-            <SettingCard title="JARVIS Pro Features & License">
-              <div
-                style={{
-                  padding: "16px",
-                  borderRadius: "14px",
-                  background: isProActive
-                    ? "linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 95, 70, 0.25))"
-                    : "linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(180, 83, 9, 0.25))",
-                  border: isProActive
-                    ? "1px solid rgba(16, 185, 129, 0.35)"
-                    : "1px solid rgba(245, 158, 11, 0.35)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "14px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div
-                    style={{
-                      width: "38px",
-                      height: "38px",
-                      borderRadius: "10px",
-                      backgroundColor: isProActive ? "rgba(16, 185, 129, 0.2)" : "rgba(245, 158, 11, 0.2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {isProActive ? <Unlock size={20} color="#10b981" /> : <Lock size={20} color="#f59e0b" />}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 700, color: "#ffffff" }}>
-                      {isProActive ? "JARVIS Pro is Active" : "JARVIS Free Tier (Locked Mode)"}
-                    </div>
-                    <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.65)", marginTop: "2px" }}>
-                      {isProActive
-                        ? "All 14 Pro modules, widgets, and Antigravity features are fully unlocked and ready."
-                        : "Pro features, agent notifications, drop shelf, and volume mixer are currently locked."}
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    const next = !isProActive;
-                    updateField("isPro", next);
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: "10px",
-                    border: "none",
-                    background: isProActive ? "#ffffff" : "#0284c7",
-                    color: isProActive ? "#000000" : "#ffffff",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {isProActive ? "Deactivate (Test Locked)" : "Unlock All Pro Features"}
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: standalone ? "1fr 1fr" : "1fr", gap: "10px" }}>
-                {[
-                  {
-                    title: "Notchy AI Agent Notifications",
-                    desc: "AI agent notifications, activity, supported permission approvals and local Git updates. Connect supported Codex, Claude Code, Cursor and Antigravity integrations.",
-                  },
-                  {
-                    title: "Agent Usage & Quotas",
-                    desc: "Provider-reported usage and reset times where available; live monitoring for Antigravity & Claude accounts.",
-                  },
-                  {
-                    title: "Notchy Desktop Screen",
-                    desc: "Detach, resize and pin an always-on-top screen for music, lyrics, timers, network, hardware, work and usage.",
-                  },
-                  {
-                    title: "Fullscreen Listening Room",
-                    desc: "A fullscreen listening room with cover-art ambient lighting, audio visualizers, and playback scrubbers.",
-                  },
-                  {
-                    title: "Synced Lyrics Follower",
-                    desc: "Follow available timed lyrics and jump to any line in supported audio and media players.",
-                  },
-                  {
-                    title: "Audio Output Switching",
-                    desc: "Switch between available speakers, headphones, and Bluetooth audio devices directly in-island.",
-                  },
-                  {
-                    title: "Flexible Notch Placement",
-                    desc: "Drag the notch along the top, left or right screen edge, including corners with custom edge offsets.",
-                  },
-                  {
-                    title: "Custom Notch Dimensions",
-                    desc: "Adjust collapsed notch length and thickness independently (28–72px). The notch expands to fit active features.",
-                  },
-                  {
-                    title: "Drop Shelf",
-                    desc: "Drag files onto the notch, hold them temporarily, copy them together and reveal them in Explorer.",
-                  },
-                  {
-                    title: "Clipboard Pro",
-                    desc: "Add permanent pinned snippets, image previews, image saving and smart actions for links, colors and email.",
-                  },
-                  {
-                    title: "Quick Apps Bar",
-                    desc: "Five customizable shortcuts for apps, websites, folders, and executable paths.",
-                  },
-                  {
-                    title: "Per-App Volume Mixer",
-                    desc: "Adjust and mute individual apps or mute all active audio sessions independently.",
-                  },
-                  {
-                    title: "Download Monitor",
-                    desc: "Track supported downloads, their progress, speed, and completion with direct folder reveal.",
-                  },
-                  {
-                    title: "Premium Appearance Effects",
-                    desc: "Liquid Titanium, Supernova Horizon, Cyber Matrix 3D, Celestial Orrery and Prism Core visual effects.",
-                  },
-                ].map((feat, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: "12px",
-                      borderRadius: "10px",
-                      backgroundColor: "rgba(255, 255, 255, 0.03)",
-                      border: "1px solid rgba(255, 255, 255, 0.06)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "4px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
-                        {feat.title}
-                      </span>
-                      {isProActive ? (
-                        <span style={{ fontSize: "10px", color: "#10b981", fontWeight: 700 }}>UNLOCKED</span>
-                      ) : (
-                        <span style={{ fontSize: "10px", color: "#f59e0b", display: "flex", alignItems: "center", gap: "3px" }}>
-                          <Lock size={10} /> PRO
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.55)", margin: 0, lineHeight: 1.35 }}>
-                      {feat.desc}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SettingCard>
-          )}
-
-          {/* ═════════ 7. ABOUT TAB ═════════ */}
+          {/* ═════════ 6. ABOUT TAB ═════════ */}
           {activeTab === "about" && (
             <>
               <SettingCard title="Application Info">
@@ -1102,7 +935,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                     <button
                       onClick={handleCheckUpdate}
-                      disabled={isCheckingUpdate}
+                      disabled={isCheckingUpdate || isInstallingUpdate}
                       style={{
                         padding: "5px 12px",
                         fontSize: "11px",
@@ -1116,23 +949,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     >
                       {isCheckingUpdate ? "Checking..." : "Check Now"}
                     </button>
-                    {updateInfo?.downloadUrl && (
-                      <a
-                        href={updateInfo.downloadUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                    {updateInfo && (
+                      <button
+                        onClick={handleInstallUpdate}
+                        disabled={isInstallingUpdate}
                         style={{
-                          padding: "5px 12px",
+                          padding: "5px 14px",
                           fontSize: "11px",
                           fontWeight: 600,
                           borderRadius: "6px",
+                          border: "none",
                           background: "#38bdf8",
                           color: "#000",
-                          textDecoration: "none",
+                          cursor: isInstallingUpdate ? "wait" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
                         }}
                       >
-                        {updateInfo.hasUpdate ? `Download ${updateInfo.latestTag}` : "Re-download"}
-                      </a>
+                        {isInstallingUpdate
+                          ? "Downloading & Installing..."
+                          : updateInfo.hasUpdate
+                          ? `Update to ${updateInfo.latestTag}`
+                          : "Reinstall Latest"}
+                      </button>
                     )}
                   </div>
                 </SettingRow>

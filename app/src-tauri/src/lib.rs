@@ -91,6 +91,87 @@ fn jarvis_exit(app: AppHandle) {
 }
 
 #[tauri::command]
+fn jarvis_install_update(app: AppHandle, download_url: String) -> Result<String, String> {
+    use std::process::Command;
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
+
+    let current_exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to find current executable: {}", e))?;
+    let current_exe_str = current_exe.to_string_lossy().replace('\'', "''");
+    let current_pid = std::process::id();
+
+    let script = format!(
+        r#"
+$ErrorActionPreference = 'Stop'
+$Target = '{current_exe_str}'
+$TargetNew = "$Target.new"
+$Url = '{download_url}'
+$PidToKill = {current_pid}
+
+if (Get-Command curl.exe -ErrorAction SilentlyContinue) {{
+    & curl.exe -L -s -S -o $TargetNew $Url
+}} else {{
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri $Url -OutFile $TargetNew -UseBasicParsing
+}}
+
+if (Test-Path $TargetNew) {{
+    Start-Sleep -Milliseconds 600
+    Stop-Process -Id $PidToKill -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name 'JARVIS*' -Force -ErrorAction SilentlyContinue
+    
+    $retries = 10
+    while ($retries -gt 0) {{
+        try {{
+            Move-Item -Path $TargetNew -Destination $Target -Force
+            break
+        }} catch {{
+            Start-Sleep -Milliseconds 500
+            $retries--
+        }}
+    }}
+    Start-Process -FilePath $Target
+}}
+"#
+    );
+
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        Command::new("powershell")
+            .args(&["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("Failed to spawn updater: {}", e))?;
+    }
+
+    #[cfg(not(windows))]
+    {
+        return Err("Desktop self-update is supported on Windows.".to_string());
+    }
+
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        app.exit(0);
+    });
+
+    Ok("Update downloaded and installing... App will restart momentarily.".to_string())
+}
+
+#[tauri::command]
+fn jarvis_send_mobile_control(
+    action: String,
+    x: Option<f32>,
+    y: Option<f32>,
+    delta_x: Option<f32>,
+    delta_y: Option<f32>,
+    target_ip: Option<String>,
+) -> Result<(), String> {
+    providers::livebridge::send_control_to_device(action, x, y, delta_x, delta_y, target_ip)
+}
+
+#[tauri::command]
 fn jarvis_get_config(store: State<'_, ConfigStore>) -> AppConfig {
     store.get()
 }
@@ -98,6 +179,20 @@ fn jarvis_get_config(store: State<'_, ConfigStore>) -> AppConfig {
 #[tauri::command]
 fn jarvis_set_config(app: AppHandle, config: AppConfig, store: State<'_, ConfigStore>) {
     store.set(config.clone());
+
+    // Sync autostart plugin state
+    use tauri_plugin_autostart::ManagerExt;
+    if config.autostart {
+        let _ = app.autolaunch().enable();
+    } else {
+        let _ = app.autolaunch().disable();
+    }
+
+    // Reposition island if needed
+    if let Some(win) = app.get_webview_window(ISLAND_LABEL) {
+        display::position_overlay(&win);
+    }
+
     let _ = app.emit("jarvis://config-updated", config);
 }
 
@@ -267,7 +362,9 @@ pub fn run() {
             jarvis_send_bridge_file_bytes,
             jarvis_send_bridge_file_path,
             jarvis_get_connection_status,
-            jarvis_open_transfer_folder
+            jarvis_open_transfer_folder,
+            jarvis_install_update,
+            jarvis_send_mobile_control
         ])
         .setup(|app| {
             let handle = app.handle().clone();

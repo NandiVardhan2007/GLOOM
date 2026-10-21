@@ -293,6 +293,54 @@ pub fn broadcast_clipboard_to_mobile(text: &str) {
     });
 }
 
+pub fn send_control_to_device(
+    action: String,
+    x: Option<f32>,
+    y: Option<f32>,
+    delta_x: Option<f32>,
+    delta_y: Option<f32>,
+    target_ip: Option<String>,
+) -> Result<(), String> {
+    let ip = target_ip.filter(|s| !s.is_empty()).unwrap_or_else(|| {
+        let devs = DEVICES.lock().unwrap().clone();
+        devs.iter()
+            .find(|d| d.status == "connected" && !d.ip.is_empty() && d.ip != "192.168.1.3")
+            .map(|d| d.ip.clone())
+            .or_else(|| devs.first().map(|d| d.ip.clone()))
+            .unwrap_or_else(|| "127.0.0.1".to_string())
+    });
+
+    let addr = format!("{}:53391", ip);
+    let body = serde_json::json!({
+        "action": action,
+        "x": x,
+        "y": y,
+        "deltaX": delta_x,
+        "deltaY": delta_y,
+        "originDeviceId": "jarvis-desktop-primary"
+    }).to_string();
+
+    let req = format!(
+        "POST /api/control HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        addr,
+        body.len(),
+        body
+    );
+
+    std::thread::spawn(move || {
+        use std::net::ToSocketAddrs;
+        if let Ok(mut addrs) = addr.to_socket_addrs() {
+            if let Some(sock) = addrs.next() {
+                if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&sock, Duration::from_millis(1500)) {
+                    let _ = stream.write_all(req.as_bytes());
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
 fn write_json_response(stream: &mut std::net::TcpStream, json_body: &str) {
     let resp = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n{}",

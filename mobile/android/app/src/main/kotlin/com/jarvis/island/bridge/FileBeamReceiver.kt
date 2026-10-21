@@ -142,6 +142,23 @@ class FileBeamReceiver(private val context: Context) {
                                 }
                                 val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"received\":true}"
                                 output.write(resp.toByteArray(Charsets.UTF_8))
+                            } else if (requestLine.startsWith("POST /api/control")) {
+                                if (body.isNotEmpty()) {
+                                    val json = JSONObject(body)
+                                    val action = json.optString("action")
+                                    val x = json.optDouble("x", 0.5).toFloat()
+                                    val y = json.optDouble("y", 0.5).toFloat()
+                                    val deltaX = json.optDouble("deltaX", 0.0).toFloat()
+                                    val deltaY = json.optDouble("deltaY", 0.0).toFloat()
+
+                                    mainHandler.post {
+                                        com.jarvis.island.service.JarvisIslandAccessibilityService.instance?.handleRemoteControl(
+                                            action, x, y, deltaX, deltaY
+                                        )
+                                    }
+                                }
+                                val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"executed\":true}"
+                                output.write(resp.toByteArray(Charsets.UTF_8))
                             } else {
                                 val resp = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n"
                                 output.write(resp.toByteArray(Charsets.UTF_8))
