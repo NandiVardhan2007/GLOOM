@@ -36,11 +36,13 @@ jobs:
           cache: gradle
 
       - name: Configure Android Release Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           mkdir -p mobile/android/keystore
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          if [ -n "$KEYSTORE_BASE64" ]; then
             echo "Using configured repository Secret KEYSTORE_BASE64..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > mobile/android/keystore/release.jks
+            echo "$KEYSTORE_BASE64" | base64 -d > mobile/android/keystore/release.jks
           else
             echo "::error::KEYSTORE_BASE64 secret is not configured in repository settings. Release build failed safely."
             exit 1
