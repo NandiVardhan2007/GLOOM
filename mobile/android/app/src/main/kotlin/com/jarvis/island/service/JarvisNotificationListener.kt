@@ -1,6 +1,7 @@
 package com.jarvis.island.service
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
@@ -16,10 +17,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.jarvis.island.lyrics.JarvisLyricsProvider
+import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.MediaTrackInfo
 import java.util.regex.Pattern
 
@@ -109,6 +112,13 @@ class JarvisNotificationListener : NotificationListenerService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val otpPattern = Pattern.compile("(?i)\\b(\\d{3}[- ]?\\d{3}|\\d{4,8})\\b")
     private var progressTicker: Runnable? = null
+    private val lastRenderedAt = HashMap<String, Long>()
+    private val lastRenderedSignature = HashMap<String, String>()
+    private val lastContentAt = HashMap<String, Long>()
+    // Keys we cancelled ourselves. Cancelling the shade copy emits
+    // onNotificationRemoved, and treating that as a user dismissal would erase
+    // the island card the moment it appeared.
+    private val selfCancelled = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private val mediaCallback = object : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) {
@@ -128,6 +138,9 @@ class JarvisNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         instance = this
+        // The listener can be the first component to start after a reboot, so
+        // it must load the persisted filters itself.
+        JarvisIslandSettings.instance.load(this)
         Log.i(TAG, "Notification listener connected!")
         startProgressTicker()
         checkActiveMedia()
@@ -143,7 +156,13 @@ class JarvisNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        if (sbn == null || sbn.packageName == packageName) return
+        if (sbn == null) return
+        Log.d(
+            TAG,
+            "Posted ${sbn.packageName} channel=${sbn.notification.channelId} " +
+                "flags=${sbn.notification.flags}"
+        )
+        if (sbn.packageName == packageName) return
 
         val extras = sbn.notification.extras
 
@@ -186,71 +205,161 @@ class JarvisNotificationListener : NotificationListenerService() {
         }
 
         // 4. Regular App Heads-up Notification (WhatsApp, Telegram, Messages, Phone, etc.)
-        if (title.isNotBlank() || text.isNotBlank()) {
-            val appLabel = try {
-                val pm = packageManager
-                pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString()
-            } catch (e: Exception) {
-                sbn.packageName
+        // The island is meant to replace the heads-up copy, not repeat it, so
+        // grouped summaries, ongoing alerts and silent channels are dropped
+        // before anything is rendered.
+        if (isGroupSummary(sbn)) return
+        if (JarvisIslandSettings.instance.filterSilentNotifications && isSilent(sbn)) {
+            Log.d(TAG, "Skipping silent notification from ${sbn.packageName} (${sbn.notification.channelId})")
+            return
+        }
+        val protectedCategory = sbn.notification.category == Notification.CATEGORY_CALL ||
+            sbn.notification.category == Notification.CATEGORY_ALARM ||
+            sbn.notification.category == Notification.CATEGORY_EVENT ||
+            sbn.notification.category == Notification.CATEGORY_PROGRESS
+        val protectedFlags =
+            (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
+                (sbn.notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
+        val systemPackage = sbn.packageName == "android" || sbn.packageName == "com.android.systemui"
+        if (protectedCategory || protectedFlags || systemPackage || sbn.isOngoing) return
+
+        if (title.isBlank() && text.isBlank()) return
+        val shouldRender = onNotificationEvent != null &&
+            JarvisIslandSettings.instance.pluginNotifications &&
+            rememberAndDedupe(sbn, title, text)
+        if (!shouldRender) {
+            if (onNotificationEvent == null) {
+                Log.d(TAG, "No island renderer attached; keeping ${sbn.packageName} in the shade")
             }
+            return
+        }
+        Log.i(TAG, "Rendering ${sbn.packageName} in the island")
 
-            val largeIconBitmap = try {
-                val icon = sbn.notification.getLargeIcon()
-                val drawable = icon?.loadDrawable(this)
-                if (drawable is BitmapDrawable) {
-                    drawable.bitmap
-                } else if (drawable != null) {
-                    val bmp = Bitmap.createBitmap(
-                        drawable.intrinsicWidth.coerceAtLeast(48),
-                        drawable.intrinsicHeight.coerceAtLeast(48),
-                        Bitmap.Config.ARGB_8888
-                    )
-                    val canvas = android.graphics.Canvas(bmp)
-                    drawable.setBounds(0, 0, canvas.width, canvas.height)
-                    drawable.draw(canvas)
-                    bmp
-                } else null
-            } catch (e: Exception) {
-                null
-            }
+        val appLabel = try {
+            val pm = packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString()
+        } catch (e: Exception) {
+            sbn.packageName
+        }
 
-            val event = com.jarvis.island.ui.NotificationIslandEvent(
-                id = sbn.key ?: sbn.id.toString(),
-                packageName = sbn.packageName,
-                appName = appLabel,
-                title = title,
-                text = text,
-                subText = subText,
-                largeIcon = largeIconBitmap,
-                contentIntent = sbn.notification.contentIntent,
-                postTimeMs = sbn.postTime
-            )
+        val largeIconBitmap = try {
+            val icon = sbn.notification.getLargeIcon()
+            val drawable = icon?.loadDrawable(this)
+            if (drawable is BitmapDrawable) {
+                drawable.bitmap
+            } else if (drawable != null) {
+                val bmp = Bitmap.createBitmap(
+                    drawable.intrinsicWidth.coerceAtLeast(48),
+                    drawable.intrinsicHeight.coerceAtLeast(48),
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = android.graphics.Canvas(bmp)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                bmp
+            } else null
+        } catch (e: Exception) {
+            null
+        }
 
-            mainHandler.post {
-                onNotificationEvent?.invoke(event)
-            }
+        val event = com.jarvis.island.ui.NotificationIslandEvent(
+            id = sbn.key ?: sbn.id.toString(),
+            packageName = sbn.packageName,
+            appName = appLabel,
+            title = title,
+            text = text,
+            subText = subText,
+            largeIcon = largeIconBitmap,
+            contentIntent = sbn.notification.contentIntent,
+            postTimeMs = sbn.postTime
+        )
 
-            // The island is now the single surface for this alert. Dismiss the
-            // copy in the status bar so it is not delivered twice, but never
-            // touch ongoing/foreground notifications, calls, alarms or anything
-            // the system marks as non-clearable.
-            val protectedCategory = sbn.notification.category == Notification.CATEGORY_CALL ||
-                sbn.notification.category == Notification.CATEGORY_ALARM ||
-                sbn.notification.category == Notification.CATEGORY_EVENT
-            val protectedFlags =
-                (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
-                    (sbn.notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
-            val systemPackage = sbn.packageName == "android" || sbn.packageName == "com.android.systemui"
-            if (onNotificationEvent != null && sbn.isClearable && !sbn.isOngoing &&
-                !protectedCategory && !protectedFlags && !systemPackage
-            ) {
-                try {
-                    cancelNotification(sbn.key)
-                } catch (_: Exception) {
-                    // Some OEMs restrict cancellation; the island still shows the alert.
-                }
+        // Dismiss the status-bar copy as early as possible so the alert is
+        // delivered once, by the island. This is best-effort: Android shows
+        // the heads-up before the listener callback arrives, and OEMs may
+        // refuse the cancel. Never touch non-clearable notifications.
+        if (sbn.isClearable) {
+            try {
+                if (selfCancelled.size > 200) selfCancelled.clear()
+                sbn.key?.let { selfCancelled.add(it) }
+                cancelNotification(sbn.key)
+            } catch (_: Exception) {
+                // Some OEMs restrict cancellation; the island still shows the alert.
             }
         }
+
+        mainHandler.post {
+            onNotificationEvent?.invoke(event)
+        }
+    }
+
+    private fun isGroupSummary(sbn: StatusBarNotification): Boolean {
+        return (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+    }
+
+    /**
+     * A silent notification is one whose channel is below IMPORTANCE_DEFAULT:
+     * no sound, no heads-up, no vibration. Rendering those turns every quiet
+     * background update into an island alert.
+     */
+    private fun isSilent(sbn: StatusBarNotification): Boolean {
+        val notification = sbn.notification
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            val channel = runCatching {
+                manager?.getNotificationChannel(sbn.packageName, notification.channelId)
+            }.getOrNull()
+            if (channel != null) {
+                return channel.importance < NotificationManager.IMPORTANCE_DEFAULT
+            }
+        }
+        return notification.sound == null &&
+            notification.vibrate == null &&
+            (notification.defaults and (Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)) == 0 &&
+            notification.fullScreenIntent == null
+    }
+
+    /**
+     * Apps repost the same notification for each update (a typing indicator, a
+     * badge, a progress step). Rendering every repost is what makes one message
+     * appear several times. Identical content is dropped for 20 s and any
+     * repost of the same key within 600 ms is coalesced.
+     */
+    private fun rememberAndDedupe(sbn: StatusBarNotification, title: String, text: String): Boolean {
+        val key = sbn.key ?: sbn.id.toString()
+        val now = SystemClock.elapsedRealtime()
+        val signature = "$title\u0000$text"
+        // Some apps repost under a new key each time. Identical content from the
+        // same package inside three seconds is one alert, whichever key it uses.
+        val contentKey = "${sbn.packageName}\u0000$signature"
+        val contentAt = lastContentAt[contentKey] ?: 0L
+        if (now - contentAt < 3_000L) {
+            Log.d(TAG, "Dropping duplicate alert from ${sbn.packageName} (same content)")
+            return false
+        }
+        val previousAt = lastRenderedAt[key] ?: 0L
+        val previousSignature = lastRenderedSignature[key]
+        if (previousSignature == signature && now - previousAt < 20_000L) {
+            Log.d(TAG, "Dropping duplicate notification from ${sbn.packageName}")
+            return false
+        }
+        if (now - previousAt < 600L) {
+            Log.d(TAG, "Coalescing rapid repost from ${sbn.packageName}")
+            return false
+        }
+        lastContentAt[contentKey] = now
+        lastRenderedAt[key] = now
+        lastRenderedSignature[key] = signature
+        if (lastRenderedAt.size > 200) {
+            val cutoff = now - 60_000L
+            lastRenderedAt.entries.removeAll { it.value < cutoff }
+            lastRenderedSignature.keys.retainAll(lastRenderedAt.keys)
+        }
+        if (lastContentAt.size > 200) {
+            val cutoff = now - 60_000L
+            lastContentAt.entries.removeAll { it.value < cutoff }
+        }
+        return true
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
@@ -258,6 +367,14 @@ class JarvisNotificationListener : NotificationListenerService() {
         onMediaChanged?.invoke()
         if (sbn != null) {
             val key = sbn.key ?: sbn.id.toString()
+            // A dismissal lets the same alert show again if the app reposts it.
+            lastRenderedAt.remove(key)
+            lastRenderedSignature.remove(key)
+            if (selfCancelled.remove(key)) {
+                // This removal is our own shade-copy cancellation, not a
+                // dismissal. The island card must stay until its own timer ends.
+                return
+            }
             mainHandler.post {
                 onNotificationDismissed?.invoke(key)
             }

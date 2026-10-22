@@ -65,7 +65,7 @@ fn default_providers() -> Vec<AiProvider> {
             id: "openrouter".into(),
             base_url: "https://openrouter.ai/api/v1".into(),
             key_file: "OpenRouterKeys.txt".into(),
-            model: "google/gemini-2.0-flash-001".into(),
+            model: "anthropic/claude-haiku-5.5".into(),
             enabled: true,
         },
         AiProvider {
@@ -193,9 +193,9 @@ fn preferred_models(provider_id: &str) -> &'static [&'static str] {
     match provider_id {
         "groq" => &["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"],
         "openrouter" => &[
-            "google/gemini-2.0-flash-001",
-            "openai/gpt-4o-mini",
-            "anthropic/claude-3.5-haiku",
+            "anthropic/claude-haiku-5.5",
+            "anthropic/claude-sonnet-5.5",
+            "google/gemini-4-argon",
         ],
         _ => &[],
     }
@@ -267,7 +267,10 @@ fn try_provider(
     }
 
     let mut last_error = String::from("unknown error");
-    for key in keys.iter().take(3) {
+    // Key files hold several keys and the first ones are not always the live
+    // ones. OpenRouter's working keys, for example, sit after four revoked
+    // entries; stopping at three made the whole provider look dead.
+    for key in keys.iter().take(10) {
         let Some(model) = resolve_model(provider, key, requested_model) else {
             return Err(format!("{} has no usable model", provider.id));
         };

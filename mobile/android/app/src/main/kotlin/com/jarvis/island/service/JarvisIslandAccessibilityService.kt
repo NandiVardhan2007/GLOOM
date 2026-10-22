@@ -19,6 +19,9 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -54,6 +57,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * JARVIS Accessibility Overlay Service:
@@ -99,6 +103,11 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private var windowResizeJob: Job? = null
     private var notificationJob: Job? = null
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingSpeech: String? = null
+
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_BATTERY_CHANGED) {
@@ -133,6 +142,12 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         instance = this
         isRunning = true
         Log.i(TAG, "Accessibility Service Connected - Initializing Lock Screen Overlay")
+
+        // This service owns the island whenever accessibility is enabled: it can
+        // draw over the keyguard, where the plain overlay cannot. Leaving the
+        // other service alive produces two overlapping islands and two copies of
+        // every alert.
+        runCatching { stopService(Intent(this, JarvisIslandOverlayService::class.java)) }
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -200,7 +215,13 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Monitors window state and screen transitions
+        val current = event ?: return
+        if (current.packageName?.toString() == packageName) return
+        try {
+            com.jarvis.island.automation.InstagramReelTracker.onEvent(this, current)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not inspect accessibility event: ${e.message}")
+        }
     }
 
     private fun startClipboardSync() {
@@ -724,10 +745,61 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Speaks a result after the voice panel has closed. Automation finishes
+     * the panel first so injected touches reach the app underneath, which
+     * means the panel's own text-to-speech engine is gone by then.
+     */
+    fun speak(text: String) {
+        if (text.isBlank()) return
+        mainHandler.post {
+            val engine = tts
+            if (engine == null) {
+                pendingSpeech = text
+                tts = TextToSpeech(this) { status ->
+                    if (status == TextToSpeech.SUCCESS) {
+                        val created = tts
+                        val language = created?.setLanguage(Locale.US)
+                        if (language == TextToSpeech.LANG_MISSING_DATA ||
+                            language == TextToSpeech.LANG_NOT_SUPPORTED
+                        ) {
+                            created?.setLanguage(Locale.getDefault())
+                        }
+                        ttsReady = true
+                        pendingSpeech?.let { queued ->
+                            pendingSpeech = null
+                            created?.speak(queued, TextToSpeech.QUEUE_FLUSH, null, "jarvis-result")
+                        }
+                    } else {
+                        Log.w(TAG, "Result speech initialization failed ($status)")
+                    }
+                }
+                return@post
+            }
+            if (!ttsReady) {
+                pendingSpeech = text
+                return@post
+            }
+            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-result")
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        if (instance === this) {
+            // Do not leave the listener pointing at a dead renderer: it would
+            // keep consuming and cancelling alerts that nobody displays.
+            JarvisNotificationListener.onNotificationEvent = null
+            JarvisNotificationListener.onNotificationDismissed = null
+            JarvisNotificationListener.onMediaUpdate = null
+        }
         instance = null
         isRunning = false
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
+        ttsReady = false
+        pendingSpeech = null
         fileBeamReceiver.stopServer()
         try {
             (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)

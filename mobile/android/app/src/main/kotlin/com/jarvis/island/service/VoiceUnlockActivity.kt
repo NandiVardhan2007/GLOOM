@@ -234,28 +234,49 @@ class VoiceUnlockActivity : ComponentActivity() {
             unlockDevice()
             return
         }
-        val appQuery = AppLauncher.extractAppQuery(text)
-        if (appQuery != null) {
-            matched = true
-            status = "Opening $appQuery…"
-            recognizer?.stopListening()
-            Thread {
-                val label = AppLauncher.launch(this, appQuery)
-                runOnUiThread {
-                    if (label != null) {
-                        status = "Opening $label"
-                        speak("Opening $label.")
-                        Handler(Looper.getMainLooper()).postDelayed({ finish() }, 2200)
-                    } else {
-                        failed = true
-                        status = "I couldn't find $appQuery"
-                        speak("I couldn't find $appQuery.")
-                    }
-                }
-            }.start()
-            return
-        }
         if (text.isNotBlank()) {
+            val isAction = com.jarvis.island.automation.CommandRouter.isCommand(text) ||
+                com.jarvis.island.automation.AiPlanner.looksLikeAction(text)
+            if (isAction) {
+                matched = true
+                status = "Working…"
+                recognizer?.stopListening()
+                val appContext = applicationContext
+                Handler(Looper.getMainLooper()).postDelayed({
+                    // This panel is a full-screen window. Injected taps would
+                    // hit the panel instead of the app underneath, so close it
+                    // first and let the target window take focus.
+                    finish()
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        Thread {
+                            var outcome = com.jarvis.island.automation.CommandRouter
+                                .handle(appContext, text)
+                            if (!outcome.handled) {
+                                outcome = com.jarvis.island.automation.AiPlanner
+                                    .run(appContext, text)
+                            }
+                            val message = outcome.message.ifBlank {
+                                if (outcome.success) "Done." else "I couldn't do that."
+                            }
+                            val accessibility =
+                                com.jarvis.island.service.JarvisIslandAccessibilityService.instance
+                            if (accessibility != null) {
+                                accessibility.speak(message)
+                            } else {
+                                Handler(Looper.getMainLooper()).post {
+                                    android.widget.Toast.makeText(
+                                        appContext,
+                                        message,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }.start()
+                    }, 600)
+                }, 320)
+                return
+            }
+            status = "Thinking…"
             recognizer?.stopListening()
             askAi(text)
         }

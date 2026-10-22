@@ -19,6 +19,7 @@ import android.media.session.PlaybackState
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.WindowManager
@@ -136,6 +137,15 @@ class JarvisIslandOverlayService : Service() {
         JarvisIslandSettings.instance.load(this)
 
         startForegroundServiceNotification()
+        // The accessibility service draws the same island over every window,
+        // including the keyguard. Running both leaves two islands on screen and
+        // two copies of each notification. Accessibility wins once it is bound;
+        // until then this service keeps the island alive.
+        if (JarvisIslandAccessibilityService.isRunning) {
+            Log.i("JarvisOverlay", "Accessibility island owns the overlay; stopping this duplicate")
+            stopSelf()
+            return
+        }
         setupComposeOverlay()
         registerReceivers()
         setupRealMediaSessions()
@@ -652,7 +662,17 @@ class JarvisIslandOverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        fileBeamReceiver.stopServer()
+        // Only release the shared callbacks when this service was the one
+        // rendering. The early-stop path (accessibility owns the island) must
+        // not clear the accessibility service's live callbacks.
+        if (composeView != null && !JarvisIslandAccessibilityService.isRunning) {
+            JarvisNotificationListener.onNotificationEvent = null
+            JarvisNotificationListener.onNotificationDismissed = null
+            JarvisNotificationListener.onMediaUpdate = null
+        }
+        if (::fileBeamReceiver.isInitialized) {
+            fileBeamReceiver.stopServer()
+        }
         try {
             unregisterReceiver(settingsReceiver)
             unregisterReceiver(batteryReceiver)

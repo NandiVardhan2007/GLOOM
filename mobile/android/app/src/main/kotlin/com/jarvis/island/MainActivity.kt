@@ -135,6 +135,7 @@ import com.jarvis.island.ui.JarvisLockScreen
 import com.jarvis.island.ui.SecurityScreen
 import com.jarvis.island.ui.VoiceSettingsScreen
 import com.jarvis.island.security.JarvisSecurity
+import com.jarvis.island.service.JarvisIslandAccessibilityService
 import com.jarvis.island.service.JarvisIslandOverlayService
 import com.jarvis.island.updater.JarvisAppUpdater
 import com.jarvis.island.updater.UpdateState
@@ -290,6 +291,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startOverlayService() {
+        if (JarvisIslandAccessibilityService.isRunning) return
         val intent = Intent(this, JarvisIslandOverlayService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -619,6 +621,43 @@ fun HomeScreen(
                 iconTint = Apple.systemPink,
                 showChevron = true,
                 onClick = onSimulateMusic
+            )
+        }
+
+        AppleSection(
+            header = "Activity",
+            footer = "JARVIS counts a reel each time the Instagram reels viewer advances. Counts are stored only on this phone."
+        ) {
+            val reelsToday = com.jarvis.island.automation.ReelCounter.today(context)
+            val reelsTotal = com.jarvis.island.automation.ReelCounter.total(context)
+            AppleRow(
+                title = "Instagram Reels",
+                subtitle = if (settings.reelCounterEnabled) "Watched today" else "Counter is off",
+                value = if (settings.reelCounterEnabled) "$reelsToday" else "—",
+                icon = JarvisIcons.HeartFill,
+                iconTint = Apple.systemPink
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Lifetime reels",
+                value = if (settings.reelCounterEnabled) "$reelsTotal" else "—",
+                icon = JarvisIcons.PlayFill,
+                iconTint = Apple.systemPurple
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Reset today's count",
+                icon = JarvisIcons.ArrowClockwise,
+                iconTint = Apple.systemOrange,
+                destructive = false,
+                onClick = {
+                    com.jarvis.island.automation.ReelCounter.resetToday(context)
+                    android.widget.Toast.makeText(
+                        context,
+                        "Today's reel count is reset",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             )
         }
 
@@ -1542,6 +1581,8 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
     var autoCollapseDelaySec by remember { mutableFloatStateOf(settings.autoCollapseDelaySec) }
     var hapticFeedback by remember { mutableStateOf(settings.hapticFeedback) }
     var longPressToExpand by remember { mutableStateOf(settings.longPressToExpand) }
+    var filterSilentNotifications by remember { mutableStateOf(settings.filterSilentNotifications) }
+    var reelCounterEnabled by remember { mutableStateOf(settings.reelCounterEnabled) }
 
     Column(
         modifier = Modifier
@@ -1564,6 +1605,8 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
                 autoCollapseDelaySec = settings.autoCollapseDelaySec
                 hapticFeedback = settings.hapticFeedback
                 longPressToExpand = settings.longPressToExpand
+                filterSilentNotifications = settings.filterSilentNotifications
+                reelCounterEnabled = settings.reelCounterEnabled
             }
         )
 
@@ -1602,6 +1645,28 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
                     onCheckedChange = {
                         hapticFeedback = it
                         settings.hapticFeedback = it
+                        settings.save(context)
+                    }
+                )
+
+                SettingsSwitch(
+                    title = "Filter Silent Notifications",
+                    description = "Quiet channel updates stay in the shade instead of popping the island.",
+                    checked = filterSilentNotifications,
+                    onCheckedChange = {
+                        filterSilentNotifications = it
+                        settings.filterSilentNotifications = it
+                        settings.save(context)
+                    }
+                )
+
+                SettingsSwitch(
+                    title = "Count Instagram Reels",
+                    description = "Adds a reel to today's counter when the reels viewer advances.",
+                    checked = reelCounterEnabled,
+                    onCheckedChange = {
+                        reelCounterEnabled = it
+                        settings.reelCounterEnabled = it
                         settings.save(context)
                     }
                 )

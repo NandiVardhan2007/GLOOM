@@ -52,6 +52,8 @@ class JarvisIslandSettings {
         const val DEFAULT_LONG_PRESS_EXPAND = true
         const val DEFAULT_REDUCED_MOTION = false
         const val DEFAULT_HIGH_CONTRAST = false
+        const val DEFAULT_FILTER_SILENT_NOTIFICATIONS = true
+        const val DEFAULT_REEL_COUNTER = true
     }
 
     // ── 0. Master & Plugins ──
@@ -61,6 +63,8 @@ class JarvisIslandSettings {
     var pluginNotifications by mutableStateOf(true)
     var pluginBattery by mutableStateOf(true)
     var pluginClipboard by mutableStateOf(true)
+    var filterSilentNotifications by mutableStateOf(DEFAULT_FILTER_SILENT_NOTIFICATIONS)
+    var reelCounterEnabled by mutableStateOf(DEFAULT_REEL_COUNTER)
 
     // ── 0b. Accessibility & Motion ──
     var reducedMotion by mutableStateOf(DEFAULT_REDUCED_MOTION)
@@ -103,6 +107,11 @@ class JarvisIslandSettings {
         pluginNotifications = prefs.getBoolean("plugin_notifications", true)
         pluginBattery = prefs.getBoolean("plugin_battery", true)
         pluginClipboard = prefs.getBoolean("plugin_clipboard", true)
+        filterSilentNotifications = prefs.getBoolean(
+            "filter_silent_notifications",
+            DEFAULT_FILTER_SILENT_NOTIFICATIONS
+        )
+        reelCounterEnabled = prefs.getBoolean("reel_counter_enabled", DEFAULT_REEL_COUNTER)
 
         gravity = prefs.getString("gravity", DEFAULT_GRAVITY) ?: DEFAULT_GRAVITY
         positionY = prefs.getInt("position_y", DEFAULT_POSITION_Y)
@@ -169,6 +178,8 @@ class JarvisIslandSettings {
             .putBoolean("plugin_notifications", pluginNotifications)
             .putBoolean("plugin_battery", pluginBattery)
             .putBoolean("plugin_clipboard", pluginClipboard)
+            .putBoolean("filter_silent_notifications", filterSilentNotifications)
+            .putBoolean("reel_counter_enabled", reelCounterEnabled)
             .putString("gravity", gravity)
             .putInt("position_y", positionY)
             .putInt("position_x", positionX)
@@ -235,6 +246,8 @@ class JarvisIslandSettings {
         autoCollapseDelaySec = DEFAULT_AUTO_COLLAPSE_DELAY
         hapticFeedback = DEFAULT_HAPTIC_FEEDBACK
         longPressToExpand = DEFAULT_LONG_PRESS_EXPAND
+        filterSilentNotifications = DEFAULT_FILTER_SILENT_NOTIFICATIONS
+        reelCounterEnabled = DEFAULT_REEL_COUNTER
         save(context)
     }
 
@@ -245,6 +258,8 @@ class JarvisIslandSettings {
         pluginNotifications = true
         pluginBattery = true
         pluginClipboard = true
+        filterSilentNotifications = DEFAULT_FILTER_SILENT_NOTIFICATIONS
+        reelCounterEnabled = DEFAULT_REEL_COUNTER
         gravity = DEFAULT_GRAVITY
         positionY = DEFAULT_POSITION_Y
         positionX = DEFAULT_POSITION_X
