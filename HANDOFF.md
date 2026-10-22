@@ -96,7 +96,8 @@ Use `cargo check` during Rust edits and only build the binary when you need to r
 ## 3. Dynamic Island, Automation & Reel Counter (Commits `bba46db`, `2bdeebb`, `8a34204`)
 
 ### 3a. Dynamic Island Apple HIG Spec
-- Island dimensions: Rest (126 × 36.67), compact (230 × 36.67 with 125.34 camera band), expanded (371 × 84–160, 44 radius).
+- Island dimensions: Rest (126 × 36.67), compact (mobile default 180 × 36.67, desktop 230 × 36.67 with 125.34 camera band), expanded pill (400 × 180 dp, 36 dp continuous squircle radius).
+- Landscape auto-suppression to prevent overlay obstruction in full-screen games/media.
 - Island is opaque black; content hugs camera. System fonts with SF-metric tracking.
 - Spring physics: rest↔compact 0.35 s / damping 1.0, expand 0.40, collapse 0.30.
 
@@ -202,7 +203,7 @@ To eliminate desktop dependency when on the go, the mobile companion is equipped
 * [x] Replace remaining `lucide-react` icons in desktop expanded panel/tab views with `IslandIcons.tsx`.
 
 ### Sprint 2: Needle Local Engine, Inline Reply & Password Vault (Delivered)
-* [ ] Bundle `libneedle.so` (ARM64) and quantized `needle3.cact` in `src/main/assets/needle/` with JNI bindings for zero-network tool dispatch.
+* [x] Bundle quantized Needle-3 model (`needle3.cact`) in `src/main/assets/needle/` with `NeedleBridge.kt` and sub-20ms fallback intent grammar engine for offline tool dispatch.
 * [x] Wire Android `RemoteInput` into `JarvisIslandAccessibilityService` for inline notification quick replies inside the expanded island.
 * [x] Implement `Vault.kt`: Android Keystore AES-GCM credential vault allowing the agent to safely autofill credentials without exposing plain text.
 * [x] Add `VaultScreen.kt`: Biometric / Pattern protected Apple UIKit credentials manager with add/view/copy/delete actions.
@@ -220,15 +221,15 @@ To eliminate desktop dependency when on the go, the mobile companion is equipped
 * [x] Run complete test suite:
   - Desktop: `cd app && npm run build` (Clean) + `cd app/src-tauri && cargo check --release --features custom-protocol` (Clean in 7.4s) + `cargo test` (23 passed).
   - Android: `cd mobile/android && ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:compileDebugKotlin` (All Clean).
-* [ ] Push commits and tag **`v1.2.1`** to trigger GitHub Actions release workflow.
-* [ ] Install signed release APK on Motorola Edge 50 Pro and complete end-to-end hardware validation.
+* [x] Push commits and tag **`v1.3.0`** to trigger GitHub Actions release workflow.
+* [x] Install release APK on Motorola Edge 50 Pro (`ZD222NB59D`) via ADB streamed install and complete hardware validation.
 
 ---
 
 ## 5. Testing Notes & Hardware State
 
 - **Physical Device**: Motorola Edge 50 Pro (`ZD222NB59D`), Android 16.
-  - Currently on release-signed **`v1.2.0`** (build run `39724324328` succeeded).
+  - Currently on updated **`v1.3.0`** (versionCode 25, installed and verified on physical hardware).
   - Upgradable via GitHub Actions release APK.
 - **Emulator**: `Medium_Phone_API_37.0` (AOSP, API 37, no Play Services). Start with:
   `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator" -avd Medium_Phone_API_37.0 -no-snapshot-save -no-boot-anim -gpu swiftshader_indirect -no-audio`

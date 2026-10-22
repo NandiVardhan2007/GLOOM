@@ -26,9 +26,10 @@
 | Island at rest | 126 × 36.67 | capsule (18.335) |
 | Compact leading / trailing | 52.33 × 36.67 each | capsule |
 | Camera band | 125.34 × 36.67 | — |
-| Compact total | 230 × 36.67 | capsule |
+| Compact total (Mobile) | 180 × 36.67 | capsule (18.335) |
+| Compact total (Desktop) | 230 × 36.67 | capsule (18.335) |
 | Minimal | 36.67–45 × 36.67 | capsule |
-| Expanded | 371 × 84–160 | 44 (continuous) |
+| Expanded pill | 400 × 180 | 36 (continuous squircle) |
 | Content margin | 14 | — |
 | Expanded artwork | 44 | 10 |
 | Compact artwork | 22 | 6.5 |
@@ -42,14 +43,16 @@ TrueDepth band, and 11 pt of inset from the rounded outer ends. Expanded content
 starts below the camera band (34–44 pt) so text is never covered.
 
 On Android the physical punch-hole is smaller than TrueDepth; the island keeps
-Apple's proportions and covers the hole inside the camera band.
+Apple's proportions and covers the hole inside the camera band. Furthermore, the
+mobile overlay automatically suppresses itself in landscape orientation to avoid
+blocking games, video viewports, or full-screen navigation.
 
 ### Presentation state machine
 
 ```
-rest (126) ──activity──▶ compact (230) ──hover / long-press──▶ expanded (371 × 160)
-    ▲                        │                                      │
-    └────────ended───────────┘◀────────────dismiss / tap outside────┘
+rest (126) ──activity──▶ compact (180/230) ──hover / long-press──▶ expanded (400 × 180)
+    ▲                            │                                        │
+    └──────────ended─────────────┘◀──────────────dismiss / tap outside────┘
 ```
 
 - **rest** — empty black capsule. No clock, no battery, no debug text.
