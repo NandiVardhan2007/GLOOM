@@ -341,6 +341,7 @@ class JarvisNotificationListener : NotificationListenerService() {
      * no sound, no heads-up, no vibration. Rendering those turns every quiet
      * background update into an island alert.
      */
+    @Suppress("DEPRECATION")
     private fun isSilent(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

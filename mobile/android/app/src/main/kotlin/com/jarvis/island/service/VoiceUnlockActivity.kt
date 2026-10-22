@@ -16,6 +16,7 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -86,6 +87,19 @@ class VoiceUnlockActivity : ComponentActivity() {
     private var ttsReady = false
     private var pendingSpeech: String? = null
 
+    private val micPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startListening()
+        } else {
+            permissionDenied = true
+            status = "Microphone access is required"
+            failed = true
+            speak("Microphone access is required.")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setShowWhenLocked(true)
@@ -129,25 +143,7 @@ class VoiceUnlockActivity : ComponentActivity() {
         ) {
             startListening()
         } else {
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MIC)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_MIC) {
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                startListening()
-            } else {
-                permissionDenied = true
-                status = "Microphone access is required"
-                failed = true
-                speak("Microphone access is required.")
-            }
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -410,7 +406,7 @@ class VoiceUnlockActivity : ComponentActivity() {
         // would be drawn into our own overlay instead of the keyguard.
         val pattern = JarvisSecurity.loadPattern(this)
         val accessibility = JarvisIslandAccessibilityService.instance
-        if (pattern != null && accessibility != null) {
+        if (pattern.isNotEmpty() && accessibility != null) {
             val power = getSystemService(PowerManager::class.java)
             @Suppress("DEPRECATION")
             val wake = power?.newWakeLock(
@@ -487,7 +483,6 @@ class VoiceUnlockActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "JarvisVoiceUnlock"
-        private const val REQUEST_MIC = 4102
         private const val EXTRA_PROMPT_ONLY = "prompt_only"
         private const val SYSTEM_PROMPT =
             "You are JARVIS, the personal AI assistant controlling this Android phone. " +
