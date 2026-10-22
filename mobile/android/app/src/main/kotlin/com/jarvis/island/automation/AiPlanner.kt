@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.jarvis.island.ai.AiMemory
 import com.jarvis.island.ai.AiRouter
+import com.jarvis.island.security.PiiMasker
 import com.jarvis.island.security.Vault
 import com.jarvis.island.service.JarvisIslandAccessibilityService
 import com.jarvis.island.settings.JarvisIslandSettings
@@ -88,9 +89,11 @@ object AiPlanner {
         var lastMessage = ""
         var lastTap = -1
         var tapStreak = 0
+        var stallStreak = 0
         var selfCorrectionHint: String? = null
 
         fun failure(message: String): CommandRouter.Outcome {
+            AutomationFrameRing.dumpFailureTrace(context, request, message)
             AiMemory.recordExecutionOutcome(
                 context = context,
                 goal = request,
@@ -107,9 +110,14 @@ object AiPlanner {
         val maxSteps = if (isPro) 10 else 6
 
         for (step in 1..maxSteps) {
+            // Dynamic Dwell Timing: wait for loading spinners and network activity to settle
+            SpinnerGuard.waitForScreenIdle(JarvisIslandAccessibilityService.instance, 2500L)
+
             val outline = ScreenAutomation.describe(MAX_OUTLINE_ELEMENTS)
+            val safeOutline = PiiMasker.maskText(outline)
             val grid = gridWhenTreeIsEmpty()
             val beforeSignature = ScreenAutomation.signature()
+            val beforeVisual = VisualStateDiff.captureSignature(JarvisIslandAccessibilityService.instance?.rootInActiveWindow)
 
             // CAG (Cache-Augmented Generation): Check semantic plan cache
             val cachedStep = AiMemory.getCachedPlan(request, beforeSignature.toString())
@@ -117,7 +125,7 @@ object AiPlanner {
                 context = context,
                 request = request,
                 history = compressHistory(history),
-                outline = outline,
+                outline = safeOutline,
                 grid = grid,
                 stepNumber = step,
                 isPro = isPro,
@@ -307,6 +315,35 @@ object AiPlanner {
             // Settle and observe updated UI hierarchy
             ScreenAutomation.refresh()
             SystemClock.sleep(300)
+
+            val afterVisual = VisualStateDiff.captureSignature(JarvisIslandAccessibilityService.instance?.rootInActiveWindow)
+            val diff = VisualStateDiff.compare(beforeVisual, afterVisual)
+            AutomationFrameRing.recordFrame(
+                step = step,
+                action = actionName,
+                targetApp = ScreenAutomation.currentPackage(),
+                outlineSnippet = safeOutline,
+                diffResult = diff.description,
+                success = !diff.isStalled
+            )
+
+            if (diff.isStalled) {
+                stallStreak++
+                if (isPro) {
+                    if (stallStreak == 1) {
+                        selfCorrectionHint = "Notice: Action '$actionName' did not alter screen state (${diff.description}). Try an alternate element or gesture."
+                    } else if (stallStreak >= 2) {
+                        Log.w(TAG, "Consecutive stalls detected ($stallStreak). Backtracking trajectory...")
+                        ScreenAutomation.global("back")
+                        SystemClock.sleep(600)
+                        ScreenAutomation.refresh()
+                        selfCorrectionHint = "Trajectory Recovery: Multiple actions stalled. Navigated BACK to recover previous state. Re-evaluate screen."
+                        stallStreak = 0
+                    }
+                }
+            } else {
+                stallStreak = 0
+            }
         }
 
         if (history.isEmpty()) return CommandRouter.Outcome(false, false, "")

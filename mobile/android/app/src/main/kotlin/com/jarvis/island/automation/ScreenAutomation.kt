@@ -135,13 +135,18 @@ object ScreenAutomation {
         val actionable = clickable || editable || longClickable
 
         val nextAction = if (actionable) node else inheritedAction
-        val label = when {
+        val baseLabel = when {
             text.isNotEmpty() -> text
             desc.isNotEmpty() -> desc
             viewId.isNotEmpty() -> "#" + viewId.substringAfterLast('/')
             else -> ""
         }
-        val interesting = label.isNotEmpty() || actionable || scrollable
+        val norm = if (!actionable && baseLabel.isEmpty()) OemTreeHelper.normalize(node) else null
+        val label = if (baseLabel.isEmpty() && norm?.syntheticLabel?.isNotEmpty() == true) norm.syntheticLabel else baseLabel
+        val effClickable = clickable || (norm?.isActionable == true)
+        val effActionable = actionable || effClickable
+
+        val interesting = label.isNotEmpty() || effActionable || scrollable
         if (interesting && hasBounds) {
             val signature = "${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}|$label|$className"
             if (seen.add(signature)) {
@@ -152,7 +157,7 @@ object ScreenAutomation {
                         label = oneLine(label),
                         viewId = viewId,
                         bounds = Rect(bounds),
-                        clickable = clickable,
+                        clickable = effClickable,
                         editable = editable,
                         scrollable = scrollable,
                         longClickable = longClickable,

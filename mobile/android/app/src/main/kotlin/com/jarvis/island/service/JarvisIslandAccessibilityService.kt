@@ -233,10 +233,11 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         val currentPkg = current.packageName?.toString().orEmpty()
         if (currentPkg == packageName) return
 
-        if (currentPkg == "com.instagram.android") {
+        if (currentPkg == "com.instagram.android" || currentPkg == "com.facebook.katana") {
             if (!isInstagramForeground) {
                 isInstagramForeground = true
                 reelCount = com.jarvis.island.automation.ReelCounter.today(this)
+                updateReelCount(reelCount)
             }
         } else if (current.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && currentPkg.isNotEmpty()) {
             isInstagramForeground = false
@@ -779,12 +780,22 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
             delay(2000)
 
             lockScreen()
-            onStatus("Device locked. Waking in 1.5s…")
-            delay(1500)
+            onStatus("Device locked. Verifying secure keyguard state…")
+            
+            var wasLocked = false
+            val lockWaitDeadline = System.currentTimeMillis() + 4500L
+            while (System.currentTimeMillis() < lockWaitDeadline) {
+                if (km.isKeyguardLocked) {
+                    wasLocked = true
+                    break
+                }
+                delay(300)
+            }
 
+            delay(1000)
             wakeScreen()
             onStatus("Waking display…")
-            delay(1000)
+            delay(1200)
 
             onStatus("Swiping up to reveal pattern…")
             testSwipeGesture()
@@ -792,34 +803,50 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
             if (km.isKeyguardLocked) {
                 testSwipeGesture()
-                delay(600)
+                delay(700)
             }
 
-            capturePatternGridBounds()
+            // Capture real pattern grid bounds if visible
+            var bounds: Rect? = null
+            val findDeadline = System.currentTimeMillis() + 8000L
+            while (System.currentTimeMillis() < findDeadline) {
+                bounds = capturePatternGridBounds()
+                if (bounds != null) break
+                delay(400)
+            }
 
-            onStatus("Pattern screen ready! Please draw your pattern to unlock and verify.")
-            speak("Please draw your pattern now to unlock and verify.")
+            if (wasLocked) {
+                onStatus("Pattern screen ready! Please draw your pattern to unlock and verify.")
+                speak("Please draw your pattern now to unlock and verify.")
 
-            var unlocked = false
-            val deadline = System.currentTimeMillis() + 30000L
-            while (System.currentTimeMillis() < deadline) {
-                if (!km.isKeyguardLocked) {
-                    unlocked = true
-                    break
+                var unlocked = false
+                val startWait = System.currentTimeMillis()
+                val deadline = startWait + 35000L
+                while (System.currentTimeMillis() < deadline) {
+                    if (!km.isKeyguardLocked) {
+                        // Ensure it wasn't an instant unlock (like Face Unlock under 1.5s)
+                        if (System.currentTimeMillis() - startWait > 1500L) {
+                            unlocked = true
+                            break
+                        }
+                    }
+                    delay(350)
                 }
-                delay(500)
-            }
 
-            if (unlocked) {
-                val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
-                settings.save(this@JarvisIslandAccessibilityService)
-                val msg = "Pattern unlocked successfully! Grid calibrated at ${((settings.patternCenterYRatio) * 100).toInt()}% height."
-                onStatus(msg)
-                showLocalNotification("JARVIS Calibrated", msg)
-                speak("Pattern unlocked successfully. Calibration complete.")
+                if (unlocked) {
+                    val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
+                    settings.save(this@JarvisIslandAccessibilityService)
+                    val msg = "Pattern unlocked successfully! Grid calibrated at ${((settings.patternCenterYRatio) * 100).toInt()}% height."
+                    onStatus(msg)
+                    showLocalNotification("JARVIS Calibrated", msg)
+                    speak("Pattern unlocked successfully. Calibration complete.")
+                } else {
+                    onStatus("Calibration incomplete or timed out. Please try again or draw pattern in Calibration settings.")
+                    speak("Calibration incomplete.")
+                }
             } else {
-                onStatus("Calibration timed out. Please try again.")
-                speak("Calibration timed out.")
+                onStatus("Screen was not locked (check lock timeout or Smart Lock). You can draw and save your pattern directly below in Calibration settings.")
+                speak("Screen was not locked. You can draw your pattern directly in Calibration settings.")
             }
         }
     }

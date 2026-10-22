@@ -53,6 +53,17 @@ Use `cargo check` during Rust edits and only build the binary when you need to r
 - **Keys Batch Importer & File Beam**: Integrated `KeyBatchImporter.kt` to allow one-click JSON bulk import and validation of Groq and OpenRouter keys directly into `SecureKeyStore`. Fixed mobile file beam storage path to public Downloads.
 - **Apple HIG Refinements**: Enforced 180dp collapsed pill width for optimal label fit without cutoffs, added orientation listening to automatically hide the Dynamic Island in landscape mode to prevent obstructing games or videos.
 
+### Google Artemis & KuafuAI Andee Architecture Integration (Sprint 5)
+- **Visual State Diffing & Perceptual Anchoring**: Implemented `VisualStateDiff.kt` to extract fast structural & visual signatures before and after actions, accurately diagnosing screen stalls and ghost taps.
+- **Dynamic Dwell Timing for Network Spinners**: Created `SpinnerGuard.kt` to monitor `ProgressBar`, `CircularProgressIndicator`, and buffering view hierarchies, preventing race conditions during app loading screens.
+- **PII & Financial Masking Filter**: Added `PiiMasker.kt` with Luhn-validated credit card, CVV, OTP, and password redactions before sending UI outlines to cloud AI models.
+- **OEM & Custom Hierarchy Normalizer**: Created `OemTreeHelper.kt` to synthesize actionable bounds and labels for obscured nodes on HyperOS, ColorOS, FunTouch, and custom WebViews.
+- **Rolling Trace Ring Buffer**: Implemented `AutomationFrameRing.kt` (15 frames) with automated JSON diagnostics dump on failed automation routines.
+- **Multi-Agent Trajectory Backtracking**: Injected trajectory recovery in `AiPlanner.kt` to automatically dispatch `GLOBAL_ACTION_BACK` upon consecutive screen stalls in Pro profile.
+- **Phone-to-Desktop MCP Automation Bridge**: Created `PhoneMcpBridge.kt` routing JSON-RPC 2.0 tool requests (`describe_screen`, `tap_element`, `type_text`, `scroll_screen`, `launch_app`, `get_island_state`, `send_notification`) on `POST /api/mcp` and `POST /mcp` in `FileBeamReceiver.kt`.
+- **Reel Counter Hardening**: Enforced Instagram glyph on the left wing and live counter on the right wing; eliminated counter suppression when count is 0; relaxed dwell threshold to 350ms to record fast scrolls; dual-tracking for Instagram and Facebook.
+- **Interactive Pattern Calibration & Verification**: Added direct 9-dot `PatternLockView` card in `CalibrationScreen.kt` for in-app drawing and Keystore saving; fixed lock-screen calibration loop so it never falsely reports calibration without actual user unlock.
+
 ### Security / bridge
 - Removed transfer mutex deadlock, UTF-8 clipboard panic, and `cmd.exe` URL-injection path.
 - LiveBridge runs over **certificate-pinned TLS** (rustls, self-signed identity persisted in

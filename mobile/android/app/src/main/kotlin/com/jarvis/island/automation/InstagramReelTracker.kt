@@ -95,7 +95,7 @@ object InstagramReelTracker {
     private fun enterReels(service: AccessibilityService) {
         if (inReels) return
         inReels = true
-        currentReelStartedAt = SystemClock.uptimeMillis()
+        currentReelStartedAt = SystemClock.uptimeMillis() - 1200L
         val currentCount = ReelCounter.today(service)
         JarvisIslandAccessibilityService.instance?.updateReelCount(currentCount)
         JarvisIslandOverlayService.instance?.updateReelCount(currentCount)
@@ -108,7 +108,7 @@ object InstagramReelTracker {
         if (now - lastCountAt < COUNT_DEBOUNCE_MS) return
         val watchedMs = if (currentReelStartedAt > 0L) now - currentReelStartedAt else 1200L
         currentReelStartedAt = now
-        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(400L, 3000L)
+        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(350L, 2000L)
         if (watchedMs < minimum) {
             Log.d(TAG, "Skipping a reel watched for only ${watchedMs}ms (minimum: ${minimum}ms)")
             return
@@ -123,7 +123,7 @@ object InstagramReelTracker {
     private fun finishLastReel(service: AccessibilityService) {
         if (!inReels) return
         val watchedMs = SystemClock.uptimeMillis() - currentReelStartedAt
-        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(400L, 3000L)
+        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(350L, 2000L)
         if (watchedMs >= minimum) {
             lastCountAt = SystemClock.uptimeMillis()
             val today = ReelCounter.record(service)

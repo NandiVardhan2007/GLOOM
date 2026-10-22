@@ -158,6 +158,17 @@ Needle delivers an ultra-fast (~10–30 ms) on-device tool caller under Apache-2
   - Android: `./gradlew :app:assembleDebug`, `./gradlew :app:testDebugUnitTest`, `./gradlew :app:compileDebugKotlin`.
 * [x] Push commit and tag `v1.3.0` to trigger automated GitHub Actions build for signed Windows EXE and Android APK.
 
+### Sprint 5: Artemis/Andee Architecture, MCP Bridge & Calibration Hardening (Delivered)
+* [x] **Visual State Diffing & Perceptual Anchoring (7.1)**: `VisualStateDiff.kt` computes pre- and post-action structural and visual hierarchy signatures, preventing ghost taps and infinite loading stalls.
+* [x] **Dynamic Dwell Timing for Network Spinners (7.5)**: `SpinnerGuard.kt` monitors progress bars and loading views (`ProgressBar`, `CircularProgressIndicator`, buffering keywords) before dispatching actions.
+* [x] **PII & Financial Masking Filter (7.8)**: `PiiMasker.kt` scrubs credit card numbers (Luhn validated), CVVs, OTPs, and password fields before passing outlines to cloud models.
+* [x] **OEM & Custom Hierarchy Normalizer (43 / 1.26)**: `OemTreeHelper.kt` synthesizes actionable touch bounds and labels on custom OEM skins (HyperOS, ColorOS, FunTouch) and self-drawn WebViews.
+* [x] **Rolling Execution Trace Ring Buffer (1.14)**: `AutomationFrameRing.kt` maintains 15-frame execution ring in memory and automatically dumps JSON failure traces on aborts.
+* [x] **Multi-Agent Reflection & Trajectory Backtracking (7.2)**: `AiPlanner.kt` automatically triggers `GLOBAL_ACTION_BACK` upon consecutive stalls in Pro profile to backtrack out of stuck states.
+* [x] **Phone-to-Desktop MCP Automation Server (7.4)**: `PhoneMcpBridge.kt` exposes on-device automation tools (`describe_screen`, `tap_element`, `type_text`, `scroll_screen`, `launch_app`, `get_island_state`, `send_notification`) via JSON-RPC 2.0 on `/api/mcp`.
+* [x] **Reel Counter Display & Tracking Hardening**: Displays Instagram glyph on the left wing and live numeric counter on the right wing; starts counting from 0 without suppression; supports both Instagram and Facebook.
+* [x] **Interactive Pattern Calibration & Verification**: Added direct 9-dot `PatternLockView` card in `CalibrationScreen.kt` for instant drawing and Keystore saving; eliminated false "calibrated successfully" reports on lock screen.
+
 ---
 
 ## 7. Google Artemis & KuafuAI Andee Feature Gap Analysis (Roadmap Additions)
@@ -165,21 +176,21 @@ Needle delivers an ultra-fast (~10–30 ms) on-device tool caller under Apache-2
 A comprehensive benchmark comparison of Google Artemis (`google/artemis`) and KuafuAI Andee (`kuafuai/andee`) reveals the following missing architectural capabilities to add to future sprints:
 
 ### Category A: Visual Perception & State Verification (from Google Artemis)
-* **7.1 Visual State Diffing & Perceptual Anchoring**:
-  Compute perceptual hashes / SSIM diffs between pre- and post-action screenshots. Accurately detects infinite loading loops, stuck animations, or ghost taps where the accessibility hierarchy reports success but the screen remained static.
-* **7.2 Multi-Agent Reflection & Trajectory Backtracking**:
-  When an action fails or triggers an unexpected error modal, the agent automatically executes a backtrack step (`GLOBAL_ACTION_BACK`), rolls back its task state, and tries alternate UI selectors.
+* **7.1 Visual State Diffing & Perceptual Anchoring** — **[Delivered in Sprint 5]**:
+  Compute perceptual hashes / structural diffs between pre- and post-action states via `VisualStateDiff.kt`. Accurately detects infinite loading loops, stuck animations, or ghost taps where the accessibility hierarchy reports success but the screen remained static.
+* **7.2 Multi-Agent Reflection & Trajectory Backtracking** — **[Delivered in Sprint 5]**:
+  When consecutive stalls occur, `AiPlanner.kt` automatically executes a backtrack step (`GLOBAL_ACTION_BACK`), rolls back task state, and injects trajectory reflection hints.
 * **7.3 Visual Grounding Fallback (`[ymin, xmin, ymax, xmax]`)**:
   When automating custom Flutter, Unity, or Canvas screens with zero accessibility nodes, fallback to normalized visual bounding boxes predicted by local OCR + Vision LLM.
-* **7.4 Phone-to-Desktop MCP Automation Server**:
-  Expose JARVIS's on-device automation tools as a standard Model Context Protocol (MCP) server over the LiveBridge TLS port, allowing desktop AI assistants (Claude Code, Antigravity, Cursor) to drive the phone directly.
+* **7.4 Phone-to-Desktop MCP Automation Server** — **[Delivered in Sprint 5]**:
+  Expose JARVIS's on-device automation tools as a standard Model Context Protocol (MCP) server over the LiveBridge TLS port via `PhoneMcpBridge.kt` on `/api/mcp`, allowing desktop AI assistants (Claude Code, Antigravity, Cursor) to drive the phone directly.
 
 ### Category B: Robust Execution & Safety Guards (from KuafuAI Andee)
-* **7.5 Dynamic Dwell Timing for Network Spinners**:
-  Monitor screen nodes for progress indicators (`ProgressBar`, buffering spinners) and hold execution until spinners disappear, eliminating race conditions.
+* **7.5 Dynamic Dwell Timing for Network Spinners** — **[Delivered in Sprint 5]**:
+  Monitor screen nodes for progress indicators (`ProgressBar`, buffering spinners) via `SpinnerGuard.kt` and hold execution until spinners disappear, eliminating race conditions.
 * **7.6 Smart Intent Disambiguation Modal**:
   When a user prompt has ambiguous candidates (e.g. "Message Sarah" with multiple contacts, or multiple similar action buttons), show an interactive multi-choice pill in the Dynamic Island instead of guessing or halting.
 * **7.7 Self-Healing Selector Cascade**:
   Hierarchical failover for node resolution: `resource-id` → `content-description` → `visible-text` → `OCR-text` → `spatial-grid-coordinates`. Prevents breakages when third-party apps push layout updates.
-* **7.8 PII & Financial Masking Filter**:
-  Automatically detect credit cards, CVVs, passwords, and sensitive identity fields on screen and mask them before sending context to cloud AI models.
+* **7.8 PII & Financial Masking Filter** — **[Delivered in Sprint 5]**:
+  Automatically detect credit cards, CVVs, passwords, and sensitive identity fields on screen via `PiiMasker.kt` and mask them before sending context to cloud AI models.

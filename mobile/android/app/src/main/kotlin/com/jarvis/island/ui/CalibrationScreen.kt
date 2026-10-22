@@ -249,12 +249,56 @@ fun CalibrationScreen(onBack: () -> Unit) {
                         if (service == null) {
                             Toast.makeText(context, "Accessibility service not running", Toast.LENGTH_SHORT).show()
                         } else if (pattern == null || pattern.size < 4) {
-                            Toast.makeText(context, "Set a pattern in Security first", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Set a pattern below first", Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(context, "Lock the screen to test voice unlock replay", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Lock screen to test voice unlock replay", Toast.LENGTH_LONG).show()
                         }
                     }
                 )
+            }
+        }
+
+        AppleSection(
+            header = "In-App Pattern Recording & Verification",
+            footer = "Draw your 9-dot unlock pattern directly below. Connecting at least 4 dots saves it directly to your device Keystore for autonomous unlocking."
+        ) {
+            var drawnPattern by remember { mutableStateOf<List<Int>>(emptyList()) }
+            var patternStatus by remember { mutableStateOf<String?>(null) }
+            val existingPattern = remember { JarvisSecurity.loadPattern(context) }
+            var hasPattern by remember { mutableStateOf(existingPattern != null && existingPattern.size >= 4) }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                PatternLockView(
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .padding(horizontal = 16.dp),
+                    onPatternComplete = { pattern ->
+                        if (pattern.size >= 4) {
+                            drawnPattern = pattern
+                            JarvisSecurity.savePattern(context, pattern)
+                            hasPattern = true
+                            patternStatus = "Pattern recorded & saved successfully (${pattern.size} dots connected)."
+                            Toast.makeText(context, "Pattern saved to Keystore", Toast.LENGTH_SHORT).show()
+                        } else {
+                            patternStatus = "Connect at least 4 dots to form a valid pattern."
+                        }
+                    }
+                )
+            }
+            if (patternStatus != null || hasPattern) {
+                AppleDivider()
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(
+                        text = patternStatus ?: "Active unlock pattern configured (${existingPattern?.size ?: 0} dots).",
+                        style = AppleType.footnote,
+                        color = if (patternStatus?.contains("at least") == true) Apple.systemRed else Apple.systemGreen
+                    )
+                }
             }
         }
 

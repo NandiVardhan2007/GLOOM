@@ -105,7 +105,7 @@ fun JarvisIslandApp(
     val isMediaActive = mediaTrack.isPlaying || mediaTrack.title.isNotBlank()
     val isNotificationActive = activeNotification != null
     val isTransferActive = activeTransfer.isActive
-    val isReelCounterActive = settings.reelCounterEnabled && (reelCount > 0) &&
+    val isReelCounterActive = settings.reelCounterEnabled &&
         (isInstagramForeground || System.currentTimeMillis() < showReelCounterUntil)
 
     val compactKind = when {

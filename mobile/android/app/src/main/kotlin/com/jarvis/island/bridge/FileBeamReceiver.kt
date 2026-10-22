@@ -353,6 +353,10 @@ class FileBeamReceiver(private val context: Context) {
                                 }
                                 val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"received\":true}"
                                 output.write(resp.toByteArray(Charsets.UTF_8))
+                            } else if (requestLine.startsWith("POST /api/mcp") || requestLine.startsWith("POST /mcp")) {
+                                val mcpJson = PhoneMcpBridge.handleRequest(context, body)
+                                val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n$mcpJson"
+                                output.write(resp.toByteArray(Charsets.UTF_8))
                             } else if (requestLine.startsWith("POST /api/control")) {
                                 if (body.isNotEmpty()) {
                                     val json = JSONObject(body)
