@@ -18,6 +18,20 @@ import java.time.ZoneId
 object LocalBrain {
 
     fun answer(context: Context, text: String): CommandRouter.Outcome {
+        val outcome = answerInternal(context, text)
+        if (outcome.handled) {
+            com.jarvis.island.logging.JarvisDebugLogger.logEvent(
+                context = context,
+                userRequest = text,
+                handler = "LocalBrain",
+                aiResponse = outcome.message,
+                isSuccess = outcome.success
+            )
+        }
+        return outcome
+    }
+
+    private fun answerInternal(context: Context, text: String): CommandRouter.Outcome {
         val lower = text.trim().lowercase().trim('.', '!', '?')
         if (lower.isEmpty()) return CommandRouter.Outcome(false, false, "")
 
@@ -45,6 +59,11 @@ object LocalBrain {
                 lower == "desktop status" -> return reply(desktopStatus())
             lower == "yes" || lower == "no" -> return CommandRouter.Outcome(false, false, "")
         }
+
+        // Persistent Long-Term Memory query (MAG)
+        val memoryReply = com.jarvis.island.ai.AiMemory.queryMemory(context, lower)
+        if (memoryReply != null) return reply(memoryReply)
+
         return CommandRouter.Outcome(false, false, "")
     }
 

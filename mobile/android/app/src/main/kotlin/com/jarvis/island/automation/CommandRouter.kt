@@ -200,6 +200,20 @@ object CommandRouter {
     }
 
     fun handle(context: Context, text: String): Outcome {
+        val outcome = handleInternal(context, text)
+        if (outcome.handled) {
+            com.jarvis.island.logging.JarvisDebugLogger.logEvent(
+                context = context,
+                userRequest = text,
+                handler = "CommandRouter",
+                aiResponse = outcome.message,
+                isSuccess = outcome.success
+            )
+        }
+        return outcome
+    }
+
+    private fun handleInternal(context: Context, text: String): Outcome {
         val command = cleanSpeech(text)
         if (command.isEmpty()) return Outcome(false, false, "")
         val lower = command.lowercase()
@@ -412,6 +426,12 @@ object CommandRouter {
             }
         }
 
+        // ── Self-Developing Memory: Fact Retrieval ──
+        val memReply = AiMemory.queryMemory(context, lower)
+        if (memReply != null) {
+            return Outcome(true, true, memReply)
+        }
+
         // ── WhatsApp message ──
         openAndSendWhatsAppPattern.matchEntire(command)?.let { match ->
             return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
@@ -617,7 +637,15 @@ object CommandRouter {
                 return Outcome(true, false, "I couldn't find the WhatsApp search button.")
             }
         }
-        Thread.sleep(500)
+        Thread.sleep(600)
+
+        // Ensure WhatsApp search edit text is focused before typing
+        ScreenAutomation.refresh()
+        val searchField = ScreenAutomation.snapshot().firstOrNull { it.editable }
+        if (searchField != null) {
+            ScreenAutomation.tap(searchField.eid)
+            Thread.sleep(200)
+        }
 
         val typedContact = ScreenAutomation.typeTextUnique(resolvedContact, clearFirst = true)
         if (!typedContact.success && typedContact.via != "deduped") {

@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
  * scenes, reminders and notes that live on the phone.
  */
 @Composable
-fun AutomationScreen(onBack: () -> Unit) {
+fun AutomationScreen(onBack: () -> Unit, onOpenLogs: () -> Unit = {}) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val settings = remember { JarvisIslandSettings.instance }
@@ -355,6 +355,20 @@ fun AutomationScreen(onBack: () -> Unit) {
                     settings.verifyActionsEnabled = it
                     settings.save(context)
                 }
+            )
+        }
+
+        AppleSection(
+            header = "Diagnostics & Debug Logs",
+            footer = "View chronological records of every user request, AI reasoning/thought, executed touch gestures, and failures."
+        ) {
+            AppleRow(
+                title = "Execution Logs & Diagnostics",
+                subtitle = "Inspect live actions, AI thoughts, and debug failure roots",
+                icon = JarvisIcons.Note,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = onOpenLogs
             )
         }
 

@@ -91,9 +91,19 @@ object AiPlanner {
         var tapStreak = 0
         var stallStreak = 0
         var selfCorrectionHint: String? = null
+        val isPro = JarvisIslandSettings.instance.plannerProfile.equals("pro", ignoreCase = true)
+        val maxSteps = if (isPro) 10 else 6
 
         fun failure(message: String): CommandRouter.Outcome {
             AutomationFrameRing.dumpFailureTrace(context, request, message)
+            com.jarvis.island.logging.JarvisDebugLogger.logEvent(
+                context = context,
+                userRequest = request,
+                handler = if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
+                stepsExecuted = history,
+                isSuccess = false,
+                errorReason = message
+            )
             AiMemory.recordExecutionOutcome(
                 context = context,
                 goal = request,
@@ -105,9 +115,6 @@ object AiPlanner {
             JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", message)
             return CommandRouter.Outcome(true, false, message)
         }
-
-        val isPro = JarvisIslandSettings.instance.plannerProfile.equals("pro", ignoreCase = true)
-        val maxSteps = if (isPro) 10 else 6
 
         for (step in 1..maxSteps) {
             // Dynamic Dwell Timing: wait for loading spinners and network activity to settle
@@ -160,6 +167,15 @@ object AiPlanner {
                     say.isNotEmpty() -> say
                     else -> "Done."
                 }
+                com.jarvis.island.logging.JarvisDebugLogger.logEvent(
+                    context = context,
+                    userRequest = request,
+                    handler = if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
+                    aiThought = thought,
+                    aiResponse = completionMsg,
+                    stepsExecuted = history,
+                    isSuccess = true
+                )
                 AiMemory.recordExecutionOutcome(
                     context = context,
                     goal = request,
@@ -264,8 +280,8 @@ object AiPlanner {
                         ScreenAutomation.tap(eid)
                         SystemClock.sleep(250)
                     }
-                    val result = ScreenAutomation.typeText(text)
-                    if (!result.success) return failure(result.detail)
+                    val result = ScreenAutomation.typeTextUnique(text, clearFirst = true)
+                    if (!result.success && result.via != "deduped") return failure(result.detail)
                     history.add("Step $step: Typed '$text'")
                     SystemClock.sleep(400)
                 }
@@ -355,6 +371,14 @@ object AiPlanner {
             steps = history,
             success = true,
             targetApp = pkg
+        )
+        com.jarvis.island.logging.JarvisDebugLogger.logEvent(
+            context = context,
+            userRequest = request,
+            handler = if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
+            aiResponse = finalMsg,
+            stepsExecuted = history,
+            isSuccess = true
         )
         JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", finalMsg)
         return CommandRouter.Outcome(true, true, finalMsg)

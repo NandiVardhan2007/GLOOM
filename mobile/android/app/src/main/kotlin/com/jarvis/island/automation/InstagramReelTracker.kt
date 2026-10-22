@@ -31,6 +31,7 @@ object InstagramReelTracker {
     @Volatile private var currentReelStartedAt = 0L
     @Volatile private var lastTreeCheckAt = 0L
     @Volatile private var lastPackage = ""
+    @Volatile private var lastReelSignature = ""
 
     fun onEvent(service: AccessibilityService, event: AccessibilityEvent) {
         if (!JarvisIslandSettings.instance.reelCounterEnabled) return
@@ -67,6 +68,16 @@ object InstagramReelTracker {
 
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 val now = SystemClock.uptimeMillis()
+                if (inReels) {
+                    val desc = event.contentDescription?.toString().orEmpty()
+                    val txt = event.text.joinToString(" ")
+                    val candidate = if (desc.contains("Original audio", ignoreCase = true) || desc.contains("Reel by", ignoreCase = true)) desc
+                    else if (txt.contains("Original audio", ignoreCase = true)) txt else ""
+                    if (candidate.isNotEmpty() && candidate != lastReelSignature) {
+                        lastReelSignature = candidate
+                        advance(service)
+                    }
+                }
                 if (now - lastTreeCheckAt >= TREE_CHECK_MS) {
                     lastTreeCheckAt = now
                     if (!inReels && treeHasReels(service)) {
@@ -108,7 +119,7 @@ object InstagramReelTracker {
         if (now - lastCountAt < COUNT_DEBOUNCE_MS) return
         val watchedMs = if (currentReelStartedAt > 0L) now - currentReelStartedAt else 1200L
         currentReelStartedAt = now
-        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(350L, 2000L)
+        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(250L, 1500L)
         if (watchedMs < minimum) {
             Log.d(TAG, "Skipping a reel watched for only ${watchedMs}ms (minimum: ${minimum}ms)")
             return
@@ -123,7 +134,7 @@ object InstagramReelTracker {
     private fun finishLastReel(service: AccessibilityService) {
         if (!inReels) return
         val watchedMs = SystemClock.uptimeMillis() - currentReelStartedAt
-        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(350L, 2000L)
+        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(250L, 1500L)
         if (watchedMs >= minimum) {
             lastCountAt = SystemClock.uptimeMillis()
             val today = ReelCounter.record(service)

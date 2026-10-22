@@ -60,7 +60,7 @@ class JarvisIslandSettings {
         const val DEFAULT_OTP_COPY = true
         const val DEFAULT_AI_BRAIN = "auto"
         const val DEFAULT_PLANNER_PROFILE = "flash"
-        const val DEFAULT_REEL_MIN_DWELL_MS = 1200
+        const val DEFAULT_REEL_MIN_DWELL_MS = 350
 
         // Lock & Pattern Calibration (bypasses in-display optical fingerprint sensors)
         const val DEFAULT_SWIPE_STRATEGY = "Left"

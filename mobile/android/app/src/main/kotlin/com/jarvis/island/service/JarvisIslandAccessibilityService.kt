@@ -660,9 +660,8 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 if (!bouncerReady) {
                     logKeyguardWindows()
                 } else {
-                    // Let the bouncer finish its entry animation, otherwise the
-                    // first dot of the stroke is dropped.
-                    delay(300)
+                    // Let the bouncer finish its entry animation fully (450ms)
+                    delay(450)
                 }
 
                 // If live pattern view is detected, use its exact physical pixel coordinates!
@@ -681,10 +680,19 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 }
 
                 val strokePath = Path().apply {
-                    moveTo(livePoints.first().x, livePoints.first().y)
-                    livePoints.drop(1).forEach { lineTo(it.x, it.y) }
+                    val first = livePoints.first()
+                    moveTo(first.x, first.y)
+                    // Micro-dwell on initial dot to guarantee initial touch DOWN is registered inside dot hitbox
+                    lineTo(first.x + 0.5f, first.y + 0.5f)
+                    lineTo(first.x, first.y)
+                    for (i in 1 until livePoints.size) {
+                        val pt = livePoints[i]
+                        lineTo(pt.x, pt.y)
+                        lineTo(pt.x + 0.5f, pt.y + 0.5f)
+                        lineTo(pt.x, pt.y)
+                    }
                 }
-                val strokeDuration = (pattern.size * 180L).coerceIn(800L, 2400L)
+                val strokeDuration = (pattern.size * 220L).coerceIn(1000L, 2800L)
                 val strokeGesture = GestureDescription.Builder()
                     .addStroke(GestureDescription.StrokeDescription(strokePath, 0L, strokeDuration))
                     .build()
@@ -737,10 +745,11 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         if (node == null || depth > 25) return null
         val cls = node.className?.toString().orEmpty()
         val id = node.viewIdResourceName.orEmpty()
-        if (cls.contains("LockPatternView", ignoreCase = true) ||
+        if (cls.contains("LockPattern", ignoreCase = true) ||
             cls.contains("PatternView", ignoreCase = true) ||
-            id.contains("lockPatternView", ignoreCase = true) ||
-            id.contains("lock_pattern", ignoreCase = true)
+            id.contains("lockPattern", ignoreCase = true) ||
+            id.contains("lock_pattern", ignoreCase = true) ||
+            (id.contains("pattern", ignoreCase = true) && cls.contains("View", ignoreCase = true))
         ) {
             return node
         }

@@ -248,12 +248,110 @@ object AiMemory {
 
     // ── MAG: Memory-Augmented Generation ──
 
+    private val synonymGroups = listOf(
+        setOf("mom", "mother", "amma", "mummy", "mommy"),
+        setOf("dad", "father", "nanna", "daddy", "appa"),
+        setOf("bro", "brother", "anna", "tammudu"),
+        setOf("sis", "sister", "akka", "chelli"),
+        setOf("wife", "spouse", "partner"),
+        setOf("husband", "spouse", "partner"),
+        setOf("car", "vehicle", "automobile"),
+        setOf("bike", "motorcycle", "scooter"),
+        setOf("phone", "number", "mobile", "contact"),
+        setOf("mail", "email", "email address"),
+        setOf("address", "home", "location"),
+        setOf("wifi", "network", "password")
+    )
+
     /**
      * Resolves a spoken or typed name (e.g. "Amma", "Mom", "Bro") against known entities.
      */
     fun resolveEntity(query: String): String? {
         val q = query.trim().lowercase()
-        return entities[q]?.value
+        entities[q]?.let { return it.value }
+
+        // Synonym expansion
+        val matchingGroup = synonymGroups.firstOrNull { it.contains(q) }
+        if (matchingGroup != null) {
+            for ((key, entity) in entities) {
+                if (matchingGroup.contains(key)) return entity.value
+            }
+        }
+        return null
+    }
+
+    /**
+     * High-accuracy natural memory query: answers questions about stored facts instantly.
+     */
+    fun queryMemory(context: Context, query: String): String? {
+        load(context)
+        val clean = query.trim().lowercase().trim('.', '?', '!')
+
+        // 1. List / show all memories
+        if (clean in listOf(
+                "what do you remember", "what is in your memory", "list my memories",
+                "what memories do you have", "read my memory", "show my memories",
+                "what do you know about me", "tell me my memories"
+            )
+        ) {
+            val personalEntities = entities.values.filter { it.category != "app_default" }
+            if (personalEntities.isEmpty()) {
+                return "I don't have any saved memories yet. You can tell me things like \"Remember that my car number is 1234\"."
+            }
+            val summary = personalEntities.joinToString(", ") { "${it.key.replaceFirstChar { c -> c.uppercase() }} is ${it.value}" }
+            return "Here is what I remember: $summary."
+        }
+
+        // 2. Natural question parsing
+        val extractedTarget = when {
+            clean.startsWith("what is my ") -> clean.removePrefix("what is my ")
+            clean.startsWith("what's my ") -> clean.removePrefix("what's my ")
+            clean.startsWith("who is my ") -> clean.removePrefix("who is my ")
+            clean.startsWith("who's my ") -> clean.removePrefix("who's my ")
+            clean.startsWith("tell me my ") -> clean.removePrefix("tell me my ")
+            clean.startsWith("do you know my ") -> clean.removePrefix("do you know my ")
+            clean.startsWith("where is my ") -> clean.removePrefix("where is my ")
+            clean.startsWith("what is the ") -> clean.removePrefix("what is the ")
+            clean.startsWith("what's the ") -> clean.removePrefix("what's the ")
+            else -> null
+        }?.trim()
+
+        val searchTerms = if (extractedTarget != null) {
+            listOf(extractedTarget) + extractedTarget.split(" ").filter { it.length > 2 }
+        } else {
+            clean.split(" ").filter { it.length > 2 }
+        }
+
+        // 3. Search direct, substring, and synonyms
+        for (target in searchTerms) {
+            // Direct
+            entities[target]?.let {
+                it.usageCount++
+                save(context)
+                return "Your ${it.key} is ${it.value}."
+            }
+            // Substring
+            for ((key, entity) in entities) {
+                if (key.contains(target) || target.contains(key)) {
+                    entity.usageCount++
+                    save(context)
+                    return "Your ${entity.key} is ${entity.value}."
+                }
+            }
+            // Synonyms
+            val matchingSynonyms = synonymGroups.firstOrNull { group -> group.contains(target) }
+            if (matchingSynonyms != null) {
+                for ((key, entity) in entities) {
+                    if (matchingSynonyms.any { syn -> key.contains(syn) }) {
+                        entity.usageCount++
+                        save(context)
+                        return "Your ${entity.key} is ${entity.value}."
+                    }
+                }
+            }
+        }
+
+        return null
     }
 
     /**
@@ -272,6 +370,13 @@ object AiMemory {
         entities.forEach { (key, entity) ->
             if (lowerReq.contains(key) || key.contains(lowerReq)) {
                 entity.usageCount++
+                relevantEntities.add("- ${entity.key.replaceFirstChar { it.uppercase() }} -> \"${entity.value}\" (${entity.category})")
+            }
+        }
+
+        // Fallback: If no direct entity matched, include all personal facts so LLM is fully grounded
+        if (relevantEntities.isEmpty()) {
+            entities.values.filter { it.category != "app_default" }.take(10).forEach { entity ->
                 relevantEntities.add("- ${entity.key.replaceFirstChar { it.uppercase() }} -> \"${entity.value}\" (${entity.category})")
             }
         }

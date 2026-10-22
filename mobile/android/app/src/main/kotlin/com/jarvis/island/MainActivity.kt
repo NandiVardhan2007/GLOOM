@@ -137,6 +137,7 @@ import com.jarvis.island.ui.VoiceSettingsScreen
 import com.jarvis.island.ui.AutomationScreen
 import com.jarvis.island.ui.CloudAiScreen
 import com.jarvis.island.ui.CalibrationScreen
+import com.jarvis.island.ui.ExecutionLogsScreen
 import com.jarvis.island.ui.VaultScreen
 import com.jarvis.island.ui.NotificationSettingsScreen
 import com.jarvis.island.ui.ReelWeekChart
@@ -483,10 +484,16 @@ fun JarvisMasterApp(
                         NotificationSettingsScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "settings" && subPage == "automation" -> {
-                        AutomationScreen(onBack = { settingsSubPage = null })
+                        AutomationScreen(
+                            onBack = { settingsSubPage = null },
+                            onOpenLogs = { settingsSubPage = "logs" }
+                        )
                     }
                     screen == "settings" && subPage == "cloudai" -> {
                         CloudAiScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "logs" -> {
+                        ExecutionLogsScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "about" -> {
                         AboutScreen()
@@ -1308,6 +1315,15 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
                 else "${settings.blockedPackages.size} muted",
                 showChevron = true,
                 onClick = { onNavigateSubPage("notifications") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Execution Logs & Diagnostics",
+                subtitle = "Inspect requests, AI thoughts, actions, and failures",
+                icon = JarvisIcons.Note,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = { onNavigateSubPage("logs") }
             )
         }
 

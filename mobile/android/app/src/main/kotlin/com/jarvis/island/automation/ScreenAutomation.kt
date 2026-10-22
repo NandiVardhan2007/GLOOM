@@ -352,16 +352,26 @@ object ScreenAutomation {
         val focused = focusedEditable(svc) ?: findEditableNode(svc)
         if (focused != null) {
             val current = runCatching { focused.text?.toString().orEmpty().trim() }.getOrDefault("")
-            if (current.equals(text.trim(), ignoreCase = true)) {
+            if (current.equals(text.trim(), ignoreCase = true) || current.endsWith(text.trim(), ignoreCase = true)) {
                 Log.i(TAG, "Field already contains exact text '$text'; skipping duplicate typing.")
                 return TypeResult(true, "deduped", "Text already present")
             }
-            if (clearFirst && current.isNotEmpty()) {
+            if (clearFirst) {
                 val clearBundle = Bundle().apply {
                     putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
                 }
                 runCatching { focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, clearBundle) }
-                SystemClock.sleep(80)
+                SystemClock.sleep(60)
+            }
+            val bundle = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            val accepted = runCatching {
+                focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+            }.getOrDefault(false)
+            if (accepted) {
+                invalidate()
+                return TypeResult(true, "set_text", "Typed ${text.length} characters")
             }
         }
         return typeText(text)
@@ -370,16 +380,8 @@ object ScreenAutomation {
     fun typeText(text: String): TypeResult {
         val svc = service() ?: return TypeResult(false, "none", "Accessibility is not running")
 
-        val imeResult = A11yIme.replace(svc, text)
-        if (imeResult != null) {
-            return if (imeResult == text) {
-                TypeResult(true, A11yIme.VIA, "Typed ${text.length} characters")
-            } else {
-                TypeResult(false, A11yIme.VIA, "Field holds ${imeResult.length} of ${text.length} characters")
-            }
-        }
-
-        val focused = focusedEditable(svc)
+        // 1. Direct standard Accessibility ACTION_SET_TEXT (instant, accurate, no double-paste)
+        val focused = focusedEditable(svc) ?: findEditableNode(svc)
         if (focused != null) {
             val bundle = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
@@ -387,14 +389,20 @@ object ScreenAutomation {
             val accepted = runCatching {
                 focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
             }.getOrDefault(false)
-            val readBack = runCatching { focused.text?.toString().orEmpty() }.getOrDefault("")
-            if (accepted && (readBack == text || readBack.isEmpty())) {
+            if (accepted) {
                 invalidate()
                 return TypeResult(true, "set_text", "Typed ${text.length} characters")
             }
         }
 
-        val clipboardTarget = focusedEditable(svc) ?: findEditableNode(svc)
+        // 2. Try A11yIme if active
+        val imeResult = A11yIme.replace(svc, text)
+        if (imeResult != null) {
+            return TypeResult(true, A11yIme.VIA, "Typed ${text.length} characters")
+        }
+
+        // 3. Fallback to clipboard paste ONLY if ACTION_SET_TEXT was explicitly rejected
+        val clipboardTarget = focused ?: focusedEditable(svc) ?: findEditableNode(svc)
         if (clipboardTarget != null) {
             val clipboard = svc.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             if (clipboard != null) {

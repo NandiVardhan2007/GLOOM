@@ -284,39 +284,37 @@ At the end of **every session**, update `HANDOFF.md` with:
 
 ## 7. Session End State
 
-- **Current Live Release**: `v1.2.0` (commit `4ccc05d`).
-- **Release Workflow**: Run [39724324328](https://github.com/NandiVardhan2007/JARVIS/actions/runs/39724324328) passed; published artifacts `JARVIS-Island-Android-Release-APK` and `JARVIS-Island-Windows-Desktop-EXE`.
+- **Current Live Release**: `v1.3.0`
 - **Working Tree Features Delivered**:
-  1. **Conversational Speech Normalization & Compound Intent Routing**:
-     - `CommandRouter.cleanSpeech()` strips leading conversational prefixes (`"ya could you"`, `"could you please"`, etc.).
-     - Added `openAndSendWhatsAppPattern` matching compound requests (`"open the WhatsApp and send a message to amma saying hi"`), preventing fallthrough to general chat refusals.
-     - `AiPlanner.looksLikeAction()` enhanced with app action intent heuristics.
-  2. **Batch API Key Importer (`KeyBatchImporter.kt` & `CloudAiScreen.kt`)**:
-     - Upload `keys.json` directly via file picker or paste raw JSON.
-     - Automatically parses Groq & OpenRouter keys.
-     - Individually tests every key with `StandaloneAiClient.validateKey` (0 token cost).
-     - Saves only verified working keys into Keystore `SecureKeyStore`.
-  3. **Auto-Lock & Pattern Calibration (`JarvisIslandAccessibilityService.kt` & `CalibrationScreen.kt`)**:
-     - Interactive calibration locks screen, wakes after 1.5s, swipes up avoiding FOD sensor.
-     - Captures exact physical pixel bounds (`Rect`) of `LockPatternView` directly from the lock screen.
-     - `performUnlockPattern` dynamically targets real physical dot centers on screen.
-  4. **Keystore AES-256-GCM Password Vault (`Vault.kt`, `VaultScreen.kt`)**:
-     - Direct accessibility IME autofill without exposing secrets to AI or network.
-  5. **Inline Notification Reply (`RemoteInput`)**:
-     - Reply directly from expanded island peek without opening the application.
-  6. **Action Burst Chaining**:
-     - `tapBurst` (70ms intervals) and `tapSequence` in `ScreenAutomation.kt` and `AiPlanner.kt`.
-  7. **Flash vs. Pro Execution Profiles**:
-     - Flash (fast reactive loop) vs Pro (planning + screen-diff verify + self-correction reflection).
-  8. **Context History Compression**:
-     - Summarizes earlier actions for chains > 4 steps to conserve model tokens.
-  9. **Per-App Screen-Time Tracking**:
-     - `ScreenTimeTracker.kt` tracks active foreground screen duration; displayed on Home Activity card.
+  1. **WhatsApp Contact Search Deduplication**:
+     - Resolved root cause where custom views took ~50-100ms to update `node.text`, causing the old `typeText` to fall through to `ACTION_PASTE` and paste names twice (e.g. "MomMom").
+     - `ScreenAutomation.typeTextUnique` and `typeText` treat successful `ACTION_SET_TEXT` as definitive success without fallback duplication.
+     - `CommandRouter.sendWhatsApp` and `AiPlanner` explicitly clear search fields before typing once.
+  2. **Dynamic Island Camera-Hugging Idle Compression**:
+     - When `compactKind == IslandCompactKind.IDLE`, `compactWidth` shrinks to ~36dp (`(settings.pillHeight.dp).coerceIn(32.dp, 38.dp)`), seamlessly hugging the front camera cutout lens.
+     - Completely clears the left and right status bar, eliminating any obstruction when swiping down the notification drawer.
+  3. **Reel Counter High-Accuracy & Fast-Swipe Capture**:
+     - Reduced minimum dwell threshold from 1200ms to 350ms (`DEFAULT_REEL_MIN_DWELL_MS = 350L`) with clamping between 250ms and 1500ms.
+     - Added `TYPE_WINDOW_CONTENT_CHANGED` tracking to detect reel transitions via audio/creator tags even when custom feeds suppress `TYPE_VIEW_SCROLLED`.
+  4. **Lock Screen Pattern Drawer Micro-Dwell Calibration**:
+     - Increased keyguard bouncer animation delay to 450ms.
+     - Added 0.5px micro-dwells on dot coordinates so 144Hz touch samplers (like Motorola Edge 50 Pro) reliably hit the hitbox of every dot without cutting corners.
+  5. **High-Accuracy Persistent Memory (CAG + MAG)**:
+     - Implemented `AiMemory.queryMemory` with synonym group resolution (`mom/mother/amma`, `dad/father/nanna`, `car/vehicle`, `phone/mobile`) and "list my memories" support.
+     - Integrated directly into `LocalBrain.kt` and `CommandRouter.kt` for instant offline responses to personal memory queries ("what is my car number", "who is my mom").
+     - Added fallback to all stored personal facts in `AiMemory.getRelevantContext` when prompt tokens lack explicit keywords.
+  6. **On-Device Diagnostics & Execution Trace Logger**:
+     - Created `JarvisDebugLogger.kt` maintaining an 80-frame in-memory ring and writing JSONL traces to `getExternalFilesDir(null)/logs/jarvis_execution_trace.jsonl`.
+     - Wired logger into `AiPlanner.kt`, `CommandRouter.kt`, and `LocalBrain.kt` to capture user requests, AI thoughts, responses, executed steps, and failure reasons.
+     - Created Apple UIKit styled `ExecutionLogsScreen.kt` with live share trace via FileProvider, clear logs, and expandable log cards.
+     - Linked `ExecutionLogsScreen` into `MainActivity.kt` routes and `SettingsHubScreen` under Diagnostics & Debug Logs.
 - **Verified this run**:
   - Android Kotlin compile: `./gradlew :app:compileDebugKotlin` passed (clean).
-  - Android Debug APK assemble: `./gradlew :app:assembleDebug` passed (clean in 14s).
-  - Desktop TypeScript check: `npx tsc --noEmit` passed (clean).
-  - Desktop Rust tests: `cargo test` 23 passed.
+  - Android Debug APK assemble: `./gradlew :app:assembleDebug` passed (clean in 35s).
+  - Android Unit tests: `./gradlew :app:testDebugUnitTest` passed (clean).
+  - Desktop TypeScript build: `npm run build` passed (clean in 5.86s).
+  - Desktop Rust tests: `cargo test` 23 passed (clean).
+  - Desktop Rust release check: `cargo check --release --features custom-protocol` passed (clean in 9.16s).
 
 ---
 

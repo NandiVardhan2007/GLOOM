@@ -117,8 +117,14 @@ fun JarvisIslandApp(
         else -> IslandCompactKind.IDLE
     }
 
-    // Default 180 dp pill width cleanly balances camera band and wings
-    val compactWidth = settings.pillWidth.dp
+    val isIdle = compactKind == IslandCompactKind.IDLE
+
+    // When idle, compress down to the front camera cutout (~36dp circular lens pill)
+    // When active, expand to the configured 180dp HIG pill width
+    val idleWidth = (settings.pillHeight.dp).coerceIn(32.dp, 38.dp)
+    val activePillWidth = settings.pillWidth.dp
+    val compactWidth = if (isIdle) idleWidth else activePillWidth
+
     val maxCameraGap = (compactWidth - 96.dp).coerceAtLeast(36.dp)
     val cameraGap = settings.cutoutClearance.dp.coerceIn(36.dp, maxCameraGap)
     val wingWidth = ((compactWidth - cameraGap) / 2).coerceAtLeast(46.dp)
@@ -129,7 +135,7 @@ fun JarvisIslandApp(
         animationSpec = if (settings.reducedMotion) {
             tween(durationMillis = 90, easing = FastOutSlowInEasing)
         } else {
-            spring(dampingRatio = 1f, stiffness = 320f)
+            spring(dampingRatio = 0.88f, stiffness = 320f)
         },
         label = "islandWidth"
     )
