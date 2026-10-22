@@ -29,17 +29,17 @@ class JarvisIslandSettings {
 
         // Apple Live Activity geometry (HIG, iOS 393 x 852 class):
         // rest 126 x 37, compact 180 x 37 (camera band 125.34),
-        // expanded 371 x 160 with 44 dp corners.
+        // expanded 400 x 180 with 36 dp corners.
         const val DEFAULT_GRAVITY = "Center"
         const val DEFAULT_POSITION_Y = 2  // Hug the status bar
         const val DEFAULT_POSITION_X = 0  // Dead-center
         const val DEFAULT_CUTOUT_CLEARANCE = 125
         const val DEFAULT_PILL_WIDTH = 180
         const val DEFAULT_PILL_HEIGHT = 37
-        const val DEFAULT_EXPANDED_WIDTH = 371
-        const val DEFAULT_EXPANDED_HEIGHT = 160
+        const val DEFAULT_EXPANDED_WIDTH = 400
+        const val DEFAULT_EXPANDED_HEIGHT = 180
         const val DEFAULT_CORNER_RADIUS = 18
-        const val DEFAULT_EXPANDED_CORNER_RADIUS = 44
+        const val DEFAULT_EXPANDED_CORNER_RADIUS = 36
         const val DEFAULT_THEME = "Obsidian Black"
         const val DEFAULT_SHOW_BORDERS = true
         const val DEFAULT_BORDER_GLOW = true
@@ -197,6 +197,18 @@ class JarvisIslandSettings {
     private fun migrateLegacyGeometry(prefs: android.content.SharedPreferences) {
         val editor = prefs.edit()
         val currentPillWidth = prefs.getInt("pill_width", -1)
+        val currentExpW = prefs.getInt("expanded_width", -1)
+        if (currentExpW == 371 || currentExpW == 380) {
+            editor.putInt("expanded_width", DEFAULT_EXPANDED_WIDTH)
+        }
+        val currentExpH = prefs.getInt("expanded_height", -1)
+        if (currentExpH == 160 || currentExpH == 260) {
+            editor.putInt("expanded_height", DEFAULT_EXPANDED_HEIGHT)
+        }
+        val currentExpR = prefs.getInt("expanded_corner_radius", -1)
+        if (currentExpR == 44 || currentExpR == 32) {
+            editor.putInt("expanded_corner_radius", DEFAULT_EXPANDED_CORNER_RADIUS)
+        }
         if (currentPillWidth == 230 || currentPillWidth == 184) {
             editor.putInt("pill_width", DEFAULT_PILL_WIDTH)
         }

@@ -134,7 +134,7 @@ fun JarvisIslandApp(
         label = "islandWidth"
     )
 
-    val baseExpandedHeight = settings.expandedHeight.coerceIn(160, 220)
+    val baseExpandedHeight = settings.expandedHeight.coerceIn(140, 260)
     val expandedContentHeight = if (isTransferActive) 132 else baseExpandedHeight
 
     val targetHeight by animateDpAsState(

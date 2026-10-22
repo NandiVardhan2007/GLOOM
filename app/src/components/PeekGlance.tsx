@@ -55,7 +55,7 @@ interface PeekGlanceProps {
 }
 
 /**
- * Apple's expanded presentation: 371 x 84-160, continuous 44pt corners.
+ * Apple's expanded presentation: 400 x 180, continuous 36pt corners.
  * Content begins below the TrueDepth camera band, exactly like a Live
  * Activity, so the camera never covers text.
  */

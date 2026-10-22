@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.sp
  * - compact leading/trailing  52.33 x 36.67 each
  * - camera band               125.34 x 36.67
  * - compact total             230 x 36.67
- * - expanded                  371 x 84-160, corner radius 44
+ * - expanded                  400 x 180, corner radius 36
  * - content margin            14, artwork 44
  *
  * Android's camera cutout is smaller than the TrueDepth system, so the
@@ -28,9 +28,9 @@ object AppleIslandSpec {
     val compactInset = 11.dp
     val compactArtwork = 22.dp
 
-    val expandedWidth = 371.dp
-    val expandedHeight = 160.dp
-    val expandedCorner = 44.dp
+    val expandedWidth = 400.dp
+    val expandedHeight = 180.dp
+    val expandedCorner = 36.dp
     val contentMargin = 14.dp
     val contentTop = 34.dp
     val artwork = 44.dp

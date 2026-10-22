@@ -368,7 +368,7 @@ fun CompactGlyphCircle(
 }
 
 /**
- * Apple's expanded music Live Activity, 371 x 160.
+ * Apple's expanded music Live Activity, 400 x 180.
  */
 @Composable
 fun AppleMusicActivity(

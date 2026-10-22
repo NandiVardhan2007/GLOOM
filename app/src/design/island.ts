@@ -10,7 +10,7 @@
  * - compact leading/trailing  52.33 x 36.67 each
  * - camera band               125.34 x 36.67
  * - compact total             230 x 36.67
- * - expanded                  371 x 84-160, corner radius 44
+ * - expanded                  400 x 180, corner radius 36
  * - content margin            14 (Lock Screen), 16 top inside expanded
  * - artwork                   44
  */
@@ -27,11 +27,11 @@ export const ISLAND = {
   },
   minimal: { min: 36.67, max: 45, height: 36.67 },
   expanded: {
-    width: 371,
+    width: 400,
     minHeight: 84,
-    height: 160,
-    maxHeight: 160,
-    radius: 44,
+    height: 180,
+    maxHeight: 180,
+    radius: 36,
     margin: 14,
     topInset: 16,
     cameraClearance: 37,

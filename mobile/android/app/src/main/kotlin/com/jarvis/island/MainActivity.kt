@@ -1644,7 +1644,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Card Width",
                     value = expandedWidth.toFloat(),
                     valueText = "${expandedWidth} dp",
-                    range = 300f..420f,
+                    range = 300f..460f,
                     onReset = {
                         expandedWidth = JarvisIslandSettings.DEFAULT_EXPANDED_WIDTH
                         settings.expandedWidth = expandedWidth
@@ -1661,7 +1661,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Card Height",
                     value = expandedHeight.toFloat(),
                     valueText = "${expandedHeight} dp",
-                    range = 160f..220f,
+                    range = 140f..240f,
                     onReset = {
                         expandedHeight = JarvisIslandSettings.DEFAULT_EXPANDED_HEIGHT
                         settings.expandedHeight = expandedHeight
@@ -1678,7 +1678,7 @@ fun SizeSettingsScreen(onBack: () -> Unit) {
                     label = "Expanded Corner Radius",
                     value = expandedCornerRadius.toFloat(),
                     valueText = "${expandedCornerRadius} dp",
-                    range = 30f..56f,
+                    range = 24f..56f,
                     onReset = {
                         expandedCornerRadius = JarvisIslandSettings.DEFAULT_EXPANDED_CORNER_RADIUS
                         settings.expandedCornerRadius = expandedCornerRadius
