@@ -450,6 +450,7 @@ object AiPlanner {
             Rules:
             - Output ONLY the immediate next step. Never attempt to batch multiple actions.
             - Use ONLY eids that appear in the outline.
+            - In messaging apps (WhatsApp, Telegram, Messages), NEVER tap the profile photo or avatar icon on the left (which opens the photo dialog); ALWAYS tap the contact name or conversation row to open the chat.
             - Use "burst" when rapid repeated taps are required (e.g., skip, heart, increment).
             - Use "autofill" with "account" (service or account query) when username/password fields are on screen.
             - If the goal is satisfied, return {"thought":"Goal complete","say":"Done!","action":"done","done":true}.

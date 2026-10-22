@@ -305,12 +305,21 @@ object ScreenAutomation {
         val wanted = labels.map { it.lowercase().trim() }.filter { it.isNotEmpty() }
         if (wanted.isEmpty()) return null
         val elements = snapshot().ifEmpty { refresh() }
+        val wantsPhoto = wanted.any { it.contains("photo") || it.contains("avatar") || it.contains("picture") || it.contains("image") }
         var best: Element? = null
         var bestScore = 0
         for (element in elements) {
             if (editable != null && element.editable != editable) continue
             val label = element.label.lowercase()
             if (label.isEmpty()) continue
+
+            val isAvatarOrPhoto = element.viewId.contains("photo", ignoreCase = true) ||
+                element.viewId.contains("avatar", ignoreCase = true) ||
+                element.viewId.contains("picture", ignoreCase = true) ||
+                element.viewId.contains("thumbnail", ignoreCase = true) ||
+                element.label.contains("profile photo", ignoreCase = true) ||
+                element.label.contains("profile picture", ignoreCase = true)
+
             var score = 0
             for (want in wanted) {
                 score = maxOf(
@@ -325,6 +334,12 @@ object ScreenAutomation {
                 )
             }
             if (score == 0) continue
+            if (isAvatarOrPhoto && !wantsPhoto) {
+                score -= 80
+            }
+            if (element.viewId.contains("name", ignoreCase = true) || element.viewId.contains("title", ignoreCase = true)) {
+                score += 30
+            }
             if (element.actionTarget != null) score += 20
             if (element.editable) score += 15
             if (element.bounds.width() > 0 && element.bounds.height() > 0) score += 5

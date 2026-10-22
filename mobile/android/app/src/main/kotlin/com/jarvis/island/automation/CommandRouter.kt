@@ -654,20 +654,64 @@ object CommandRouter {
         Thread.sleep(1_500)
 
         ScreenAutomation.refresh()
-        val result = ScreenAutomation.tapLabel(
+        val candidates = ScreenAutomation.snapshot()
+
+        // 1. First search for a conversation name text or row container matching the contact
+        val wantedContact = resolvedContact.lowercase().trim()
+        val fallbackContact = contact.lowercase().trim()
+
+        val chatRow = candidates.firstOrNull { elem ->
+            val vId = elem.viewId.lowercase()
+            val lbl = elem.label.lowercase()
+            val isAvatar = vId.contains("photo") || vId.contains("avatar") || vId.contains("picture") ||
+                lbl.contains("profile photo") || lbl.contains("profile picture")
+            !isAvatar && !elem.editable && (
+                vId.contains("conversations_row_contact_name") ||
+                vId.contains("contact_name") ||
+                vId.contains("chat_title") ||
+                vId.contains("conversations_row_holder")
+            ) && (lbl.contains(wantedContact) || lbl.contains(fallbackContact))
+        } ?: ScreenAutomation.tapLabel(
             labels = listOf(resolvedContact, contact),
             contains = true,
             editable = false
         ) ?: return Outcome(true, false, "I couldn't find $resolvedContact in the results.")
-        ActionVerifier.tap(result.eid, verify = JarvisIslandSettings.instance.verifyActionsEnabled)
-        Thread.sleep(1_600)
+
+        // 2. Safe touch coordinates: strictly offset past left avatar (0..200px) to tap the chat title/row
+        val targetX = if (chatRow.bounds.left < 200) {
+            (chatRow.bounds.left + 300).coerceAtMost(chatRow.bounds.right - 40).toFloat()
+        } else {
+            chatRow.bounds.centerX().toFloat()
+        }
+        val targetY = chatRow.bounds.centerY().toFloat()
+
+        if (targetX > 0f && targetY > 0f) {
+            ScreenAutomation.tapPoint(targetX, targetY)
+        } else {
+            ActionVerifier.tap(chatRow.eid, verify = JarvisIslandSettings.instance.verifyActionsEnabled)
+        }
+        Thread.sleep(1_400)
 
         ScreenAutomation.refresh()
-        val field = ScreenAutomation.tapLabel(
-            labels = listOf("message", "type a message", "message…", "message..."),
-            contains = true,
-            editable = true
-        ) ?: ScreenAutomation.snapshot().firstOrNull { it.editable }
+
+        // 3. Popup Recovery: If a profile picture dialog opened accidentally, tap its "Message" icon
+        val popupMessageBtn = ScreenAutomation.snapshot().firstOrNull { elem ->
+            (elem.label.equals("message", ignoreCase = true) || elem.viewId.contains("message")) &&
+                !elem.editable && elem.clickable && elem.bounds.centerY() > chatRow.bounds.centerY()
+        }
+        if (popupMessageBtn != null && ScreenAutomation.snapshot().none { it.editable }) {
+            ScreenAutomation.tap(popupMessageBtn.eid)
+            Thread.sleep(1_000)
+            ScreenAutomation.refresh()
+        }
+
+        // 4. Locate the message text box in the chat screen
+        val field = ScreenAutomation.snapshot().firstOrNull { it.editable }
+            ?: ScreenAutomation.tapLabel(
+                labels = listOf("message", "type a message", "message…", "message..."),
+                contains = true,
+                editable = true
+            )
         if (field == null) {
             return Outcome(true, false, "I opened $resolvedContact but couldn't find the message box.")
         }
@@ -678,9 +722,18 @@ object CommandRouter {
         if (!typedMessage.success && typedMessage.via != "deduped") {
             return Outcome(true, false, "I couldn't type the message: ${typedMessage.detail}")
         }
-        Thread.sleep(350)
-        val sent = ScreenAutomation.submit() ||
-            ScreenAutomation.clickLabel(listOf("send", "Send"), contains = true)
+        Thread.sleep(400)
+        ScreenAutomation.refresh()
+        val sendBtn = ScreenAutomation.snapshot().firstOrNull {
+            it.viewId.contains("send", ignoreCase = true) ||
+            it.label.equals("send", ignoreCase = true) ||
+            it.label.contains("send message", ignoreCase = true)
+        }
+        val sent = if (sendBtn != null) {
+            ScreenAutomation.tap(sendBtn.eid)
+        } else {
+            ScreenAutomation.submit() || ScreenAutomation.clickLabel(listOf("send", "Send"), contains = true)
+        }
         return if (sent) {
             com.jarvis.island.ai.AiMemory.recordExecutionOutcome(
                 context = context,
