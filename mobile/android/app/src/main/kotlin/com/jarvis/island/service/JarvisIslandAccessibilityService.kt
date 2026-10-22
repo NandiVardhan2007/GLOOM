@@ -8,8 +8,11 @@ import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Path
 import android.graphics.PointF
+import android.graphics.Rect
+import android.os.PowerManager
 import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.media.AudioManager
@@ -25,6 +28,7 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import androidx.compose.runtime.Recomposer
@@ -97,6 +101,16 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private var activeNotification by mutableStateOf<NotificationIslandEvent?>(null)
     private var batteryLevel by mutableIntStateOf(100)
     private var isCharging by mutableStateOf(false)
+    private var reelCount by mutableIntStateOf(0)
+    private var isInstagramForeground by mutableStateOf(false)
+    private var showReelCounterUntil by mutableStateOf(0L)
+
+    fun updateReelCount(count: Int) {
+        serviceScope.launch {
+            reelCount = count
+            showReelCounterUntil = System.currentTimeMillis() + 8000L
+        }
+    }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var collapseJob: Job? = null
@@ -216,9 +230,21 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val current = event ?: return
-        if (current.packageName?.toString() == packageName) return
+        val currentPkg = current.packageName?.toString().orEmpty()
+        if (currentPkg == packageName) return
+
+        if (currentPkg == "com.instagram.android") {
+            if (!isInstagramForeground) {
+                isInstagramForeground = true
+                reelCount = com.jarvis.island.automation.ReelCounter.today(this)
+            }
+        } else if (current.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && currentPkg.isNotEmpty()) {
+            isInstagramForeground = false
+        }
+
         try {
             com.jarvis.island.automation.InstagramReelTracker.onEvent(this, current)
+            com.jarvis.island.automation.ScreenTimeTracker.onEvent(this, current)
         } catch (e: Exception) {
             Log.w(TAG, "Could not inspect accessibility event: ${e.message}")
         }
@@ -358,10 +384,15 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         } else {
             dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
         }
+        val initialWidth = if (isExpanded) {
+            WindowManager.LayoutParams.MATCH_PARENT
+        } else {
+            dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
+        }
 
         // TYPE_ACCESSIBILITY_OVERLAY renders above Lock Screen / Keyguard
         layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            initialWidth,
             initialHeight,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             getOverlayFlags(),
@@ -396,6 +427,12 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
             }
 
             setContent {
+                val currentConfig = androidx.compose.ui.platform.LocalConfiguration.current
+                val isLandscape = currentConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+                if (isLandscape && !JarvisIslandSettings.instance.showInLandscape) {
+                    return@setContent
+                }
+
                 JarvisIslandApp(
                     isExpanded = isExpanded,
                     onToggleExpand = { toggleIslandExpansion() },
@@ -410,13 +447,12 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                         }
                     },
                     onBeamSampleFile = {
-                        val desktopIp = bridgeClient.desktopIp ?: if (bridgeDevice.ipAddress != "192.168.1.4") bridgeDevice.ipAddress else null
-                        if (bridgeDevice.isConnected && !desktopIp.isNullOrBlank()) {
-                            val sampleFile = File(cacheDir, "JARVIS_Ecosystem_Beam.txt").apply {
-                                writeText("JARVIS AirDrop Continuity Beam\nDevice: ${Build.MANUFACTURER} ${Build.MODEL}\nTimestamp: ${System.currentTimeMillis()}\nStatus: High-Speed LAN Link Active\nPort: 53391\n")
-                            }
-                            FileBeamReceiver.beamFileToDesktop(this@JarvisIslandAccessibilityService, sampleFile, desktopIp, 53391, { _: Float -> }, { _: Boolean -> })
+                        val itn = Intent(this@JarvisIslandAccessibilityService, com.jarvis.island.MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra("action_beam_file_picker", true)
                         }
+                        startActivity(itn)
+                        collapseIsland()
                     },
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
@@ -452,6 +488,12 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                     bridgeDevice = bridgeDevice,
                     batteryLevel = batteryLevel,
                     isCharging = isCharging,
+                    reelCount = reelCount,
+                    isInstagramForeground = isInstagramForeground,
+                    showReelCounterUntil = showReelCounterUntil,
+                    onSwipeDown = {
+                        performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    },
                     settings = JarvisIslandSettings.instance
                 )
             }
@@ -460,13 +502,38 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         composeView = view
         try {
             windowManager.addView(composeView, layoutParams)
+            updateVisibilityForOrientation()
         } catch (e: Exception) {
             Log.e(TAG, "Error adding accessibility overlay view", e)
         }
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateVisibilityForOrientation(newConfig)
+    }
+
+    private fun updateVisibilityForOrientation(config: Configuration = resources.configuration) {
+        val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val shouldHide = isLandscape && !JarvisIslandSettings.instance.showInLandscape
+        if (shouldHide) {
+            if (isExpanded) collapseIsland()
+            composeView?.visibility = View.GONE
+        } else {
+            if (JarvisIslandSettings.instance.isIslandEnabled) {
+                composeView?.visibility = View.VISIBLE
+            }
+        }
+    }
+
     private fun updateOverlayParameters() {
+        updateVisibilityForOrientation()
         layoutParams.flags = getOverlayFlags()
+        layoutParams.width = if (isExpanded) {
+            WindowManager.LayoutParams.MATCH_PARENT
+        } else {
+            dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
+        }
         layoutParams.height = if (isExpanded) {
             dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         } else {
@@ -482,6 +549,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     private fun expandIsland() {
         isExpanded = true
         windowResizeJob?.cancel()
+        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         layoutParams.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
@@ -497,6 +565,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         windowResizeJob = serviceScope.launch {
             delay(380)
             if (isExpanded) return@launch
+            layoutParams.width = dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
             layoutParams.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
             layoutParams.flags = getOverlayFlags()
             try {
@@ -579,11 +648,7 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "The system rejected the keyguard swipe-up gesture")
                 return false
             }
-            Log.i(
-                TAG,
-                "Replaying unlock pattern ${pattern.map { it + 1 }} on a ${grid.toInt()}px grid " +
-                    "centred at ${left.toInt()},${(top + grid / 2).toInt()}"
-            )
+
             serviceScope.launch {
                 var bouncerReady = waitForPatternBouncer(2600)
                 if (!bouncerReady) {
@@ -596,9 +661,35 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 } else {
                     // Let the bouncer finish its entry animation, otherwise the
                     // first dot of the stroke is dropped.
-                    delay(220)
+                    delay(300)
                 }
-                if (!dispatchGesture(patternGesture, null, null)) {
+
+                // If live pattern view is detected, use its exact physical pixel coordinates!
+                val liveBounds = capturePatternGridBounds()
+                val livePoints = if (liveBounds != null && liveBounds.width() > 100) {
+                    val cW = liveBounds.width().toFloat() / 3f
+                    val cH = liveBounds.height().toFloat() / 3f
+                    pattern.map { index ->
+                        PointF(
+                            liveBounds.left + cW * (index % 3) + cW / 2f,
+                            liveBounds.top + cH * (index / 3) + cH / 2f
+                        )
+                    }
+                } else {
+                    points
+                }
+
+                val strokePath = Path().apply {
+                    moveTo(livePoints.first().x, livePoints.first().y)
+                    livePoints.drop(1).forEach { lineTo(it.x, it.y) }
+                }
+                val strokeDuration = (pattern.size * 180L).coerceIn(800L, 2400L)
+                val strokeGesture = GestureDescription.Builder()
+                    .addStroke(GestureDescription.StrokeDescription(strokePath, 0L, strokeDuration))
+                    .build()
+
+                Log.i(TAG, "Replaying unlock gesture across ${livePoints.size} points over ${strokeDuration}ms")
+                if (!dispatchGesture(strokeGesture, null, null)) {
                     Log.w(TAG, "The system rejected the pattern replay gesture")
                 }
             }
@@ -606,6 +697,130 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.w(TAG, "Could not replay the unlock pattern: ${e.message}")
             false
+        }
+    }
+
+    fun lockScreen(): Boolean {
+        return performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+    }
+
+    fun wakeScreen() {
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            @Suppress("DEPRECATION")
+            val wakeLock = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "jarvis:wake"
+            )
+            wakeLock.acquire(4000)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not acquire wake lock: ${e.message}")
+        }
+    }
+
+    fun findPatternViewNode(): android.view.accessibility.AccessibilityNodeInfo? {
+        val candidates = mutableListOf<android.view.accessibility.AccessibilityNodeInfo>()
+        rootInActiveWindow?.let { candidates.add(it) }
+        try {
+            windows?.forEach { w -> w.root?.let { candidates.add(it) } }
+        } catch (_: Exception) {}
+
+        for (root in candidates) {
+            val found = searchPatternNode(root, 0)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    private fun searchPatternNode(node: android.view.accessibility.AccessibilityNodeInfo?, depth: Int): android.view.accessibility.AccessibilityNodeInfo? {
+        if (node == null || depth > 25) return null
+        val cls = node.className?.toString().orEmpty()
+        val id = node.viewIdResourceName.orEmpty()
+        if (cls.contains("LockPatternView", ignoreCase = true) ||
+            cls.contains("PatternView", ignoreCase = true) ||
+            id.contains("lockPatternView", ignoreCase = true) ||
+            id.contains("lock_pattern", ignoreCase = true)
+        ) {
+            return node
+        }
+        for (i in 0 until node.childCount) {
+            val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
+            val res = searchPatternNode(child, depth + 1)
+            if (res != null) return res
+        }
+        return null
+    }
+
+    fun capturePatternGridBounds(): Rect? {
+        val node = findPatternViewNode() ?: return null
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        if (rect.width() > 100 && rect.height() > 100) {
+            val metrics = resources.displayMetrics
+            val screenW = metrics.widthPixels.toFloat()
+            val screenH = metrics.heightPixels.toFloat()
+            val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
+            settings.patternGridWidthRatio = (rect.width().toFloat() / screenW).coerceIn(0.40f, 0.95f)
+            settings.patternCenterYRatio = (rect.exactCenterY() / screenH).coerceIn(0.35f, 0.90f)
+            settings.save(this)
+            Log.i(TAG, "Captured real lock pattern bounds: $rect (gridRatio=${settings.patternGridWidthRatio}, centerYRatio=${settings.patternCenterYRatio})")
+            return rect
+        }
+        return null
+    }
+
+    fun startLivePatternCalibration(onStatus: (String) -> Unit) {
+        serviceScope.launch {
+            val km = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+
+            onStatus("Locking device in 2 seconds…")
+            speak("Locking screen. We will swipe to the pattern screen.")
+            showLocalNotification("Calibration", "Locking screen in 2 seconds…")
+            delay(2000)
+
+            lockScreen()
+            onStatus("Device locked. Waking in 1.5s…")
+            delay(1500)
+
+            wakeScreen()
+            onStatus("Waking display…")
+            delay(1000)
+
+            onStatus("Swiping up to reveal pattern…")
+            testSwipeGesture()
+            delay(800)
+
+            if (km.isKeyguardLocked) {
+                testSwipeGesture()
+                delay(600)
+            }
+
+            capturePatternGridBounds()
+
+            onStatus("Pattern screen ready! Please draw your pattern to unlock and verify.")
+            speak("Please draw your pattern now to unlock and verify.")
+
+            var unlocked = false
+            val deadline = System.currentTimeMillis() + 30000L
+            while (System.currentTimeMillis() < deadline) {
+                if (!km.isKeyguardLocked) {
+                    unlocked = true
+                    break
+                }
+                delay(500)
+            }
+
+            if (unlocked) {
+                val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
+                settings.save(this@JarvisIslandAccessibilityService)
+                val msg = "Pattern unlocked successfully! Grid calibrated at ${((settings.patternCenterYRatio) * 100).toInt()}% height."
+                onStatus(msg)
+                showLocalNotification("JARVIS Calibrated", msg)
+                speak("Pattern unlocked successfully. Calibration complete.")
+            } else {
+                onStatus("Calibration timed out. Please try again.")
+                speak("Calibration timed out.")
+            }
         }
     }
 

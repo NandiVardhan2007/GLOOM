@@ -403,6 +403,20 @@ class JarvisLiveBridgeClient(private val context: Context) {
         FileBeamReceiver.beamFileToDesktop(context, file, ip, desktopPort, onProgress, onComplete)
     }
 
+    fun beamUriToDesktop(
+        uri: android.net.Uri,
+        onProgress: (Float) -> Unit,
+        onComplete: (Boolean) -> Unit
+    ) {
+        val ip = desktopIp
+        if (ip == null) {
+            onComplete(false)
+            return
+        }
+        FileBeamReceiver.beamUriToDesktop(context, uri, ip, desktopPort, onProgress, onComplete)
+    }
+
+
     /**
      * Starts a PIN pairing challenge with the discovered desktop. The desktop shows a
      * 6-digit PIN which the user then enters via [confirmPairing].

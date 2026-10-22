@@ -3,7 +3,9 @@ package com.jarvis.island.automation
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import com.jarvis.island.ai.AiMemory
 import com.jarvis.island.ai.AiRouter
+import com.jarvis.island.security.Vault
 import com.jarvis.island.service.JarvisIslandAccessibilityService
 import com.jarvis.island.settings.JarvisIslandSettings
 import org.json.JSONArray
@@ -38,13 +40,23 @@ object AiPlanner {
     )
 
     fun looksLikeAction(text: String): Boolean {
-        val lower = text.trim().lowercase()
+        val cleaned = CommandRouter.cleanSpeech(text)
+        val lower = cleaned.trim().lowercase()
         if (lower.endsWith("?")) return false
         val questionStarts = listOf(
             "what", "how", "why", "who", "when", "where", "which",
-            "explain", "tell me", "do you", "is it", "are there"
+            "explain", "tell me about", "do you know", "is it", "are there"
         )
         if (questionStarts.any { lower.startsWith(it) }) return false
+
+        // App-specific direct action intents
+        if (lower.contains("whatsapp") && (lower.contains("message") || lower.contains("send") || lower.contains("open"))) {
+            return true
+        }
+        if (lower.contains("send a message") || lower.contains("send message") || lower.contains("text ")) {
+            return true
+        }
+
         return ACTION_VERBS.any { verb ->
             lower.startsWith("$verb ") ||
                 lower.startsWith("can you $verb ") ||
@@ -76,29 +88,82 @@ object AiPlanner {
         var lastMessage = ""
         var lastTap = -1
         var tapStreak = 0
+        var selfCorrectionHint: String? = null
 
-        for (step in 1..MAX_STEPS) {
+        fun failure(message: String): CommandRouter.Outcome {
+            AiMemory.recordExecutionOutcome(
+                context = context,
+                goal = request,
+                steps = history,
+                success = false,
+                targetApp = ScreenAutomation.currentPackage(),
+                detail = message
+            )
+            JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", message)
+            return CommandRouter.Outcome(true, false, message)
+        }
+
+        val isPro = JarvisIslandSettings.instance.plannerProfile.equals("pro", ignoreCase = true)
+        val maxSteps = if (isPro) 10 else 6
+
+        for (step in 1..maxSteps) {
             val outline = ScreenAutomation.describe(MAX_OUTLINE_ELEMENTS)
             val grid = gridWhenTreeIsEmpty()
-            val stepPlan = requestStep(context, request, history, outline, grid, step) ?: break
+            val beforeSignature = ScreenAutomation.signature()
+
+            // CAG (Cache-Augmented Generation): Check semantic plan cache
+            val cachedStep = AiMemory.getCachedPlan(request, beforeSignature.toString())
+            val stepPlan = cachedStep ?: requestStep(
+                context = context,
+                request = request,
+                history = compressHistory(history),
+                outline = outline,
+                grid = grid,
+                stepNumber = step,
+                isPro = isPro,
+                correctionHint = selfCorrectionHint
+            ) ?: break
+
+            if (cachedStep == null) {
+                AiMemory.cacheStep(context, request, beforeSignature.toString(), stepPlan)
+            }
+
+            selfCorrectionHint = null // Consumed for this step
 
             val thought = stepPlan.optString("thought").trim()
             val say = stepPlan.optString("say").trim()
             val isDone = stepPlan.optBoolean("done", false)
             val actionName = stepPlan.optString("action").lowercase().trim()
+            val checkpointReport = stepPlan.optString("checkpoint_report").trim()
+            val confidence = stepPlan.optDouble("confidence", 1.0)
 
             if (say.isNotEmpty()) {
                 lastMessage = say
                 JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", say)
             }
 
+            if (confidence < 0.4) {
+                Log.w(TAG, "Low confidence step ($confidence) for $actionName: $thought")
+            }
+
             if (isDone || actionName == "done" || actionName.isEmpty()) {
-                val completionMsg = if (say.isNotEmpty()) say else "Done."
+                val completionMsg = when {
+                    checkpointReport.isNotEmpty() -> checkpointReport
+                    say.isNotEmpty() -> say
+                    else -> "Done."
+                }
+                AiMemory.recordExecutionOutcome(
+                    context = context,
+                    goal = request,
+                    steps = history,
+                    success = true,
+                    targetApp = ScreenAutomation.currentPackage()
+                )
                 JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", completionMsg)
                 return CommandRouter.Outcome(true, true, completionMsg)
             }
 
-            Log.i(TAG, "Step $step [$actionName]: thought=$thought, say=$say")
+            Log.i(TAG, "Step $step [$actionName, pro=$isPro]: thought=$thought, say=$say")
 
             when (actionName) {
                 "tap", "click" -> {
@@ -121,6 +186,9 @@ object AiPlanner {
                         return failure("I couldn't tap ${element.label.ifBlank { "element $eid" }}.")
                     }
                     history.add("Step $step: Tapped '${element.label.ifBlank { "eid $eid" }}'")
+                    if (isPro && !result.changed) {
+                        selfCorrectionHint = "Notice: Tapping '${element.label}' did not change the screen. Consider another control or scroll."
+                    }
                     SystemClock.sleep(600)
                 }
                 "tap_grid", "tap_cell" -> {
@@ -156,6 +224,29 @@ object AiPlanner {
                     if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
                     if (!ScreenAutomation.longPress(eid)) return failure("Couldn't long-press that element.")
                     history.add("Step $step: Long-pressed '${element.label}'")
+                    SystemClock.sleep(500)
+                }
+                "burst", "tap_burst" -> {
+                    val eid = stepPlan.optInt("eid", -1)
+                    val count = stepPlan.optInt("count", 2)
+                    if (eid < 0) return failure("No element specified for tap burst.")
+                    if (!ScreenAutomation.tapBurst(eid, count)) return failure("Couldn't burst tap element $eid.")
+                    history.add("Step $step: Burst tapped eid $eid ($count times)")
+                    SystemClock.sleep(400)
+                }
+                "autofill", "fill_password" -> {
+                    val query = stepPlan.optString("account", stepPlan.optString("service", request))
+                    val entry = Vault.findMatching(context, query)
+                    if (entry != null) {
+                        val filled = Vault.autofillActiveScreen(context, entry)
+                        if (filled) {
+                            history.add("Step $step: Autofilled credentials for ${entry.title}")
+                        } else {
+                            return failure("Couldn't find login fields to autofill.")
+                        }
+                    } else {
+                        return failure("No credentials found in Vault for '$query'.")
+                    }
                     SystemClock.sleep(500)
                 }
                 "type", "write" -> {
@@ -221,6 +312,13 @@ object AiPlanner {
         if (history.isEmpty()) return CommandRouter.Outcome(false, false, "")
         val pkg = ScreenAutomation.currentPackage()
         val finalMsg = if (lastMessage.isNotEmpty()) lastMessage else "Done. $pkg is on screen."
+        AiMemory.recordExecutionOutcome(
+            context = context,
+            goal = request,
+            steps = history,
+            success = true,
+            targetApp = pkg
+        )
         JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", finalMsg)
         return CommandRouter.Outcome(true, true, finalMsg)
     }
@@ -237,6 +335,14 @@ object AiPlanner {
         return runCatching { ScreenSnapshot.describeScreen() }.getOrNull()
     }
 
+    private fun compressHistory(history: List<String>): List<String> {
+        if (history.size <= 4) return history
+        val compressedCount = history.size - 3
+        val summary = "Steps 1..$compressedCount summary: " +
+            history.take(compressedCount).joinToString("; ") { it.substringAfter(": ") }
+        return listOf(summary) + history.takeLast(3)
+    }
+
     private fun requestStep(
         context: Context,
         request: String,
@@ -244,9 +350,20 @@ object AiPlanner {
         outline: String,
         grid: String?,
         stepNumber: Int,
+        isPro: Boolean = false,
+        correctionHint: String? = null
     ): JSONObject? {
+        val profileDesc = if (isPro) {
+            "Profile: PRO (Deep multi-turn planning, screen-diff verification, self-correction, and final 'checkpoint_report' upon completion)."
+        } else {
+            "Profile: FLASH (Fast immediate reactive tool caller)."
+        }
+        val memoryContext = AiMemory.getRelevantContext(context, request)
+
         val system = """
             You are JARVIS, an autonomous mobile agent controlling an Android phone through precise accessibility actions.
+            $profileDesc
+            $memoryContext
             You will be given:
             1. User goal
             2. Action history (actions you executed in earlier steps)
@@ -256,24 +373,33 @@ object AiPlanner {
             Reply with ONE JSON object and no other text:
             {
               "thought": "Reasoning for this specific step",
+              "confidence": 0.95,
               "say": "Short status to show user on Dynamic Island (e.g. 'Tapping Wi-Fi')",
-              "action": "tap", // tap, type, submit, scroll, swipe, launch, back, home, recents, wait, done
-              "eid": 12,       // element id from outline (for tap, type, long_press)
+              "action": "tap", // tap, type, submit, scroll, swipe, burst, autofill, launch, back, home, recents, wait, done
+              "eid": 12,       // element id from outline (for tap, type, long_press, burst)
+              "count": 2,      // tap count for burst (default 2)
               "text": "query", // text to type (for type action)
+              "account": "name", // account or service name from Vault (for autofill action)
               "direction": "down", // up, down, left, right (for scroll, swipe)
               "app": "Settings",   // app name to launch (for launch action)
+              "checkpoint_report": "Concise summary of accomplished task",
               "done": false        // set true when user's goal is fully achieved!
             }
 
             Rules:
             - Output ONLY the immediate next step. Never attempt to batch multiple actions.
             - Use ONLY eids that appear in the outline.
+            - Use "burst" when rapid repeated taps are required (e.g., skip, heart, increment).
+            - Use "autofill" with "account" (service or account query) when username/password fields are on screen.
             - If the goal is satisfied, return {"thought":"Goal complete","say":"Done!","action":"done","done":true}.
             - Never perform destructive or financial actions.
         """.trimIndent()
 
         val user = buildString {
             append("Goal: ").append(request).append('\n')
+            if (correctionHint != null) {
+                append("\n[Self-Correction Alert]\n").append(correctionHint).append("\n\n")
+            }
             if (history.isNotEmpty()) {
                 append("Actions executed so far:\n")
                 history.forEach { append(" - ").append(it).append('\n') }

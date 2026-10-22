@@ -14,11 +14,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -66,6 +68,10 @@ fun JarvisIslandApp(
     bridgeDevice: BridgeDeviceInfo = BridgeDeviceInfo(),
     batteryLevel: Int = 100,
     isCharging: Boolean = false,
+    reelCount: Int = 0,
+    isInstagramForeground: Boolean = false,
+    showReelCounterUntil: Long = 0L,
+    onSwipeDown: () -> Unit = {},
     settings: JarvisIslandSettings = JarvisIslandSettings.instance
 ) {
     if (!settings.isIslandEnabled) return
@@ -99,21 +105,24 @@ fun JarvisIslandApp(
     val isMediaActive = mediaTrack.isPlaying || mediaTrack.title.isNotBlank()
     val isNotificationActive = activeNotification != null
     val isTransferActive = activeTransfer.isActive
+    val isReelCounterActive = settings.reelCounterEnabled && (reelCount > 0) &&
+        (isInstagramForeground || System.currentTimeMillis() < showReelCounterUntil)
 
     val compactKind = when {
         isNotificationActive -> IslandCompactKind.NOTIFICATION
         isTransferActive -> IslandCompactKind.TRANSFER
+        isReelCounterActive -> IslandCompactKind.REEL_COUNTER
         isMediaActive -> IslandCompactKind.MEDIA
         isCharging -> IslandCompactKind.CHARGING
         else -> IslandCompactKind.IDLE
     }
 
-    val hasActivity = compactKind != IslandCompactKind.IDLE
-
-    // Apple's canvas: 126 at rest, 230 with one Live Activity, 371 expanded.
-    val compactWidth = if (hasActivity) settings.pillWidth.dp else AppleIslandSpec.restWidth
-    val cameraGap = settings.cutoutClearance.dp.coerceIn(40.dp, compactWidth - 60.dp)
-    val wingWidth = ((compactWidth - cameraGap) / 2).coerceAtLeast(30.dp)
+    // Default 180 dp pill width cleanly balances camera band and wings
+    val compactWidth = settings.pillWidth.dp
+    val maxCameraGap = (compactWidth - 96.dp).coerceAtLeast(36.dp)
+    val cameraGap = settings.cutoutClearance.dp.coerceIn(36.dp, maxCameraGap)
+    val wingWidth = ((compactWidth - cameraGap) / 2).coerceAtLeast(46.dp)
+    val compactInset = 8.dp
 
     val targetWidth by animateDpAsState(
         targetValue = if (isExpanded) settings.expandedWidth.dp else compactWidth,
@@ -162,6 +171,7 @@ fun JarvisIslandApp(
         isExpanded && isNotificationActive -> "notification"
         isExpanded && isTransferActive -> "transfer"
         isExpanded && isMediaActive -> "media"
+        isExpanded && isReelCounterActive -> "reels"
         isExpanded -> "continuity"
         else -> "compact-$compactKind"
     }
@@ -220,7 +230,19 @@ fun JarvisIslandApp(
                         contentDescription = if (isExpanded) {
                             "JARVIS Dynamic Island, expanded activity. Tap outside to collapse."
                         } else {
-                            "JARVIS Dynamic Island. Tap to expand, touch and hold to speak."
+                            "JARVIS Dynamic Island. Tap to expand, swipe down for notifications."
+                        }
+                    }
+                    .pointerInput(isExpanded) {
+                        if (!isExpanded) {
+                            detectVerticalDragGestures { _, dragAmount ->
+                                if (dragAmount > 14f) {
+                                    if (settings.hapticFeedback) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    onSwipeDown()
+                                }
+                            }
                         }
                     }
                     .combinedClickable(
@@ -267,6 +289,10 @@ fun JarvisIslandApp(
                             onSeek = onMediaSeek,
                             onClose = onToggleExpand
                         )
+                        "reels" -> AppleReelActivity(
+                            reelCount = reelCount,
+                            onClose = onToggleExpand
+                        )
                         "continuity" -> AppleContinuityActivity(
                             device = bridgeDevice,
                             batteryLevel = batteryLevel,
@@ -288,11 +314,68 @@ fun JarvisIslandApp(
                             timerText = "",
                             wingWidth = wingWidth,
                             cameraGap = cameraGap,
-                            inset = AppleIslandSpec.compactInset
+                            inset = compactInset,
+                            reelCount = reelCount
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun AppleReelActivity(
+    reelCount: Int,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                start = AppleIslandSpec.contentMargin,
+                end = AppleIslandSpec.contentMargin,
+                top = AppleIslandSpec.contentTop,
+                bottom = 14.dp
+            ),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CompactGlyphCircle(
+                    icon = JarvisIcons.Instagram,
+                    tint = Color.White,
+                    background = Color(0xFFE1306C)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text("Instagram Reels", style = IslandType.title, color = Color.White)
+                    Text("Live Mindfulness Tracker", style = IslandType.caption, color = Apple.secondaryLabel)
+                }
+            }
+            Text(
+                text = "$reelCount",
+                style = IslandType.heroNumber,
+                color = Color(0xFFE1306C)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AppleActivityButton(
+                text = "Close",
+                background = Color(0xFFE1306C),
+                foreground = Color.White,
+                modifier = Modifier.weight(1f),
+                onClick = onClose
+            )
         }
     }
 }

@@ -1,6 +1,10 @@
 package com.jarvis.island.automation
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import com.jarvis.island.ai.AiMemory
+import com.jarvis.island.automation.SystemTools
 import android.content.pm.PackageManager
 import android.util.Log
 import com.jarvis.island.settings.JarvisIslandSettings
@@ -74,6 +78,10 @@ object CommandRouter {
         """^(?:send|text|message)\s+(?:a\s+)?(?:whatsapp\s+)?(?:message\s+)?to\s+(.+?)\s+(?:saying|with|about|that)\s+(.+)$""",
         RegexOption.IGNORE_CASE
     )
+    private val openAndSendWhatsAppPattern = Regex(
+        """^(?:open\s+(?:the\s+)?whatsapp\s+(?:and\s+)?(?:then\s+)?(?:send|text|message)\s+(?:a\s+)?(?:whatsapp\s+)?(?:message\s+)?to\s+(.+?)\s+(?:saying|with|about|that)\s+(.+))$""",
+        RegexOption.IGNORE_CASE
+    )
     private val whatsAppShortPattern = Regex(
         """^(?:send|text|message)\s+(.+?)\s+(?:saying|with|about|that)\s+(.+)$""",
         RegexOption.IGNORE_CASE
@@ -115,12 +123,37 @@ object CommandRouter {
         "previous reel", "previous video", "previous post"
     )
 
+    fun cleanSpeech(raw: String): String {
+        var s = raw.trim().trim('.', '!', '?', ',', ';')
+        val fillers = listOf(
+            "ya could you please", "yeah could you please", "could you please",
+            "ya could you", "yeah could you", "could you", "can you please",
+            "can you", "would you please", "would you", "please",
+            "ya please", "yeah please", "ya ", "yeah ", "hey jarvis ",
+            "hey ", "ok jarvis ", "okay jarvis ", "ok ", "okay ", "hi jarvis ",
+            "hi ", "hello jarvis ", "hello ", "jarvis ", "yo ", "so ", "um "
+        )
+        var changed = true
+        while (changed) {
+            changed = false
+            val lower = s.lowercase()
+            for (filler in fillers) {
+                if (lower.startsWith(filler)) {
+                    s = s.substring(filler.length).trim()
+                    changed = true
+                    break
+                }
+            }
+        }
+        return s.ifBlank { raw.trim() }
+    }
+
     /**
      * True when [text] is a command this router will execute. The voice panel
      * uses this to decide whether to get out of the way before acting.
      */
     fun isCommand(text: String): Boolean {
-        val command = text.trim().trim('.', '!', '?', ',', ';')
+        val command = cleanSpeech(text)
         if (command.isEmpty()) return false
         val lower = command.lowercase()
         if (isReelQuery(lower)) return true
@@ -148,6 +181,7 @@ object CommandRouter {
             smsPattern.matches(command) ||
             smsToPattern.matches(command) ||
             whatsAppPattern.matches(command) ||
+            openAndSendWhatsAppPattern.matches(command) ||
             whatsAppShortPattern.matches(command) ||
             callPattern.matches(command) ||
             alarmPattern.matches(command) ||
@@ -166,10 +200,16 @@ object CommandRouter {
     }
 
     fun handle(context: Context, text: String): Outcome {
-        val command = text.trim().trim('.', '!', '?', ',', ';')
+        val command = cleanSpeech(text)
         if (command.isEmpty()) return Outcome(false, false, "")
         val lower = command.lowercase()
         val settings = JarvisIslandSettings.instance
+
+        // ── Natural AI Memory Learning ("remember that...", "my ... is ...") ──
+        val learnedResponse = com.jarvis.island.ai.AiMemory.learnFromUser(context, text)
+        if (learnedResponse != null) {
+            return Outcome(true, true, learnedResponse)
+        }
 
         // ── Reels counter ──
         if ((lower.contains("reel") || lower.contains("reels")) &&
@@ -300,7 +340,82 @@ object CommandRouter {
                 .let { Outcome(true, it.success, it.message) }
         }
 
+        // ── Chrome Browsing & Form Autofill ──
+        val browsePattern = Regex("""^(?:browse|open|go)\s+to\s+(https?://\S+|\S+\.[a-zA-Z]{2,}\S*)$""", RegexOption.IGNORE_CASE)
+        browsePattern.matchEntire(command)?.let { match ->
+            var url = match.groupValues[1].trim()
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                url = "https://$url"
+            }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                setPackage("com.android.chrome")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val ok = runCatching { context.startActivity(intent); true }.getOrElse {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)
+            }
+            return Outcome(true, ok, if (ok) "Opening $url in Chrome." else "Couldn't open browser.")
+        }
+
+        if (lower.contains("fill form") || lower.contains("autofill form") || lower.contains("fill this form")) {
+            val filled = com.jarvis.island.security.Vault.autofillWebForm(context)
+            return if (filled > 0) {
+                Outcome(true, true, "Autofilled $filled form fields using your profile.")
+            } else {
+                Outcome(true, false, "I couldn't find matching fields to autofill.")
+            }
+        }
+
+        // ── Personalized Email Drafting ──
+        val draftEmailPattern = Regex("""^(?:draft|send|compose)\s+(?:an?\s+)?email\s+to\s+(.+?)(?:\s+(?:saying|about|with\s+subject)\s+(.+))?$""", RegexOption.IGNORE_CASE)
+        draftEmailPattern.matchEntire(command)?.let { match ->
+            val to = match.groupValues[1].trim()
+            val body = match.groupValues[2].trim()
+            val ok = SystemTools.draftEmail(context, to, "Message from JARVIS", body)
+            return Outcome(true, ok, if (ok) "Drafted email to $to." else "I couldn't open the email client.")
+        }
+
+        // ── Regex-based File Search ──
+        val fileSearchPattern = Regex("""^(?:search|find)\s+files?\s+(?:matching|regex|with)\s+(.+)$""", RegexOption.IGNORE_CASE)
+        fileSearchPattern.matchEntire(command)?.let { match ->
+            val pat = match.groupValues[1].trim()
+            val results = SystemTools.searchFilesRegex(pat)
+            return if (results.isNotEmpty()) {
+                val preview = results.take(3).joinToString(", ") { it.name }
+                Outcome(true, true, "Found ${results.size} files matching '$pat': $preview")
+            } else {
+                Outcome(true, true, "No files matched '$pat'.")
+            }
+        }
+
+        // ── Data & Clipboard Synchronization ──
+        if (lower == "sync data" || lower == "sync with desktop" || lower == "sync clipboard" || lower == "sync files" || lower == "synchronize") {
+            val res = SystemTools.syncDataWithDesktop(context)
+            return Outcome(true, res.success, res.message)
+        }
+
+        // ── System Optimization & Duplicate File Removal ──
+        if (lower.contains("clean up storage") || lower.contains("cleanup storage") || lower.contains("remove duplicate") || lower.contains("optimize storage")) {
+            val report = SystemTools.cleanupStorage(context, removeDuplicates = true)
+            val mbStr = String.format(java.util.Locale.US, "%.1f", report.totalReclaimedMb)
+            return Outcome(true, true, "Storage optimized: freed $mbStr MB (${report.duplicatesRemoved} duplicates removed).")
+        }
+
+        // ── Self-Developing Memory: Fact Learning ──
+        val rememberPattern = Regex("""^(?:remember\s+(?:that\s+)?|my\s+)(.+?)\s+(?:is|=)\s+(.+)$""", RegexOption.IGNORE_CASE)
+        if (lower.startsWith("remember") || (lower.startsWith("my ") && (lower.contains(" is ") || lower.contains("=")))) {
+            rememberPattern.matchEntire(command)?.let { match ->
+                val key = match.groupValues[1].trim().removePrefix("my ").trim()
+                val value = match.groupValues[2].trim()
+                AiMemory.recordUserFact(context, key, value)
+                return Outcome(true, true, "I will remember that your $key is $value.")
+            }
+        }
+
         // ── WhatsApp message ──
+        openAndSendWhatsAppPattern.matchEntire(command)?.let { match ->
+            return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
+        }
         whatsAppPattern.matchEntire(command)?.let { match ->
             return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
         }
@@ -450,7 +565,8 @@ object CommandRouter {
     }
 
     private fun sendText(context: Context, contact: String, message: String): Outcome {
-        val result = DeviceTools.text(context, contact, message)
+        val resolvedContact = com.jarvis.island.ai.AiMemory.resolveEntity(contact) ?: contact
+        val result = DeviceTools.text(context, resolvedContact, message)
         return Outcome(true, result.success, result.message)
     }
 
@@ -480,6 +596,7 @@ object CommandRouter {
      */
     private fun sendWhatsApp(context: Context, contact: String, message: String): Outcome {
         if (!accessibilityReady()) return accessibilityRequired()
+        val resolvedContact = com.jarvis.island.ai.AiMemory.resolveEntity(contact) ?: contact
         val app = when {
             isInstalled(context, "com.whatsapp") -> "whatsapp"
             isInstalled(context, "com.whatsapp.w4b") -> "whatsapp business"
@@ -487,27 +604,33 @@ object CommandRouter {
         }
         val label = ScreenAutomation.launch(context, app)
             ?: return Outcome(true, false, "I couldn't open WhatsApp.")
-        Log.i(TAG, "Sending WhatsApp message to $contact via $label")
+        Log.i(TAG, "Sending WhatsApp message to $resolvedContact (original: $contact) via $label")
         Thread.sleep(2_200)
 
         ScreenAutomation.refresh()
-        if (!ScreenAutomation.clickLabel(listOf("search"), contains = true)) {
-            return Outcome(true, false, "I couldn't find the WhatsApp search button.")
+        val searchClicked = ScreenAutomation.clickLabel(listOf("search", "search…", "ask meta ai or search"), contains = true)
+        if (!searchClicked) {
+            val searchInput = ScreenAutomation.snapshot().firstOrNull { it.editable }
+            if (searchInput != null) {
+                ScreenAutomation.tap(searchInput.eid)
+            } else {
+                return Outcome(true, false, "I couldn't find the WhatsApp search button.")
+            }
         }
         Thread.sleep(500)
 
-        val typedContact = ScreenAutomation.typeText(contact)
-        if (!typedContact.success) {
-            return Outcome(true, false, "I couldn't search for $contact: ${typedContact.detail}")
+        val typedContact = ScreenAutomation.typeTextUnique(resolvedContact, clearFirst = true)
+        if (!typedContact.success && typedContact.via != "deduped") {
+            return Outcome(true, false, "I couldn't search for $resolvedContact: ${typedContact.detail}")
         }
         Thread.sleep(1_500)
 
         ScreenAutomation.refresh()
         val result = ScreenAutomation.tapLabel(
-            labels = listOf(contact),
+            labels = listOf(resolvedContact, contact),
             contains = true,
             editable = false
-        ) ?: return Outcome(true, false, "I couldn't find $contact in the results.")
+        ) ?: return Outcome(true, false, "I couldn't find $resolvedContact in the results.")
         ActionVerifier.tap(result.eid, verify = JarvisIslandSettings.instance.verifyActionsEnabled)
         Thread.sleep(1_600)
 
@@ -518,20 +641,27 @@ object CommandRouter {
             editable = true
         ) ?: ScreenAutomation.snapshot().firstOrNull { it.editable }
         if (field == null) {
-            return Outcome(true, false, "I opened $contact but couldn't find the message box.")
+            return Outcome(true, false, "I opened $resolvedContact but couldn't find the message box.")
         }
         ScreenAutomation.tap(field.eid)
         Thread.sleep(400)
 
-        val typedMessage = ScreenAutomation.typeText(message)
-        if (!typedMessage.success) {
+        val typedMessage = ScreenAutomation.typeTextUnique(message, clearFirst = false)
+        if (!typedMessage.success && typedMessage.via != "deduped") {
             return Outcome(true, false, "I couldn't type the message: ${typedMessage.detail}")
         }
         Thread.sleep(350)
         val sent = ScreenAutomation.submit() ||
-            ScreenAutomation.clickLabel(listOf("send"), contains = true)
+            ScreenAutomation.clickLabel(listOf("send", "Send"), contains = true)
         return if (sent) {
-            Outcome(true, true, "Message sent to $contact.")
+            com.jarvis.island.ai.AiMemory.recordExecutionOutcome(
+                context = context,
+                goal = "Send WhatsApp to $contact",
+                steps = listOf("Opened WhatsApp", "Searched $resolvedContact", "Typed message", "Sent"),
+                success = true,
+                targetApp = "com.whatsapp"
+            )
+            Outcome(true, true, "Message sent to $resolvedContact.")
         } else {
             Outcome(true, false, "I typed the message but couldn't press Send.")
         }

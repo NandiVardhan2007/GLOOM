@@ -80,4 +80,11 @@ object IslandType {
         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
         letterSpacing = (-0.08).sp,
     )
+    val heroNumber = androidx.compose.ui.text.TextStyle(
+        fontSize = 24.sp,
+        lineHeight = 28.sp,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        letterSpacing = (-0.4).sp,
+        fontFeatureSettings = "tnum"
+    )
 }

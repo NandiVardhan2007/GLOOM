@@ -1,7 +1,31 @@
 package com.jarvis.island.ui
 
 import android.app.PendingIntent
+import android.app.RemoteInput
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Bundle
+
+data class NotificationReplyAction(
+    val label: String = "Reply",
+    val pendingIntent: PendingIntent,
+    val remoteInput: RemoteInput,
+    val resultKey: String
+) {
+    fun send(context: Context, replyText: String): Boolean {
+        return try {
+            val intent = Intent()
+            val bundle = Bundle()
+            bundle.putCharSequence(resultKey, replyText)
+            RemoteInput.addResultsToIntent(arrayOf(remoteInput), intent, bundle)
+            pendingIntent.send(context, 0, intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
 
 data class LyricLine(
     val timeMs: Long = 0L,
@@ -48,7 +72,8 @@ data class NotificationIslandEvent(
     val largeIcon: Bitmap? = null,
     val contentIntent: PendingIntent? = null,
     val postTimeMs: Long = System.currentTimeMillis(),
-    val otpCode: String? = null
+    val otpCode: String? = null,
+    val replyAction: NotificationReplyAction? = null
 )
 
 data class SystemToastEvent(

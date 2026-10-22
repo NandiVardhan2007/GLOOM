@@ -20,19 +20,41 @@ object AppLauncher {
 
     private val PACKAGE_ALIASES = mapOf(
         "whatsapp" to "com.whatsapp",
+        "whats up" to "com.whatsapp",
+        "what's up" to "com.whatsapp",
+        "whatsap" to "com.whatsapp",
+        "watsapp" to "com.whatsapp",
+        "watsap" to "com.whatsapp",
+        "whatapp" to "com.whatsapp",
         "whatsapp business" to "com.whatsapp.w4b",
         "instagram" to "com.instagram.android",
+        "insta" to "com.instagram.android",
+        "instgram" to "com.instagram.android",
+        "istagram" to "com.instagram.android",
         "youtube" to "com.google.android.youtube",
+        "you tube" to "com.google.android.youtube",
+        "utube" to "com.google.android.youtube",
         "spotify" to "com.spotify.music",
+        "spodify" to "com.spotify.music",
+        "spotfy" to "com.spotify.music",
         "chrome" to "com.android.chrome",
+        "crome" to "com.android.chrome",
+        "google crome" to "com.android.chrome",
         "gmail" to "com.google.android.gm",
+        "g mail" to "com.google.android.gm",
+        "g-mail" to "com.google.android.gm",
         "google maps" to "com.google.android.apps.maps",
         "maps" to "com.google.android.apps.maps",
         "telegram" to "org.telegram.messenger",
         "snapchat" to "com.snapchat.android",
         "netflix" to "com.netflix.mediaclient",
+        "netfliks" to "com.netflix.mediaclient",
+        "netflex" to "com.netflix.mediaclient",
         "facebook" to "com.facebook.katana",
+        "face book" to "com.facebook.katana",
+        "fb" to "com.facebook.katana",
         "twitter" to "com.twitter.android",
+        "twiter" to "com.twitter.android",
         "x" to "com.twitter.android",
         "google pay" to "com.google.android.apps.nbu.paisa.user",
         "gpay" to "com.google.android.apps.nbu.paisa.user",
@@ -122,10 +144,18 @@ object AppLauncher {
         }
 
         val apps = launchableApps(packageManager)
+        val normQuery = phoneticNormalize(query)
         val match = apps.firstOrNull { it.label.equals(query, ignoreCase = true) }
             ?: apps.firstOrNull { it.label.lowercase().startsWith(query) }
             ?: apps.firstOrNull { it.label.lowercase().contains(query) }
             ?: apps.firstOrNull { it.packageName.lowercase().contains(query) }
+            // Phonetic & soundex-based fuzzy matching
+            ?: apps.firstOrNull { phoneticNormalize(it.label) == normQuery }
+            ?: apps.firstOrNull { phoneticNormalize(it.label).contains(normQuery) || normQuery.contains(phoneticNormalize(it.label)) }
+            // Levenshtein fuzzy distance matching (tolerates 1-2 character typos)
+            ?: apps.minByOrNull { levenshtein(phoneticNormalize(it.label), normQuery) }?.takeIf {
+                levenshtein(phoneticNormalize(it.label), normQuery) <= (if (normQuery.length >= 6) 2 else 1)
+            }
             ?: return null
 
         return try {
@@ -160,5 +190,32 @@ object AppLauncher {
         } catch (e: Exception) {
             packageName
         }
+    }
+
+    private fun phoneticNormalize(s: String): String {
+        return s.lowercase()
+            .replace(Regex("[^a-z0-9]"), "")
+            .replace("ph", "f")
+            .replace("ck", "k")
+            .replace("c", "k")
+            .replace("z", "s")
+            .replace("w", "v")
+            .replace(Regex("(.)\\1+"), "$1")
+    }
+
+    private fun levenshtein(s1: String, s2: String): Int {
+        if (s1 == s2) return 0
+        if (s1.isEmpty()) return s2.length
+        if (s2.isEmpty()) return s1.length
+        val dp = Array(s1.length + 1) { IntArray(s2.length + 1) }
+        for (i in 0..s1.length) dp[i][0] = i
+        for (j in 0..s2.length) dp[0][j] = j
+        for (i in 1..s1.length) {
+            for (j in 1..s2.length) {
+                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+                dp[i][j] = minOf(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
+            }
+        }
+        return dp[s1.length][s2.length]
     }
 }

@@ -387,4 +387,12 @@ object JarvisIcons {
             line("M5 20.4c.7-3.5 3.5-5.4 7-5.4s6.3 1.9 7 5.4")
         }
     }
+
+    val Instagram: ImageVector by lazy {
+        build("instagram") {
+            line("M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4z", 1.8f)
+            line("M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z", 1.8f)
+            solid("M17.5 6.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z")
+        }
+    }
 }

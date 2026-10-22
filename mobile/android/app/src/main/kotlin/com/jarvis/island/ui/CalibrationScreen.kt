@@ -75,6 +75,43 @@ fun CalibrationScreen(onBack: () -> Unit) {
         AppleSubHeader(title = "Calibration", onBack = onBack)
 
         AppleSection(
+            header = "Auto-Calibration on Lock Screen",
+            footer = "Automatically locks your phone, wakes the display, and swipes up to the pattern screen to capture the exact physical pattern bounds."
+        ) {
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                AppleButton(
+                    text = "Auto-Calibrate on Lock Screen",
+                    primary = true,
+                    icon = JarvisIcons.Grid,
+                    onClick = {
+                        commitSettings()
+                        val service = JarvisIslandAccessibilityService.instance
+                        if (service != null) {
+                            service.startLivePatternCalibration { status ->
+                                testStatus = status
+                                gridWidth = settings.patternGridWidthRatio
+                                centerY = settings.patternCenterYRatio
+                            }
+                        } else {
+                            testStatus = "Accessibility service is not running."
+                            Toast.makeText(context, testStatus, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            }
+            if (testStatus != null) {
+                AppleDivider()
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(
+                        text = testStatus!!,
+                        style = AppleType.footnote,
+                        color = Apple.systemBlue
+                    )
+                }
+            }
+        }
+
+        AppleSection(
             header = "Swipe Path (Bypass Fingerprint Sensor)",
             footer = "On phones with in-display optical fingerprint sensors (like the Edge 50 Pro), a center swipe hits the fingerprint area and vibrates or fails. Selecting 'Left' or 'Right' moves the swipe path to the side so the keyguard is dismissed cleanly."
         ) {
@@ -224,15 +261,15 @@ fun CalibrationScreen(onBack: () -> Unit) {
         AppleSection(header = "Defaults") {
             AppleRow(
                 title = "Reset to Edge 50 Pro Defaults",
-                subtitle = "Left swipe (22%) + 71% width grid at 65.8% height",
+                subtitle = "Left swipe (22%) + 68% width grid at 56% height (above FOD sensor)",
                 icon = JarvisIcons.ArrowClockwise,
                 iconTint = Apple.systemOrange,
                 onClick = {
                     strategy = "Left"
                     startX = 0.22f; startY = 0.82f; endX = 0.22f; endY = 0.25f
-                    gridWidth = 0.71f; centerY = 0.658f
+                    gridWidth = 0.68f; centerY = 0.56f
                     commitSettings()
-                    Toast.makeText(context, "Reset to defaults", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Reset to Edge 50 Pro defaults", Toast.LENGTH_SHORT).show()
                 }
             )
         }

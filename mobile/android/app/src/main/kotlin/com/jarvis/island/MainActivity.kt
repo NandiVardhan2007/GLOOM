@@ -137,6 +137,7 @@ import com.jarvis.island.ui.VoiceSettingsScreen
 import com.jarvis.island.ui.AutomationScreen
 import com.jarvis.island.ui.CloudAiScreen
 import com.jarvis.island.ui.CalibrationScreen
+import com.jarvis.island.ui.VaultScreen
 import com.jarvis.island.ui.NotificationSettingsScreen
 import com.jarvis.island.ui.ReelWeekChart
 import com.jarvis.island.security.JarvisSecurity
@@ -204,6 +205,32 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color(0xFF07070A)
                 ) {
+                    val beamFilePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+                    ) { uri: android.net.Uri? ->
+                        if (uri != null) {
+                            val desktopIp = bridgeClient.desktopIp
+                            if (!desktopIp.isNullOrBlank() && bridgeClient.isConnected) {
+                                bridgeClient.beamUriToDesktop(
+                                    uri = uri,
+                                    onProgress = { },
+                                    onComplete = { success ->
+                                        val msg = if (success) "File beamed to desktop!" else "Failed to beam file to desktop"
+                                        android.widget.Toast.makeText(this@MainActivity, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            } else {
+                                android.widget.Toast.makeText(this@MainActivity, "Desktop bridge not connected. Ensure desktop is active on same Wi-Fi.", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+
+                    androidx.compose.runtime.LaunchedEffect(Unit) {
+                        if (intent?.getBooleanExtra("action_beam_file_picker", false) == true) {
+                            beamFilePickerLauncher.launch("*/*")
+                        }
+                    }
+
                     JarvisMasterApp(
                         initialScreen = activeScreenState.value,
                         hasOverlayPermission = hasOverlayState.value,
@@ -215,7 +242,8 @@ class MainActivity : ComponentActivity() {
                         onToggleExpand = { triggerBroadcast(JarvisIslandSettings.ACTION_TOGGLE_EXPAND) },
                         onExpand = { triggerBroadcast(JarvisIslandSettings.ACTION_EXPAND) },
                         onCollapse = { triggerBroadcast(JarvisIslandSettings.ACTION_COLLAPSE) },
-                        onSimulateBeam = { triggerBroadcast(JarvisIslandSettings.ACTION_TEST_BEAM) },
+                        onBeamFile = { beamFilePickerLauncher.launch("*/*") },
+                        onOpenReceivedFiles = { FileBeamReceiver.openJarvisDownloadDirectory(this@MainActivity) },
                         onSimulateMusic = { triggerBroadcast(JarvisIslandSettings.ACTION_TEST_MUSIC) },
                         onSyncClipboard = {
                             val clipMgr = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
@@ -323,7 +351,8 @@ fun JarvisMasterApp(
     onToggleExpand: () -> Unit,
     onExpand: () -> Unit,
     onCollapse: () -> Unit,
-    onSimulateBeam: () -> Unit,
+    onBeamFile: () -> Unit,
+    onOpenReceivedFiles: () -> Unit = {},
     onSimulateMusic: () -> Unit,
     onSyncClipboard: () -> Unit,
     onRestartService: () -> Unit
@@ -394,7 +423,8 @@ fun JarvisMasterApp(
                             onRequestNotificationAccess = onRequestNotificationAccess,
                             onRequestAccessibilityPermission = onRequestAccessibilityPermission,
                             onToggleExpand = onToggleExpand,
-                            onSimulateBeam = onSimulateBeam,
+                            onBeamFile = onBeamFile,
+                            onOpenReceivedFiles = onOpenReceivedFiles,
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
                             onRestartService = onRestartService,
@@ -433,11 +463,15 @@ fun JarvisMasterApp(
                     screen == "settings" && subPage == "security" -> {
                         SecurityScreen(
                             onBack = { settingsSubPage = null },
-                            onOpenCalibration = { settingsSubPage = "calibration" }
+                            onOpenCalibration = { settingsSubPage = "calibration" },
+                            onOpenVault = { settingsSubPage = "vault" }
                         )
                     }
                     screen == "settings" && subPage == "calibration" -> {
                         CalibrationScreen(onBack = { settingsSubPage = "security" })
+                    }
+                    screen == "settings" && subPage == "vault" -> {
+                        VaultScreen(onBack = { settingsSubPage = "security" })
                     }
                     screen == "settings" && subPage == "voice" -> {
                         VoiceSettingsScreen(onBack = { settingsSubPage = null })
@@ -466,7 +500,8 @@ fun JarvisMasterApp(
                             onRequestNotificationAccess = onRequestNotificationAccess,
                             onRequestAccessibilityPermission = onRequestAccessibilityPermission,
                             onToggleExpand = onToggleExpand,
-                            onSimulateBeam = onSimulateBeam,
+                            onBeamFile = onBeamFile,
+                            onOpenReceivedFiles = onOpenReceivedFiles,
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
                             onRestartService = onRestartService,
@@ -497,7 +532,8 @@ fun HomeScreen(
     onRequestNotificationAccess: () -> Unit,
     onRequestAccessibilityPermission: () -> Unit,
     onToggleExpand: () -> Unit,
-    onSimulateBeam: () -> Unit,
+    onBeamFile: () -> Unit,
+    onOpenReceivedFiles: () -> Unit = {},
     onSimulateMusic: () -> Unit,
     onSyncClipboard: () -> Unit,
     onRestartService: () -> Unit,
@@ -622,11 +658,21 @@ fun HomeScreen(
             )
             AppleDivider()
             AppleRow(
-                title = "Beam a sample file",
+                title = "Beam file to PC",
+                subtitle = "Select any file from this phone to send to desktop",
                 icon = JarvisIcons.Beam,
                 iconTint = Apple.systemTeal,
                 showChevron = true,
-                onClick = onSimulateBeam
+                onClick = onBeamFile
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Open Received Files",
+                subtitle = "Downloads/JARVIS folder",
+                icon = JarvisIcons.DownloadDoc,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = onOpenReceivedFiles
             )
             AppleDivider()
             AppleRow(
@@ -655,11 +701,76 @@ fun HomeScreen(
         }
 
         AppleSection(
-            header = "Activity",
-            footer = "JARVIS counts a reel each time the Instagram reels viewer advances. Counts are stored only on this phone."
+            header = "Activity & Screen Time",
+            footer = "Tracks daily screen usage and Instagram Reels locally on this phone with zero cloud transmission."
         ) {
             val reelsToday = com.jarvis.island.automation.ReelCounter.today(context)
             val reelsTotal = com.jarvis.island.automation.ReelCounter.total(context)
+            val screenTimeMins = com.jarvis.island.automation.ScreenTimeTracker.getTodayTotalMinutes(context)
+            val topApps = remember { com.jarvis.island.automation.ScreenTimeTracker.getTodayTopApps(context) }
+
+            AppleRow(
+                title = "Screen Time Today",
+                subtitle = if (screenTimeMins > 0) "Active device usage" else "Tracking active",
+                value = com.jarvis.island.automation.ScreenTimeTracker.formatDuration(screenTimeMins),
+                icon = JarvisIcons.Display,
+                iconTint = Apple.systemBlue
+            )
+
+            if (topApps.isNotEmpty()) {
+                AppleDivider()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        "Top Apps Today",
+                        style = AppleType.footnote,
+                        color = Apple.secondaryLabel
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    val appColors = listOf(Apple.systemBlue, Apple.systemOrange, Apple.systemTeal, Apple.systemPurple)
+                    topApps.forEachIndexed { idx, app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = app.appName,
+                                style = AppleType.subheadline,
+                                color = Apple.label,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = com.jarvis.island.automation.ScreenTimeTracker.formatDuration(app.totalMinutes),
+                                style = AppleType.subheadline,
+                                color = Apple.secondaryLabel
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Apple.fillTertiary)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction = app.percentage)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(appColors[idx % appColors.size])
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+            }
+
+            AppleDivider()
             AppleRow(
                 title = "Instagram Reels",
                 subtitle = if (settings.reelCounterEnabled) "Watched today" else "Counter is off",
@@ -694,15 +805,16 @@ fun HomeScreen(
             }
             AppleDivider()
             AppleRow(
-                title = "Reset today's count",
+                title = "Reset today's stats",
                 icon = JarvisIcons.ArrowClockwise,
                 iconTint = Apple.systemOrange,
                 destructive = false,
                 onClick = {
                     com.jarvis.island.automation.ReelCounter.resetToday(context)
+                    com.jarvis.island.automation.ScreenTimeTracker.resetToday(context)
                     android.widget.Toast.makeText(
                         context,
-                        "Today's reel count is reset",
+                        "Today's stats reset",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 }

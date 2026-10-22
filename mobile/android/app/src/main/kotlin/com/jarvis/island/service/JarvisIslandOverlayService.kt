@@ -56,6 +56,11 @@ import kotlinx.coroutines.launch
 
 class JarvisIslandOverlayService : Service() {
 
+    companion object {
+        var instance: JarvisIslandOverlayService? = null
+            private set
+    }
+
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
@@ -73,6 +78,16 @@ class JarvisIslandOverlayService : Service() {
     private var activeNotification by mutableStateOf<NotificationIslandEvent?>(null)
     private var batteryLevel by mutableIntStateOf(100)
     private var isCharging by mutableStateOf(false)
+    private var reelCount by mutableIntStateOf(0)
+    private var isInstagramForeground by mutableStateOf(false)
+    private var showReelCounterUntil by mutableStateOf(0L)
+
+    fun updateReelCount(count: Int) {
+        serviceScope.launch {
+            reelCount = count
+            showReelCounterUntil = System.currentTimeMillis() + 8000L
+        }
+    }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var collapseJob: Job? = null
@@ -131,6 +146,7 @@ class JarvisIslandOverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         bridgeClient = JarvisLiveBridgeClient(this)
@@ -474,6 +490,12 @@ class JarvisIslandOverlayService : Service() {
             }
 
             setContent {
+                val currentConfig = androidx.compose.ui.platform.LocalConfiguration.current
+                val isLandscape = currentConfig.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                if (isLandscape && !JarvisIslandSettings.instance.showInLandscape) {
+                    return@setContent
+                }
+
                 JarvisIslandApp(
                     isExpanded = isExpanded,
                     onToggleExpand = { toggleIslandExpansion() },
@@ -488,13 +510,12 @@ class JarvisIslandOverlayService : Service() {
                         }
                     },
                     onBeamSampleFile = {
-                        val desktopIp = bridgeClient.desktopIp ?: if (bridgeDevice.ipAddress != "192.168.1.4") bridgeDevice.ipAddress else null
-                        if (bridgeDevice.isConnected && !desktopIp.isNullOrBlank()) {
-                            val sampleFile = File(cacheDir, "JARVIS_Ecosystem_Beam.txt").apply {
-                                writeText("JARVIS AirDrop Continuity Beam\nDevice: ${Build.MANUFACTURER} ${Build.MODEL}\nTimestamp: ${System.currentTimeMillis()}\nStatus: High-Speed LAN Link Active\nPort: 53391\n")
-                            }
-                            FileBeamReceiver.beamFileToDesktop(this@JarvisIslandOverlayService, sampleFile, desktopIp, 53391, { _: Float -> }, { _: Boolean -> })
+                        val itn = Intent(this@JarvisIslandOverlayService, com.jarvis.island.MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra("action_beam_file_picker", true)
                         }
+                        startActivity(itn)
+                        collapseIsland()
                     },
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
@@ -530,6 +551,10 @@ class JarvisIslandOverlayService : Service() {
                     bridgeDevice = bridgeDevice,
                     batteryLevel = batteryLevel,
                     isCharging = isCharging,
+                    reelCount = reelCount,
+                    isInstagramForeground = isInstagramForeground,
+                    showReelCounterUntil = showReelCounterUntil,
+                    onSwipeDown = {},
                     settings = JarvisIslandSettings.instance
                 )
             }
@@ -538,14 +563,38 @@ class JarvisIslandOverlayService : Service() {
         composeView = view
         try {
             windowManager.addView(composeView, params)
+            updateVisibilityForOrientation()
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateVisibilityForOrientation(newConfig)
+    }
+
+    private fun updateVisibilityForOrientation(config: android.content.res.Configuration = resources.configuration) {
+        val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val shouldHide = isLandscape && !JarvisIslandSettings.instance.showInLandscape
+        if (shouldHide) {
+            if (isExpanded) collapseIsland()
+            composeView?.visibility = android.view.View.GONE
+        } else {
+            if (JarvisIslandSettings.instance.isIslandEnabled) {
+                composeView?.visibility = android.view.View.VISIBLE
+            }
+        }
+    }
+
     private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
+        val initialWidth = if (isExpanded) {
+            WindowManager.LayoutParams.MATCH_PARENT
+        } else {
+            dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
+        }
         return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            initialWidth,
             height,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -563,6 +612,11 @@ class JarvisIslandOverlayService : Service() {
     private fun updateOverlayParameters() {
         val params = layoutParams ?: return
         params.flags = getOverlayFlags()
+        params.width = if (isExpanded) {
+            WindowManager.LayoutParams.MATCH_PARENT
+        } else {
+            dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
+        }
         params.height = if (isExpanded) {
             dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         } else {
@@ -579,6 +633,7 @@ class JarvisIslandOverlayService : Service() {
         isExpanded = true
         windowResizeJob?.cancel()
         val params = layoutParams ?: return
+        params.width = WindowManager.LayoutParams.MATCH_PARENT
         params.height = dpToPx((JarvisIslandSettings.instance.expandedHeight + JarvisIslandSettings.instance.positionY + 44).toFloat())
         params.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
         try {
@@ -597,6 +652,7 @@ class JarvisIslandOverlayService : Service() {
             delay(380)
             if (isExpanded) return@launch
             val params = layoutParams ?: return@launch
+            params.width = dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
             params.height = dpToPx((JarvisIslandSettings.instance.positionY + JarvisIslandSettings.instance.pillHeight + 20).toFloat())
             params.flags = getOverlayFlags()
             try {

@@ -28,13 +28,13 @@ class JarvisIslandSettings {
         const val ACTION_MEDIA_PREV = "com.jarvis.island.ACTION_MEDIA_PREV"
 
         // Apple Live Activity geometry (HIG, iOS 393 x 852 class):
-        // rest 126 x 37, compact 230 x 37 (camera band 125.34),
+        // rest 126 x 37, compact 180 x 37 (camera band 125.34),
         // expanded 371 x 160 with 44 dp corners.
         const val DEFAULT_GRAVITY = "Center"
         const val DEFAULT_POSITION_Y = 2  // Hug the status bar
         const val DEFAULT_POSITION_X = 0  // Dead-center
         const val DEFAULT_CUTOUT_CLEARANCE = 125
-        const val DEFAULT_PILL_WIDTH = 230
+        const val DEFAULT_PILL_WIDTH = 180
         const val DEFAULT_PILL_HEIGHT = 37
         const val DEFAULT_EXPANDED_WIDTH = 371
         const val DEFAULT_EXPANDED_HEIGHT = 160
@@ -59,6 +59,7 @@ class JarvisIslandSettings {
         const val DEFAULT_NOTIFICATION_TRIAGE = true
         const val DEFAULT_OTP_COPY = true
         const val DEFAULT_AI_BRAIN = "auto"
+        const val DEFAULT_PLANNER_PROFILE = "flash"
         const val DEFAULT_REEL_MIN_DWELL_MS = 1200
 
         // Lock & Pattern Calibration (bypasses in-display optical fingerprint sensors)
@@ -67,8 +68,8 @@ class JarvisIslandSettings {
         const val DEFAULT_SWIPE_START_Y = 0.82f
         const val DEFAULT_SWIPE_END_X = 0.22f
         const val DEFAULT_SWIPE_END_Y = 0.25f
-        const val DEFAULT_PATTERN_GRID_WIDTH = 0.71f
-        const val DEFAULT_PATTERN_CENTER_Y = 0.658f
+        const val DEFAULT_PATTERN_GRID_WIDTH = 0.68f
+        const val DEFAULT_PATTERN_CENTER_Y = 0.56f
     }
 
     // ── 0. Master & Plugins ──
@@ -85,6 +86,7 @@ class JarvisIslandSettings {
     var notificationTriageEnabled by mutableStateOf(DEFAULT_NOTIFICATION_TRIAGE)
     var otpCopyEnabled by mutableStateOf(DEFAULT_OTP_COPY)
     var aiBrain by mutableStateOf(DEFAULT_AI_BRAIN)
+    var plannerProfile by mutableStateOf(DEFAULT_PLANNER_PROFILE)
     var reelMinDwellMs by mutableIntStateOf(DEFAULT_REEL_MIN_DWELL_MS)
     var blockedPackages by mutableStateOf<Set<String>>(emptySet())
 
@@ -148,6 +150,7 @@ class JarvisIslandSettings {
         notificationTriageEnabled = prefs.getBoolean("notification_triage", DEFAULT_NOTIFICATION_TRIAGE)
         otpCopyEnabled = prefs.getBoolean("otp_copy", DEFAULT_OTP_COPY)
         aiBrain = prefs.getString("ai_brain", DEFAULT_AI_BRAIN) ?: DEFAULT_AI_BRAIN
+        plannerProfile = prefs.getString("planner_profile", DEFAULT_PLANNER_PROFILE) ?: DEFAULT_PLANNER_PROFILE
         reelMinDwellMs = prefs.getInt("reel_min_dwell_ms", DEFAULT_REEL_MIN_DWELL_MS)
         blockedPackages = prefs.getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
 
@@ -188,13 +191,20 @@ class JarvisIslandSettings {
 
     /**
      * One-time move from the pre-Apple geometry (184 x 38 / 380 x 260 / 32 dp
-     * corners) to the HIG Live Activity dimensions. User-customized geometry
-     * is left alone.
+     * corners) or previous 230dp default to the compact 180dp HIG Live Activity dimensions.
+     * User-customized geometry is left alone.
      */
     private fun migrateLegacyGeometry(prefs: android.content.SharedPreferences) {
-        if (prefs.getBoolean("apple_island_v2", false)) return
         val editor = prefs.edit()
-        val legacy = prefs.getInt("pill_width", -1) == 184 &&
+        val currentPillWidth = prefs.getInt("pill_width", -1)
+        if (currentPillWidth == 230 || currentPillWidth == 184) {
+            editor.putInt("pill_width", DEFAULT_PILL_WIDTH)
+        }
+        if (prefs.getBoolean("apple_island_v2", false)) {
+            editor.apply()
+            return
+        }
+        val legacy = currentPillWidth == 184 &&
             prefs.getInt("pill_height", -1) == 38 &&
             prefs.getInt("expanded_width", -1) == 380 &&
             prefs.getInt("expanded_height", -1) == 260
@@ -231,6 +241,7 @@ class JarvisIslandSettings {
             .putBoolean("notification_triage", notificationTriageEnabled)
             .putBoolean("otp_copy", otpCopyEnabled)
             .putString("ai_brain", aiBrain)
+            .putString("planner_profile", plannerProfile)
             .putInt("reel_min_dwell_ms", reelMinDwellMs)
             .putStringSet("blocked_packages", blockedPackages)
             .putString("swipe_strategy", swipeStrategy)

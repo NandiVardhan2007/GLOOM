@@ -38,6 +38,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -114,7 +117,7 @@ object IslandThemePalettes {
 }
 
 enum class IslandCompactKind {
-    MEDIA, TIMER, TRANSFER, NOTIFICATION, CHARGING, DROP, IDLE
+    MEDIA, TIMER, TRANSFER, NOTIFICATION, CHARGING, DROP, REEL_COUNTER, IDLE
 }
 
 /** Small 4-bar equalizer in the SF Symbols waveform spirit. */
@@ -207,6 +210,7 @@ fun AppleCompactContent(
     wingWidth: Dp,
     cameraGap: Dp,
     inset: Dp,
+    reelCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val contentTransition = (
@@ -270,6 +274,11 @@ fun AppleCompactContent(
                             tint = Apple.systemBlue,
                             background = Apple.systemBlue.copy(alpha = 0.18f)
                         )
+                        IslandCompactKind.REEL_COUNTER -> CompactGlyphCircle(
+                            icon = JarvisIcons.Instagram,
+                            tint = Color.White,
+                            background = Color(0xFFE1306C)
+                        )
                         IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
                     }
                 }
@@ -327,6 +336,12 @@ fun AppleCompactContent(
                             color = Apple.systemBlue,
                             maxLines = 1
                         )
+                        IslandCompactKind.REEL_COUNTER -> Text(
+                            text = "$reelCount",
+                            style = IslandType.compactNumber,
+                            color = Color.White,
+                            maxLines = 1
+                        )
                         IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
                     }
                 }
@@ -336,7 +351,7 @@ fun AppleCompactContent(
 }
 
 @Composable
-private fun CompactGlyphCircle(
+fun CompactGlyphCircle(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     tint: Color,
     background: Color
@@ -610,16 +625,28 @@ fun AppleNotificationActivity(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val haptic = LocalHapticFeedback.current
     var copied by remember(event.id) { mutableStateOf(false) }
+    var isReplying by remember(event.id) { mutableStateOf(false) }
+    var replyText by remember(event.id) { mutableStateOf("") }
+    var replySent by remember(event.id) { mutableStateOf(false) }
     val otpCode = event.otpCode
+    val replyAction = event.replyAction
 
     fun copyCode() {
         val code = otpCode ?: return
         clipboard.setText(AnnotatedString(code))
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         copied = true
+    }
+
+    androidx.compose.runtime.LaunchedEffect(replySent) {
+        if (replySent) {
+            delay(900)
+            onDismiss()
+        }
     }
 
     Column(
@@ -712,37 +739,123 @@ fun AppleNotificationActivity(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (otpCode != null) {
-                AppleActivityButton(
-                    text = if (copied) "Copied" else "Copy Code",
-                    background = accentColor,
-                    foreground = Color.White,
+        if (replySent) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x2EFFFFFF)),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                JarvisIcon(JarvisIcons.CheckCircleFill, Apple.systemGreen, 16.dp)
+                Spacer(Modifier.width(6.dp))
+                Text("Reply Sent", style = IslandType.caption, color = Color.White)
+            }
+        } else if (isReplying && replyAction != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(19.dp))
+                    .background(Color(0x2EFFFFFF))
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BasicTextField(
+                    value = replyText,
+                    onValueChange = { replyText = it },
+                    textStyle = IslandType.subtitle.copy(color = Color.White),
+                    cursorBrush = SolidColor(Apple.systemBlue),
+                    singleLine = true,
                     modifier = Modifier.weight(1f),
-                    onClick = { copyCode() }
+                    decorationBox = { innerTextField ->
+                        if (replyText.isEmpty()) {
+                            Text(
+                                text = "Reply to ${event.title.take(16)}...",
+                                style = IslandType.caption,
+                                color = Apple.tertiaryLabel
+                            )
+                        }
+                        innerTextField()
+                    }
                 )
-                AppleActivityButton(
-                    text = "Open App",
-                    background = Color(0x24FFFFFF),
-                    foreground = Color.White,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpen
-                )
-            } else {
-                AppleActivityButton(
-                    text = "Open App",
-                    background = accentColor,
-                    foreground = Color.White,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpen
-                )
-                AppleActivityButton(
-                    text = "Dismiss",
-                    background = Color(0x24FFFFFF),
-                    foreground = Color.White,
-                    modifier = Modifier.weight(1f),
-                    onClick = onDismiss
-                )
+                if (replyText.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Apple.systemBlue)
+                            .clickable {
+                                val ok = replyAction.send(context, replyText)
+                                if (ok) {
+                                    replySent = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        JarvisIcon(JarvisIcons.ChevronUp, Color.White, 16.dp)
+                    }
+                }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (otpCode != null) {
+                    AppleActivityButton(
+                        text = if (copied) "Copied" else "Copy Code",
+                        background = accentColor,
+                        foreground = Color.White,
+                        modifier = Modifier.weight(1f),
+                        onClick = { copyCode() }
+                    )
+                    AppleActivityButton(
+                        text = "Open App",
+                        background = Color(0x24FFFFFF),
+                        foreground = Color.White,
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpen
+                    )
+                } else if (replyAction != null) {
+                    AppleActivityButton(
+                        text = "Reply",
+                        background = accentColor,
+                        foreground = Color.White,
+                        modifier = Modifier.weight(1.2f),
+                        onClick = { isReplying = true }
+                    )
+                    AppleActivityButton(
+                        text = "Open",
+                        background = Color(0x24FFFFFF),
+                        foreground = Color.White,
+                        modifier = Modifier.weight(0.9f),
+                        onClick = onOpen
+                    )
+                    AppleActivityButton(
+                        text = "Dismiss",
+                        background = Color(0x24FFFFFF),
+                        foreground = Color.White,
+                        modifier = Modifier.weight(0.9f),
+                        onClick = onDismiss
+                    )
+                } else {
+                    AppleActivityButton(
+                        text = "Open App",
+                        background = accentColor,
+                        foreground = Color.White,
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpen
+                    )
+                    AppleActivityButton(
+                        text = "Dismiss",
+                        background = Color(0x24FFFFFF),
+                        foreground = Color.White,
+                        modifier = Modifier.weight(1f),
+                        onClick = onDismiss
+                    )
+                }
             }
         }
     }
@@ -1023,7 +1136,7 @@ private fun ActivityCloseButton(onClose: (() -> Unit)?) {
 }
 
 @Composable
-private fun AppleActivityButton(
+fun AppleActivityButton(
     text: String,
     background: Color,
     foreground: Color,

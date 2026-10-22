@@ -175,6 +175,25 @@ fun AutomationScreen(onBack: () -> Unit) {
         }
 
         AppleSection(
+            header = "Agent Execution Profile",
+            footer = "Flash executes immediate reactive actions with minimal latency. Pro performs deep multi-step planning, screen-diff verification, and autonomous self-correction."
+        ) {
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                val profileOptions = listOf("Flash (Fast)", "Pro (Verify & Correct)")
+                val selectedProfile = if (settings.plannerProfile == "pro") 1 else 0
+                AppleSegmentedControl(
+                    options = profileOptions,
+                    selectedIndex = selectedProfile,
+                    onSelect = { index ->
+                        settings.plannerProfile = if (index == 1) "pro" else "flash"
+                        settings.save(context)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+            }
+        }
+
+        AppleSection(
             header = "Readiness",
             footer = "Checked on this device. Nothing here is sent anywhere."
         ) {

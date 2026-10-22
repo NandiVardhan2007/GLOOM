@@ -1,5 +1,9 @@
 package com.jarvis.island.ui
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,15 +26,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.jarvis.island.ai.AiRouter
+import com.jarvis.island.ai.KeyBatchImporter
 import com.jarvis.island.ai.SecureKeyStore
 import com.jarvis.island.ai.StandaloneAiClient
 import com.jarvis.island.bridge.JarvisLiveBridgeClient
+import kotlinx.coroutines.launch
 
 /**
  * Settings > AI & Brain > Cloud API Keys.
@@ -39,9 +49,30 @@ import com.jarvis.island.bridge.JarvisLiveBridgeClient
 @Composable
 fun CloudAiScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var refreshTick by remember { mutableIntStateOf(0) }
     var keyDialogProvider by remember { mutableStateOf<String?>(null) }
     var modelDialogProvider by remember { mutableStateOf<String?>(null) }
+    var importProgress by remember { mutableStateOf<KeyBatchImporter.ImportProgress?>(null) }
+    var showPasteJsonDialog by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            val content = runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+            if (!content.isNullOrBlank()) {
+                scope.launch {
+                    KeyBatchImporter.importJson(context, content) { progress ->
+                        importProgress = progress
+                        if (progress.isFinished) refreshTick += 1
+                    }
+                }
+            } else {
+                Toast.makeText(context, "Could not read the selected file", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     val bridge = JarvisLiveBridgeClient.activeClient
     val desktopConnected = bridge?.isConnected == true && bridge.desktopIp != null
@@ -121,6 +152,29 @@ fun CloudAiScreen(onBack: () -> Unit) {
         }
 
         AppleSection(
+            header = "Batch Import",
+            footer = "Upload a keys.json file or paste JSON keys from your computer. Every key is validated individually and only verified working keys are saved."
+        ) {
+            AppleRow(
+                title = "Upload keys.json",
+                subtitle = "Select JSON file to test and import",
+                icon = JarvisIcons.DownloadDoc,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = { filePickerLauncher.launch("*/*") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Paste JSON Keys",
+                subtitle = "Paste raw JSON with keys",
+                icon = JarvisIcons.Clipboard,
+                iconTint = Apple.systemPurple,
+                showChevron = true,
+                onClick = { showPasteJsonDialog = true }
+            )
+        }
+
+        AppleSection(
             header = "Privacy",
             footer = "Keys are sealed with an Android Keystore AES-256-GCM master key. " +
                 "They are never compiled into the app, synced to the desktop, or written to logs."
@@ -134,6 +188,99 @@ fun CloudAiScreen(onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(28.dp))
+    }
+
+    importProgress?.let { progress ->
+        AlertDialog(
+            onDismissRequest = {
+                if (progress.isFinished) importProgress = null
+            },
+            title = {
+                Text(if (progress.isFinished) "Import Finished" else "Testing Keys…")
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (!progress.isFinished) {
+                        CircularProgressIndicator(color = Apple.systemBlue, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Testing key ${progress.testedCount + 1} of ${progress.totalFound}",
+                            style = AppleType.body,
+                            color = Apple.label
+                        )
+                        Text(
+                            text = "${progress.currentProvider} · ${progress.currentKeyMasked}",
+                            style = AppleType.footnote,
+                            color = Apple.secondaryLabel
+                        )
+                    } else {
+                        Text(
+                            text = progress.summary ?: "Validation complete.",
+                            style = AppleType.body,
+                            color = Apple.label
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (progress.isFinished) {
+                    TextButton(onClick = { importProgress = null }) {
+                        Text("Done", color = Apple.systemBlue)
+                    }
+                }
+            }
+        )
+    }
+
+    if (showPasteJsonDialog) {
+        var pastedText by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showPasteJsonDialog = false },
+            title = { Text("Paste JSON Keys") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Paste any JSON format with Groq or OpenRouter keys (e.g. {\"groq\": [\"gsk_...\"]}).",
+                        style = AppleType.footnote,
+                        color = Apple.secondaryLabel
+                    )
+                    OutlinedTextField(
+                        value = pastedText,
+                        onValueChange = { pastedText = it },
+                        placeholder = { Text("{\"groq\": [\"gsk_...\"], \"openrouter\": [\"sk-or-...\"]}") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        maxLines = 8,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val input = pastedText.trim()
+                        showPasteJsonDialog = false
+                        if (input.isNotEmpty()) {
+                            scope.launch {
+                                KeyBatchImporter.importJson(context, input) { progress ->
+                                    importProgress = progress
+                                    if (progress.isFinished) refreshTick += 1
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Test & Import", color = Apple.systemBlue)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPasteJsonDialog = false }) {
+                    Text("Cancel", color = Apple.secondaryLabel)
+                }
+            }
+        )
     }
 
     keyDialogProvider?.let { providerId ->

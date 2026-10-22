@@ -236,8 +236,9 @@ class VoiceUnlockActivity : ComponentActivity() {
         }
         if (text.isNotBlank()) {
             val brain = com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain
-            val isAction = com.jarvis.island.automation.CommandRouter.isCommand(text) ||
-                (brain != "local" && com.jarvis.island.automation.AiPlanner.looksLikeAction(text))
+            val cleaned = com.jarvis.island.automation.CommandRouter.cleanSpeech(text)
+            val isAction = com.jarvis.island.automation.CommandRouter.isCommand(cleaned) ||
+                (brain != "local" && com.jarvis.island.automation.AiPlanner.looksLikeAction(cleaned))
             if (isAction) {
                 matched = true
                 status = "Working…"
@@ -251,16 +252,16 @@ class VoiceUnlockActivity : ComponentActivity() {
                     Handler(Looper.getMainLooper()).postDelayed({
                         Thread {
                             var outcome = com.jarvis.island.automation.CommandRouter
-                                .handle(appContext, text)
+                                .handle(appContext, cleaned)
                             if (!outcome.handled) {
                                 outcome = com.jarvis.island.automation.LocalBrain
-                                    .answer(appContext, text)
+                                    .answer(appContext, cleaned)
                             }
                             if (!outcome.handled &&
                                 com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain != "local"
                             ) {
                                 outcome = com.jarvis.island.automation.AiPlanner
-                                    .run(appContext, text)
+                                    .run(appContext, cleaned)
                             }
                             if (!outcome.handled) {
                                 outcome = com.jarvis.island.automation.CommandRouter.Outcome(
@@ -491,9 +492,9 @@ class VoiceUnlockActivity : ComponentActivity() {
         private const val REQUEST_MIC = 4102
         private const val EXTRA_PROMPT_ONLY = "prompt_only"
         private const val SYSTEM_PROMPT =
-            "You are JARVIS, the user's concise voice assistant on their Android phone. " +
-                "Reply in at most three short sentences unless the user asks for detail. " +
-                "Be direct and helpful. Never claim you performed an action you did not perform."
+            "You are JARVIS, the personal AI assistant controlling this Android phone. " +
+                "Keep spoken replies concise, friendly, and under two sentences. " +
+                "Be direct and helpful."
     }
 }
 

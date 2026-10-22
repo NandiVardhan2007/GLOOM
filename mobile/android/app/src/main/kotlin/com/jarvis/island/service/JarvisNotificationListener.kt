@@ -201,15 +201,14 @@ class JarvisNotificationListener : NotificationListenerService() {
             Log.d(TAG, "Skipping silent notification from ${sbn.packageName} (${sbn.notification.channelId})")
             return
         }
-        val protectedCategory = sbn.notification.category == Notification.CATEGORY_CALL ||
-            sbn.notification.category == Notification.CATEGORY_ALARM ||
-            sbn.notification.category == Notification.CATEGORY_EVENT ||
-            sbn.notification.category == Notification.CATEGORY_PROGRESS
-        val protectedFlags =
-            (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
-                (sbn.notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
-        val systemPackage = sbn.packageName == "android" || sbn.packageName == "com.android.systemui"
-        if (protectedCategory || protectedFlags || systemPackage || sbn.isOngoing) return
+        val isCall = sbn.notification.category == Notification.CATEGORY_CALL
+        val isAlarm = sbn.notification.category == Notification.CATEGORY_ALARM
+        val isProgress = sbn.notification.category == Notification.CATEGORY_PROGRESS
+        val isSystemForeground = (sbn.packageName == "android" || sbn.packageName == "com.android.systemui") && !isCall
+
+        // Route calls, messages, OTPs, reminders to Dynamic Island; only drop background system spinners
+        if (isProgress || isSystemForeground) return
+        if (!isCall && !isAlarm && sbn.isOngoing && (sbn.notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) return
 
         if (title.isBlank() && text.isBlank()) return
 
@@ -282,6 +281,24 @@ class JarvisNotificationListener : NotificationListenerService() {
             null
         }
 
+        var replyAction: com.jarvis.island.ui.NotificationReplyAction? = null
+        val notifActions = sbn.notification.actions
+        if (notifActions != null) {
+            for (action in notifActions) {
+                val remoteInputs = action.remoteInputs
+                if (remoteInputs != null && remoteInputs.isNotEmpty()) {
+                    val input = remoteInputs.first()
+                    replyAction = com.jarvis.island.ui.NotificationReplyAction(
+                        label = action.title?.toString() ?: "Reply",
+                        pendingIntent = action.actionIntent,
+                        remoteInput = input,
+                        resultKey = input.resultKey
+                    )
+                    break
+                }
+            }
+        }
+
         val event = com.jarvis.island.ui.NotificationIslandEvent(
             id = sbn.key ?: sbn.id.toString(),
             packageName = sbn.packageName,
@@ -293,6 +310,7 @@ class JarvisNotificationListener : NotificationListenerService() {
             contentIntent = sbn.notification.contentIntent,
             postTimeMs = sbn.postTime,
             otpCode = otpCode,
+            replyAction = replyAction,
         )
 
         // Dismiss the status-bar copy as early as possible so the alert is

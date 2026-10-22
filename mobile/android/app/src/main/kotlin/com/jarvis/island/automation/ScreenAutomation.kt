@@ -256,6 +256,42 @@ object ScreenAutomation {
         return ok
     }
 
+    /**
+     * Executes a rapid burst of physical taps at an element with small intervals (e.g. 70ms).
+     * Essential for transient popups, double-taps, or rapid confirmation dialogs.
+     */
+    fun tapBurst(eid: Int, count: Int = 2, intervalMs: Long = 70L): Boolean {
+        val element = element(eid) ?: return false
+        val cx = element.bounds.centerX().toFloat()
+        val cy = element.bounds.centerY().toFloat()
+        if (cx <= 0f || cy <= 0f) return false
+
+        var success = false
+        repeat(count.coerceIn(2, 5)) {
+            val ok = tapPoint(cx, cy)
+            if (ok) success = true
+            SystemClock.sleep(intervalMs)
+        }
+        invalidate()
+        return success
+    }
+
+    /**
+     * Executes a chain sequence of taps across multiple elements in rapid succession.
+     */
+    fun tapSequence(eids: List<Int>, intervalMs: Long = 120L): Int {
+        var completed = 0
+        for (eid in eids) {
+            if (tap(eid)) {
+                completed++
+                SystemClock.sleep(intervalMs)
+            } else {
+                break
+            }
+        }
+        return completed
+    }
+
     fun tapLabel(
         labels: List<String>,
         contains: Boolean = true,
@@ -298,6 +334,32 @@ object ScreenAutomation {
     fun clickLabel(labels: List<String>, contains: Boolean = true): Boolean {
         val element = tapLabel(labels, contains) ?: return false
         return tap(element.eid)
+    }
+
+    /**
+     * Types text into the focused field, strictly guaranteeing that:
+     * 1. If the field already holds the desired text, it skips typing to prevent duplicate repeats.
+     * 2. If clearFirst is true, clears any existing text completely before typing.
+     * 3. Prevents repeated WhatsApp search queries or duplicate messages.
+     */
+    fun typeTextUnique(text: String, clearFirst: Boolean = true): TypeResult {
+        val svc = service() ?: return TypeResult(false, "none", "Accessibility is not running")
+        val focused = focusedEditable(svc) ?: findEditableNode(svc)
+        if (focused != null) {
+            val current = runCatching { focused.text?.toString().orEmpty().trim() }.getOrDefault("")
+            if (current.equals(text.trim(), ignoreCase = true)) {
+                Log.i(TAG, "Field already contains exact text '$text'; skipping duplicate typing.")
+                return TypeResult(true, "deduped", "Text already present")
+            }
+            if (clearFirst && current.isNotEmpty()) {
+                val clearBundle = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+                }
+                runCatching { focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, clearBundle) }
+                SystemClock.sleep(80)
+            }
+        }
+        return typeText(text)
     }
 
     fun typeText(text: String): TypeResult {

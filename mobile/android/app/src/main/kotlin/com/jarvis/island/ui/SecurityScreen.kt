@@ -30,7 +30,7 @@ import com.jarvis.island.security.BiometricAuth
 import com.jarvis.island.security.JarvisSecurity
 
 @Composable
-fun SecurityScreen(onBack: () -> Unit, onOpenCalibration: (() -> Unit)? = null) {
+fun SecurityScreen(onBack: () -> Unit, onOpenCalibration: (() -> Unit)? = null, onOpenVault: (() -> Unit)? = null) {
     val context = LocalContext.current
     val activity = context as? Activity
     val scrollState = rememberScrollState()
@@ -107,6 +107,17 @@ fun SecurityScreen(onBack: () -> Unit, onOpenCalibration: (() -> Unit)? = null) 
                         }
                     }
                 )
+                if (onOpenVault != null) {
+                    AppleDivider()
+                    AppleRow(
+                        title = "Password Vault",
+                        subtitle = "Encrypted credentials for agent autofill",
+                        icon = JarvisIcons.Shield,
+                        iconTint = Apple.systemBlue,
+                        showChevron = true,
+                        onClick = onOpenVault
+                    )
+                }
             }
 
             AppleSection(header = "Pattern") {
