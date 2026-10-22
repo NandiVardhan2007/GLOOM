@@ -1,4 +1,4 @@
-name: Build JARVIS Ecosystem (Android APK & Windows EXE)
+name: Build GLOOM Ecosystem (Android APK & Windows EXE)
 
 on:
   push:
@@ -85,17 +85,17 @@ jobs:
       - name: Rename and Prepare APK Artifact
         run: |
           mkdir -p build-artifacts
-          cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/JARVIS-Island-Release.apk
+          cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/GLOOM-Island-Release.apk
           cd build-artifacts
-          sha256sum JARVIS-Island-Release.apk > JARVIS-Island-Release.apk.sha256
+          sha256sum GLOOM-Island-Release.apk > GLOOM-Island-Release.apk.sha256
 
       - name: Upload Android Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Island-Android-Release-APK
+          name: GLOOM-Island-Android-Release-APK
           path: |
-            build-artifacts/JARVIS-Island-Release.apk
-            build-artifacts/JARVIS-Island-Release.apk.sha256
+            build-artifacts/GLOOM-Island-Release.apk
+            build-artifacts/GLOOM-Island-Release.apk.sha256
           retention-days: 30
 
   # ══════════════════════════════════════════════════════════════
@@ -159,17 +159,35 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path build-artifacts -Force
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/jarvis.iss
-          $hash = (Get-FileHash -Algorithm SHA256 -Path build-artifacts/JARVIS-Island-Setup.exe).Hash.ToLower()
-          "$hash  JARVIS-Island-Setup.exe" | Out-File -FilePath build-artifacts/JARVIS-Island-Setup.exe.sha256 -Encoding ascii
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/gloom.iss
+          $hash = (Get-FileHash -Algorithm SHA256 -Path build-artifacts/GLOOM-Island-Setup.exe).Hash.ToLower()
+          "$hash  GLOOM-Island-Setup.exe" | Out-File -FilePath build-artifacts/GLOOM-Island-Setup.exe.sha256 -Encoding ascii
+          if ($env:GITHUB_REF -like "refs/tags/*") {
+            $tag = $env:GITHUB_REF_NAME
+          } else {
+            $tag = "v1.0.$env:GITHUB_RUN_NUMBER"
+          }
+          $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $manifest = @{
+            version = $tag
+            notes = "GLOOM Dynamic Island Release $tag"
+            pub_date = $pubDate
+            platforms = @{
+              "windows-x86_64" = @{
+                url = "https://github.com/NandiVardhan2007/JARVIS/releases/download/$tag/GLOOM-Island-Setup.exe"
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          $manifest | Out-File -FilePath build-artifacts/latest.json -Encoding utf8
 
       - name: Upload Windows Setup Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Island-Windows-Setup-EXE
+          name: GLOOM-Island-Windows-Setup-EXE
           path: |
-            build-artifacts/JARVIS-Island-Setup.exe
-            build-artifacts/JARVIS-Island-Setup.exe.sha256
+            build-artifacts/GLOOM-Island-Setup.exe
+            build-artifacts/GLOOM-Island-Setup.exe.sha256
+            build-artifacts/latest.json
           retention-days: 14
 
   # ══════════════════════════════════════════════════════════════
@@ -189,37 +207,37 @@ jobs:
       - name: Download Android Artifact
         uses: actions/download-artifact@v4
         with:
-          name: JARVIS-Island-Android-Release-APK
+          name: GLOOM-Island-Android-Release-APK
           path: release-assets
 
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
         with:
-          name: JARVIS-Island-Windows-Setup-EXE
+          name: GLOOM-Island-Windows-Setup-EXE
           path: release-assets
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('JARVIS Dynamic Island Release {0}', github.ref_name) || format('JARVIS Dynamic Island Release v1.0.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('GLOOM Dynamic Island Release {0}', github.ref_name) || format('GLOOM Dynamic Island Release v1.0.{0}', github.run_number) }}
           draft: false
           prerelease: false
           make_latest: true
           body: |
-            ### JARVIS 1.4.0 — Needle-3 Tool Engine, Calibrated Pattern Unlock, Sub-2.5s Direct Automation
-            - **Needle-3 On-Device Tool Caller**: Integrated sub-25ms grammar-constrained local decision engine (`NeedleBridge.kt` + `needle3.cact`) for immediate offline and online screen actions.
-            - **Lock Screen Pattern Unlock & Hardware Calibration**: Full 9-dot gesture unlock verified on hardware with precise center-Y/grid ratio calibration and seamless Keyguard dismissal.
-            - **Sub-2.5s Direct Messaging & App Automation**: Deterministic WhatsApp, SMS, and Email automation targeting verified entry nodes and contact name centers with 0 false-positive memory intercepts.
-            - **Instagram Reel Counter Hardening**: Excludes non-reel/settings pages and rejects backward scrolls to previous reels.
-            - **Stable HIG Island Dimensions**: Removed idle collapse to camera cutout; maintains consistent Apple Human Interface Guidelines aesthetic across states.
-            - **Windows Inno Setup Installer**: Standard Windows Setup wizard (replaces portable executable) with Start Menu integration, desktop shortcut, optional startup launch, and clean uninstaller.
-            - **Desktop & Mobile Parity**: Dynamic Island notch overlay, LiveBridge encrypted communication, and modern SF-style vector glyphs.
+            ### GLOOM 1.5.0 — Gloom Mobile Rebranding, Desktop Notch Parity, and Robust Auto-Updaters
+            - **Complete Gloom Mobile Rebranding & Ghost Launcher Icon**: Unified branding across Android and Windows desktop with crisp obsidian ghost adaptive icons and themed components.
+            - **Desktop Notch Style on Mobile**: Dynamic Island now supports the desktop notch geometry with C1 cubic-bezier concave shoulder flares, flush top bezel alignment, flat top edge, and rounded bottom corners.
+            - **Streamlined Mobile Experience & Legal Pages**: Clean 3-tab layout (Island, Settings, About) removing non-functional design placeholders, plus dedicated in-app Privacy Policy, Setup Guide & FAQ, and Open Source Licenses.
+            - **Symmetric Auto In-App Updaters**: Desktop and mobile updaters now directly check GitHub releases, download authentic artifacts with live progress tracking, and safely install updates.
+            - **Windows NSIS & Inno Setup Integration**: Standardized Windows installer bundles with Start Menu integration, desktop shortcuts, and automated silent updater flow.
+            - **Parity & Continuity**: LiveBridge TLS encrypted communication, Universal Clipboard, and LAN File Beam.
           generate_release_notes: true
           files: |
-            release-assets/**/JARVIS-Island-Release.apk
-            release-assets/**/JARVIS-Island-Release.apk.sha256
-            release-assets/**/JARVIS-Island-Setup.exe
-            release-assets/**/JARVIS-Island-Setup.exe.sha256
+            release-assets/**/GLOOM-Island-Release.apk
+            release-assets/**/GLOOM-Island-Release.apk.sha256
+            release-assets/**/GLOOM-Island-Setup.exe
+            release-assets/**/GLOOM-Island-Setup.exe.sha256
+            release-assets/**/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

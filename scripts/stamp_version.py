@@ -48,12 +48,12 @@ def stamp_android(version: str, version_code: str) -> None:
 
 
 def stamp_iss(version: str) -> None:
-    path = ROOT / "installer/jarvis.iss"
-    if not path.exists():
-        return
-    text = path.read_text(encoding="utf-8")
-    text = re.sub(r'(?m)^#define\s+MyAppVersion\s+"[^"]*"', f'#define MyAppVersion "{version}"', text)
-    path.write_text(text, encoding="utf-8")
+    for name in ["installer/gloom.iss", "installer/jarvis.iss"]:
+        path = ROOT / name
+        if path.exists():
+            text = path.read_text(encoding="utf-8")
+            text = re.sub(r'(?m)^#define\s+MyAppVersion\s+"[^"]*"', f'#define MyAppVersion "{version}"', text)
+            path.write_text(text, encoding="utf-8")
 
 
 def main() -> int:

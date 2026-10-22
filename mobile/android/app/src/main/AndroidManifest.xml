@@ -66,12 +66,12 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="JARVIS Island"
+        android:label="GLOOM Island"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.JarvisIsland">
+        android:theme="@style/Theme.GloomIsland">
 
         <activity
             android:name=".MainActivity"
@@ -91,7 +91,7 @@
             android:launchMode="singleTop"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:theme="@style/Theme.JarvisIsland.Transparent" />
+            android:theme="@style/Theme.GloomIsland.Transparent" />
 
         <!-- FileProvider for In-App Updates and File Sharing -->
         <provider
@@ -106,14 +106,14 @@
 
         <!-- Floating Dynamic Island Overlay Service -->
         <service
-            android:name=".service.JarvisIslandOverlayService"
+            android:name=".service.GloomIslandOverlayService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
         <!-- Floating Dynamic Island Accessibility & Lock Screen Service -->
         <service
-            android:name=".service.JarvisIslandAccessibilityService"
+            android:name=".service.GloomIslandAccessibilityService"
             android:enabled="true"
             android:exported="true"
             android:label="@string/accessibility_service_label"
@@ -132,7 +132,7 @@
             android:screenOrientation="fullSensor"
             tools:replace="screenOrientation" />
 
-        <!-- Hey JARVIS wake word -->
+        <!-- Hey GLOOM wake word -->
         <service
             android:name=".voice.WakeWordService"
             android:enabled="true"
@@ -141,7 +141,7 @@
 
         <!-- Notification & Media Session Listener -->
         <service
-            android:name=".service.JarvisNotificationListener"
+            android:name=".service.GloomNotificationListener"
             android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>

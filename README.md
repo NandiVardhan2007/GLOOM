@@ -1,18 +1,18 @@
-# JARVIS — Cross-Platform Glanceable Activity Surface & Connected Ecosystem
+# GLOOM — Cross-Platform Glanceable Activity Surface & Connected Ecosystem
 ### Apple-inspired Dynamic Island-style overlay for Windows and Android
 
-[![Latest Release](https://img.shields.io/github/v/release/NandiVardhan2007/JARVIS?color=007aff&label=Release&logo=github)](https://github.com/NandiVardhan2007/JARVIS/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/NandiVardhan2007/GLOOM?color=007aff&label=Release&logo=github)](https://github.com/NandiVardhan2007/GLOOM/releases/latest)
 [![Windows Desktop](https://img.shields.io/badge/Windows-11%20%7C%2010%20Overlay-0078d4.svg?logo=windows)](https://microsoft.com/windows)
 [![Android Mobile](https://img.shields.io/badge/Android-Cutout--Aware%20Overlay-3ddc84.svg?logo=android)](https://developer.android.com)
 [![Design Standard](https://img.shields.io/badge/Design-Apple--Inspired%20Tokens-black.svg)](DESIGN.md)
 [![Architecture: Tauri 2](https://img.shields.io/badge/Desktop-Tauri%202%20%7C%20Rust%20%2B%20React%2019-ffc13b.svg?logo=tauri)](https://tauri.app)
 [![Mobile: Jetpack Compose](https://img.shields.io/badge/Mobile-Jetpack%20Compose%20%7C%20Kotlin-4285f4.svg?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
-[![Build Status](https://github.com/NandiVardhan2007/JARVIS/actions/workflows/build.yml/badge.svg)](https://github.com/NandiVardhan2007/JARVIS/actions/workflows/build.yml)
+[![Build Status](https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml/badge.svg)](https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**JARVIS** is an Apple-inspired Dynamic Island-style overlay and cross-device glanceable activity surface designed for Windows 11/10 and Android devices. It provides fluid spring mechanics, hardware camera cutout alignment, glassmorphic styling with high-contrast fallbacks, audio waveforms, secure local clipboard synchronization, authenticated file beaming, and an autonomous mobile agent with on-device memory and tool calling.
+**GLOOM** is an Apple-inspired Dynamic Island-style overlay and cross-device glanceable activity surface designed for Windows 11/10 and Android devices. It provides fluid spring mechanics, hardware camera cutout alignment, glassmorphic styling with high-contrast fallbacks, audio waveforms, secure local clipboard synchronization, authenticated file beaming, and an autonomous mobile agent with on-device memory and tool calling.
 
-> **Important Platform Notice**: JARVIS is an independent, Apple-inspired overlay application for Windows and Android. It does not provide official Apple Dynamic Island or Apple Live Activities functionality. Official Apple Live Activities strictly require Apple ActivityKit and WidgetKit on iOS/iPadOS devices. iOS is currently unsupported.
+> **Important Platform Notice**: GLOOM is an independent, Apple-inspired overlay application for Windows and Android. It does not provide official Apple Dynamic Island or Apple Live Activities functionality. Official Apple Live Activities strictly require Apple ActivityKit and WidgetKit on iOS/iPadOS devices. iOS is currently unsupported.
 
 ---
 
@@ -30,7 +30,7 @@
 - **Stable Apple HIG Geometry**: Maintains a stable collapsed capsule width of `180 dp` (camera band clearance `125 dp`, wings `52 dp`) and expanded card geometry of `400 × 180 dp` with `36 dp` squircle corner radius without jarring collapse into the camera cutout.
 - **Dynamic Cutout Adaptation**: Queries live `WindowInsets` and `DisplayCutout` coordinates for real-time camera alignment across center punch-holes, corner cutouts, waterdrop notches, and no-cutout displays.
 - **Landscape Auto-Hide**: Automatically suppresses the Dynamic Island overlay when rotating into landscape mode to prevent obstructing full-screen video, games, or split-screen apps.
-- **Autonomous Hands-On Agent (v1.4.0)**:
+- **Autonomous Hands-On Agent (v1.5.0)**:
   - **Sub-2.5s Direct WhatsApp Automation**: Fully deterministic search and chat opening targeting contact name centers (`[250..600]px`), avoiding profile photos/avatars and Unread filter pills, typing directly into verified chat entry nodes (`com.whatsapp:id/entry`) without Meta AI false-positives.
   - **Needle-3 Offline Tool Caller**: Fully wired on-device grammar-constrained tool caller (`NeedleBridge.kt` + `needle3.cact`) providing sub-25ms intent prediction before cloud LLM invocation with zero network overhead.
   - **Lock Screen Pattern Unlock & Calibration**: Verified on physical hardware with default 0.80 grid ratio and 0.67 center-Y calibration; draws smooth 9-point gestures with micro-dwell and reliably dismisses Keyguard.
@@ -48,18 +48,18 @@
 ## 🔒 Security & Release Architecture
 
 ### 1. Hardened Desktop/Mobile LiveBridge
-- **Certificate-Pinned TLS**: LiveBridge runs over mutual TLS (rustls on port 53391) with self-signed identity persisted in `%APPDATA%\JARVIS\bridge_cert.der` and `bridge_key.der`.
-- **Mutual Token Authentication**: Every API request requires a shared `X-Jarvis-Auth-Token` (or HTTP Bearer token). Unauthenticated requests are rejected with `401 Unauthorized`.
-- **Replay Protection**: Enforces timestamp validation (`X-Jarvis-Timestamp`) with maximum 60-second clock skew and a sliding-window nonce cache (`X-Jarvis-Nonce`).
+- **Certificate-Pinned TLS**: LiveBridge runs over mutual TLS (rustls on port 53391) with self-signed identity persisted in `%APPDATA%\GLOOM\bridge_cert.der` and `bridge_key.der`.
+- **Mutual Token Authentication**: Every API request requires a shared `X-Gloom-Auth-Token` (or HTTP Bearer token). Unauthenticated requests are rejected with `401 Unauthorized`.
+- **Replay Protection**: Enforces timestamp validation (`X-Gloom-Timestamp`) with maximum 60-second clock skew and a sliding-window nonce cache (`X-Gloom-Nonce`).
 - **Strict Payload Limits**: Maximum 1 MB for control payloads; 2 GB streaming limit for file transfers with active cancellation (`/api/transfer/cancel`).
-- **Streaming Integrity Verification**: Files are hashed on the fly via SHA-256 and checked against `X-Jarvis-Checksum-Sha256` before atomic promotion to public Downloads.
+- **Streaming Integrity Verification**: Files are hashed on the fly via SHA-256 and checked against `X-Gloom-Checksum-Sha256` before atomic promotion to public Downloads.
 - **Keystore Credential Isolation**: Cloud API keys and user profiles are stored in Android Keystore AES-256-GCM `EncryptedSharedPreferences`. No plaintext credentials ever touch storage, logs, or network payloads.
 
 ---
 
 ## 📐 Presentation State Architecture
 
-JARVIS defines a 13-state cross-platform semantic presentation contract:
+GLOOM defines a 13-state cross-platform semantic presentation contract:
 
 | State | Purpose | Windows Adaptation | Android Adaptation |
 |:---|:---|:---|:---|
@@ -80,7 +80,7 @@ JARVIS defines a 13-state cross-platform semantic presentation contract:
 
 ## 📱 Mobile Companion (Android)
 
-- **Direct Download**: **[JARVIS-Island-Release (Latest Release)](https://github.com/NandiVardhan2007/JARVIS/releases/latest)**
+- **Direct Download**: **[GLOOM-Island-Release (Latest Release)](https://github.com/NandiVardhan2007/GLOOM/releases/latest)**
 - **Cutout Calibration**: Works automatically on punch-hole and notch displays with an optional preset for Motorola Edge 50 Pro.
 - **In-App Keys Importer**: Supports importing `keys.json` with batch Groq and OpenRouter keys into Android Keystore encrypted storage.
 - **Background Keep-Alive**: Foreground overlay service with proper notification channels, accessibility service hooks, and battery optimization settings.
@@ -103,9 +103,9 @@ npm run tauri build
 ```
 For the Inno Setup installer wizard:
 ```powershell
-iscc installer/jarvis.iss
+iscc installer/gloom.iss
 ```
-The compiled Windows Setup installer wizard will be at `build-artifacts/JARVIS-Island-Setup.exe` (Inno Setup) or `app/src-tauri/target/release/bundle/nsis/JARVIS_1.4.0_x64-setup.exe` (Tauri NSIS). Standalone portable executables are replaced by official setup installers featuring Start Menu integration, desktop shortcuts, and an uninstaller.
+The compiled Windows Setup installer wizard will be at `build-artifacts/GLOOM-Island-Setup.exe` (Inno Setup) or `app/src-tauri/target/release/bundle/nsis/GLOOM_1.5.0_x64-setup.exe` (Tauri NSIS). Standalone portable executables are replaced by official setup installers featuring Start Menu integration, desktop shortcuts, and an uninstaller.
 
 ### 2. Build Mobile (Android)
 ```bash

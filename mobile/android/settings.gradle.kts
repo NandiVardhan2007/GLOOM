@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "JarvisIsland"
+rootProject.name = "GloomIsland"
 include(":app")

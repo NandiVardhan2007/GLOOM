@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.jarvis.island"
+    namespace = "com.gloom.island"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.jarvis.island"
+        applicationId = "com.gloom.island"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
-        versionName = "1.4.0"
+        versionCode = 27
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

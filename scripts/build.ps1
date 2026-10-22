@@ -1,4 +1,4 @@
-# Project JARVIS - Build Pipeline Script
+# Project GLOOM - Build Pipeline Script
 param(
     [switch]$Release = $true
 )
@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host " PROJECT JARVIS - Production Build" -ForegroundColor Cyan
+Write-Host " PROJECT GLOOM - Production Build" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Verify Prerequisites
@@ -27,6 +27,6 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Copy-Item "$PSScriptRoot\..\app\src-tauri\target\release\jarvis.exe" "$PSScriptRoot\..\jarvis.exe" -Force
-Write-Host "`nBuild complete! Executable updated at d:\Coding\JARVIS\jarvis.exe" -ForegroundColor Green
+Copy-Item "$PSScriptRoot\..\app\src-tauri\target\release\gloom.exe" "$PSScriptRoot\..\gloom.exe" -Force
+Write-Host "`nBuild complete! Executable updated at d:\Coding\GLOOM\gloom.exe" -ForegroundColor Green
 Set-Location "$PSScriptRoot\.."

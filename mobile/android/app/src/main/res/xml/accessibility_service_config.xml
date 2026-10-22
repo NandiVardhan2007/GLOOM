@@ -7,5 +7,5 @@
     android:notificationTimeout="50"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
-    android:settingsActivity="com.jarvis.island.MainActivity"
+    android:settingsActivity="com.gloom.island.MainActivity"
 />

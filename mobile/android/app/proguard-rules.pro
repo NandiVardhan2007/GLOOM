@@ -1,2 +1,2 @@
-# JARVIS Android Island ProGuard Rules
--keep class com.jarvis.island.** { *; }
+# GLOOM Android Island ProGuard Rules
+-keep class com.gloom.island.** { *; }

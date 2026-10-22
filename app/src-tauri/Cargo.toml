@@ -1,79 +1,93 @@
 [package]
-name = "jarvis"
-version = "1.4.0"
-description = "JARVIS: Pixel-Perfect Dynamic Island & Notch for Windows"
-authors = ["JARVIS Team"]
+name = "gloom"
+version = "1.5.0"
+description = "GLOOM: Dynamic Island & Notch for Windows"
+authors = ["Nandu"]
 edition = "2021"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-# Production builds must embed the compiled frontend instead of loading devUrl.
-# Build releases with `--features custom-protocol` (the Tauri CLI does this too).
 custom-protocol = ["tauri/custom-protocol"]
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "gloom_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
-tauri-plugin-autostart = "2"
-tauri-plugin-global-shortcut = "2"
+tauri = { version = "2.11", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-log = "0.4"
-env_logger = "0.11"
-base64 = "0.22"
-sha2 = "0.10"
-getrandom = "0.2"
-rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
-rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
-
-[target.'cfg(windows)'.dependencies]
-windows-future = "0.3.2"
-windows = { version = "0.62", features = [
-  "ApplicationModel",
-  "Foundation",
-  "Foundation_Collections",
-  "Media_Control",
-  "Storage_Streams",
-  "UI_Notifications",
-  "UI_Notifications_Management",
-  "Win32_Foundation",
-  "Win32_Graphics_Dwm",
-  "Win32_Graphics_Gdi",
-  "Win32_Media_Audio",
-  "Win32_Media_Audio_Endpoints",
-  "Win32_NetworkManagement_IpHelper",
-  "Win32_NetworkManagement_Ndis",
-  "Win32_Security_Credentials",
-  "Win32_Storage_FileSystem",
-  "Win32_System_Com",
-  "Win32_System_DataExchange",
-  "Win32_System_IO",
-  "Win32_System_Memory",
-  "Win32_System_Performance",
-  "Win32_System_Power",
-  "Win32_System_Shutdown",
-  "Win32_System_SystemInformation",
-  "Win32_System_WinRT",
-  "Win32_System_Threading",
-  "Win32_UI_Input_KeyboardAndMouse",
-  "Win32_UI_Shell",
-  "Win32_UI_WindowsAndMessaging",
+windows-core = "0.61"
+windows-collections = "0.2"
+windows = { version = "0.61", features = [
+	"Win32_UI_Input_KeyboardAndMouse",
+	"Win32_UI_Shell",
+	"Win32_UI_Shell_PropertiesSystem",
+	"Win32_UI_WindowsAndMessaging",
+	"Win32_UI_HiDpi",
+	"Win32_Foundation",
+	"Win32_System_Com",
+	"Win32_UI_Accessibility",
+	"Win32_System_Variant",
+	"Media_Control",
+	"Win32_Media_Audio",
+	"Win32_Media_Audio_Endpoints",
+	"Win32_System_Threading",
+	"Win32_System_Memory",
+	"Win32_System_Com_StructuredStorage",
+	"Win32_System_SystemInformation",
+	"Win32_System_Wmi",
+	"Win32_Storage_FileSystem",
+	"Win32_System_Ole",
+	"Data_Pdf",
+	"Storage",
+	"Storage_Streams",
+	"Win32_System_Console",
+	"Graphics_Imaging",
+	"Win32_Graphics_Imaging",
+	"Win32_Graphics_Dwm",
+	"Win32_Graphics_Gdi",
+	"Win32_System_LibraryLoader",
+	"Win32_System_IO",
+	"Win32_Security",
+	"Win32_System_Registry",
+	"Win32_Devices_FunctionDiscovery",
+	"Devices_Radios",
+	"Devices_Bluetooth",
+	"Devices_Enumeration",
+	"Foundation_Collections",
+	"Win32_Media_KernelStreaming",
+	"System_Power",
+	"Devices_Power",
+	"Win32_System_Power",
+	"Win32_NetworkManagement_IpHelper",
+	"Win32_NetworkManagement_Ndis",
+	"Win32_NetworkManagement_WiFi",
+	"Win32_NetworkManagement_WNet"
 ] }
+base64 = "0.22"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-updater = "2"
+window-vibrancy = "0.7.1"
+wmi = "0.14"
+tokio = { version = "1", features = ["time", "sync"] }
+webview2-com = "0.38"
+image = "0.25"
+# Reads the thumbnail or text inside Office files for shelf previews.
+zip = { version = "4.6", default-features = false, features = ["deflate-flate2"] }
+tauri-plugin-drag = "2.1.1"
+tauri-plugin-dialog = "2"
+rustfft = "6"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
+futures-util = "0.3"
 
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
-
-# Local iteration profile: no LTO, parallel codegen, incremental linking.
-# CI/releases keep the optimized `release` profile above.
-[profile.fast-release]
-inherits = "release"
-lto = false
-codegen-units = 16
-incremental = true
-strip = false
-panic = "unwind"

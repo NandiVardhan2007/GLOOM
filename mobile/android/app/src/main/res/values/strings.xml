@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">JARVIS Island</string>
-    <string name="accessibility_service_label">JARVIS Dynamic Island</string>
-    <string name="accessibility_service_description">Lets JARVIS draw the island over apps and the Lock Screen, read the screen, and perform the taps, scrolling and typing you ask for by voice.</string>
+    <string name="app_name">GLOOM Island</string>
+    <string name="accessibility_service_label">GLOOM Dynamic Island</string>
+    <string name="accessibility_service_description">Lets GLOOM draw the island over apps and the Lock Screen, read the screen, and perform the taps, scrolling and typing you ask for by voice.</string>
 </resources>

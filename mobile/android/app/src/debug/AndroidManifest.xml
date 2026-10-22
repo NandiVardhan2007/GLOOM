@@ -5,7 +5,7 @@
             android:name=".AutomationTestReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.jarvis.island.TEST_AUTOMATION" />
+                <action android:name="com.gloom.island.TEST_AUTOMATION" />
             </intent-filter>
         </receiver>
     </application>

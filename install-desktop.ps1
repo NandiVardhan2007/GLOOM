@@ -1,7 +1,7 @@
 # ==============================================================================
-# JARVIS Dynamic Island — Windows Desktop Clean Setup Installer
+# GLOOM Dynamic Island — Windows Desktop Clean Setup Installer
 # Single-line installation command:
-#   powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/NandiVardhan2007/JARVIS/main/install-desktop.ps1 | iex"
+#   powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/install-desktop.ps1 | iex"
 # ==============================================================================
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
@@ -9,24 +9,24 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "  +----------------------------------------------------------+" -ForegroundColor Cyan
-Write-Host "  |             JARVIS DYNAMIC ISLAND FOR WINDOWS            |" -ForegroundColor Cyan
+Write-Host "  |             GLOOM DYNAMIC ISLAND FOR WINDOWS            |" -ForegroundColor Cyan
 Write-Host "  |             Apple-Grade Live Activities & Notch          |" -ForegroundColor Cyan
 Write-Host "  +----------------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
 
-$Repo = "NandiVardhan2007/JARVIS"
-$InstallDir = "$env:LOCALAPPDATA\JARVIS-Island"
-$ExeTarget = "$InstallDir\JARVIS-Island.exe"
+$Repo = "NandiVardhan2007/GLOOM"
+$InstallDir = "$env:LOCALAPPDATA\GLOOM-Island"
+$ExeTarget = "$InstallDir\GLOOM-Island.exe"
 $StartMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
-$StartMenuShortcut = "$StartMenuDir\JARVIS Dynamic Island.lnk"
+$StartMenuShortcut = "$StartMenuDir\GLOOM Dynamic Island.lnk"
 $DesktopDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
-$DesktopShortcut = "$DesktopDir\JARVIS Dynamic Island.lnk"
+$DesktopShortcut = "$DesktopDir\GLOOM Dynamic Island.lnk"
 
 # 1. Stop any currently running instances
 Write-Host "[1/5] Checking for running instances..." -ForegroundColor Yellow
-$Running = Get-Process -Name "jarvis", "JARVIS-Island" -ErrorAction SilentlyContinue
+$Running = Get-Process -Name "gloom", "GLOOM-Island" -ErrorAction SilentlyContinue
 if ($Running) {
-    Write-Host "      Gracefully stopping existing JARVIS process..." -ForegroundColor Gray
+    Write-Host "      Gracefully stopping existing GLOOM process..." -ForegroundColor Gray
     $Running | Stop-Process -Force
     Start-Sleep -Milliseconds 800
 }
@@ -47,7 +47,7 @@ $ChecksumUrl = $null
 $TagName = "latest"
 
 try {
-    $Release = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "JARVIS-Installer" } -TimeoutSec 15
+    $Release = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "GLOOM-Installer" } -TimeoutSec 15
     $TagName = $Release.tag_name
     $ExeAsset = $Release.assets | Where-Object { $_.name -like "*.exe" } | Select-Object -First 1
     $SumAsset = $Release.assets | Where-Object { $_.name -like "*.exe.sha256" } | Select-Object -First 1
@@ -63,14 +63,14 @@ try {
 }
 
 if (-not $DownloadUrl) {
-    $DownloadUrl = "https://github.com/$Repo/releases/latest/download/JARVIS-Island-Windows.exe"
+    $DownloadUrl = "https://github.com/$Repo/releases/latest/download/GLOOM-Island-Windows.exe"
 }
 if (-not $ChecksumUrl) {
-    $ChecksumUrl = "https://github.com/$Repo/releases/latest/download/JARVIS-Island-Windows.exe.sha256"
+    $ChecksumUrl = "https://github.com/$Repo/releases/latest/download/GLOOM-Island-Windows.exe.sha256"
 }
 
 # 4. Download executable
-Write-Host "[4/5] Downloading JARVIS Dynamic Island ($TagName)..." -ForegroundColor Yellow
+Write-Host "[4/5] Downloading GLOOM Dynamic Island ($TagName)..." -ForegroundColor Yellow
 $TempFile = "$InstallDir\temp_download.exe"
 $DownloadSuccess = $false
 
@@ -89,7 +89,7 @@ if (-not $DownloadSuccess) {
     try {
         Write-Host "      Falling back to .NET WebClient..." -ForegroundColor Gray
         $WebClient = New-Object System.Net.WebClient
-        $WebClient.Headers.Add("User-Agent", "JARVIS-Installer")
+        $WebClient.Headers.Add("User-Agent", "GLOOM-Installer")
         $WebClient.DownloadFile($DownloadUrl, $TempFile)
         if ((Test-Path $TempFile) -and ((Get-Item $TempFile).Length -gt 100000)) {
             $DownloadSuccess = $true
@@ -118,7 +118,7 @@ if ($DownloadSuccess) {
     Write-Host "      Verifying SHA-256 integrity..." -ForegroundColor Gray
     $ChecksumText = $null
     try {
-        $ChecksumText = (Invoke-RestMethod -Uri $ChecksumUrl -Headers @{ "User-Agent" = "JARVIS-Installer" } -TimeoutSec 20)
+        $ChecksumText = (Invoke-RestMethod -Uri $ChecksumUrl -Headers @{ "User-Agent" = "GLOOM-Installer" } -TimeoutSec 20)
     } catch {
         Write-Host "      Could not fetch release checksum: $($_.Exception.Message)" -ForegroundColor Red
     }
@@ -162,23 +162,23 @@ $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($StartMenuShortcut)
 $Shortcut.TargetPath = $ExeTarget
 $Shortcut.WorkingDirectory = $InstallDir
-$Shortcut.Description = "JARVIS Dynamic Island & Live Activities for Windows"
+$Shortcut.Description = "GLOOM Dynamic Island & Live Activities for Windows"
 $Shortcut.Save()
 
 # Desktop Shortcut
 $ShortcutDesk = $WshShell.CreateShortcut($DesktopShortcut)
 $ShortcutDesk.TargetPath = $ExeTarget
 $ShortcutDesk.WorkingDirectory = $InstallDir
-$ShortcutDesk.Description = "JARVIS Dynamic Island & Live Activities for Windows"
+$ShortcutDesk.Description = "GLOOM Dynamic Island & Live Activities for Windows"
 $ShortcutDesk.Save()
 
 # Create Uninstaller Script
 $UninstallScript = @"
-Get-Process -Name "jarvis", "JARVIS-Island" -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process -Name "gloom", "GLOOM-Island" -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-Item -Path "$DesktopShortcut" -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$StartMenuShortcut" -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$InstallDir" -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "JARVIS Dynamic Island has been cleanly uninstalled." -ForegroundColor Green
+Write-Host "GLOOM Dynamic Island has been cleanly uninstalled." -ForegroundColor Green
 "@
 Set-Content -Path "$InstallDir\uninstall.ps1" -Value $UninstallScript -Force
 
@@ -187,7 +187,7 @@ Write-Host "  [OK] Installation completed successfully!" -ForegroundColor Green
 Write-Host "  [OK] Start Menu shortcut created." -ForegroundColor Green
 Write-Host "  [OK] Desktop shortcut created." -ForegroundColor Green
 Write-Host ""
-Write-Host "  Launching JARVIS Dynamic Island..." -ForegroundColor Cyan
+Write-Host "  Launching GLOOM Dynamic Island..." -ForegroundColor Cyan
 Start-Process -FilePath $ExeTarget
 Write-Host "  Enjoy your Apple-grade Dynamic Island on Windows!" -ForegroundColor Cyan
 Write-Host ""

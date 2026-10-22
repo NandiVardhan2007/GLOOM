@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest]
+
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.0
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+
+      - name: Verify version matches tag
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "::error::This workflow must run on a version tag (e.g. v3.8.7)."
+            exit 1
+          fi
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            VERSION="$VERSION.0"
+          fi
+
+          PKG_VERSION=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")
+          CONF_VERSION=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')).version)")
+          CARGO_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
+
+          echo "Tag: $VERSION | package.json: $PKG_VERSION | tauri.conf.json: $CONF_VERSION | Cargo.toml: $CARGO_VERSION"
+
+          if [ "$PKG_VERSION" != "$VERSION" ] || [ "$CONF_VERSION" != "$VERSION" ] || [ "$CARGO_VERSION" != "$VERSION" ]; then
+            echo "::error::Version files do not match tag $VERSION. Run 'bun run bump $VERSION' and commit before tagging."
+            exit 1
+          fi
+
+      - name: Generate release notes
+        id: notes
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | sed -n '2p')
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          FEATURES=""
+          FIXES=""
+          OTHER=""
+          SUBJECT=""
+          FILES=""
+
+          emit() {
+            if [ -z "$SUBJECT" ]; then
+              return
+            fi
+            case "$SUBJECT" in
+              chore:*|chore\(*|ci:*|ci\(*|docs:*|docs\(*|build:*|build\(*|style:*|style\(*|test:*|test\(*|fix\(release\)*|fix\(ci\)*|fix\(deps\)*|feat\(release\)*|feat\(ci\)*|feat\(deps\)*|perf\(deps\)*)
+                SUBJECT=""
+                FILES=""
+                return
+                ;;
+            esac
+            APP=0
+            for FILE in $FILES; do
+              case "$FILE" in
+                website/*|.github/*|*.md) ;;
+                *) APP=1 ;;
+              esac
+            done
+            if [ "$APP" = "1" ]; then
+              case "$SUBJECT" in
+                feat:*|feat\(*) FEATURES+=$(printf "\n- %s" "${SUBJECT#*: }") ;;
+                fix:*|fix\(*) FIXES+=$(printf "\n- %s" "${SUBJECT#*: }") ;;
+                *) OTHER+=$(printf "\n- %s" "$SUBJECT") ;;
+              esac
+            fi
+            SUBJECT=""
+            FILES=""
+          }
+
+          while IFS= read -r LINE; do
+            case "$LINE" in
+              COMMIT\|*) emit; SUBJECT="${LINE#COMMIT|}" ;;
+              "") ;;
+              *) FILES="$FILES $LINE" ;;
+            esac
+          done <<< "$(git log "$RANGE" --no-merges --pretty=format:'COMMIT|%s' --name-only)"
+          emit
+
+          NOTES=$(printf "## Gloom %s\n" "$VERSION")
+          if [ -n "$FEATURES" ]; then
+            NOTES+=$(printf "\n### What's New\n%s\n" "$FEATURES")
+          fi
+          if [ -n "$FIXES" ]; then
+            NOTES+=$(printf "\n### Bug Fixes\n%s\n" "$FIXES")
+          fi
+          if [ -n "$OTHER" ]; then
+            NOTES+=$(printf "\n### Other\n%s\n" "$OTHER")
+          fi
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Gloom ${{ github.ref_name }}"
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
