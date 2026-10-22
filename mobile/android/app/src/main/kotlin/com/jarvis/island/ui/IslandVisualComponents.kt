@@ -219,6 +219,7 @@ fun AppleCompactContent(
 
     Row(
         modifier = modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

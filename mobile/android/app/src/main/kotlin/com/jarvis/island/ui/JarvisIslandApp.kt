@@ -1,8 +1,10 @@
 package com.jarvis.island.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -44,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jarvis.island.settings.JarvisIslandSettings
 
@@ -92,13 +95,15 @@ fun JarvisIslandApp(
         (px / context.resources.displayMetrics.density).dp
     }
 
+    val islandSpring: AnimationSpec<Dp> = if (settings.reducedMotion) {
+        tween(durationMillis = 90, easing = FastOutSlowInEasing)
+    } else {
+        spring(dampingRatio = 1f, stiffness = 340f)
+    }
+
     val topPadding by animateDpAsState(
         targetValue = (if (isExpanded) statusBarInset else 0.dp) + settings.positionY.dp,
-        animationSpec = if (settings.reducedMotion) {
-            tween(durationMillis = 90, easing = FastOutSlowInEasing)
-        } else {
-            spring(dampingRatio = 1f, stiffness = 320f)
-        },
+        animationSpec = islandSpring,
         label = "islandTop"
     )
 
@@ -129,11 +134,7 @@ fun JarvisIslandApp(
 
     val targetWidth by animateDpAsState(
         targetValue = if (isExpanded) settings.expandedWidth.dp else compactWidth,
-        animationSpec = if (settings.reducedMotion) {
-            tween(durationMillis = 90, easing = FastOutSlowInEasing)
-        } else {
-            spring(dampingRatio = 0.88f, stiffness = 320f)
-        },
+        animationSpec = islandSpring,
         label = "islandWidth"
     )
 
@@ -144,23 +145,35 @@ fun JarvisIslandApp(
         targetValue = if (isExpanded) {
             expandedContentHeight.dp
         } else settings.pillHeight.dp,
-        animationSpec = if (settings.reducedMotion) {
-            tween(durationMillis = 90, easing = FastOutSlowInEasing)
-        } else {
-            spring(dampingRatio = 1f, stiffness = 320f)
-        },
+        animationSpec = islandSpring,
         label = "islandHeight"
     )
 
     val collapsedCorner = settings.pillHeight.dp / 2
     val targetCorner by animateDpAsState(
         targetValue = if (isExpanded) settings.expandedCornerRadius.dp else collapsedCorner,
-        animationSpec = if (settings.reducedMotion) {
-            tween(durationMillis = 90, easing = FastOutSlowInEasing)
-        } else {
-            spring(dampingRatio = 1f, stiffness = 320f)
-        },
+        animationSpec = islandSpring,
         label = "islandCorner"
+    )
+
+    val targetElevation by animateDpAsState(
+        targetValue = if (isExpanded) 18.dp else 0.dp,
+        animationSpec = if (settings.reducedMotion) {
+            tween(durationMillis = 90)
+        } else {
+            tween(durationMillis = 180, easing = FastOutSlowInEasing)
+        },
+        label = "islandElevation"
+    )
+
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (isExpanded) 1f else 0f,
+        animationSpec = if (settings.reducedMotion) {
+            tween(durationMillis = 90)
+        } else {
+            tween(durationMillis = 160, easing = FastOutSlowInEasing)
+        },
+        label = "islandBorderAlpha"
     )
 
     val shape = RoundedCornerShape(targetCorner)
@@ -179,10 +192,15 @@ fun JarvisIslandApp(
         else -> "compact-$compactKind"
     }
 
-    val contentTransition = (
-        fadeIn(animationSpec = tween(160)) +
-            scaleIn(initialScale = 0.97f, animationSpec = spring(1f, 320f))
-        ).togetherWith(fadeOut(animationSpec = tween(110)))
+    val contentTransition = if (isExpanded) {
+        (fadeIn(animationSpec = tween(durationMillis = 140, delayMillis = 60)) +
+            scaleIn(initialScale = 0.96f, animationSpec = spring(1f, 340f)))
+            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 60)))
+    } else {
+        (fadeIn(animationSpec = tween(durationMillis = 120, delayMillis = 80)) +
+            scaleIn(initialScale = 0.98f, animationSpec = spring(1f, 340f)))
+            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 60)))
+    }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = boxAlignment) {
         // Expanded cards dismiss on a tap outside the island. Apple does not
@@ -212,7 +230,7 @@ fun JarvisIslandApp(
                     .width(targetWidth)
                     .height(targetHeight)
                     .shadow(
-                        elevation = if (isExpanded) 18.dp else 0.dp,
+                        elevation = targetElevation,
                         shape = shape,
                         clip = false,
                         ambientColor = Color.Black,
@@ -220,14 +238,12 @@ fun JarvisIslandApp(
                     )
                     .clip(shape)
                     .background(Color.Black)
-                    .then(
-                        if (isExpanded) {
-                            Modifier.border(
-                                width = 0.5.dp,
-                                color = if (settings.highContrast) Color(0x66FFFFFF) else Color(0x1FFFFFFF),
-                                shape = shape
-                            )
-                        } else Modifier
+                    .border(
+                        width = 0.5.dp,
+                        color = (if (settings.highContrast) Color(0x66FFFFFF) else Color(0x1FFFFFFF)).copy(
+                            alpha = (if (settings.highContrast) 0.40f else 0.12f) * borderAlpha.toFloat()
+                        ),
+                        shape = shape
                     )
                     .semantics {
                         contentDescription = if (isExpanded) {

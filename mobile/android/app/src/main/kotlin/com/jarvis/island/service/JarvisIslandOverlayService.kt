@@ -649,7 +649,7 @@ class JarvisIslandOverlayService : Service() {
         // Let the Compose collapse spring finish before shrinking the window,
         // otherwise the card is clipped mid-animation.
         windowResizeJob = serviceScope.launch {
-            delay(380)
+            delay(420)
             if (isExpanded) return@launch
             val params = layoutParams ?: return@launch
             params.width = dpToPx((JarvisIslandSettings.instance.pillWidth + 24).toFloat())
