@@ -4,7 +4,7 @@
 ; ==============================================================================
 
 #define MyAppName "GLOOM Dynamic Island"
-#define MyAppVersion "1.5.0"
+#define MyAppVersion "1.6.0"
 #define MyAppPublisher "GLOOM Team"
 #define MyAppURL "https://github.com/NandiVardhan2007/GLOOM"
 #define MyAppExeName "gloom.exe"
@@ -24,7 +24,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=..\build-artifacts
 OutputBaseFilename=GLOOM-Island-Setup
-SetupIconFile=..\app\src-tauri\icons\icon.ico
+SetupIconFile=..\Desktop\src-tauri\icons\icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -44,7 +44,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "Launch GLOOM automatically on Windows startup"; GroupDescription: "System Integration:"
 
 [Files]
-Source: "..\app\src-tauri\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Desktop\src-tauri\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

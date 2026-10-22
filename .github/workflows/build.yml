@@ -50,10 +50,10 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          mkdir -p mobile/android/keystore
+          mkdir -p Android/keystore
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "Using configured repository Secret KEYSTORE_BASE64..."
-            echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > mobile/android/keystore/release.jks
+            echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > Android/keystore/release.jks
           else
             echo "::error::KEYSTORE_BASE64 secret is not configured in repository settings. Release build failed safely."
             exit 1
@@ -68,14 +68,14 @@ jobs:
           fi
 
       - name: Make Gradle Wrapper Executable
-        run: chmod +x mobile/android/gradlew
+        run: chmod +x Android/gradlew
 
       - name: Run Android Unit Tests
-        working-directory: mobile/android
+        working-directory: Android
         run: ./gradlew testDebugUnitTest --no-daemon
 
       - name: Build Android Release APK
-        working-directory: mobile/android
+        working-directory: Android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -85,7 +85,7 @@ jobs:
       - name: Rename and Prepare APK Artifact
         run: |
           mkdir -p build-artifacts
-          cp mobile/android/app/build/outputs/apk/release/*.apk build-artifacts/GLOOM-Island-Release.apk
+          cp Android/app/build/outputs/apk/release/*.apk build-artifacts/GLOOM-Island-Release.apk
           cd build-artifacts
           sha256sum GLOOM-Island-Release.apk > GLOOM-Island-Release.apk.sha256
 
@@ -113,7 +113,7 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: app/package.json
+          cache-dependency-path: Desktop/package.json
 
       - name: Set up Rust Stable Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -123,10 +123,10 @@ jobs:
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: Desktop/src-tauri
 
       - name: Install Node Dependencies
-        working-directory: app
+        working-directory: Desktop
         run: npm ci
 
       - name: Stamp Release Version
@@ -140,17 +140,17 @@ jobs:
           python scripts/stamp_version.py $version $env:GITHUB_RUN_NUMBER
 
       - name: Build Desktop Frontend (Vite)
-        working-directory: app
+        working-directory: Desktop
         run: npm run build
 
       - name: Run Protocol Schema Tests (self-contained plain Python)
         run: python -m unittest discover -s tests -p "*_test.py"
 
       - name: Run Cargo Tests
-        run: cargo test --manifest-path app/src-tauri/Cargo.toml
+        run: cargo test --manifest-path Desktop/src-tauri/Cargo.toml
 
       - name: Compile Windows Tauri Desktop Binary (Release)
-        run: cargo build --release --features custom-protocol --manifest-path app/src-tauri/Cargo.toml
+        run: cargo build --release --features custom-protocol --manifest-path Desktop/src-tauri/Cargo.toml
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress
@@ -225,13 +225,12 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.5.0 — Gloom Mobile Rebranding, Desktop Notch Parity, and Robust Auto-Updaters
-            - **Complete Gloom Mobile Rebranding & Ghost Launcher Icon**: Unified branding across Android and Windows desktop with crisp obsidian ghost adaptive icons and themed components.
-            - **Desktop Notch Style on Mobile**: Dynamic Island now supports the desktop notch geometry with C1 cubic-bezier concave shoulder flares, flush top bezel alignment, flat top edge, and rounded bottom corners.
-            - **Streamlined Mobile Experience & Legal Pages**: Clean 3-tab layout (Island, Settings, About) removing non-functional design placeholders, plus dedicated in-app Privacy Policy, Setup Guide & FAQ, and Open Source Licenses.
-            - **Symmetric Auto In-App Updaters**: Desktop and mobile updaters now directly check GitHub releases, download authentic artifacts with live progress tracking, and safely install updates.
-            - **Windows NSIS & Inno Setup Integration**: Standardized Windows installer bundles with Start Menu integration, desktop shortcuts, and automated silent updater flow.
-            - **Parity & Continuity**: LiveBridge TLS encrypted communication, Universal Clipboard, and LAN File Beam.
+            ### GLOOM 1.6.0 — macOS Genie Dock Effect, Architecture Streamlining, and Mobile Intelligence Suite
+            - **macOS Genie Minimize & Restore Effect**: Smooth 50-slice cubic-bezier mesh deformation that fluidly funnels windows into the active dock icon or expands them into view.
+            - **Zero-Gap Mobile Notch**: Eliminated status bar gap; mobile Dynamic Island now anchors flush against the top display bezel with subpixel overbleed.
+            - **Restored Mobile Intelligence & Voice Suite**: Complete support for on-device Vosk offline wake-word, Gemini/Groq/OpenRouter cloud API keys, and autonomous planning logs.
+            - **Streamlined Repository Architecture**: Reorganized into dedicated top-level `Desktop` and `Android` workspaces with single consolidated root licensing.
+            - **Hardened Inno Setup & NSIS Bundles**: Dedicated application GUID preventing directory overrides and ensuring silent background auto-updates.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk

@@ -1,124 +1,306 @@
-# GLOOM — Cross-Platform Glanceable Activity Surface & Connected Ecosystem
-### Apple-inspired Dynamic Island-style overlay for Windows and Android
+<div align="center">
 
-[![Latest Release](https://img.shields.io/github/v/release/NandiVardhan2007/GLOOM?color=007aff&label=Release&logo=github)](https://github.com/NandiVardhan2007/GLOOM/releases/latest)
-[![Windows Desktop](https://img.shields.io/badge/Windows-11%20%7C%2010%20Overlay-0078d4.svg?logo=windows)](https://microsoft.com/windows)
-[![Android Mobile](https://img.shields.io/badge/Android-Cutout--Aware%20Overlay-3ddc84.svg?logo=android)](https://developer.android.com)
-[![Design Standard](https://img.shields.io/badge/Design-Apple--Inspired%20Tokens-black.svg)](DESIGN.md)
-[![Architecture: Tauri 2](https://img.shields.io/badge/Desktop-Tauri%202%20%7C%20Rust%20%2B%20React%2019-ffc13b.svg?logo=tauri)](https://tauri.app)
-[![Mobile: Jetpack Compose](https://img.shields.io/badge/Mobile-Jetpack%20Compose%20%7C%20Kotlin-4285f4.svg?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
-[![Build Status](https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml/badge.svg)](https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+  <img src="assets/logo.png" width="140" height="140" alt="GLOOM Logo" style="filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.25));" />
 
-**GLOOM** is an Apple-inspired Dynamic Island-style overlay and cross-device glanceable activity surface designed for Windows 11/10 and Android devices. It provides fluid spring mechanics, hardware camera cutout alignment, glassmorphic styling with high-contrast fallbacks, audio waveforms, secure local clipboard synchronization, authenticated file beaming, and an autonomous mobile agent with on-device memory and tool calling.
+  # G L O O M
 
-> **Important Platform Notice**: GLOOM is an independent, Apple-inspired overlay application for Windows and Android. It does not provide official Apple Dynamic Island or Apple Live Activities functionality. Official Apple Live Activities strictly require Apple ActivityKit and WidgetKit on iOS/iPadOS devices. iOS is currently unsupported.
+  ### Next-Generation Dynamic Island & macOS Genie Dock Ecosystem
+  **A seamless, glanceable activity surface & fluid desktop dock crafted for Windows 11/10 and Android**
 
----
+  <p align="center">
+    <a href="https://github.com/NandiVardhan2007/GLOOM/releases/latest"><img src="https://img.shields.io/github/v/release/NandiVardhan2007/GLOOM?style=for-the-badge&color=007aff&label=Release&logo=github" alt="Latest Release" /></a>
+    <a href="https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/NandiVardhan2007/GLOOM/build.yml?style=for-the-badge&label=Build&logo=githubactions&logoColor=white" alt="Build Status" /></a>
+    <a href="https://microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-11%20%7C%2010-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Desktop" /></a>
+    <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-Cutout--Aware-3ddc84?style=for-the-badge&logo=android&logoColor=white" alt="Android Mobile" /></a>
+    <a href="https://tauri.app"><img src="https://img.shields.io/badge/Desktop-Tauri%20v2%20%7C%20Rust-ffc13b?style=for-the-badge&logo=tauri&logoColor=black" alt="Tauri 2" /></a>
+    <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Mobile-Jetpack%20Compose-4285f4?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge" alt="MIT License" /></a>
+  </p>
 
-## 🏛️ Platform Architecture & Features
+  <p align="center">
+    <a href="#-what-is-gloom">What is GLOOM</a> •
+    <a href="#-key-features">Features</a> •
+    <a href="#-macos-genie-dock-effect">Genie Effect</a> •
+    <a href="#-dual-island-styles-notch--pill">Island Styles</a> •
+    <a href="#-livebridge-continuity">LiveBridge</a> •
+    <a href="#-installation--quickstart">Install</a> •
+    <a href="#-support--sponsorship">Sponsor</a>
+  </p>
 
-### 1. Windows Desktop Overlay
-- **Layered Window Architecture**: Built on Tauri 2, Rust, and React 19. Runs as a borderless topmost overlay with dynamic hit-testing pass-through (`WS_EX_LAYERED`, `WS_EX_TRANSPARENT`).
-- **DPI & Multi-Monitor Geometry**: Respects monitor work areas (`rcWork`) to avoid top-docked taskbars, handles negative virtual-screen multi-monitor coordinates, and adapts to DPI scaling changes.
-- **Fullscreen Suppression**: Monitors foreground applications for fullscreen and borderless-fullscreen states (e.g., games, presentations) and automatically transitions to the `suppressed` state with zero pointer capture.
-- **Keyboard Navigation & A11y**: Full keyboard navigation (`Tab`, `Enter`, `Space`, `Escape`), ARIA accessibility attributes (`role="region"`, `aria-label`), visible focus rings, and high-contrast styling.
-- **Apple HIG Geometry**: Native collapsed capsule (`230×37 px` or compact `180×37 px`), peek cards (`400×180 px`, `36 px` corner radius), and large expanded dashboard (`880×400 px`).
-
-### 2. Android Cutout-Aware Overlay & Autonomous Mobile AI
-- **Window Manager Overlay**: Built in Kotlin and Jetpack Compose utilizing Android `WindowManager` (`TYPE_APPLICATION_OVERLAY`).
-- **Stable Apple HIG Geometry**: Maintains a stable collapsed capsule width of `180 dp` (camera band clearance `125 dp`, wings `52 dp`) and expanded card geometry of `400 × 180 dp` with `36 dp` squircle corner radius without jarring collapse into the camera cutout.
-- **Dynamic Cutout Adaptation**: Queries live `WindowInsets` and `DisplayCutout` coordinates for real-time camera alignment across center punch-holes, corner cutouts, waterdrop notches, and no-cutout displays.
-- **Landscape Auto-Hide**: Automatically suppresses the Dynamic Island overlay when rotating into landscape mode to prevent obstructing full-screen video, games, or split-screen apps.
-- **Autonomous Hands-On Agent (v1.5.0)**:
-  - **Sub-2.5s Direct WhatsApp Automation**: Fully deterministic search and chat opening targeting contact name centers (`[250..600]px`), avoiding profile photos/avatars and Unread filter pills, typing directly into verified chat entry nodes (`com.whatsapp:id/entry`) without Meta AI false-positives.
-  - **Needle-3 Offline Tool Caller**: Fully wired on-device grammar-constrained tool caller (`NeedleBridge.kt` + `needle3.cact`) providing sub-25ms intent prediction before cloud LLM invocation with zero network overhead.
-  - **Lock Screen Pattern Unlock & Calibration**: Verified on physical hardware with default 0.80 grid ratio and 0.67 center-Y calibration; draws smooth 9-point gestures with micro-dwell and reliably dismisses Keyguard.
-  - **Instagram Reel Counter Hardening**: Excludes settings and non-reel screens; rejects reverse scroll gestures to ensure accurate viewing counts.
-  - **Automated Web Browsing & Form Autofill**: Navigates URLs in Chrome and autofills web forms with encrypted profile information (`Vault.UserProfile`) using accessibility node matching.
-  - **Self-Developing Memory (CAG + MAG)**: Memory-Augmented Generation retains contact aliases (e.g. Amma `950864289`), personal facts, and procedural UI execution recipes with action verb guardrails preventing memory interception during task execution.
-  - **Phonetics & Fuzzy App Launcher**: Recognizes phonetic aliases ("whats up", "crome", "you tube", "insta", "g mail", "netfliks") and applies Levenshtein distance string matching to prevent launch errors.
-  - **System Productivity Tools**: Personalized email drafting, regex-based file search, universal desktop clipboard/data sync, and cache & duplicate file cleanup.
-  - **One-Click Keys Importer**: Supports importing `keys.json` with multi-key Groq and OpenRouter keys directly into Android Keystore encrypted storage (`SecureKeyStore`).
-  - **On-Device Diagnostics Logger**: Local JSONL execution trace and in-app Apple UIKit inspection viewer under **Settings → Automation → Execution Logs & Diagnostics** for auditing AI reasoning and touch gesture traces.
-  - **FOD Optical Fingerprint Calibration**: Dedicated `CalibrationScreen` with Left/Right/High swipe routes that cleanly bypass in-display fingerprint sensors before pattern replay.
+</div>
 
 ---
 
-## 🔒 Security & Release Architecture
+## ⚡ What is GLOOM?
 
-### 1. Hardened Desktop/Mobile LiveBridge
-- **Certificate-Pinned TLS**: LiveBridge runs over mutual TLS (rustls on port 53391) with self-signed identity persisted in `%APPDATA%\GLOOM\bridge_cert.der` and `bridge_key.der`.
-- **Mutual Token Authentication**: Every API request requires a shared `X-Gloom-Auth-Token` (or HTTP Bearer token). Unauthenticated requests are rejected with `401 Unauthorized`.
-- **Replay Protection**: Enforces timestamp validation (`X-Gloom-Timestamp`) with maximum 60-second clock skew and a sliding-window nonce cache (`X-Gloom-Nonce`).
-- **Strict Payload Limits**: Maximum 1 MB for control payloads; 2 GB streaming limit for file transfers with active cancellation (`/api/transfer/cancel`).
-- **Streaming Integrity Verification**: Files are hashed on the fly via SHA-256 and checked against `X-Gloom-Checksum-Sha256` before atomic promotion to public Downloads.
-- **Keystore Credential Isolation**: Cloud API keys and user profiles are stored in Android Keystore AES-256-GCM `EncryptedSharedPreferences`. No plaintext credentials ever touch storage, logs, or network payloads.
+**GLOOM** reimagines how you interact with ongoing tasks, media, system metrics, and cross-device continuity. Blending the fluid elegance of Apple's **Dynamic Island** with the tactile nostalgia of the iconic **macOS Genie Effect Dock**, GLOOM lives unobtrusively at the periphery of your workspace — expanding when needed and melting into the bezel when idle.
+
+Whether on your dual-monitor Windows workstation or your Android smartphone, GLOOM maintains unified physics, instant TLS-encrypted universal clipboard and file beams, and local offline AI tools.
+
+> [!NOTE]
+> **Independent Implementation**: GLOOM is an independent, cross-platform overlay suite engineered in Rust, Tauri, React 19, and Kotlin. It does not utilize Apple proprietary code or require iOS.
+
+---
+
+## 🌟 Key Features
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3 align="center">🖥️ Windows Desktop Suite</h3>
+      <ul>
+        <li><b>macOS Genie Dock Effect</b>: True 50-slice cubic-bezier mesh deformation that fluidly funnels minimized windows into their dock icon.</li>
+        <li><b>Notch & Pill Topologies</b>: Switch between a classic floating squircle pill and a MacBook-style flush bezel notch with concave shoulder curves.</li>
+        <li><b>Layered Pass-Through Architecture</b>: Transparent topmost overlay (<code>WS_EX_LAYERED</code>) with pixel-accurate click-through detection.</li>
+        <li><b>Fullscreen Intelligence</b>: Auto-suppresses when full-screen 3D games, presentations, or video players gain focus.</li>
+        <li><b>Glanceable System Hub</b>: Live CPU/RAM telemetry, media controller, volume mixer, quick Wi-Fi picker, and weather forecast.</li>
+      </ul>
+    </td>
+    <td width="50%">
+      <h3 align="center">📱 Android Mobile Overlay</h3>
+      <ul>
+        <li><b>Cutout-Aware Alignment</b>: Dynamically queries <code>WindowInsets.DisplayCutout</code> to wrap flush around center punch-holes, corner cameras, and teardrops.</li>
+        <li><b>Zero-Gap Top Bezel Anchor</b>: Anchors cleanly against the top screen edge with subpixel overbleed, eliminating awkward status bar gaps.</li>
+        <li><b>Hands-On Mobile Automation</b>: Deterministic, accessibility-driven automation for WhatsApp, Instagram reels, pattern unlock, and Chrome form filling.</li>
+        <li><b>Offline Tool Caller (Needle-3)</b>: Quantized Cactus-3 model asset with sub-25ms grammar-constrained local intent prediction.</li>
+        <li><b>Cloud API Vault</b>: Hardware-backed AES-256-GCM Keystore vault for multi-key Groq, OpenRouter, and Gemini rotation.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+---
+
+## 🧞 macOS Genie Dock Effect
+
+GLOOM brings the classic macOS **Genie Minimize & Restore Effect** to Windows:
+
+```
+    ┌────────────────────────┐
+    │     Desktop Window     │
+    │   ┌────────────────┐   │
+    └───┼────────────────┼───┘
+         \              /       ◄── 50-slice cubic-bezier deformation
+          \            /        ◄── Asymmetric pinch towards active dock target
+           \          /
+            │        │
+           ┌┴────────┴┐
+           │ Dock App │         ◄── Window funnels seamlessly into icon
+           └──────────┘
+```
+
+- **50-Slice Canvas Mesh Deformation**: Smooth, GPU-accelerated canvas slicing with cubic-bezier horizontal warping (`t³(1-t)`) and vertical acceleration.
+- **Dynamic Dock Targeting**: Calculates the precise bounding rectangle of the target application icon on the GLOOM dock or Windows taskbar.
+- **Customizable Dynamics**: Configure animation duration (150ms–800ms), curve intensity, and toggle between Genie and classic Scale transitions.
+
+---
+
+## 🎨 Dual Island Styles: Notch & Pill
+
+GLOOM adapts to your personal aesthetic with two distinct primary geometries:
+
+```
+       [ CLASSIC FLOATING PILL ]                    [ FLUSH BEZEL NOTCH ]
+       
+   ┌───────────────────────────────┐           ─────────────────────────────────
+   │                               │           ───────┐                 ┌───────
+   │       (  GLOOM ISLAND  )      │                   \   GLOOM NOTCH   /
+   │                               │                    └───────────────┘
+```
+
+1. **Floating Pill Mode**:
+   - Compact `180×37 px` or standard `230×37 px` capsule floating gracefully below the top bezel.
+   - Ideal for centered multi-monitor setups and standard phone cutouts.
+2. **Bezel Notch Mode**:
+   - Anchored directly at `Y = 0` with zero gap.
+   - Features **C1-continuous cubic-bezier concave shoulder flares** on both sides, mimicking modern MacBook and high-end smartphone display hardware.
+
+---
+
+## 🌉 LiveBridge: Zero-Cloud Cross-Device Continuity
+
+Work seamlessly across your PC and mobile device with peer-to-peer authenticated synchronization:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant D as GLOOM Desktop (Win11)
+    participant M as GLOOM Mobile (Android)
+
+    Note over D,M: Local Subnet Discovery & Mutual TLS (Port 53391)
+    D->>M: Authenticated Handshake (X-Gloom-Auth-Token + Nonce)
+    M-->>D: 200 OK (Certificate Verified)
+    
+    rect rgb(18, 24, 38)
+    Note over D,M: Universal Clipboard Sync
+    D->>M: Push Encrypted Clipboard Payload
+    M->>M: Update System Clipboard Buffer
+    end
+
+    rect rgb(28, 20, 36)
+    Note over D,M: LAN File Beam (Chunked Streaming)
+    D->>M: Stream File Chunk (SHA-256 Validated)
+    M->>M: Write atomically to Downloads/
+    M-->>D: Transfer Completed Badge
+    end
+```
+
+- **Zero Third-Party Relays**: Direct local TCP socket with self-signed certificate pinning (`rustls`).
+- **Replay Protection**: Enforces sliding-window nonces and strict 60-second timestamp validation.
+- **Universal Clipboard**: Copies on desktop instantly reflect on Android without cloud leaks.
+- **LAN File Beam**: High-speed streaming verified on-the-fly against SHA-256 checksums.
 
 ---
 
 ## 📐 Presentation State Architecture
 
-GLOOM defines a 13-state cross-platform semantic presentation contract:
+GLOOM coordinates across 13 presentation states:
 
-| State | Purpose | Windows Adaptation | Android Adaptation |
+| State | Purpose | Desktop Presentation | Android Presentation |
 |:---|:---|:---|:---|
-| `idle` / `compact` | Primary glanceable state | 230×37 px pill hugging screen top | 180×37 dp pill hugging camera cutout |
-| `peek` | Transient glance (2.5s) | 400×180 px card previewing track/alert | 400×180 dp card previewing alert/OTP |
-| `minimal` | Secondary multitasking badge | Collapsed auxiliary pill | Detached satellite bubble |
-| `expandedActivity` | Interactive media/timer/calls | 400×180 px glass panel (36 px corners) | 400×180 dp card (36 dp corners) |
-| `expandedControl` | Full system command center | Multi-tab dashboard and settings suite | Settings & controls overlay |
-| `loading` | Asynchronous task in progress | Indeterminate progress shimmer | Progress indicator & island glow |
-| `reconnecting` | Bridge connection retry | Amber status indicator | Amber reconnect badge |
-| `error` | Transfer or auth failure | Red specular rim and alert text | Transient error banner |
-| `completed` | Successful transfer / timer end | Green confirmation badge | Haptic confirmation & badge |
-| `dismissed` | Dismissed by user | Return to `idle` | Collapse to cutout |
-| `expired` | Activity timer finished | Pulsing amber ring | Audible/visual notification |
-| `suppressed` | Fullscreen app / landscape active | Zero-height, zero-opacity, pass-through | Auto-hidden in landscape mode & games |
+| `idle` | Ambient standby | 230×37 px pill / notch | 180×37 dp pill / notch |
+| `peek` | Transient notification (2.5s) | 400×180 px card with audio/app info | 400×180 dp card previewing alert/OTP |
+| `minimal` | Secondary multitasking badge | Collapsed auxiliary wing | Detached satellite bubble |
+| `expandedActivity` | Interactive controls | 400×180 px glass panel | 400×180 dp card with controls |
+| `expandedControl` | Full system hub | Multi-tab dashboard & settings | Quick settings & sliders |
+| `suppressed` | Fullscreen game / landscape | 0-opacity, zero hit-test capture | Auto-hidden during landscape |
 
 ---
 
-## 📱 Mobile Companion (Android)
+## 📁 Repository Structure
 
-- **Direct Download**: **[GLOOM-Island-Release (Latest Release)](https://github.com/NandiVardhan2007/GLOOM/releases/latest)**
-- **Cutout Calibration**: Works automatically on punch-hole and notch displays with an optional preset for Motorola Edge 50 Pro.
-- **In-App Keys Importer**: Supports importing `keys.json` with batch Groq and OpenRouter keys into Android Keystore encrypted storage.
-- **Background Keep-Alive**: Foreground overlay service with proper notification channels, accessibility service hooks, and battery optimization settings.
+The codebase is organized into clean, dedicated workspaces:
+
+```
+GLOOM/
+├── Desktop/                  # Windows Desktop Tauri Workspace
+│   ├── src/                  # React 19 + TypeScript Frontend
+│   │   ├── components/       # DynamicIsland, GenieEffect, QuickPanel, EdgeSurface
+│   │   ├── settings/         # Appearance, Dock, Notch, General tabs
+│   │   └── hooks/            # LiveBridge & Telemetry hooks
+│   └── src-tauri/            # Rust Backend (Win32 APIs, rustls bridge, system hooks)
+│       └── src/              # window_effects, bridge, audio, monitors
+├── Android/                  # Android Overlay & Agent Workspace
+│   └── app/src/main/kotlin/  # Kotlin + Jetpack Compose
+│       └── com/gloom/island/ # OverlayService, CutoutDetector, AiPlanner, SecureKeyStore
+├── installer/                # Inno Setup Windows Installer Configuration
+├── scripts/                  # Semantic version stamping and release utilities
+└── tests/                    # Plain Python schema and protocol verification tests
+```
 
 ---
 
-## 🛠️ Building From Source
+## 🛠️ Installation & Quickstart
 
-### Prerequisites
+### ⚡ One-Line Quick Install
+
+#### 🪟 Windows (PowerShell)
+Open PowerShell (Terminal) and run the official one-liner to download, install, and launch GLOOM automatically:
+
+```powershell
+irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.ps1 | iex
+```
+
+> [!TIP]
+> **Silent / Unattended Install**: For headless setup or script deployment:
+> ```powershell
+> powershell -ExecutionPolicy Bypass -c "irm https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/GLOOM-Island-Setup.exe -OutFile $env:TEMP\GLOOM-Island-Setup.exe; Start-Process $env:TEMP\GLOOM-Island-Setup.exe -ArgumentList '/VERYSILENT /NORESTART /SP-' -Wait; Start-Process (Join-Path $env:LOCALAPPDATA 'Programs\GLOOM\GLOOM.exe')"
+> ```
+
+#### 🤖 Android (via ADB)
+Connect your device with USB debugging enabled and run:
+
+```powershell
+# Windows PowerShell
+irm https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/GLOOM-Island-Release.apk -OutFile $env:TEMP\gloom.apk; adb install -r $env:TEMP\gloom.apk
+```
+```bash
+# macOS / Linux Bash
+curl -sL "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/GLOOM-Island-Release.apk" -o /tmp/gloom.apk && adb install -r /tmp/gloom.apk && rm /tmp/gloom.apk
+```
+
+---
+
+### 📦 Manual Download (Pre-Compiled Binaries)
+Grab verified release assets directly from GitHub Releases:
+- **Windows**: Download [`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest) (Includes Start Menu shortcuts, auto-updater & clean uninstaller).
+- **Android**: Download [`GLOOM-Island-Release.apk`](https://github.com/NandiVardhan2007/GLOOM/releases/latest).
+
+---
+
+### 🔨 Building from Source
+
+#### Prerequisites
 - **Node.js**: v20 or v22
-- **Rust**: Stable toolchain (`rustup update stable`)
+- **Rust Toolchain**: Stable (`rustup update stable`)
 - **Android SDK**: API 35 / JDK 17
+- **Inno Setup 6** (for building the Windows installer wizard)
 
-### 1. Build Desktop (Windows Setup Installer)
+#### Desktop (Windows)
 ```powershell
-cd app
+# 1. Install dependencies
+cd Desktop
 npm install
-npm run build
-npm run tauri build
-```
-For the Inno Setup installer wizard:
-```powershell
-iscc installer/gloom.iss
-```
-The compiled Windows Setup installer wizard will be at `build-artifacts/GLOOM-Island-Setup.exe` (Inno Setup) or `app/src-tauri/target/release/bundle/nsis/GLOOM_1.5.0_x64-setup.exe` (Tauri NSIS). Standalone portable executables are replaced by official setup installers featuring Start Menu integration, desktop shortcuts, and an uninstaller.
 
-### 2. Build Mobile (Android)
+# 2. Run in development mode
+npm run tauri dev
+
+# 3. Compile production binary
+npm run build
+cargo build --release --manifest-path src-tauri/Cargo.toml
+
+# 4. Generate official Inno Setup installer
+iscc ../installer/gloom.iss
+```
+
+#### Mobile (Android)
 ```bash
-cd mobile/android
+# 1. Navigate to Android workspace
+cd Android
+
+# 2. Run unit test suite
+./gradlew testDebugUnitTest
+
+# 3. Assemble debug APK
 ./gradlew assembleDebug
+
+# 4. Install directly to connected device via ADB
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-The compiled APK will be located at `mobile/android/app/build/outputs/apk/debug/app-debug.apk`. Install directly to a connected device via:
-```bash
-adb install -r mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+---
+
+## 💖 Support & Sponsorship
+
+GLOOM is free and open-source software built with passion. If GLOOM enhances your daily workflow, consider sponsoring the project to support continuous development, hardware testing, and server infrastructure!
+
+<div align="center">
+
+### 🇮🇳 UPI Support (India & Global UPI)
+
+Scan or send via any UPI application (Google Pay, PhonePe, Paytm, BHIM):
+
 ```
+┌──────────────────────────────────────────┐
+│                                          │
+│   UPI ID:  7337419275-2@ybl              │
+│   Name:    GLOOM Development Project     │
+│                                          │
+└──────────────────────────────────────────┘
+```
+
+<a href="upi://pay?pa=7337419275-2@ybl&pn=GLOOM&cu=INR">
+  <img src="https://img.shields.io/badge/Pay%20via-UPI%20%7C%207337419275--2%40ybl-2563eb?style=for-the-badge&logo=googlepay&logoColor=white" alt="UPI Donation" />
+</a>
+
+</div>
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
+This repository is licensed under the terms of the **[MIT License](LICENSE)**.
+
+```
+Copyright (c) 2026 GLOOM Ecosystem Contributors
+```

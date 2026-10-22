@@ -1,5 +1,5 @@
 # ==========================================
-# JARVIS Ecosystem — Root Git Ignore
+# GLOOM Ecosystem — Root Git Ignore
 # ==========================================
 
 # Secrets, Credentials & Environment
@@ -21,10 +21,10 @@ secrets/
 dist/
 build/
 target/
-app/dist/
-app/src-tauri/target/
-mobile/android/build/
-mobile/android/app/build/
+Desktop/dist/
+Desktop/src-tauri/target/
+Android/build/
+Android/app/build/
 *.exe
 *.dll
 *.so
@@ -62,9 +62,6 @@ tmp/
 Thumbs.db
 Desktop.ini
 
-# Directory Junctions (Desktop -> app, Android -> mobile/android)
-/Desktop
-/Android
 
 # Python Cache
 __pycache__/
@@ -88,7 +85,6 @@ references.md
 HANDOFF.md
 FEATURE_BACKLOG.md
 DESIGN.md
-mobile/README.md
 docs/
 research/
 build-artifacts/

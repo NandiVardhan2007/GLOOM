@@ -143,12 +143,12 @@ MpCmdRun.exe -SignatureUpdate
 
 ## Get It Running
 
-**Download** the latest build from [Releases](https://github.com/SehajveerSingh2005/gloom/releases/latest).
+**Download** the latest build from [Releases](https://github.com/NandiVardhan2007/GLOOM/releases/latest).
 
 Or build from source:
 
 ```bash
-git clone https://github.com/SehajveerSingh2005/gloom.git
+git clone https://github.com/NandiVardhan2007/GLOOM.git
 cd gloom
 bun install
 bun run tauri dev
@@ -165,7 +165,7 @@ Found a bug? Open an issue.
 Have an idea? Open a feature request first — we'll agree on the approach before you write code. See [CONTRIBUTING.md](CONTRIBUTING.md).
 Want to just say it's cool? A star goes a long way.
 
-Licensed under [GPLv3](LICENSE).
+Licensed under the [MIT License](../LICENSE).
 
 ---
 

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def stamp_cargo(version: str) -> None:
-    path = ROOT / "app/src-tauri/Cargo.toml"
+    path = ROOT / "Desktop/src-tauri/Cargo.toml"
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     in_package = False
     for index, line in enumerate(lines):
@@ -27,7 +27,7 @@ def stamp_cargo(version: str) -> None:
             lines[index] = re.sub(r'(^\s*version\s*=\s*")[^"]*(")', rf"\g<1>{version}\g<2>", line)
             path.write_text("".join(lines), encoding="utf-8")
             return
-    raise SystemExit("Could not find [package] version in app/src-tauri/Cargo.toml")
+    raise SystemExit("Could not find [package] version in Desktop/src-tauri/Cargo.toml")
 
 
 def stamp_json(relative: str, version: str) -> None:
@@ -38,7 +38,7 @@ def stamp_json(relative: str, version: str) -> None:
 
 
 def stamp_android(version: str, version_code: str) -> None:
-    path = ROOT / "mobile/android/app/build.gradle.kts"
+    path = ROOT / "Android/app/build.gradle.kts"
     text = path.read_text(encoding="utf-8")
     text, code_count = re.subn(r"(?m)^(\s*versionCode\s*=\s*)\d+", rf"\g<1>{version_code}", text, count=1)
     text, name_count = re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]*"', rf'\g<1>"{version}"', text, count=1)
@@ -72,8 +72,8 @@ def main() -> int:
         return 2
 
     stamp_cargo(version)
-    stamp_json("app/src-tauri/tauri.conf.json", version)
-    stamp_json("app/package.json", version)
+    stamp_json("Desktop/src-tauri/tauri.conf.json", version)
+    stamp_json("Desktop/package.json", version)
     stamp_android(version, version_code)
     stamp_iss(version)
     print(f"Stamped release version {version} (versionCode {version_code})")
