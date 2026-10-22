@@ -48,7 +48,7 @@ def stamp_android(version: str, version_code: str) -> None:
 
 
 def stamp_iss(version: str) -> None:
-    for name in ["installer/gloom.iss", "installer/jarvis.iss"]:
+    for name in ["installer/gloom.iss"]:
         path = ROOT / name
         if path.exists():
             text = path.read_text(encoding="utf-8")

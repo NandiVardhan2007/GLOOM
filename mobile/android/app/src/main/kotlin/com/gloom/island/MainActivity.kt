@@ -486,6 +486,18 @@ fun GloomMasterApp(
                     screen == "settings" && subPage == "apps" || (screen == "settings" && subPage == "notifications") -> {
                         NotificationSettingsScreen(onBack = { settingsSubPage = null })
                     }
+                    screen == "settings" && subPage == "voice" -> {
+                        VoiceSettingsScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "cloudai" -> {
+                        CloudAiScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "automation" -> {
+                        AutomationScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "logs" -> {
+                        ExecutionLogsScreen(onBack = { settingsSubPage = null })
+                    }
                     screen == "about" -> {
                         AboutScreen(onNavigateSubPage = { settingsSubPage = it })
                     }
@@ -1237,6 +1249,53 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
                 else "${settings.blockedPackages.size} muted",
                 showChevron = true,
                 onClick = { onNavigateSubPage("notifications") }
+            )
+        }
+
+        AppleSection(header = "Voice") {
+            AppleRow(
+                title = "Hey GLOOM & Wake Word",
+                subtitle = "Offline voice wake-word and speech recognition",
+                icon = GloomIcons.Waveform,
+                iconTint = Apple.systemPurple,
+                value = if (com.gloom.island.voice.VoicePrefs.isWakeWordEnabled(context)) "On" else "Off",
+                showChevron = true,
+                onClick = { onNavigateSubPage("voice") }
+            )
+        }
+
+        AppleSection(header = "Intelligence") {
+            AppleRow(
+                title = "Cloud API Keys",
+                subtitle = "Gemini, Groq, and OpenRouter directly from phone",
+                icon = GloomIcons.Globe,
+                iconTint = Apple.systemTeal,
+                value = if (com.gloom.island.ai.SecureKeyStore.hasCloudKeys(context)) "Configured" else "Off",
+                showChevron = true,
+                onClick = { onNavigateSubPage("cloudai") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Assistant & Brain",
+                subtitle = "On-device decision engine and planning profile",
+                icon = GloomIcons.Sparkles,
+                iconTint = Apple.systemPurple,
+                value = when (settings.aiBrain) {
+                    "local" -> "On-device"
+                    "remote" -> "Desktop"
+                    else -> "Auto"
+                },
+                showChevron = true,
+                onClick = { onNavigateSubPage("automation") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Execution Logs & Diagnostics",
+                subtitle = "Inspect requests, AI thoughts, actions, and failures",
+                icon = GloomIcons.Note,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = { onNavigateSubPage("logs") }
             )
         }
 

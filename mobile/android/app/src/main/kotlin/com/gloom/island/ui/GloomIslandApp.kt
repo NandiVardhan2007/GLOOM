@@ -109,7 +109,7 @@ fun GloomIslandApp(
     val flareHeight = if (isNotchStyle) 13.dp else 0.dp
 
     val targetTop = if (isNotchStyle) {
-        settings.positionY.dp
+        0.dp
     } else {
         (if (isExpanded) statusBarInset else 0.dp) + settings.positionY.dp
     }
@@ -243,12 +243,15 @@ fun GloomIslandApp(
         Box(
             modifier = Modifier
                 .padding(top = topPadding)
-                .offset(x = settings.positionX.dp)
+                .offset(
+                    x = settings.positionX.dp,
+                    y = if (isNotchStyle) (-2).dp else 0.dp
+                )
         ) {
             Box(
                 modifier = Modifier
                     .width(totalWidth)
-                    .height(targetHeight)
+                    .height(targetHeight + (if (isNotchStyle) 2.dp else 0.dp))
                     .shadow(
                         elevation = targetElevation,
                         shape = shape,

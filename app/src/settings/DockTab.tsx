@@ -110,6 +110,8 @@ interface DockTabProps {
 	handleDockEdgeDelayChange: (val: number) => void;
 	dockPreviewEnabled: boolean;
 	toggleDockPreview: () => void;
+	dockGenieEnabled: boolean;
+	toggleDockGenie: () => void;
 	dockIconOnly: boolean;
 	toggleDockIconOnly: () => void;
 	dockSeparatorEnabled: boolean;
@@ -146,6 +148,8 @@ export function DockTab({
 	handleDockEdgeDelayChange,
 	dockPreviewEnabled,
 	toggleDockPreview,
+	dockGenieEnabled,
+	toggleDockGenie,
 	dockIconOnly,
 	toggleDockIconOnly,
 	dockSeparatorEnabled,
@@ -237,6 +241,21 @@ export function DockTab({
 						<SettingRow icon={Eye} label="Show App Previews" desc="Show window thumbnails on hover">
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockPreviewEnabled} onChange={toggleDockPreview} />
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
+
+						<SettingRow
+							icon={Sparkles}
+							label="macOS Genie Effect"
+							desc="Fluid funnel animation when minimizing or restoring windows"
+						>
+							<label className="toggle-switch">
+								<input
+									type="checkbox"
+									checked={dockGenieEnabled}
+									onChange={toggleDockGenie}
+								/>
 								<span className="slider"></span>
 							</label>
 						</SettingRow>

@@ -11,6 +11,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { MixerIcon, SpeakerIcon } from "./icons";
 import "./Overlay.css";
 import { EdgeSurface } from "./components/EdgeSurface";
+import { GenieEffect, type GenieTarget, type WindowRect } from "./components/GenieEffect";
 import { initTheme } from "./theme";
 import { createRegionSender, measureElements, type RegionRect } from "./windowRegion";
 
@@ -599,7 +600,14 @@ function OverlayApp() {
 		return initTheme();
 	}, []);
 
-	type Mode = "idle" | "volume" | "brightness" | "splash" | "updating";
+	type Mode = "idle" | "volume" | "brightness" | "splash" | "updating" | "genie";
+	const [genieData, setGenieData] = useState<{
+		imageSrc: string;
+		windowRect: WindowRect;
+		dockTarget: GenieTarget;
+		direction: "minimize" | "restore";
+		durationMs?: number;
+	} | null>(null);
 	const [mode, setMode] = useState<Mode>("idle");
 	const [updateStatus, setUpdateStatus] = useState<string>("checking");
 	const [updateProgress, setUpdateProgress] = useState(0);
@@ -787,12 +795,25 @@ function OverlayApp() {
 			}
 		);
 
+		const geniePromise = listen<{
+			imageSrc: string;
+			windowRect: WindowRect;
+			dockTarget: GenieTarget;
+			direction: "minimize" | "restore";
+			durationMs?: number;
+		}>("gloom-genie-animate", (event) => {
+			if (splashActiveRef.current) return;
+			setGenieData(event.payload);
+			setMode("genie");
+		});
+
 		return () => {
 			volPromise.then((fn) => fn());
 			volEdgePromise.then((fn) => fn());
 			brightPromise.then((fn) => fn());
 			brightEdgePromise.then((fn) => fn());
 			autoUpdatePromise.then((fn) => fn());
+			geniePromise.then((fn) => fn());
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [
@@ -937,7 +958,7 @@ function OverlayApp() {
 	useEffect(() => {
 		const width = window.innerWidth;
 		const height = window.innerHeight;
-		if (mode === "splash" || mode === "updating") {
+		if (mode === "splash" || mode === "updating" || mode === "genie") {
 			sendOverlayRegion([{ x: 0, y: 0, width, height }]);
 			return;
 		}
@@ -965,6 +986,21 @@ function OverlayApp() {
 
 	return (
 		<div className="overlay-container">
+			{/* macOS Genie Animation */}
+			{mode === "genie" && genieData && (
+				<GenieEffect
+					imageSrc={genieData.imageSrc}
+					windowRect={genieData.windowRect}
+					dockTarget={genieData.dockTarget}
+					direction={genieData.direction}
+					durationMs={genieData.durationMs}
+					onComplete={() => {
+						setMode("idle");
+						setGenieData(null);
+					}}
+				/>
+			)}
+
 			{/* Splash Screen */}
 			<AnimatePresence>
 				{mode === "splash" && (

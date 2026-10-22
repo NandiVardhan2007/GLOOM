@@ -10,7 +10,7 @@
 #define MyAppExeName "gloom.exe"
 
 [Setup]
-AppId={{8B91FA30-7452-4752-BF01-8A977BEFA3E2}
+AppId={{A786F351-4E89-4B52-9E11-23F1C45DE9A8}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} v{#MyAppVersion}
@@ -19,6 +19,7 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\GLOOM
+UsePreviousAppDir=no
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=..\build-artifacts

@@ -44,9 +44,11 @@ class GloomNotchShape(
         val r = with(density) { bottomRadius.toPx() }.coerceAtMost((w - 2 * fw) / 2f).coerceAtMost(h)
 
         val k = 0.55228475f // Cubic circle constant
+        val bleed = with(density) { 4.dp.toPx() }
 
         val path = Path().apply {
-            moveTo(0f, 0f)
+            moveTo(0f, -bleed)
+            lineTo(0f, 0f)
             // Left concave flare: cubic bezier from screen top edge (0, 0) into vertical wall (fw, fh)
             cubicTo(
                 x1 = fw * (10f / 13f), y1 = 0f,
@@ -77,8 +79,9 @@ class GloomNotchShape(
                 x2 = w - fw * (10f / 13f), y2 = 0f,
                 x3 = w, y3 = 0f
             )
-            // Top flat edge closing across bezel
-            lineTo(0f, 0f)
+            // Top flat edge closing across bezel with top bleed
+            lineTo(w, -bleed)
+            lineTo(0f, -bleed)
             close()
         }
         return Outline.Generic(path)

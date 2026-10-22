@@ -1061,6 +1061,63 @@ fn restore_rect_on_monitor(
     shift_rect(on_screen_restore_rect(on_screen, target.rcWork), (-dx, -dy))
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug)]
+pub struct WindowGeometry {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub is_minimized: bool,
+}
+
+#[tauri::command]
+pub async fn get_window_geometry(hwnd: isize) -> Option<WindowGeometry> {
+    tauri::async_runtime::spawn_blocking(move || unsafe {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowPlacement, IsIconic, IsWindow, WINDOWPLACEMENT,
+        };
+
+        let hwnd = HWND(hwnd as *mut _);
+        if !IsWindow(Some(hwnd)).as_bool() {
+            return None;
+        }
+
+        let is_minimized = IsIconic(hwnd).as_bool();
+        if is_minimized {
+            let mut placement = WINDOWPLACEMENT {
+                length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+                ..Default::default()
+            };
+            if GetWindowPlacement(hwnd, &mut placement).is_ok() {
+                let rect = placement.rcNormalPosition;
+                return Some(WindowGeometry {
+                    x: rect.left,
+                    y: rect.top,
+                    width: rect.right - rect.left,
+                    height: rect.bottom - rect.top,
+                    is_minimized: true,
+                });
+            }
+        }
+
+        let mut rect = windows::Win32::Foundation::RECT::default();
+        if windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect).is_err() {
+            return None;
+        }
+        Some(WindowGeometry {
+            x: rect.left,
+            y: rect.top,
+            width: rect.right - rect.left,
+            height: rect.bottom - rect.top,
+            is_minimized,
+        })
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// The window outside Gloom that most recently became the foreground window.
 fn last_focused_window() -> Option<HWND> {
     let map = crate::state::FOCUS_TIMESTAMPS.get()?.lock().ok()?;

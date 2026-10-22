@@ -161,6 +161,7 @@ fn main() {
             get_custom_icons,
             set_menu_open,
             focus_window,
+            get_window_geometry,
             focus_app_windows,
             close_window,
             quit_gloom,

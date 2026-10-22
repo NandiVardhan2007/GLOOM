@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, memo } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import "./Dock.css";
 import { EdgeSurface } from "./components/EdgeSurface";
 import { initTheme } from "./theme";
@@ -166,6 +166,9 @@ const Dock = memo(function Dock() {
 	});
 	const [dockPreviewEnabled, setDockPreviewEnabled] = useState(
 		() => localStorage.getItem("gloom-dock-preview-enabled") !== "false"
+	);
+	const [dockGenieEnabled, setDockGenieEnabled] = useState(
+		() => localStorage.getItem("gloom-dock-genie-effect") !== "false"
 	);
 	const [dockIconOnly, setDockIconOnly] = useState(
 		() => localStorage.getItem("gloom-dock-icon-only") === "true"
@@ -448,6 +451,7 @@ const Dock = memo(function Dock() {
 	useSettingsSync({
 		"gloom-dock-mode": setDockMode,
 		"gloom-dock-preview-enabled": setDockPreviewEnabled,
+		"gloom-dock-genie-effect": (val: string) => setDockGenieEnabled(val !== "false"),
 		"gloom-dock-icon-only": setDockIconOnly,
 		"gloom-dock-separator-enabled": setDockSeparatorEnabled,
 		"gloom-dock-adaptive": setDockAdaptive,
@@ -673,6 +677,45 @@ const Dock = memo(function Dock() {
 				// Several windows: bring the most recent forward, then cycle.
 				await invoke("focus_app_windows", { hwnds: app.all_hwnds.map(([hwnd]) => hwnd) });
 			} else if (app.hwnd) {
+				if (dockGenieEnabled) {
+					try {
+						const geom = await invoke<{ x: number; y: number; width: number; height: number; is_minimized: boolean } | null>("get_window_geometry", { hwnd: app.hwnd });
+						if (geom && geom.width > 60 && geom.height > 60) {
+							const itemEl = document.querySelector(`[data-dock-key="${itemKey(app)}"]`) as HTMLElement | null;
+							const dockRect = itemEl ? itemEl.getBoundingClientRect() : null;
+							const dockTarget = {
+								x: dockRect ? dockRect.left + dockRect.width / 2 : window.innerWidth / 2,
+								y: dockRect ? dockRect.top : window.innerHeight - 60,
+								width: dockRect ? dockRect.width : 48
+							};
+
+							let img = previewData?.id === itemKey(app) && previewData.previews.length > 0
+								? previewData.previews[0].image
+								: null;
+
+							if (!img) {
+								const thumb = await invoke<[string, number] | null>("capture_window_thumbnail", {
+									hwnd: app.hwnd,
+									maxWidth: 480,
+									maxHeight: 320
+								});
+								if (thumb) img = thumb[0];
+							}
+
+							if (img) {
+								await emit("gloom-genie-animate", {
+									imageSrc: img,
+									windowRect: { x: geom.x, y: geom.y, width: geom.width, height: geom.height },
+									dockTarget,
+									direction: geom.is_minimized ? "restore" : "minimize",
+									durationMs: 340
+								});
+							}
+						}
+					} catch (err) {
+						console.error("Genie trigger failed:", err);
+					}
+				}
 				await invoke("focus_window", { hwnd: app.hwnd });
 			} else {
 				await invoke("open_app", { appName: app.path });
@@ -1382,6 +1425,7 @@ const Dock = memo(function Dock() {
 										<Reorder.Item
 											as="div"
 											key={itemKey(app)}
+											data-dock-key={itemKey(app)}
 											value={itemKey(app)}
 											style={{ position: "relative" }}
 											onDragStart={() => {
@@ -1549,6 +1593,7 @@ const Dock = memo(function Dock() {
 								{unpinnedItems.map((app) => (
 									<motion.div
 										key={itemKey(app)}
+										data-dock-key={itemKey(app)}
 										layout
 										initial={{ opacity: 0, scale: 0 }}
 										animate={{

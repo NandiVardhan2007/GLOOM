@@ -81,6 +81,9 @@ export function useSettings() {
 	});
 	const [dockEnabled, setDockEnabled] = useState(true);
 	const [dockPreviewEnabled, setDockPreviewEnabled] = useState(true);
+	const [dockGenieEnabled, setDockGenieEnabled] = useState(
+		() => localStorage.getItem("gloom-dock-genie-effect") !== "false"
+	);
 	const [dockIconOnly, setDockIconOnly] = useState(
 		() => localStorage.getItem("gloom-dock-icon-only") === "true"
 	);
@@ -632,6 +635,12 @@ export function useSettings() {
 		saveSetting("gloom-dock-preview-enabled", String(next));
 	};
 
+	const toggleDockGenie = () => {
+		const next = !dockGenieEnabled;
+		setDockGenieEnabled(next);
+		saveSetting("gloom-dock-genie-effect", String(next));
+	};
+
 	const toggleDockIconOnly = () => {
 		const next = !dockIconOnly;
 		setDockIconOnly(next);
@@ -993,6 +1002,8 @@ export function useSettings() {
 		handleDockEdgeDelayChange,
 		dockPreviewEnabled,
 		toggleDockPreview,
+		dockGenieEnabled,
+		toggleDockGenie,
 		dockIconOnly,
 		toggleDockIconOnly,
 		dockSeparatorEnabled,
