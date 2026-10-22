@@ -28,16 +28,18 @@
 ### 2. Android Cutout-Aware Overlay & Autonomous Mobile AI
 - **Window Manager Overlay**: Built in Kotlin and Jetpack Compose utilizing Android `WindowManager` (`TYPE_APPLICATION_OVERLAY`).
 - **Apple HIG Proportions**: Default collapsed pill width of `180 dp` (camera band clearance `125 dp`, wings `52 dp`) and expanded card geometry of `400 × 180 dp` with `36 dp` squircle corner radius.
+- **Camera-Hugging Idle State**: In idle state, the island collapses down into a compact ~36dp circular pill around the camera cutout, keeping the notification drawer completely unblocked for pull-down gestures.
 - **Dynamic Cutout Adaptation**: Queries live `WindowInsets` and `DisplayCutout` coordinates for real-time camera alignment across center punch-holes, corner cutouts, waterdrop notches, and no-cutout displays.
 - **Landscape Auto-Hide**: Automatically suppresses the Dynamic Island overlay when rotating into landscape mode to prevent obstructing full-screen video, games, or split-screen apps.
 - **Autonomous Hands-On Agent**:
-  - **WhatsApp Single-Type Deduplication**: Contact names and messages are verified and deduplicated before typing (`typeTextUnique`), preventing repeated typing in search boxes or chat fields.
+  - **WhatsApp Targeting & Deduplication**: Avoids clicking avatar/profile pictures, targets chat conversation rows with safe right-offset coordinates, and clears/verifies search inputs (`typeTextUnique`) to eliminate duplicate contact typing.
   - **Automated Web Browsing & Form Autofill**: Navigates URLs in Chrome and autofills web forms with encrypted profile information (`Vault.UserProfile`) using accessibility node matching.
   - **Self-Developing Memory (CAG + MAG)**: Memory-Augmented Generation retains contact aliases, personal facts, and procedural UI execution recipes. Cache-Augmented Generation provides sub-second semantic plan replay. Execution feedback loop reinforces successful execution paths.
   - **Phonetics & Fuzzy App Launcher**: Recognizes phonetic aliases ("whats up", "crome", "you tube", "insta", "g mail", "netfliks") and applies Levenshtein distance string matching to prevent launch errors.
   - **Needle-3 Offline Tool Caller**: Bundles quantized Cactus-3 model asset (`needle3.cact`) with a sub-20ms fallback grammar engine for zero-network intent execution.
   - **System Productivity Tools**: Personalized email drafting, regex-based file search, universal desktop clipboard/data sync, and cache & duplicate file cleanup.
   - **One-Click Keys Importer**: Supports importing `keys.json` with multi-key Groq and OpenRouter keys directly into Android Keystore encrypted storage (`SecureKeyStore`).
+  - **On-Device Diagnostics Logger**: Local JSONL execution trace and in-app Apple UIKit inspection viewer under **Settings → Automation → Execution Logs & Diagnostics** for auditing AI reasoning and touch gesture traces.
   - **FOD Optical Fingerprint Calibration**: Dedicated `CalibrationScreen` with Left/Right/High swipe routes that cleanly bypass in-display fingerprint sensors before pattern replay.
 
 ---

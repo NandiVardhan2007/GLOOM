@@ -169,6 +169,15 @@ Needle delivers an ultra-fast (~10–30 ms) on-device tool caller under Apache-2
 * [x] **Reel Counter Display & Tracking Hardening**: Displays Instagram glyph on the left wing and live numeric counter on the right wing; starts counting from 0 without suppression; supports both Instagram and Facebook.
 * [x] **Interactive Pattern Calibration & Verification**: Added direct 9-dot `PatternLockView` card in `CalibrationScreen.kt` for instant drawing and Keystore saving; eliminated false "calibrated successfully" reports on lock screen.
 
+### Sprint 6: Hardware Calibrations, Diagnostics Trace & WhatsApp Chat Targeting (Delivered)
+* [x] **WhatsApp Conversation Targeting & Avatar Avoidance**: `ScreenAutomation.kt` heavily demotes avatar / photo elements (`-80` points) and boosts name/title text (`+30` points); `CommandRouter.kt` targets chat rows with safe right-offset coordinates (`bounds.left + 300px`), preventing accidental clicks on the left profile photo; includes automatic popup dialog recovery to tap the "Message" action if an avatar was ever selected.
+* [x] **WhatsApp Typing Deduplication**: `ScreenAutomation.typeTextUnique` and `typeText` treat `ACTION_SET_TEXT` as definitive success without fallback duplication, preventing double contact names (e.g. "MomMom").
+* [x] **Camera-Cutout Idle Island Compression**: When in idle state, the Dynamic Island pill shrinks to ~36dp circular lens footprint (`(settings.pillHeight.dp).coerceIn(32.dp, 38.dp)`), completely clearing the status bar left and right for unobstructed notification shade pulling.
+* [x] **Reel Counter Dwell Tuning**: Clamped minimum dwell time to 250ms–1500ms (default 350ms) and added `TYPE_WINDOW_CONTENT_CHANGED` tracking for custom video feeds so fast swipes are not dropped.
+* [x] **Lock Screen Pattern Drawer Timing**: Increased bouncer entry animation delay to 450ms and injected 0.5px micro-dwells on touch samplers for 144Hz displays (Motorola Edge 50 Pro) to prevent missing dot hitboxes.
+* [x] **High-Accuracy Persistent Memory (CAG + MAG)**: Added `queryMemory` with synonym group resolution (`mom/mother/amma`, `dad/father/nanna`, `car/vehicle`, `phone/mobile`) and direct offline answering in `LocalBrain.kt` and `CommandRouter.kt`.
+* [x] **On-Device Diagnostics & Execution Trace Logger**: Created `JarvisDebugLogger.kt` recording user requests, AI thoughts, responses, executed steps, and failure reasons in local JSONL file; built in-app Apple UIKit `ExecutionLogsScreen.kt` (Settings → Automation → Execution Logs & Diagnostics) with live share trace and clear logs.
+
 ---
 
 ## 7. Google Artemis & KuafuAI Andee Feature Gap Analysis (Roadmap Additions)

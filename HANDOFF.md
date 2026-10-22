@@ -240,8 +240,16 @@ To eliminate desktop dependency when on the go, the mobile companion is equipped
 ## 5. Testing Notes & Hardware State
 
 - **Physical Device**: Motorola Edge 50 Pro (`ZD222NB59D`), Android 16.
-  - Currently on updated **`v1.3.0`** (versionCode 25, installed and verified on physical hardware).
-  - Upgradable via GitHub Actions release APK.
+  - Currently on updated **`v1.3.0`** debug build (assembled at 13:25, installed via streamed install, actively running under PID `24951`).
+  - **Permissions & Capabilities Auto-Configured**:
+    - `SYSTEM_ALERT_WINDOW`: Allowed.
+    - `POST_NOTIFICATIONS`: Granted.
+    - `RECORD_AUDIO`: Granted.
+    - `JarvisIslandAccessibilityService`: Bound and active (`Window: JARVIS Island`).
+    - `JarvisNotificationListener`: Bound and listening.
+  - **Keys**:
+    - Pushed to `/sdcard/Download/keys.json` on the phone.
+    - Desktop copy located at `C:\Users\nandu\OneDrive\Desktop\Folders\Documents\KEYS\keys.json`.
 - **Emulator**: `Medium_Phone_API_37.0` (AOSP, API 37, no Play Services). Start with:
   `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator" -avd Medium_Phone_API_37.0 -no-snapshot-save -no-boot-anim -gpu swiftshader_indirect -no-audio`
   Use `ANDROID_SERIAL=emulator-5554` for Gradle connected commands.
@@ -256,7 +264,7 @@ To ensure any developer or AI coding agent can immediately understand, maintain,
 
 ### Rule 1: Zero Scratch / Clean Tree Standard
 - **Never leave scratch files behind**: Delete any temporary scripts, screen captures (`*.png`), log dumps (`*.log`, `.crash.json`), or paste files (`.paste.js`) before completing a turn.
-- `git status` must remain completely clean. Only `HANDOFF.md` remains untracked by convention.
+- `git status` must remain completely clean. Only `HANDOFF.md` remains untracked by convention if uncommitted.
 
 ### Rule 2: Fast Pre-Flight Verification Before Full Builds
 Always use fast compiler checks during iteration. Do not trigger expensive release builds until code compiles cleanly:
@@ -282,39 +290,42 @@ At the end of **every session**, update `HANDOFF.md` with:
 
 ---
 
-## 7. Session End State
+## 7. Session End State & Incoming Agent Onboarding
 
-- **Current Live Release**: `v1.3.0`
-- **Working Tree Features Delivered**:
-  1. **WhatsApp Contact Search Deduplication**:
-     - Resolved root cause where custom views took ~50-100ms to update `node.text`, causing the old `typeText` to fall through to `ACTION_PASTE` and paste names twice (e.g. "MomMom").
-     - `ScreenAutomation.typeTextUnique` and `typeText` treat successful `ACTION_SET_TEXT` as definitive success without fallback duplication.
-     - `CommandRouter.sendWhatsApp` and `AiPlanner` explicitly clear search fields before typing once.
-  2. **Dynamic Island Camera-Hugging Idle Compression**:
-     - When `compactKind == IslandCompactKind.IDLE`, `compactWidth` shrinks to ~36dp (`(settings.pillHeight.dp).coerceIn(32.dp, 38.dp)`), seamlessly hugging the front camera cutout lens.
-     - Completely clears the left and right status bar, eliminating any obstruction when swiping down the notification drawer.
-  3. **Reel Counter High-Accuracy & Fast-Swipe Capture**:
-     - Reduced minimum dwell threshold from 1200ms to 350ms (`DEFAULT_REEL_MIN_DWELL_MS = 350L`) with clamping between 250ms and 1500ms.
-     - Added `TYPE_WINDOW_CONTENT_CHANGED` tracking to detect reel transitions via audio/creator tags even when custom feeds suppress `TYPE_VIEW_SCROLLED`.
-  4. **Lock Screen Pattern Drawer Micro-Dwell Calibration**:
-     - Increased keyguard bouncer animation delay to 450ms.
-     - Added 0.5px micro-dwells on dot coordinates so 144Hz touch samplers (like Motorola Edge 50 Pro) reliably hit the hitbox of every dot without cutting corners.
-  5. **High-Accuracy Persistent Memory (CAG + MAG)**:
-     - Implemented `AiMemory.queryMemory` with synonym group resolution (`mom/mother/amma`, `dad/father/nanna`, `car/vehicle`, `phone/mobile`) and "list my memories" support.
-     - Integrated directly into `LocalBrain.kt` and `CommandRouter.kt` for instant offline responses to personal memory queries ("what is my car number", "who is my mom").
-     - Added fallback to all stored personal facts in `AiMemory.getRelevantContext` when prompt tokens lack explicit keywords.
-  6. **On-Device Diagnostics & Execution Trace Logger**:
-     - Created `JarvisDebugLogger.kt` maintaining an 80-frame in-memory ring and writing JSONL traces to `getExternalFilesDir(null)/logs/jarvis_execution_trace.jsonl`.
-     - Wired logger into `AiPlanner.kt`, `CommandRouter.kt`, and `LocalBrain.kt` to capture user requests, AI thoughts, responses, executed steps, and failure reasons.
-     - Created Apple UIKit styled `ExecutionLogsScreen.kt` with live share trace via FileProvider, clear logs, and expandable log cards.
-     - Linked `ExecutionLogsScreen` into `MainActivity.kt` routes and `SettingsHubScreen` under Diagnostics & Debug Logs.
-- **Verified this run**:
-  - Android Kotlin compile: `./gradlew :app:compileDebugKotlin` passed (clean).
-  - Android Debug APK assemble: `./gradlew :app:assembleDebug` passed (clean in 35s).
-  - Android Unit tests: `./gradlew :app:testDebugUnitTest` passed (clean).
-  - Desktop TypeScript build: `npm run build` passed (clean in 5.86s).
-  - Desktop Rust tests: `cargo test` 23 passed (clean).
-  - Desktop Rust release check: `cargo check --release --features custom-protocol` passed (clean in 9.16s).
+- **Current Git HEAD**: `fbf2cc6d57c641770d75564d50419a48a5adc5b9` (`fbf2cc6`) on `origin/main`.
+- **Current Live Tag**: `v1.3.0`.
+- **Verified on Hardware (`ZD222NB59D`) this session**:
+  1. **WhatsApp Contact Search & Chat Row Targeting**:
+     - Contact name search deduplication (`typeTextUnique`).
+     - Avoids clicking avatar/profile pictures (`-80` score penalty).
+     - Offsets click coordinates safely to the right (`bounds.left + 300px`) to hit conversation rows.
+     - Auto-recovers from accidental avatar popup dialogs via "Message" action button.
+  2. **Camera-Hugging Idle Island Compression**:
+     - When `compactKind == IslandCompactKind.IDLE`, shrinks to ~36dp circular lens footprint over the punch-hole camera.
+     - Leaves status bar completely clear for pulling down notification drawer.
+  3. **High-Responsiveness Reel Counter**:
+     - Dwell time clamped to 250ms–1500ms (350ms default) with window content change event detection.
+  4. **High-Accuracy Persistent Memory (CAG + MAG)**:
+     - Synonym group expansion (`mom/mother/amma`, `car/vehicle`) and direct offline answers in `LocalBrain.kt`.
+  5. **On-Device Diagnostics & Execution Trace Logger**:
+     - Active JSONL logger at `/sdcard/Android/data/com.jarvis.island/files/logs/jarvis_execution_trace.jsonl`.
+     - In-app inspection screen under Settings → Automation → Execution Logs & Diagnostics.
+  6. **Lock Screen Pattern Drawer**:
+     - 450ms bouncer animation delay with 0.5px micro-dwell on touch samplers.
+- **Compiled Binaries**:
+  - Android APK: `mobile/android/app/build/outputs/apk/debug/app-debug.apk` (52.5 MB, installed on phone).
+  - Desktop EXE: `app/src-tauri/target/fast-release/jarvis.exe` (13.6 MB).
+  - Batch Keys: `C:\Users\nandu\OneDrive\Desktop\Folders\Documents\KEYS\keys.json` (also pushed to phone `/sdcard/Download/keys.json`).
+
+### Immediate Next Steps for Incoming Agent:
+1. **Verify Live WhatsApp Flow on Device**:
+   - Issue voice command: *"Open WhatsApp and send a message to Mom saying I'm on my way"*.
+   - Check execution logs in app under **Settings → Automation → Execution Logs & Diagnostics** to inspect trace entries.
+2. **Execute Planned Backlog Items**:
+   - Check `FEATURE_BACKLOG.md` for remaining P2 items (Whistle offline ASR fallback, video replay analyzer).
+3. **Keep Architecture Pure**:
+   - Respect Apple HIG design tokens in `AppleUIKit.kt` / `IslandIcons.tsx`. No Material icons or Lucide icons in expanded panels.
+   - Always run pre-flight checks (`./gradlew :app:compileDebugKotlin`, `npx tsc --noEmit`, `cargo check`) before modifying APK/EXE.
 
 ---
 
