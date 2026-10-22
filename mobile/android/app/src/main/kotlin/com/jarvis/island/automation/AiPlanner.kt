@@ -62,6 +62,10 @@ object AiPlanner {
                 "Enable JARVIS accessibility so I can control the screen."
             )
         }
+        val safety = SafetyGuard.assessRequest(request)
+        if (!safety.allowed) {
+            return CommandRouter.Outcome(true, false, SafetyGuard.refusal(safety))
+        }
         if (BLOCKED_WORDS.any { request.lowercase().contains(it) }) {
             return CommandRouter.Outcome(true, false, "I won't do that from voice.")
         }
@@ -69,7 +73,8 @@ object AiPlanner {
         var lastMessage = ""
         for (round in 0 until MAX_ROUNDS) {
             val outline = ScreenAutomation.describe(MAX_OUTLINE_ELEMENTS)
-            val plan = requestPlan(client, request, outline, round) ?: break
+            val grid = gridWhenTreeIsEmpty()
+            val plan = requestPlan(client, request, outline, grid, round) ?: break
             val actions = plan.optJSONArray("actions") ?: JSONArray()
             val say = plan.optString("say").trim()
             if (say.isNotEmpty()) lastMessage = say
@@ -92,20 +97,57 @@ object AiPlanner {
                     "tap", "click" -> {
                         val eid = action.optInt("eid", -1)
                         if (eid < 0) return failure("The plan named no element to tap.")
+                        val element = ScreenAutomation.element(eid)
+                            ?: return failure("Element $eid is no longer on screen.")
+                        val verdict = SafetyGuard.assessElement(element.label, element.viewId)
+                        if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
                         if (eid == lastTap) tapStreak += 1 else tapStreak = 0
                         if (tapStreak >= 2) {
                             return failure("I stopped because the same control kept being tapped.")
                         }
                         lastTap = eid
-                        if (!ScreenAutomation.tap(eid)) {
+                        val result = ActionVerifier.tap(
+                            eid,
+                            verify = com.jarvis.island.settings.JarvisIslandSettings.instance.verifyActionsEnabled
+                        )
+                        if (!result.success) {
                             return failure("I couldn't tap element $eid; the screen may have changed.")
                         }
-                        changedScreen = true
+                        if (result.changed) changedScreen = true
                         SystemClock.sleep(650)
+                    }
+                    "tap_grid", "tap_cell" -> {
+                        val cell = action.optInt("cell", -1)
+                        if (cell < 0) return failure("The plan named no grid cell.")
+                        val frame = ScreenSnapshot.analyseBlocking()
+                            ?: return failure("I couldn't take a screenshot to aim with.")
+                        val before = ScreenAutomation.signature()
+                        if (!ScreenSnapshot.tapCell(frame, cell)) {
+                            frame.bitmap.recycle()
+                            return failure("I couldn't tap grid cell $cell.")
+                        }
+                        val changed = ActionVerifier.waitForChange(before, 1_200L)
+                        frame.bitmap.recycle()
+                        if (changed) changedScreen = true
+                        SystemClock.sleep(650)
+                    }
+                    "tap_point" -> {
+                        val x = action.optInt("x", -1)
+                        val y = action.optInt("y", -1)
+                        if (x < 0 || y < 0) return failure("The plan gave no point to tap.")
+                        val result = ActionVerifier.tapFraction(x, y)
+                        if (!result.success) return failure("I couldn't tap that point.")
+                        if (result.changed) changedScreen = true
+                        SystemClock.sleep(600)
                     }
                     "long_press", "hold" -> {
                         val eid = action.optInt("eid", -1)
-                        if (eid < 0 || !ScreenAutomation.longPress(eid)) {
+                        if (eid < 0) return failure("I couldn't long-press that element.")
+                        val element = ScreenAutomation.element(eid)
+                            ?: return failure("Element $eid is no longer on screen.")
+                        val verdict = SafetyGuard.assessElement(element.label, element.viewId)
+                        if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
+                        if (!ScreenAutomation.longPress(eid)) {
                             return failure("I couldn't long-press that element.")
                         }
                         changedScreen = true
@@ -188,10 +230,23 @@ object AiPlanner {
     private fun failure(message: String): CommandRouter.Outcome =
         CommandRouter.Outcome(true, false, message)
 
+    /**
+     * Apps that draw themselves (WebViews, Flutter, games) expose an empty
+     * tree. In that case the screenshot grid is the only way to aim, so it is
+     * attached to the planner request.
+     */
+    private fun gridWhenTreeIsEmpty(): String? {
+        if (!ScreenSnapshot.isSupported()) return null
+        val elements = ScreenAutomation.snapshot()
+        if (elements.size > 5) return null
+        return runCatching { ScreenSnapshot.describeScreen() }.getOrNull()
+    }
+
     private fun requestPlan(
         client: JarvisLiveBridgeClient,
         request: String,
         outline: String,
+        grid: String?,
         round: Int,
     ): JSONObject? {
         val system = """
@@ -199,14 +254,17 @@ object AiPlanner {
             Reply with ONE JSON object and no other text:
             {"actions":[{"action":"tap","eid":12},{"action":"type","text":"hello"},{"action":"submit"}],"say":"short status"}
             Allowed actions:
-            tap/click {eid}, long_press {eid}, type {text}, submit, scroll {direction:up|down,times},
-            swipe {direction:up|down|left|right}, global {name:back|home|recents|notifications},
-            launch {app}, wait {ms}.
+            tap/click {eid}, tap_grid {cell}, tap_point {x,y}, long_press {eid}, type {text}, submit,
+            scroll {direction:up|down,times}, swipe {direction:up|down|left|right},
+            global {name:back|home|recents|notifications}, launch {app}, wait {ms}.
             Rules:
             - Use only eids that appear in the outline. Never invent one.
-            - At most 5 actions. The device executes them in order.
             - The outline line is: e<number>[*][{E,S}]|<class>|<label>|[x,y] in 0-1000 coordinates.
               * means tappable, E means text field, S means scrollable.
+            - If a screenshot grid is present, the app hides its accessibility tree.
+              Use tap_grid {cell} on a cell marked content, or tap_point {x,y} in 0-1000
+              coordinates when the target is inside a cell.
+            - At most 5 actions. The device executes them in order.
             - If the request is already satisfied, return {"actions":[],"say":"..."}.
             - If more steps are needed after this batch, say so; you will be shown the new screen.
             - Never perform destructive or financial actions.
@@ -214,7 +272,10 @@ object AiPlanner {
         val user = buildString {
             append("Request: ").append(request).append('\n')
             if (round > 0) append("This is round ").append(round + 1).append("; continue from the current screen.\n")
-            append("Screen outline:\n").append(outline)
+            append("Screen outline:\n").append(outline).append('\n')
+            if (grid != null) {
+                append("Screenshot aim grid:\n").append(grid)
+            }
         }
         val latch = CountDownLatch(1)
         var reply: String? = null

@@ -22,6 +22,14 @@ interface IslandProps {
   onUpdateConfig: (cfg: AppConfig) => void;
 }
 
+interface DesktopNotificationPayload {
+  appName: string;
+  title: string;
+  text: string;
+  otp?: string | null;
+  source?: string;
+}
+
 interface BridgeTransferPayload {
   id: string;
   fileName: string;
@@ -43,13 +51,14 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
   const [isIslandDragOver, setIsIslandDragOver] = useState<boolean>(false);
   const [isForegroundFullscreen, setIsForegroundFullscreen] = useState<boolean>(false);
   const [transfer, setTransfer] = useState<TransferActivity | null>(null);
-  const [notification] = useState<NotificationActivity | null>(null);
+  const [notification, setNotification] = useState<NotificationActivity | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const collapseTimerRef = useRef<number | null>(null);
   const transferClearRef = useRef<number | null>(null);
+  const notificationClearRef = useRef<number | null>(null);
   const prevTrackRef = useRef<string>("");
 
   const { media, togglePlay, nextTrack, prevTrack, seek } = useMediaSession();
@@ -232,8 +241,42 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
     return () => {
       if (unlisten) unlisten();
       if (transferClearRef.current) window.clearTimeout(transferClearRef.current);
+      if (notificationClearRef.current) window.clearTimeout(notificationClearRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    safeListen<DesktopNotificationPayload>("jarvis://notification", (event) => {
+      const payload = event.payload;
+      if (!payload || !config.showAgentNotifications) return;
+      setNotification({
+        appName: payload.appName || "Desktop",
+        title: payload.title || "",
+        text: payload.text || "",
+        otp: payload.otp ?? null,
+      });
+      setPhase("peek");
+      if (notificationClearRef.current) window.clearTimeout(notificationClearRef.current);
+      notificationClearRef.current = window.setTimeout(() => setNotification(null), 6000);
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
+
+    return () => {
+      if (unlisten) unlisten();
+      if (notificationClearRef.current) window.clearTimeout(notificationClearRef.current);
+    };
+  }, [config.showAgentNotifications]);
+
+  // A peek that timed out has nothing left to show; settle to rest.
+  useEffect(() => {
+    if (notification === null && phase === "peek" && !isPinned) {
+      setPhase(hasActivity ? "compact" : "closed");
+    }
+  }, [notification, phase, isPinned, hasActivity]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -550,7 +593,10 @@ export const Island: React.FC<IslandProps> = ({ config, onUpdateConfig }) => {
               setPhase("expanded");
               setIsPinned(true);
             }}
-            onClose={collapseToRest}
+            onClose={() => {
+              setNotification(null);
+              collapseToRest();
+            }}
           />
         </motion.div>
       );

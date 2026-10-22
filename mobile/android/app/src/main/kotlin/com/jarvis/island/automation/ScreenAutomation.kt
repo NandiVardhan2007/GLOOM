@@ -46,6 +46,19 @@ object ScreenAutomation {
 
     data class TypeResult(val success: Boolean, val via: String, val detail: String)
 
+    /**
+     * A cheap fingerprint of the current screen: package, element count and the
+     * first labels with their positions. Two equal signatures mean the outline
+     * did not change, which is how post-action verification detects a tap that
+     * was accepted but did nothing.
+     */
+    data class Signature(
+        val packageName: String,
+        val elementCount: Int,
+        val actionableCount: Int,
+        val labelsHash: Int,
+    )
+
     private val lock = Any()
     private var cache: List<Element> = emptyList()
     private var cachedAt = 0L
@@ -165,6 +178,26 @@ object ScreenAutomation {
     }
 
     fun element(eid: Int): Element? = snapshot().firstOrNull { it.eid == eid }
+
+    fun signature(): Signature {
+        val elements = refresh()
+        val labels = buildString {
+            for (element in elements.take(28)) {
+                append(element.label)
+                append('@')
+                append(element.bounds.left)
+                append(',')
+                append(element.bounds.top)
+                append('|')
+            }
+        }
+        return Signature(
+            packageName = currentPackage(),
+            elementCount = elements.size,
+            actionableCount = elements.count { it.clickable || it.editable || it.scrollable },
+            labelsHash = labels.hashCode(),
+        )
+    }
 
     fun describe(limit: Int = 100): String {
         val elements = refresh()
@@ -460,10 +493,10 @@ object ScreenAutomation {
         }
     }
 
-    private fun screenWidth(): Int =
+    fun screenWidth(): Int =
         service()?.resources?.displayMetrics?.widthPixels ?: 1080
 
-    private fun screenHeight(): Int =
+    fun screenHeight(): Int =
         service()?.resources?.displayMetrics?.heightPixels ?: 2400
 
     private fun shortClass(name: String): String = name.substringAfterLast('.')

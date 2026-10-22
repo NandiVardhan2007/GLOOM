@@ -7,3 +7,4 @@ pub mod bridge_tls;
 pub mod livebridge;
 pub mod lyrics;
 pub mod ai;
+pub mod notifications;

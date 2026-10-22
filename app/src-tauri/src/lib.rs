@@ -447,6 +447,17 @@ fn jarvis_open_transfer_folder() {
     providers::livebridge::open_transfer_folder();
 }
 
+#[tauri::command]
+fn jarvis_push_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    otp: Option<String>,
+) -> Result<(), String> {
+    providers::notifications::push(&app, "JARVIS", &title, &body, otp.as_deref(), "jarvis");
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -493,7 +504,8 @@ pub fn run() {
             jarvis_install_update,
             jarvis_send_mobile_control,
             jarvis_simulate_mouse_input,
-            jarvis_open_url
+            jarvis_open_url,
+            jarvis_push_notification
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -515,6 +527,7 @@ pub fn run() {
             providers::volume::start_volume_service(handle.clone());
             providers::clipboard::start_clipboard_service(handle.clone());
             providers::livebridge::start_livebridge_service(handle.clone());
+            providers::notifications::start_windows_listener(handle.clone());
 
             // Fullscreen suppression watcher
             let fs_handle = handle.clone();

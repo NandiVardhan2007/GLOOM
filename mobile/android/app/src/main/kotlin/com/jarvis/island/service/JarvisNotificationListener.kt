@@ -24,7 +24,6 @@ import android.util.Log
 import com.jarvis.island.lyrics.JarvisLyricsProvider
 import com.jarvis.island.settings.JarvisIslandSettings
 import com.jarvis.island.ui.MediaTrackInfo
-import java.util.regex.Pattern
 
 /**
  * JARVIS Notification & Media Session Service:
@@ -110,7 +109,6 @@ class JarvisNotificationListener : NotificationListenerService() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val otpPattern = Pattern.compile("(?i)\\b(\\d{3}[- ]?\\d{3}|\\d{4,8})\\b")
     private var progressTicker: Runnable? = null
     private val lastRenderedAt = HashMap<String, Long>()
     private val lastRenderedSignature = HashMap<String, String>()
@@ -166,7 +164,6 @@ class JarvisNotificationListener : NotificationListenerService() {
 
         val extras = sbn.notification.extras
 
-        // 1. Inspect for OTP verification codes
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
             ?: extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()
             ?: ""
@@ -174,15 +171,6 @@ class JarvisNotificationListener : NotificationListenerService() {
             ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
             ?: ""
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
-
-        val combined = "$title $text"
-        val matcher = otpPattern.matcher(combined)
-        if (matcher.find()) {
-            val code = matcher.group(1)?.replace("-", "")?.replace(" ", "") ?: ""
-            if (code.length in 4..8) {
-                // Sensitive OTP code processed locally without logging to Logcat
-            }
-        }
 
         // 2. Check for MediaStyle token directly in notification
         val token = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -224,6 +212,38 @@ class JarvisNotificationListener : NotificationListenerService() {
         if (protectedCategory || protectedFlags || systemPackage || sbn.isOngoing) return
 
         if (title.isBlank() && text.isBlank()) return
+
+        val settings = JarvisIslandSettings.instance
+        if (!settings.isPackageAllowed(sbn.packageName)) {
+            Log.d(TAG, "Skipping ${sbn.packageName}: app is muted in the island")
+            return
+        }
+
+        // Triage decides whether an alert is shown at all and extracts a
+        // one-time code so the island can offer a single copy action.
+        var otpCode: String? = null
+        if (settings.notificationTriageEnabled) {
+            val channelName = runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    getSystemService(NotificationManager::class.java)
+                        ?.getNotificationChannel(sbn.packageName, sbn.notification.channelId)
+                        ?.name?.toString()
+                        .orEmpty()
+                } else ""
+            }.getOrDefault("")
+            val verdict = com.jarvis.island.automation.NotificationTriage.classify(
+                packageName = sbn.packageName,
+                title = title,
+                text = text,
+                channelName = channelName,
+            )
+            if (!verdict.show) {
+                Log.d(TAG, "Triage ignored ${sbn.packageName} (${verdict.kind})")
+                return
+            }
+            otpCode = verdict.otp
+        }
+
         val shouldRender = onNotificationEvent != null &&
             JarvisIslandSettings.instance.pluginNotifications &&
             rememberAndDedupe(sbn, title, text)
@@ -271,7 +291,8 @@ class JarvisNotificationListener : NotificationListenerService() {
             subText = subText,
             largeIcon = largeIconBitmap,
             contentIntent = sbn.notification.contentIntent,
-            postTimeMs = sbn.postTime
+            postTimeMs = sbn.postTime,
+            otpCode = otpCode,
         )
 
         // Dismiss the status-bar copy as early as possible so the alert is

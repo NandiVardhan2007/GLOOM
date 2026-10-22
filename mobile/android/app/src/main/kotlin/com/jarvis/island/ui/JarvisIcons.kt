@@ -347,4 +347,44 @@ object JarvisIcons {
             solid("M12 20.2S3.6 15 3.6 9.2A4.6 4.6 0 0 1 12 6.4a4.6 4.6 0 0 1 8.4 2.8c0 5.8-8.4 11-8.4 11z")
         }
     }
+
+    val Note: ImageVector by lazy {
+        build("note.text") {
+            line("M6.2 3.8h8.2L18.6 8v11.3a1 1 0 0 1-1 1H6.2a1 1 0 0 1-1-1V4.8a1 1 0 0 1 1-1z")
+            line("M14.2 3.9V8h4.3")
+            line("M8.4 12h7.2M8.4 15.4h5.2", 1.6f)
+        }
+    }
+
+    val Trash: ImageVector by lazy {
+        build("trash") {
+            line("M4.6 6.6h14.8")
+            line("M9.2 6.6V4.4h5.6v2.2")
+            line("M6.4 6.6l.9 13.2a1 1 0 0 0 1 .9h7.4a1 1 0 0 0 1-.9l.9-13.2")
+            line("M10.2 10.4v6.4M13.8 10.4v6.4", 1.6f)
+        }
+    }
+
+    val Alarm: ImageVector by lazy {
+        build("alarm") {
+            line("M12 21a7.6 7.6 0 1 0 0-15.2A7.6 7.6 0 0 0 12 21z")
+            line("M12 9.4v3.8l2.6 1.6")
+            line("M5.2 4.2 3 6.4M18.8 4.2 21 6.4", 1.7f)
+        }
+    }
+
+    val Grid: ImageVector by lazy {
+        build("square.grid.3x3") {
+            line("M4.4 4.4h4v4h-4zM10 4.4h4v4h-4zM15.6 4.4h4v4h-4z")
+            line("M4.4 10h4v4h-4zM10 10h4v4h-4zM15.6 10h4v4h-4z")
+            line("M4.4 15.6h4v4h-4zM10 15.6h4v4h-4zM15.6 15.6h4v4h-4z")
+        }
+    }
+
+    val Person: ImageVector by lazy {
+        build("person") {
+            line("M12 11.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4z")
+            line("M5 20.4c.7-3.5 3.5-5.4 7-5.4s6.3 1.9 7 5.4")
+        }
+    }
 }

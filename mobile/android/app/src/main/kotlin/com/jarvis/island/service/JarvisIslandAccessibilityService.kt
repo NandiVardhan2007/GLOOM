@@ -746,6 +746,45 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Shows an alert JARVIS produced itself (a reminder, a finished transfer,
+     * a desktop notification). These never pass through the system notification
+     * listener, which deliberately skips our own package.
+     */
+    fun showLocalNotification(
+        title: String,
+        text: String,
+        contentIntent: android.app.PendingIntent? = null,
+        otp: String? = null,
+    ) {
+        val event = NotificationIslandEvent(
+            id = "local-${System.currentTimeMillis()}",
+            packageName = packageName,
+            appName = "JARVIS",
+            title = title,
+            text = text,
+            contentIntent = contentIntent,
+            postTimeMs = System.currentTimeMillis(),
+            otpCode = otp,
+        )
+        mainHandler.post {
+            serviceScope.launch {
+                activeNotification = event
+                if (JarvisIslandSettings.instance.autoExpandOnNotification && !isExpanded) {
+                    expandIsland()
+                }
+                notificationJob?.cancel()
+                notificationJob = launch {
+                    delay((JarvisIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
+                    if (activeNotification?.id == event.id) {
+                        activeNotification = null
+                        if (isExpanded) collapseIsland()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Speaks a result after the voice panel has closed. Automation finishes
      * the panel first so injected touches reach the app underneath, which
      * means the panel's own text-to-speech engine is gone by then.

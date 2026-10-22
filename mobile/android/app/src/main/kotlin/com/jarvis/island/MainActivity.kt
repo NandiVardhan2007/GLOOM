@@ -134,6 +134,9 @@ import com.jarvis.island.ui.JarvisIcon
 import com.jarvis.island.ui.JarvisLockScreen
 import com.jarvis.island.ui.SecurityScreen
 import com.jarvis.island.ui.VoiceSettingsScreen
+import com.jarvis.island.ui.AutomationScreen
+import com.jarvis.island.ui.NotificationSettingsScreen
+import com.jarvis.island.ui.ReelWeekChart
 import com.jarvis.island.security.JarvisSecurity
 import com.jarvis.island.service.JarvisIslandAccessibilityService
 import com.jarvis.island.service.JarvisIslandOverlayService
@@ -171,6 +174,7 @@ class MainActivity : ComponentActivity() {
         bridgeClient = JarvisLiveBridgeClient(this)
         bridgeClient.startDiscovery { _, _ -> }
         JarvisIslandSettings.instance.load(this)
+        com.jarvis.island.automation.ReminderScheduler.rescheduleAll(this)
 
         if (com.jarvis.island.voice.VoicePrefs.isWakeWordEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
@@ -392,7 +396,11 @@ fun JarvisMasterApp(
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
                             onRestartService = onRestartService,
-                            onOpenTrackpad = { currentScreen = "trackpad" }
+                            onOpenTrackpad = { currentScreen = "trackpad" },
+                            onOpenAssistant = {
+                                currentScreen = "settings"
+                                settingsSubPage = "automation"
+                            }
                         )
                     }
                     screen == "plugins" -> {
@@ -427,7 +435,13 @@ fun JarvisMasterApp(
                         VoiceSettingsScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "settings" && subPage == "apps" -> {
-                        EnabledAppsSettingsScreen(onBack = { settingsSubPage = null })
+                        NotificationSettingsScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "notifications" -> {
+                        NotificationSettingsScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "automation" -> {
+                        AutomationScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "about" -> {
                         AboutScreen()
@@ -445,7 +459,11 @@ fun JarvisMasterApp(
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
                             onRestartService = onRestartService,
-                            onOpenTrackpad = { currentScreen = "trackpad" }
+                            onOpenTrackpad = { currentScreen = "trackpad" },
+                            onOpenAssistant = {
+                                currentScreen = "settings"
+                                settingsSubPage = "automation"
+                            }
                         )
                     }
                 }
@@ -472,7 +490,8 @@ fun HomeScreen(
     onSimulateMusic: () -> Unit,
     onSyncClipboard: () -> Unit,
     onRestartService: () -> Unit,
-    onOpenTrackpad: () -> Unit = {}
+    onOpenTrackpad: () -> Unit = {},
+    onOpenAssistant: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val settings = remember { JarvisIslandSettings.instance }
@@ -644,6 +663,24 @@ fun HomeScreen(
                 icon = JarvisIcons.PlayFill,
                 iconTint = Apple.systemPurple
             )
+            if (settings.reelCounterEnabled) {
+                AppleDivider()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Text(
+                        "Last 7 days",
+                        style = AppleType.footnote,
+                        color = Apple.secondaryLabel
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    ReelWeekChart(
+                        days = com.jarvis.island.automation.ReelCounter.last7Days(context)
+                    )
+                }
+            }
             AppleDivider()
             AppleRow(
                 title = "Reset today's count",
@@ -727,6 +764,43 @@ fun HomeScreen(
                 style = AppleType.footnote,
                 color = Apple.secondaryLabel,
                 modifier = Modifier.padding(start = 36.dp, end = 36.dp, top = 7.dp)
+            )
+        }
+
+        AppleSection(
+            header = "Assistant",
+            footer = "Scenes, reminders and notes are stored on this phone. The desktop model is only used when the on-device brain needs it."
+        ) {
+            val nextReminder = remember(bridgeTick) {
+                com.jarvis.island.automation.Notebook.nextReminder(context)
+            }
+            val noteCount = remember(bridgeTick) {
+                com.jarvis.island.automation.Notebook.notes(context).size
+            }
+            AppleRow(
+                title = "Next reminder",
+                subtitle = nextReminder?.text ?: "Nothing scheduled",
+                value = nextReminder?.let {
+                    com.jarvis.island.automation.TimeParser.format(it.triggerAtMs)
+                } ?: "—",
+                icon = JarvisIcons.Alarm,
+                iconTint = Apple.systemOrange
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Notes",
+                subtitle = if (noteCount == 0) "No notes yet" else "$noteCount saved",
+                icon = JarvisIcons.Note,
+                iconTint = Apple.systemYellow
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Open Assistant",
+                subtitle = "Brain, readiness, scenes and safety",
+                icon = JarvisIcons.Sparkles,
+                iconTint = Apple.systemPurple,
+                showChevron = true,
+                onClick = onOpenAssistant
             )
         }
 
@@ -1074,14 +1148,32 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
                 showChevron = true,
                 onClick = { onNavigateSubPage("behavior") }
             )
+        }
+
+        AppleSection(header = "Intelligence") {
+            AppleRow(
+                title = "Assistant",
+                subtitle = "Brain, readiness, scenes, reminders and notes",
+                icon = JarvisIcons.Sparkles,
+                iconTint = Apple.systemPurple,
+                value = when (settings.aiBrain) {
+                    "local" -> "On-device"
+                    "remote" -> "Desktop"
+                    else -> "Auto"
+                },
+                showChevron = true,
+                onClick = { onNavigateSubPage("automation") }
+            )
             AppleDivider()
             AppleRow(
-                title = "Enabled Apps",
-                subtitle = "Choose which apps can show Live Activities",
-                icon = JarvisIcons.Apps,
-                iconTint = Apple.systemGreen,
+                title = "Notifications",
+                subtitle = "Per-app alerts, triage and code copy",
+                icon = JarvisIcons.Bell,
+                iconTint = Apple.systemRed,
+                value = if (settings.blockedPackages.isEmpty()) "All"
+                else "${settings.blockedPackages.size} muted",
                 showChevron = true,
-                onClick = { onNavigateSubPage("apps") }
+                onClick = { onNavigateSubPage("notifications") }
             )
         }
 
@@ -1709,65 +1801,6 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
                         settings.save(context)
                     }
                 )
-            }
-        }
-    }
-}
-
-// ── Enabled Apps Sub-Page ──
-@Composable
-fun EnabledAppsSettingsScreen(onBack: () -> Unit) {
-    val scrollState = rememberScrollState()
-    val apps = remember {
-        listOf(
-            "WhatsApp" to true,
-            "Telegram" to true,
-            "Spotify" to true,
-            "YouTube Music" to true,
-            "Google Chrome" to false,
-            "Slack" to true,
-            "Discord" to true,
-            "Phone & Dialer" to true
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        SubPageHeader(title = "Enabled Applications", onBack = onBack)
-
-        Text(text = "Choose which apps can present cards inside the Dynamic Island.", color = Color(0xFF8E8E93), fontSize = 12.sp)
-
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                apps.forEach { (appName, defaultEnabled) ->
-                    var isEnabled by remember { mutableStateOf(defaultEnabled) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = appName, color = Color.White, fontSize = 13.5.sp)
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { isEnabled = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF0A84FF),
-                                uncheckedThumbColor = Color(0xFF8E8E93),
-                                uncheckedTrackColor = Color(0xFF2C2C2E)
-                            )
-                        )
-                    }
-                }
             }
         }
     }

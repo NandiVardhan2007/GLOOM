@@ -47,7 +47,8 @@ data class NotificationIslandEvent(
     val subText: String = "",
     val largeIcon: Bitmap? = null,
     val contentIntent: PendingIntent? = null,
-    val postTimeMs: Long = System.currentTimeMillis()
+    val postTimeMs: Long = System.currentTimeMillis(),
+    val otpCode: String? = null
 )
 
 data class SystemToastEvent(

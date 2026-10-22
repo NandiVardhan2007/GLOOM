@@ -3,13 +3,15 @@ package com.jarvis.island.automation
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import com.jarvis.island.settings.JarvisIslandSettings
 
 /**
  * Turns a spoken or typed instruction into hands-on actions.
  *
  * Commands are matched locally first, because they are deterministic and cost
- * nothing. Anything unmatched is left to the assistant model by returning
- * handled = false.
+ * nothing. Anything unmatched is left to the assistant by returning
+ * handled = false. Destructive and financial actions are refused before a
+ * gesture is injected, and every tap is verified against the screen afterwards.
  */
 object CommandRouter {
 
@@ -34,12 +36,59 @@ object CommandRouter {
         """^(?:search|look up|google|find)\s+(?:for\s+)?(.+)$""",
         RegexOption.IGNORE_CASE
     )
+
+    private val reminderPattern = Regex(
+        """^(?:remind me|set (?:a )?reminder|reminder)\s+(?:to\s+|about\s+|that\s+)?(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val notePattern = Regex(
+        """^(?:note|remember|take a note|save a note|make a note)\s+(?:that\s+|down\s+)?(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val sceneRunPattern = Regex(
+        """^(?:run|start|do|play)\s+(?:my\s+)?scene\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val sceneRunSuffixPattern = Regex(
+        """^(?:run|start|do|play)\s+(?:my\s+)?(.+?)\s+scene$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val sceneCreatePattern = Regex(
+        """^(?:create|make|add|save)\s+(?:a\s+)?scene\s+(?:called\s+|named\s+)?([^:;]+)[:;]\s*(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val sceneDeletePattern = Regex(
+        """^(?:delete|remove)\s+scene\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val smsPattern = Regex(
+        """^(?:text|sms)\s+(.+?)\s+(?:saying|with|about|that)\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val smsToPattern = Regex(
+        """^(?:send|text|sms)\s+(?:a\s+)?(?:text|sms)\s+to\s+(.+?)\s+(?:saying|with|that|about)\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
     private val whatsAppPattern = Regex(
         """^(?:send|text|message)\s+(?:a\s+)?(?:whatsapp\s+)?(?:message\s+)?to\s+(.+?)\s+(?:saying|with|about|that)\s+(.+)$""",
         RegexOption.IGNORE_CASE
     )
     private val whatsAppShortPattern = Regex(
         """^(?:send|text|message)\s+(.+?)\s+(?:saying|with|about|that)\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val callPattern = Regex("""^(?:call|dial|phone)\s+(.+)$""", RegexOption.IGNORE_CASE)
+    private val alarmPattern = Regex(
+        """^(?:set (?:an )?alarm|wake me(?: up)?)\s+(?:for\s+)?(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val calendarPattern = Regex(
+        """^(?:add|create|schedule|put)\s+(?:an?\s+)?(?:event|meeting|appointment)\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val emailPattern = Regex(
+        """^(?:email|send an email to)\s+(\S+@\S+)(?:\s+(?:about|saying|with)?\s*(.*))?$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -57,6 +106,10 @@ object CommandRouter {
         "quick settings", "open quick settings", "control center"
     )
     private val clearCommands = setOf("clear text", "delete text", "clear the field")
+    private val cameraCommands = setOf(
+        "take a photo", "take a picture", "open camera", "open the camera",
+        "launch camera", "camera"
+    )
     private val reelShortcuts = setOf(
         "next reel", "next video", "next post", "skip reel",
         "previous reel", "previous video", "previous post"
@@ -73,7 +126,7 @@ object CommandRouter {
         if (isReelQuery(lower)) return true
         if (lower in keyboardCommands || lower in navigationCommands ||
             lower in notificationCommands || lower in quickSettingsCommands ||
-            lower in clearCommands || lower in reelShortcuts
+            lower in clearCommands || lower in cameraCommands || lower in reelShortcuts
         ) {
             return true
         }
@@ -86,8 +139,20 @@ object CommandRouter {
             clickPattern.matches(command) ||
             searchPattern.matches(command) ||
             openPattern.matches(command) ||
+            reminderPattern.matches(command) ||
+            notePattern.matches(command) ||
+            sceneRunPattern.matches(command) ||
+            sceneRunSuffixPattern.matches(command) ||
+            sceneCreatePattern.matches(command) ||
+            sceneDeletePattern.matches(command) ||
+            smsPattern.matches(command) ||
+            smsToPattern.matches(command) ||
             whatsAppPattern.matches(command) ||
-            whatsAppShortPattern.matches(command)
+            whatsAppShortPattern.matches(command) ||
+            callPattern.matches(command) ||
+            alarmPattern.matches(command) ||
+            calendarPattern.matches(command) ||
+            emailPattern.matches(command)
     }
 
     private fun isReelQuery(lower: String): Boolean {
@@ -104,6 +169,7 @@ object CommandRouter {
         val command = text.trim().trim('.', '!', '?', ',', ';')
         if (command.isEmpty()) return Outcome(false, false, "")
         val lower = command.lowercase()
+        val settings = JarvisIslandSettings.instance
 
         // ── Reels counter ──
         if ((lower.contains("reel") || lower.contains("reels")) &&
@@ -126,6 +192,114 @@ object CommandRouter {
             return Outcome(true, true, "Today's reel count is reset.")
         }
 
+        // ── Notebook ──
+        reminderPattern.matchEntire(command)?.let { match ->
+            val body = unquote(match.groupValues[1])
+            val atMs = TimeParser.parse(body)
+                ?: return Outcome(
+                    true,
+                    false,
+                    "When should I remind you? Try \"remind me to call mom at seven\"."
+                )
+            val task = TimeParser.stripTime(body).ifBlank { body }
+            val reminder = Notebook.addReminder(context, task, atMs)
+            val scheduled = ReminderScheduler.schedule(context, reminder)
+            return if (scheduled) {
+                Outcome(true, true, "Reminder set for ${TimeParser.format(atMs)}: $task.")
+            } else {
+                Outcome(true, false, "I saved the reminder but could not schedule it. Check exact alarm access.")
+            }
+        }
+        notePattern.matchEntire(command)?.let { match ->
+            val body = unquote(match.groupValues[1])
+            val looksLikeReminder = TimeParser.parse(body) != null &&
+                (body.startsWith("to ", ignoreCase = true) || body.startsWith("that i ", ignoreCase = true))
+            if (looksLikeReminder) {
+                val atMs = TimeParser.parse(body)!!
+                val task = TimeParser.stripTime(body).removePrefix("to ").trim()
+                val reminder = Notebook.addReminder(context, task, atMs)
+                ReminderScheduler.schedule(context, reminder)
+                return Outcome(true, true, "Reminder set for ${TimeParser.format(atMs)}: $task.")
+            }
+            if (body.isBlank()) return Outcome(true, false, "What should I remember?")
+            Notebook.addNote(context, body)
+            return Outcome(true, true, "Noted.")
+        }
+
+        // ── Scenes ──
+        sceneCreatePattern.matchEntire(command)?.let { match ->
+            val name = match.groupValues[1].trim()
+            val steps = match.groupValues[2]
+                .split(Regex("""\s*;\s*|\s+then\s+""", RegexOption.IGNORE_CASE))
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            val scene = SceneStore.save(context, name, steps)
+                ?: return Outcome(true, false, "I couldn't save that scene.")
+            return Outcome(
+                true,
+                true,
+                "Saved ${scene.name} with ${scene.steps.size} ${if (scene.steps.size == 1) "step" else "steps"}."
+            )
+        }
+        sceneDeletePattern.matchEntire(command)?.let { match ->
+            val name = match.groupValues[1].trim()
+            val scene = SceneStore.find(context, name)
+                ?: return Outcome(true, false, "I couldn't find a scene called $name.")
+            SceneStore.delete(context, scene.id)
+            return Outcome(true, true, "Deleted the ${scene.name} scene.")
+        }
+        val sceneName = sceneRunPattern.matchEntire(command)?.groupValues?.get(1)
+            ?: sceneRunSuffixPattern.matchEntire(command)?.groupValues?.get(1)
+        if (sceneName != null) {
+            val scene = SceneStore.find(context, sceneName.trim())
+                ?: return Outcome(true, false, "I couldn't find a scene called ${sceneName.trim()}.")
+            val result = SceneStore.run(context, scene)
+            return Outcome(true, result.failedStep == null, result.message)
+        }
+
+        // ── Calls, texts, alarms, calendar, camera ──
+        if (lower in cameraCommands) {
+            val result = DeviceTools.openCamera(context)
+            return Outcome(true, result.success, result.message)
+        }
+        callPattern.matchEntire(command)?.let { match ->
+            val result = DeviceTools.call(context, match.groupValues[1].trim())
+            return Outcome(true, result.success, result.message)
+        }
+        smsToPattern.matchEntire(command)?.let { match ->
+            return sendText(context, match.groupValues[1].trim(), match.groupValues[2].trim())
+        }
+        smsPattern.matchEntire(command)?.let { match ->
+            return sendText(context, match.groupValues[1].trim(), match.groupValues[2].trim())
+        }
+        alarmPattern.matchEntire(command)?.let { match ->
+            val phrase = match.groupValues[1].trim()
+            val atMs = TimeParser.parse(phrase)
+                ?: return Outcome(true, false, "What time should the alarm be? Try \"set an alarm for 7 am\".")
+            val zoned = java.time.Instant.ofEpochMilli(atMs)
+                .atZone(java.time.ZoneId.systemDefault())
+            return DeviceTools.setAlarm(context, zoned.hour, zoned.minute, "JARVIS")
+                .let { Outcome(true, it.success, it.message) }
+        }
+        calendarPattern.matchEntire(command)?.let { match ->
+            val phrase = match.groupValues[1].trim()
+            val atMs = TimeParser.parse(phrase)
+                ?: return Outcome(
+                    true,
+                    false,
+                    "When is it? Try \"add an event lunch tomorrow at one\"."
+                )
+            val title = TimeParser.stripTime(phrase).ifBlank { "Event" }
+            return DeviceTools.addCalendarEvent(context, title, atMs)
+                .let { Outcome(true, it.success, it.message) }
+        }
+        emailPattern.matchEntire(command)?.let { match ->
+            val address = match.groupValues[1].trim()
+            val body = match.groupValues[2].trim()
+            return DeviceTools.email(context, address, "From JARVIS", body)
+                .let { Outcome(true, it.success, it.message) }
+        }
+
         // ── WhatsApp message ──
         whatsAppPattern.matchEntire(command)?.let { match ->
             return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
@@ -139,12 +313,12 @@ object CommandRouter {
         }
 
         // ── Keyboard and navigation primitives ──
-        if (lower in setOf("enter", "send", "submit", "press enter", "hit enter", "press send")) {
+        if (lower in keyboardCommands) {
             if (!accessibilityReady()) return accessibilityRequired()
             val ok = ScreenAutomation.submit()
             return Outcome(true, ok, if (ok) "Sent." else "The field has no Send action.")
         }
-        if (lower in setOf("back", "go back", "press back", "go home", "home", "home screen", "recents", "recent apps")) {
+        if (lower in navigationCommands) {
             if (!accessibilityReady()) return accessibilityRequired()
             val action = when {
                 lower.contains("home") -> "home"
@@ -154,17 +328,17 @@ object CommandRouter {
             val ok = ScreenAutomation.global(action)
             return Outcome(true, ok, if (ok) "Done." else "I couldn't do that.")
         }
-        if (lower in setOf("notifications", "open notifications", "show notifications", "notification shade")) {
+        if (lower in notificationCommands) {
             if (!accessibilityReady()) return accessibilityRequired()
             val ok = ScreenAutomation.global("notifications")
             return Outcome(true, ok, if (ok) "Opened notifications." else "I couldn't open notifications.")
         }
-        if (lower in setOf("quick settings", "open quick settings", "control center")) {
+        if (lower in quickSettingsCommands) {
             if (!accessibilityReady()) return accessibilityRequired()
             val ok = ScreenAutomation.global("quick_settings")
             return Outcome(true, ok, if (ok) "Opened quick settings." else "I couldn't open quick settings.")
         }
-        if (lower in setOf("clear text", "delete text", "clear the field")) {
+        if (lower in clearCommands) {
             if (!accessibilityReady()) return accessibilityRequired()
             val result = ScreenAutomation.typeText("")
             return Outcome(true, result.success, if (result.success) "Cleared." else result.detail)
@@ -214,6 +388,9 @@ object CommandRouter {
             val label = normalizeLabel(match.groupValues[1])
             val element = tapLabelSmart(label)
                 ?: return Outcome(true, false, "I couldn't find \"$label\" on the screen.")
+            SafetyGuard.assessElement(element.label, element.viewId).takeIf { !it.allowed }?.let {
+                return Outcome(true, false, SafetyGuard.refusal(it))
+            }
             val ok = ScreenAutomation.longPress(element.eid)
             return Outcome(true, ok, if (ok) "Held ${element.label}." else "I couldn't long-press that.")
         }
@@ -223,8 +400,17 @@ object CommandRouter {
             val label = normalizeLabel(match.groupValues[1])
             val element = tapLabelSmart(label)
                 ?: return Outcome(true, false, "I couldn't find \"$label\" on the screen.")
-            val ok = ScreenAutomation.tap(element.eid)
-            return Outcome(true, ok, if (ok) "Tapped ${element.label.ifBlank { "it" }}." else "I couldn't tap that.")
+            SafetyGuard.assessRequest(command).takeIf { !it.allowed }?.let {
+                return Outcome(true, false, SafetyGuard.refusal(it))
+            }
+            SafetyGuard.assessElement(element.label, element.viewId).takeIf { !it.allowed }?.let {
+                return Outcome(true, false, SafetyGuard.refusal(it))
+            }
+            val result = ActionVerifier.tap(
+                element.eid,
+                verify = settings.verifyActionsEnabled
+            )
+            return Outcome(result.success, result.success, result.message)
         }
 
         // ── Reels shortcuts ──
@@ -263,12 +449,17 @@ object CommandRouter {
         return Outcome(false, false, "")
     }
 
+    private fun sendText(context: Context, contact: String, message: String): Outcome {
+        val result = DeviceTools.text(context, contact, message)
+        return Outcome(true, result.success, result.message)
+    }
+
     private fun search(context: Context, query: String): Outcome {
         ScreenAutomation.refresh()
         val field = ScreenAutomation.tapLabel(listOf("search", "search…", "search...", "search bar"), contains = true)
             ?: return Outcome(true, false, "I couldn't find a search field on this screen.")
-        ScreenAutomation.tap(field.eid)
-        Thread.sleep(350)
+        ActionVerifier.tap(field.eid, verify = JarvisIslandSettings.instance.verifyActionsEnabled)
+        Thread.sleep(250)
         val typed = ScreenAutomation.typeText(query)
         if (!typed.success) {
             return Outcome(true, false, "I couldn't type the search: ${typed.detail}")
@@ -317,7 +508,7 @@ object CommandRouter {
             contains = true,
             editable = false
         ) ?: return Outcome(true, false, "I couldn't find $contact in the results.")
-        ScreenAutomation.tap(result.eid)
+        ActionVerifier.tap(result.eid, verify = JarvisIslandSettings.instance.verifyActionsEnabled)
         Thread.sleep(1_600)
 
         ScreenAutomation.refresh()

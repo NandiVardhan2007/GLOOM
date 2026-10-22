@@ -1750,6 +1750,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-global-shortcut",
  "windows",
+ "windows-future",
 ]
 
 [[package]]

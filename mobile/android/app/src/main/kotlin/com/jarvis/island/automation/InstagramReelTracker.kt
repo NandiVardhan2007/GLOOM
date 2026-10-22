@@ -5,32 +5,40 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.jarvis.island.settings.JarvisIslandSettings
 
 /**
- * Counts Instagram Reels as they are watched.
+ * Counts Reels as they are watched.
  *
  * A reel advances when the reels pager scrolls vertically. The counter only
- * listens while the clips viewer is in front, and requires the scroll to come
- * from a pager or a node whose id names clips/reels, so an ordinary feed scroll
- * is never counted.
+ * listens while the clips viewer is in front, requires the scroll to come from
+ * a pager or a node whose id names clips/reels, and only counts a reel that was
+ * actually on screen for the configured dwell time. A flicked-through reel is
+ * not watched, so it is not counted. The last reel is counted when the viewer
+ * is closed, if it was watched long enough.
  */
 object InstagramReelTracker {
 
     private const val TAG = "JarvisReelCounter"
     private const val INSTAGRAM = "com.instagram.android"
-    private const val COUNT_DEBOUNCE_MS = 900L
+    private const val FACEBOOK = "com.facebook.katana"
+    private const val COUNT_DEBOUNCE_MS = 600L
     private const val TREE_CHECK_MS = 2_000L
+
+    private val supportedPackages = setOf(INSTAGRAM, FACEBOOK)
 
     @Volatile private var inReels = false
     @Volatile private var lastCountAt = 0L
+    @Volatile private var currentReelStartedAt = 0L
     @Volatile private var lastTreeCheckAt = 0L
     @Volatile private var lastPackage = ""
 
     fun onEvent(service: AccessibilityService, event: AccessibilityEvent) {
-        if (!com.jarvis.island.settings.JarvisIslandSettings.instance.reelCounterEnabled) return
+        if (!JarvisIslandSettings.instance.reelCounterEnabled) return
         val pkg = event.packageName?.toString().orEmpty()
-        if (pkg != INSTAGRAM) {
+        if (pkg !in supportedPackages) {
             if (pkg.isNotEmpty() && pkg != lastPackage) {
+                finishLastReel(service)
                 inReels = false
                 lastPackage = pkg
             }
@@ -47,13 +55,14 @@ object InstagramReelTracker {
                     !className.contains("MainTab", ignoreCase = true) &&
                     !className.contains("MainActivity", ignoreCase = true)
                 ) {
+                    finishLastReel(service)
                     inReels = false
                 }
             }
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 if (isReelsPager(event.source) && (inReels || nodeNamesReels(event.source))) {
-                    count(service)
+                    advance(service)
                 }
             }
 
@@ -75,7 +84,10 @@ object InstagramReelTracker {
                 }.lowercase()
                 when {
                     label.contains("reels") || label.contains("reel") -> enterReels(service)
-                    label.contains("home") -> inReels = false
+                    label.contains("home") -> {
+                        finishLastReel(service)
+                        inReels = false
+                    }
                 }
             }
         }
@@ -84,16 +96,35 @@ object InstagramReelTracker {
     private fun enterReels(service: AccessibilityService) {
         if (inReels) return
         inReels = true
+        currentReelStartedAt = SystemClock.uptimeMillis()
         Log.i(TAG, "Reels viewer opened")
-        count(service)
     }
 
-    private fun count(service: AccessibilityService) {
+    /** A new reel is on screen. Count the previous one if it was watched. */
+    private fun advance(service: AccessibilityService) {
         val now = SystemClock.uptimeMillis()
         if (now - lastCountAt < COUNT_DEBOUNCE_MS) return
+        val watchedMs = now - currentReelStartedAt
+        currentReelStartedAt = now
+        val minimum = JarvisIslandSettings.instance.reelMinDwellMs.toLong()
+        if (watchedMs < minimum) {
+            Log.d(TAG, "Skipping a reel watched for only ${watchedMs}ms")
+            return
+        }
         lastCountAt = now
         val today = ReelCounter.record(service)
-        Log.i(TAG, "Reel counted; today=$today")
+        Log.i(TAG, "Reel counted after ${watchedMs}ms; today=$today")
+    }
+
+    private fun finishLastReel(service: AccessibilityService) {
+        if (!inReels) return
+        val watchedMs = SystemClock.uptimeMillis() - currentReelStartedAt
+        val minimum = JarvisIslandSettings.instance.reelMinDwellMs.toLong()
+        if (watchedMs >= minimum) {
+            lastCountAt = SystemClock.uptimeMillis()
+            ReelCounter.record(service)
+            Log.i(TAG, "Counted the last reel after ${watchedMs}ms")
+        }
     }
 
     private fun isReelActivity(className: String): Boolean =

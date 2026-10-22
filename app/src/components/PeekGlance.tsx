@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { MediaState, SystemTelemetry, TimerState } from "../types";
 import { ISLAND, ISLAND_COLOR, ISLAND_TYPE, px } from "../design/island";
@@ -34,6 +34,7 @@ export interface NotificationActivity {
   title: string;
   text: string;
   avatar?: string | null;
+  otp?: string | null;
 }
 
 interface PeekGlanceProps {
@@ -74,6 +75,10 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
   onOpen,
   onClose,
 }) => {
+  const [copiedOtp, setCopiedOtp] = useState(false);
+  useEffect(() => {
+    setCopiedOtp(false);
+  }, [notification?.otp]);
   const margin = px(ISLAND.expanded.margin, scale);
   const topInset = px(kind === "notification" ? 28 : kind === "continuity" ? 30 : 34, scale);
   const artwork = px(ISLAND.expanded.artwork, scale);
@@ -517,22 +522,53 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
             {closeButton}
           </motion.div>
 
-          <motion.div
-            {...reveal(0.04)}
-            style={{
-              marginTop: px(8, scale),
-              ...ISLAND_TYPE.expandedSubtitle,
-              fontSize: 13 * scale,
-              lineHeight: `${16 * scale}px`,
-              color: ISLAND_COLOR.secondary,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {notification?.text || ""}
-          </motion.div>
+          {notification?.otp ? (
+            <motion.div
+              {...reveal(0.04)}
+              style={{
+                marginTop: px(8, scale),
+                display: "flex",
+                alignItems: "center",
+                gap: px(10, scale),
+                alignSelf: "flex-start",
+                padding: `${px(5, scale)}px ${px(10, scale)}px`,
+                borderRadius: px(8, scale),
+                background: ISLAND_COLOR.fill,
+              }}
+            >
+              <span
+                style={{
+                  ...ISLAND_TYPE.expandedTitle,
+                  fontSize: 15 * scale,
+                  letterSpacing: `${3 * scale}px`,
+                  fontVariantNumeric: "tabular-nums",
+                  color: ISLAND_COLOR.label,
+                }}
+              >
+                {notification.otp}
+              </span>
+              <span style={{ fontSize: 11 * scale, color: ISLAND_COLOR.blue, fontWeight: 600 }}>
+                {copiedOtp ? "Copied" : "Copy"}
+              </span>
+            </motion.div>
+          ) : (
+            <motion.div
+              {...reveal(0.04)}
+              style={{
+                marginTop: px(8, scale),
+                ...ISLAND_TYPE.expandedSubtitle,
+                fontSize: 13 * scale,
+                lineHeight: `${16 * scale}px`,
+                color: ISLAND_COLOR.secondary,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {notification?.text || ""}
+            </motion.div>
+          )}
 
           <motion.div
             {...reveal(0.08)}
@@ -542,6 +578,13 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                if (notification?.otp) {
+                  navigator.clipboard?.writeText(notification.otp).then(
+                    () => setCopiedOtp(true),
+                    () => setCopiedOtp(false)
+                  );
+                  return;
+                }
                 onOpen?.();
               }}
               style={{
@@ -558,12 +601,16 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
                 cursor: "pointer",
               }}
             >
-              Open App
+              {notification?.otp ? (copiedOtp ? "Copied" : "Copy Code") : "Open App"}
             </button>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                if (notification?.otp) {
+                  onOpen?.();
+                  return;
+                }
                 onClose?.();
               }}
               style={{
@@ -580,7 +627,7 @@ export const PeekGlance: React.FC<PeekGlanceProps> = ({
                 cursor: "pointer",
               }}
             >
-              Dismiss
+              {notification?.otp ? "Open App" : "Dismiss"}
             </button>
           </motion.div>
         </>

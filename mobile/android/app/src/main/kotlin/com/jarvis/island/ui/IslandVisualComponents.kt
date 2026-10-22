@@ -40,7 +40,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,10 +52,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -604,6 +610,18 @@ fun AppleNotificationActivity(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val clipboard = LocalClipboardManager.current
+    val haptic = LocalHapticFeedback.current
+    var copied by remember(event.id) { mutableStateOf(false) }
+    val otpCode = event.otpCode
+
+    fun copyCode() {
+        val code = otpCode ?: return
+        clipboard.setText(AnnotatedString(code))
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        copied = true
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -661,31 +679,71 @@ fun AppleNotificationActivity(
 
         Spacer(Modifier.height(8.dp))
 
-        Text(
-            text = event.text,
-            style = IslandType.subtitle.copy(lineHeight = 16.sp),
-            color = Apple.secondaryLabel,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (otpCode != null) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0x1FFFFFFF))
+                    .clickable { copyCode() }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = otpCode,
+                    style = IslandType.title.copy(letterSpacing = 3.sp),
+                    color = Color.White
+                )
+                Text(
+                    text = if (copied) "Copied" else "Copy",
+                    style = IslandType.caption,
+                    color = if (copied) Apple.systemGreen else accentColor
+                )
+            }
+        } else {
+            Text(
+                text = event.text,
+                style = IslandType.subtitle.copy(lineHeight = 16.sp),
+                color = Apple.secondaryLabel,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
         Spacer(Modifier.height(8.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppleActivityButton(
-                text = "Open App",
-                background = accentColor,
-                foreground = Color.White,
-                modifier = Modifier.weight(1f),
-                onClick = onOpen
-            )
-            AppleActivityButton(
-                text = "Dismiss",
-                background = Color(0x24FFFFFF),
-                foreground = Color.White,
-                modifier = Modifier.weight(1f),
-                onClick = onDismiss
-            )
+            if (otpCode != null) {
+                AppleActivityButton(
+                    text = if (copied) "Copied" else "Copy Code",
+                    background = accentColor,
+                    foreground = Color.White,
+                    modifier = Modifier.weight(1f),
+                    onClick = { copyCode() }
+                )
+                AppleActivityButton(
+                    text = "Open App",
+                    background = Color(0x24FFFFFF),
+                    foreground = Color.White,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpen
+                )
+            } else {
+                AppleActivityButton(
+                    text = "Open App",
+                    background = accentColor,
+                    foreground = Color.White,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpen
+                )
+                AppleActivityButton(
+                    text = "Dismiss",
+                    background = Color(0x24FFFFFF),
+                    foreground = Color.White,
+                    modifier = Modifier.weight(1f),
+                    onClick = onDismiss
+                )
+            }
         }
     }
 }

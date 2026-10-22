@@ -235,8 +235,9 @@ class VoiceUnlockActivity : ComponentActivity() {
             return
         }
         if (text.isNotBlank()) {
+            val brain = com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain
             val isAction = com.jarvis.island.automation.CommandRouter.isCommand(text) ||
-                com.jarvis.island.automation.AiPlanner.looksLikeAction(text)
+                (brain != "local" && com.jarvis.island.automation.AiPlanner.looksLikeAction(text))
             if (isAction) {
                 matched = true
                 status = "Working…"
@@ -252,8 +253,25 @@ class VoiceUnlockActivity : ComponentActivity() {
                             var outcome = com.jarvis.island.automation.CommandRouter
                                 .handle(appContext, text)
                             if (!outcome.handled) {
+                                outcome = com.jarvis.island.automation.LocalBrain
+                                    .answer(appContext, text)
+                            }
+                            if (!outcome.handled &&
+                                com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain != "local"
+                            ) {
                                 outcome = com.jarvis.island.automation.AiPlanner
                                     .run(appContext, text)
+                            }
+                            if (!outcome.handled) {
+                                outcome = com.jarvis.island.automation.CommandRouter.Outcome(
+                                    true,
+                                    false,
+                                    if (com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain == "local") {
+                                        "I couldn't do that on the phone, and the on-device brain is selected."
+                                    } else {
+                                        "I couldn't do that. Pair with the desktop for open-ended actions."
+                                    }
+                                )
                             }
                             val message = outcome.message.ifBlank {
                                 if (outcome.success) "Done." else "I couldn't do that."
@@ -274,6 +292,26 @@ class VoiceUnlockActivity : ComponentActivity() {
                         }.start()
                     }, 600)
                 }, 320)
+                return
+            }
+
+            // A question. Answer from the phone first; a remote model is only
+            // used when the local brain has nothing to offer.
+            val local = com.jarvis.island.automation.LocalBrain.answer(applicationContext, text)
+            if (local.handled) {
+                matched = true
+                status = "JARVIS"
+                reply = local.message
+                speak(local.message)
+                return
+            }
+            if (brain == "local") {
+                matched = true
+                status = "On-device brain"
+                failed = true
+                val message = "That needs the desktop model, and the on-device brain is selected."
+                reply = message
+                speak(message)
                 return
             }
             status = "Thinking…"

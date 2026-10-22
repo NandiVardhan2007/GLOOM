@@ -54,6 +54,12 @@ class JarvisIslandSettings {
         const val DEFAULT_HIGH_CONTRAST = false
         const val DEFAULT_FILTER_SILENT_NOTIFICATIONS = true
         const val DEFAULT_REEL_COUNTER = true
+        const val DEFAULT_AUTOMATION_SAFETY = true
+        const val DEFAULT_VERIFY_ACTIONS = true
+        const val DEFAULT_NOTIFICATION_TRIAGE = true
+        const val DEFAULT_OTP_COPY = true
+        const val DEFAULT_AI_BRAIN = "auto"
+        const val DEFAULT_REEL_MIN_DWELL_MS = 1200
     }
 
     // ── 0. Master & Plugins ──
@@ -65,6 +71,13 @@ class JarvisIslandSettings {
     var pluginClipboard by mutableStateOf(true)
     var filterSilentNotifications by mutableStateOf(DEFAULT_FILTER_SILENT_NOTIFICATIONS)
     var reelCounterEnabled by mutableStateOf(DEFAULT_REEL_COUNTER)
+    var automationSafetyEnabled by mutableStateOf(DEFAULT_AUTOMATION_SAFETY)
+    var verifyActionsEnabled by mutableStateOf(DEFAULT_VERIFY_ACTIONS)
+    var notificationTriageEnabled by mutableStateOf(DEFAULT_NOTIFICATION_TRIAGE)
+    var otpCopyEnabled by mutableStateOf(DEFAULT_OTP_COPY)
+    var aiBrain by mutableStateOf(DEFAULT_AI_BRAIN)
+    var reelMinDwellMs by mutableIntStateOf(DEFAULT_REEL_MIN_DWELL_MS)
+    var blockedPackages by mutableStateOf<Set<String>>(emptySet())
 
     // ── 0b. Accessibility & Motion ──
     var reducedMotion by mutableStateOf(DEFAULT_REDUCED_MOTION)
@@ -112,6 +125,13 @@ class JarvisIslandSettings {
             DEFAULT_FILTER_SILENT_NOTIFICATIONS
         )
         reelCounterEnabled = prefs.getBoolean("reel_counter_enabled", DEFAULT_REEL_COUNTER)
+        automationSafetyEnabled = prefs.getBoolean("automation_safety", DEFAULT_AUTOMATION_SAFETY)
+        verifyActionsEnabled = prefs.getBoolean("verify_actions", DEFAULT_VERIFY_ACTIONS)
+        notificationTriageEnabled = prefs.getBoolean("notification_triage", DEFAULT_NOTIFICATION_TRIAGE)
+        otpCopyEnabled = prefs.getBoolean("otp_copy", DEFAULT_OTP_COPY)
+        aiBrain = prefs.getString("ai_brain", DEFAULT_AI_BRAIN) ?: DEFAULT_AI_BRAIN
+        reelMinDwellMs = prefs.getInt("reel_min_dwell_ms", DEFAULT_REEL_MIN_DWELL_MS)
+        blockedPackages = prefs.getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
 
         gravity = prefs.getString("gravity", DEFAULT_GRAVITY) ?: DEFAULT_GRAVITY
         positionY = prefs.getInt("position_y", DEFAULT_POSITION_Y)
@@ -180,6 +200,13 @@ class JarvisIslandSettings {
             .putBoolean("plugin_clipboard", pluginClipboard)
             .putBoolean("filter_silent_notifications", filterSilentNotifications)
             .putBoolean("reel_counter_enabled", reelCounterEnabled)
+            .putBoolean("automation_safety", automationSafetyEnabled)
+            .putBoolean("verify_actions", verifyActionsEnabled)
+            .putBoolean("notification_triage", notificationTriageEnabled)
+            .putBoolean("otp_copy", otpCopyEnabled)
+            .putString("ai_brain", aiBrain)
+            .putInt("reel_min_dwell_ms", reelMinDwellMs)
+            .putStringSet("blocked_packages", blockedPackages)
             .putString("gravity", gravity)
             .putInt("position_y", positionY)
             .putInt("position_x", positionX)
@@ -248,6 +275,25 @@ class JarvisIslandSettings {
         longPressToExpand = DEFAULT_LONG_PRESS_EXPAND
         filterSilentNotifications = DEFAULT_FILTER_SILENT_NOTIFICATIONS
         reelCounterEnabled = DEFAULT_REEL_COUNTER
+        automationSafetyEnabled = DEFAULT_AUTOMATION_SAFETY
+        verifyActionsEnabled = DEFAULT_VERIFY_ACTIONS
+        notificationTriageEnabled = DEFAULT_NOTIFICATION_TRIAGE
+        otpCopyEnabled = DEFAULT_OTP_COPY
+        aiBrain = DEFAULT_AI_BRAIN
+        reelMinDwellMs = DEFAULT_REEL_MIN_DWELL_MS
+        blockedPackages = emptySet()
+        save(context)
+    }
+
+    /** True when the island is allowed to show alerts from [packageName]. */
+    fun isPackageAllowed(packageName: String): Boolean = packageName !in blockedPackages
+
+    fun setPackageAllowed(context: Context, packageName: String, allowed: Boolean) {
+        blockedPackages = if (allowed) {
+            blockedPackages - packageName
+        } else {
+            blockedPackages + packageName
+        }
         save(context)
     }
 
@@ -280,6 +326,13 @@ class JarvisIslandSettings {
         autoCollapseDelaySec = DEFAULT_AUTO_COLLAPSE_DELAY
         hapticFeedback = DEFAULT_HAPTIC_FEEDBACK
         longPressToExpand = DEFAULT_LONG_PRESS_EXPAND
+        automationSafetyEnabled = DEFAULT_AUTOMATION_SAFETY
+        verifyActionsEnabled = DEFAULT_VERIFY_ACTIONS
+        notificationTriageEnabled = DEFAULT_NOTIFICATION_TRIAGE
+        otpCopyEnabled = DEFAULT_OTP_COPY
+        aiBrain = DEFAULT_AI_BRAIN
+        reelMinDwellMs = DEFAULT_REEL_MIN_DWELL_MS
+        blockedPackages = emptySet()
         save(context)
     }
 
