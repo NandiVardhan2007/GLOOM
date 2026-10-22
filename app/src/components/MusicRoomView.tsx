@@ -1,16 +1,8 @@
 import React, { useState } from "react";
 import { MediaState } from "../types";
-import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Music,
-  Volume2,
-  Mic2,
-} from "lucide-react";
 import { Waveform } from "./Waveform";
 import { LyricsPanel } from "./LyricsPanel";
+import { BackwardIcon, ForwardIcon, MicIcon, MusicNoteIcon, PauseIcon, PlayIcon, SpeakerIcon } from "./IslandIcons";
 
 interface MusicRoomViewProps {
   media: MediaState;
@@ -105,7 +97,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (
-              <Music size={22} color="rgba(255, 255, 255, 0.5)" />
+              <MusicNoteIcon size={22} color="rgba(255, 255, 255, 0.5)" />
             )}
           </div>
 
@@ -236,7 +228,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             }}
             title="Previous track"
           >
-            <SkipBack size={18} fill="currentColor" />
+            <BackwardIcon size={18} />
           </button>
 
           <button
@@ -257,9 +249,9 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             title={media.playing ? "Pause" : "Play"}
           >
             {media.playing ? (
-              <Pause size={18} fill="#000000" color="#000000" />
+              <PauseIcon size={18} color="#000000" />
             ) : (
-              <Play size={18} fill="#000000" color="#000000" style={{ marginLeft: "2px" }} />
+              <PlayIcon size={18} color="#000000" style={{ marginLeft: "2px" }} />
             )}
           </button>
 
@@ -277,7 +269,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             }}
             title="Next track"
           >
-            <SkipForward size={18} fill="currentColor" />
+            <ForwardIcon size={18} />
           </button>
         </div>
 
@@ -312,7 +304,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             }}
             title="Click to switch audio output device"
           >
-            <Volume2 size={12} color="#0a84ff" />
+            <SpeakerIcon size={12} color="#0a84ff" />
             <span style={{ maxWidth: "90px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {outputDevice}
             </span>
@@ -337,7 +329,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             }}
             title="Toggle Lyrics / Room"
           >
-            <Mic2 size={12} />
+            <MicIcon size={12} />
             <span>Lyrics</span>
           </button>
           )}
@@ -374,7 +366,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <Music size={20} color="#0a84ff" />
+              <MusicNoteIcon size={20} color="#0a84ff" />
               <Waveform isPlaying={media.playing} width={40} height={20} />
             </div>
             <span style={{ fontSize: "14px", fontWeight: 600, color: "#ffffff" }}>
@@ -395,7 +387,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
 
             {/* Quick Volume Slider in Listening Room */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "80%", marginTop: "6px" }}>
-              <Volume2 size={13} color="rgba(255, 255, 255, 0.5)" />
+              <SpeakerIcon size={13} color="rgba(255, 255, 255, 0.5)" />
               <input
                 type="range"
                 min="0"
@@ -413,7 +405,7 @@ export const MusicRoomView: React.FC<MusicRoomViewProps> = ({
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-            <Music size={28} color="rgba(255, 255, 255, 0.35)" />
+            <MusicNoteIcon size={28} color="rgba(255, 255, 255, 0.35)" />
             <span style={{ fontSize: "16px", fontWeight: 600, color: "#ffffff", letterSpacing: "-0.01em" }}>
               Your listening room
             </span>

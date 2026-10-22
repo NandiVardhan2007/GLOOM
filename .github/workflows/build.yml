@@ -203,14 +203,12 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### JARVIS 1.1.2 — Verified automation and desktop alerts
-            - Every tap is checked against the screen outline and retried once when nothing changed; stateful controls are never re-tapped.
-            - A pre-execution safety net refuses financial and irreversible targets, and calls, texts, calendar and alarms go through public intents so a misheard command cannot send anything on its own.
-            - Apps with an empty accessibility tree use a screenshot aim grid, which the planner reaches for automatically.
-            - New scenes, a notebook with real AlarmManager reminders that survive a reboot, an on-device brain, and a readiness self-check with fix buttons.
-            - Notifications are triaged on the device: promos stay silent, one-time codes get a Copy Code action, and per-app muting is enforced.
-            - Windows toasts now open a six-second island peek, with local OTP extraction only.
-            - Reel counter gains a dwell threshold, a seven-day chart, and Facebook Reels.
+            ### JARVIS 1.2.0 — Standalone Mobile AI, Pattern Calibration, and Reactive Automation
+            - Standalone Mobile AI: direct in-app API key entry (Groq & OpenRouter) stored securely in Android Keystore AES-256-GCM EncryptedSharedPreferences; automatic fallback to direct cloud HTTPS when away from the desktop PC.
+            - Pattern & Swipe Calibration: bypass optical in-display fingerprint sensors (FOD) with Left/Right/High swipe path options and 3x3 pattern dot grid calibration with interactive visual phone preview.
+            - andee-Grade Reactive Automation: step-by-step observe-plan-act loop with physical touch gesture priority and action history context across all UI frameworks (Compose, Flutter, Instagram, WebViews).
+            - Dynamic Island Live Activity: real-time agent status ("JARVIS: Opening Settings...", "JARVIS: Tapping Wi-Fi...", "JARVIS: Done.") surfaced on the island notch overlay.
+            - Desktop UI icon modernization: replaced all lucide icons across expanded panel and tab views with original SF-style vector glyphs.
             - No Apple font or symbol assets are bundled. The platform system face and original vector icons are used.
           generate_release_notes: true
           files: |

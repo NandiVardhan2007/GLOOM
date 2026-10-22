@@ -1,14 +1,6 @@
 import React from "react";
 import { SystemTelemetry } from "../types";
-import {
-  Cpu,
-  HardDrive,
-  BatteryCharging,
-  Battery,
-  ArrowDown,
-  ArrowUp,
-  Database,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, BatteryChargingIcon, BatteryIcon, CpuIcon, DatabaseIcon, HardDriveIcon } from "./IslandIcons";
 
 interface SystemCardProps {
   telemetry: SystemTelemetry;
@@ -70,7 +62,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <Cpu size={15} color="#0a84ff" />
+            <CpuIcon size={15} color="#0a84ff" />
             <span
               style={{
                 fontSize: "12px",
@@ -138,7 +130,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <HardDrive size={15} color="#a78bfa" />
+            <HardDriveIcon size={15} color="#a78bfa" />
             <span
               style={{
                 fontSize: "12px",
@@ -227,7 +219,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <ArrowDown size={13} color="#34d399" />
+              <ArrowDownIcon size={13} color="#34d399" />
               <span style={{ color: "#94a3b8", fontWeight: 600 }}>Down</span>
             </div>
             <span
@@ -247,7 +239,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <ArrowUp size={13} color="#60a5fa" />
+              <ArrowUpIcon size={13} color="#60a5fa" />
               <span style={{ color: "#94a3b8", fontWeight: 600 }}>Up</span>
             </div>
             <span
@@ -280,7 +272,7 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <Database size={14} color="#fbbf24" />
+            <DatabaseIcon size={14} color="#fbbf24" />
             <span
               style={{
                 fontSize: "12px",
@@ -331,9 +323,9 @@ export const SystemCard: React.FC<SystemCardProps> = ({ telemetry }) => {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
             {telemetry.isCharging ? (
-              <BatteryCharging size={13} color="#34d399" />
+              <BatteryChargingIcon size={13} color="#34d399" />
             ) : (
-              <Battery size={13} color="#cbd5e1" />
+              <BatteryIcon size={13} color="#cbd5e1" />
             )}
             <span style={{ color: "#94a3b8", fontWeight: 600 }}>
               {telemetry.hasBattery

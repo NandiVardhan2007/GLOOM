@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Copy, Check, Trash2, Calendar, ListPlus } from "lucide-react";
+import { CalendarIcon, CheckIcon, CopyIcon, ListPlusIcon, TrashIcon } from "./IslandIcons";
 
 export const QuickNotes: React.FC = () => {
   const [note, setNote] = useState<string>(() => {
@@ -79,7 +79,7 @@ export const QuickNotes: React.FC = () => {
             }}
             title="Insert timestamp"
           >
-            <Calendar size={12} color="#0a84ff" />
+            <CalendarIcon size={12} color="#0a84ff" />
             <span>Time</span>
           </button>
 
@@ -100,7 +100,7 @@ export const QuickNotes: React.FC = () => {
             }}
             title="Insert bullet"
           >
-            <ListPlus size={12} color="#34d399" />
+            <ListPlusIcon size={12} color="#34d399" />
             <span>Bullet</span>
           </button>
         </div>
@@ -135,7 +135,7 @@ export const QuickNotes: React.FC = () => {
               transition: "all 0.15s ease",
             }}
           >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
             <span>{copied ? "Copied" : "Copy"}</span>
           </button>
 
@@ -155,7 +155,7 @@ export const QuickNotes: React.FC = () => {
             }}
             title="Clear note"
           >
-            <Trash2 size={12} />
+            <TrashIcon size={12} />
           </button>
         </div>
       </div>

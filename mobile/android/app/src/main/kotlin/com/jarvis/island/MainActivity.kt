@@ -135,6 +135,8 @@ import com.jarvis.island.ui.JarvisLockScreen
 import com.jarvis.island.ui.SecurityScreen
 import com.jarvis.island.ui.VoiceSettingsScreen
 import com.jarvis.island.ui.AutomationScreen
+import com.jarvis.island.ui.CloudAiScreen
+import com.jarvis.island.ui.CalibrationScreen
 import com.jarvis.island.ui.NotificationSettingsScreen
 import com.jarvis.island.ui.ReelWeekChart
 import com.jarvis.island.security.JarvisSecurity
@@ -429,7 +431,13 @@ fun JarvisMasterApp(
                         BehaviorSettingsScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "settings" && subPage == "security" -> {
-                        SecurityScreen(onBack = { settingsSubPage = null })
+                        SecurityScreen(
+                            onBack = { settingsSubPage = null },
+                            onOpenCalibration = { settingsSubPage = "calibration" }
+                        )
+                    }
+                    screen == "settings" && subPage == "calibration" -> {
+                        CalibrationScreen(onBack = { settingsSubPage = "security" })
                     }
                     screen == "settings" && subPage == "voice" -> {
                         VoiceSettingsScreen(onBack = { settingsSubPage = null })
@@ -442,6 +450,9 @@ fun JarvisMasterApp(
                     }
                     screen == "settings" && subPage == "automation" -> {
                         AutomationScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "cloudai" -> {
+                        CloudAiScreen(onBack = { settingsSubPage = null })
                     }
                     screen == "about" -> {
                         AboutScreen()
@@ -1163,6 +1174,17 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
                 },
                 showChevron = true,
                 onClick = { onNavigateSubPage("automation") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Cloud API Keys",
+                subtitle = "Groq and OpenRouter directly from this phone",
+                icon = JarvisIcons.Globe,
+                iconTint = Apple.systemTeal,
+                value = if (com.jarvis.island.ai.SecureKeyStore.hasCloudKeys(context)) "On"
+                else "Off",
+                showChevron = true,
+                onClick = { onNavigateSubPage("cloudai") }
             )
             AppleDivider()
             AppleRow(

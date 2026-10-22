@@ -1,16 +1,8 @@
 import React, { useState } from "react";
 import { MediaState } from "../types";
-import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Music,
-  Volume2,
-  Mic2,
-} from "lucide-react";
 import { Waveform } from "./Waveform";
 import { LyricsPanel } from "./LyricsPanel";
+import { BackwardIcon, ForwardIcon, MicIcon, MusicNoteIcon, PauseIcon, PlayIcon, SpeakerIcon } from "./IslandIcons";
 
 interface MediaCardProps {
   media: MediaState;
@@ -104,7 +96,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                   ) : (
-                    <Music size={24} strokeWidth={1.6} color="rgba(235, 235, 245, 0.55)" />
+                    <MusicNoteIcon size={24} strokeWidth={1.6} color="rgba(235, 235, 245, 0.55)" />
                   )}
                 </div>
 
@@ -157,7 +149,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                   }}
                   title="View lyrics"
                 >
-                  <Mic2 size={13} strokeWidth={1.7} />
+                  <MicIcon size={13} strokeWidth={1.7} />
                   <span>Lyrics</span>
                 </button>
               </>
@@ -186,7 +178,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                     marginBottom: "2px",
                   }}
                 >
-                  <Music size={21} strokeWidth={1.6} color="rgba(235, 235, 245, 0.55)" />
+                  <MusicNoteIcon size={21} strokeWidth={1.6} color="rgba(235, 235, 245, 0.55)" />
                 </div>
                 <div style={{ fontSize: "15px", fontWeight: 600, color: "#f5f5f7" }}>
                   Nothing Playing
@@ -264,7 +256,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               justifyContent: "center",
             }}
           >
-            <SkipBack size={16} />
+            <BackwardIcon size={16} />
           </button>
 
           <button
@@ -284,9 +276,9 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             }}
           >
             {media.playing ? (
-              <Pause size={18} fill="#000" />
+              <PauseIcon size={18} />
             ) : (
-              <Play size={18} fill="#000" style={{ marginLeft: "2px" }} />
+              <PlayIcon size={18} style={{ marginLeft: "2px" }} />
             )}
           </button>
 
@@ -304,13 +296,13 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               justifyContent: "center",
             }}
           >
-            <SkipForward size={16} />
+            <ForwardIcon size={16} />
           </button>
         </div>
 
         {/* Volume slider */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Volume2 size={15} color="#0a84ff" />
+          <SpeakerIcon size={15} color="#0a84ff" />
           <input
             type="range"
             min="0"

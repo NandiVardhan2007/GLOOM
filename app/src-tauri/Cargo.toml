@@ -1,6 +1,6 @@
 [package]
 name = "jarvis"
-version = "1.0.0"
+version = "1.2.0"
 description = "JARVIS: Pixel-Perfect Dynamic Island & Notch for Windows"
 authors = ["JARVIS Team"]
 edition = "2021"

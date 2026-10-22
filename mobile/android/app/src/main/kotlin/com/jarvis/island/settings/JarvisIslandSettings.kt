@@ -60,6 +60,15 @@ class JarvisIslandSettings {
         const val DEFAULT_OTP_COPY = true
         const val DEFAULT_AI_BRAIN = "auto"
         const val DEFAULT_REEL_MIN_DWELL_MS = 1200
+
+        // Lock & Pattern Calibration (bypasses in-display optical fingerprint sensors)
+        const val DEFAULT_SWIPE_STRATEGY = "Left"
+        const val DEFAULT_SWIPE_START_X = 0.22f
+        const val DEFAULT_SWIPE_START_Y = 0.82f
+        const val DEFAULT_SWIPE_END_X = 0.22f
+        const val DEFAULT_SWIPE_END_Y = 0.25f
+        const val DEFAULT_PATTERN_GRID_WIDTH = 0.71f
+        const val DEFAULT_PATTERN_CENTER_Y = 0.658f
     }
 
     // ── 0. Master & Plugins ──
@@ -78,6 +87,15 @@ class JarvisIslandSettings {
     var aiBrain by mutableStateOf(DEFAULT_AI_BRAIN)
     var reelMinDwellMs by mutableIntStateOf(DEFAULT_REEL_MIN_DWELL_MS)
     var blockedPackages by mutableStateOf<Set<String>>(emptySet())
+
+    // ── 0a. Pattern & Swipe Calibration ──
+    var swipeStrategy by mutableStateOf(DEFAULT_SWIPE_STRATEGY)
+    var swipeStartXRatio by mutableFloatStateOf(DEFAULT_SWIPE_START_X)
+    var swipeStartYRatio by mutableFloatStateOf(DEFAULT_SWIPE_START_Y)
+    var swipeEndXRatio by mutableFloatStateOf(DEFAULT_SWIPE_END_X)
+    var swipeEndYRatio by mutableFloatStateOf(DEFAULT_SWIPE_END_Y)
+    var patternGridWidthRatio by mutableFloatStateOf(DEFAULT_PATTERN_GRID_WIDTH)
+    var patternCenterYRatio by mutableFloatStateOf(DEFAULT_PATTERN_CENTER_Y)
 
     // ── 0b. Accessibility & Motion ──
     var reducedMotion by mutableStateOf(DEFAULT_REDUCED_MOTION)
@@ -132,6 +150,14 @@ class JarvisIslandSettings {
         aiBrain = prefs.getString("ai_brain", DEFAULT_AI_BRAIN) ?: DEFAULT_AI_BRAIN
         reelMinDwellMs = prefs.getInt("reel_min_dwell_ms", DEFAULT_REEL_MIN_DWELL_MS)
         blockedPackages = prefs.getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
+
+        swipeStrategy = prefs.getString("swipe_strategy", DEFAULT_SWIPE_STRATEGY) ?: DEFAULT_SWIPE_STRATEGY
+        swipeStartXRatio = prefs.getFloat("swipe_start_x", DEFAULT_SWIPE_START_X)
+        swipeStartYRatio = prefs.getFloat("swipe_start_y", DEFAULT_SWIPE_START_Y)
+        swipeEndXRatio = prefs.getFloat("swipe_end_x", DEFAULT_SWIPE_END_X)
+        swipeEndYRatio = prefs.getFloat("swipe_end_y", DEFAULT_SWIPE_END_Y)
+        patternGridWidthRatio = prefs.getFloat("pattern_grid_width", DEFAULT_PATTERN_GRID_WIDTH)
+        patternCenterYRatio = prefs.getFloat("pattern_center_y", DEFAULT_PATTERN_CENTER_Y)
 
         gravity = prefs.getString("gravity", DEFAULT_GRAVITY) ?: DEFAULT_GRAVITY
         positionY = prefs.getInt("position_y", DEFAULT_POSITION_Y)
@@ -207,6 +233,13 @@ class JarvisIslandSettings {
             .putString("ai_brain", aiBrain)
             .putInt("reel_min_dwell_ms", reelMinDwellMs)
             .putStringSet("blocked_packages", blockedPackages)
+            .putString("swipe_strategy", swipeStrategy)
+            .putFloat("swipe_start_x", swipeStartXRatio)
+            .putFloat("swipe_start_y", swipeStartYRatio)
+            .putFloat("swipe_end_x", swipeEndXRatio)
+            .putFloat("swipe_end_y", swipeEndYRatio)
+            .putFloat("pattern_grid_width", patternGridWidthRatio)
+            .putFloat("pattern_center_y", patternCenterYRatio)
             .putString("gravity", gravity)
             .putInt("position_y", positionY)
             .putInt("position_x", positionX)

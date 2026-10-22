@@ -1,20 +1,7 @@
 import React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MediaState, SystemTelemetry, TimerState } from "../types";
-import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Music,
-  Coffee,
-  ChevronRight,
-  Calculator,
-  Scissors,
-  Activity,
-  ArrowDown,
-  ArrowUp,
-} from "lucide-react";
+import { ActivityIcon, ArrowDownIcon, ArrowUpIcon, BackwardIcon, CalculatorIcon, ChevronRightIcon, CoffeeIcon, ForwardIcon, MusicNoteIcon, PauseIcon, PlayIcon, ScissorsIcon } from "./IslandIcons";
 
 interface DashboardViewProps {
   media: MediaState;
@@ -126,7 +113,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (
-              <Music size={22} color="rgba(255, 255, 255, 0.45)" />
+              <MusicNoteIcon size={22} color="rgba(255, 255, 255, 0.45)" />
             )}
           </div>
 
@@ -244,7 +231,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)")}
           >
-            <SkipBack size={18} fill="currentColor" />
+            <BackwardIcon size={18} />
           </button>
 
           {/* Primary Play Button (Crisp White Circle) */}
@@ -269,9 +256,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
           >
             {media.playing ? (
-              <Pause size={18} fill="#000000" color="#000000" />
+              <PauseIcon size={18} color="#000000" />
             ) : (
-              <Play size={18} fill="#000000" color="#000000" style={{ marginLeft: "2px" }} />
+              <PlayIcon size={18} color="#000000" style={{ marginLeft: "2px" }} />
             )}
           </button>
 
@@ -292,7 +279,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)")}
           >
-            <SkipForward size={18} fill="currentColor" />
+            <ForwardIcon size={18} />
           </button>
         </div>
       </div>
@@ -325,7 +312,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.055)")}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Coffee size={15} color="#fbbf24" />
+            <CoffeeIcon size={15} color="#fbbf24" />
             <span style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff" }}>
               Focus timer
             </span>
@@ -342,7 +329,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             >
               {timerText}
             </span>
-            <ChevronRight size={14} color="rgba(255, 255, 255, 0.4)" />
+            <ChevronRightIcon size={14} color="rgba(255, 255, 255, 0.4)" />
           </div>
         </button>
 
@@ -467,7 +454,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-                <ArrowDown size={11} color="#34d399" />
+                <ArrowDownIcon size={11} color="#34d399" />
                 <span
                   style={{
                     fontSize: "11px",
@@ -480,7 +467,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-                <ArrowUp size={11} color="#60a5fa" />
+                <ArrowUpIcon size={11} color="#60a5fa" />
                 <span
                   style={{
                     fontSize: "11px",
@@ -522,7 +509,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
             }}
           >
-            <Calculator size={15} />
+            <CalculatorIcon size={15} />
           </button>
 
           <button
@@ -549,7 +536,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
             }}
           >
-            <Scissors size={15} />
+            <ScissorsIcon size={15} />
           </button>
 
           <button
@@ -576,7 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
             }}
           >
-            <Activity size={15} />
+            <ActivityIcon size={15} />
           </button>
         </div>
       </div>

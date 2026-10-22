@@ -30,7 +30,7 @@ import com.jarvis.island.security.BiometricAuth
 import com.jarvis.island.security.JarvisSecurity
 
 @Composable
-fun SecurityScreen(onBack: () -> Unit) {
+fun SecurityScreen(onBack: () -> Unit, onOpenCalibration: (() -> Unit)? = null) {
     val context = LocalContext.current
     val activity = context as? Activity
     val scrollState = rememberScrollState()
@@ -246,6 +246,17 @@ fun SecurityScreen(onBack: () -> Unit) {
                 icon = JarvisIcons.Shield,
                 iconTint = Apple.systemGreen
             )
+            if (onOpenCalibration != null) {
+                AppleDivider()
+                AppleRow(
+                    title = "Pattern & Swipe Calibration",
+                    subtitle = "Bypass fingerprint sensor & align 9 pattern dots",
+                    icon = JarvisIcons.Sliders,
+                    iconTint = Apple.systemOrange,
+                    showChevron = true,
+                    onClick = onOpenCalibration
+                )
+            }
         }
         }
 

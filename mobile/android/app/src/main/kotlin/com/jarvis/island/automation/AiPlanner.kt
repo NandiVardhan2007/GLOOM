@@ -3,25 +3,26 @@ package com.jarvis.island.automation
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
-import com.jarvis.island.bridge.JarvisLiveBridgeClient
+import com.jarvis.island.ai.AiRouter
+import com.jarvis.island.service.JarvisIslandAccessibilityService
+import com.jarvis.island.settings.JarvisIslandSettings
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * A small observe-plan-act loop over the accessibility outline.
+ * Reactive observe-plan-act loop over the accessibility outline, inspired by kuafuai/andee.
  *
- * This is the part both reference projects converge on: give the model a
- * numbered list of the elements on screen, let it choose one, execute, look
- * again. It is used only for requests the deterministic router cannot answer,
- * and every action is bounded and reversible except typing and sending.
+ * Rather than blind batching of multiple actions, JARVIS observes the screen outline at each step,
+ * asks the AI for the single immediate next action, executes it with physical gesture fidelity,
+ * surfaces live feedback on the Dynamic Island, verifies the outcome, and repeats until the user's
+ * goal is achieved.
  */
 object AiPlanner {
 
     private const val TAG = "JarvisAiPlanner"
-    private const val MAX_ROUNDS = 2
-    private const val MAX_ACTIONS = 5
+    private const val MAX_STEPS = 8
     private const val MAX_OUTLINE_ELEMENTS = 70
 
     private val ACTION_VERBS = listOf(
@@ -53,8 +54,9 @@ object AiPlanner {
     }
 
     fun run(context: Context, request: String): CommandRouter.Outcome {
-        val client = JarvisLiveBridgeClient.activeClient
-            ?: return CommandRouter.Outcome(false, false, "")
+        if (!AiRouter.canReachModel(context)) {
+            return CommandRouter.Outcome(false, false, "")
+        }
         if (!ScreenAutomation.isReady()) {
             return CommandRouter.Outcome(
                 true,
@@ -70,171 +72,164 @@ object AiPlanner {
             return CommandRouter.Outcome(true, false, "I won't do that from voice.")
         }
 
+        val history = ArrayList<String>()
         var lastMessage = ""
-        for (round in 0 until MAX_ROUNDS) {
+        var lastTap = -1
+        var tapStreak = 0
+
+        for (step in 1..MAX_STEPS) {
             val outline = ScreenAutomation.describe(MAX_OUTLINE_ELEMENTS)
             val grid = gridWhenTreeIsEmpty()
-            val plan = requestPlan(client, request, outline, grid, round) ?: break
-            val actions = plan.optJSONArray("actions") ?: JSONArray()
-            val say = plan.optString("say").trim()
-            if (say.isNotEmpty()) lastMessage = say
-            if (actions.length() == 0) {
-                return if (say.isNotEmpty()) {
-                    CommandRouter.Outcome(true, true, say)
-                } else {
-                    CommandRouter.Outcome(false, false, "")
-                }
+            val stepPlan = requestStep(context, request, history, outline, grid, step) ?: break
+
+            val thought = stepPlan.optString("thought").trim()
+            val say = stepPlan.optString("say").trim()
+            val isDone = stepPlan.optBoolean("done", false)
+            val actionName = stepPlan.optString("action").lowercase().trim()
+
+            if (say.isNotEmpty()) {
+                lastMessage = say
+                JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", say)
             }
 
-            var changedScreen = false
-            var tapStreak = 0
-            var lastTap = -1
-            for (index in 0 until actions.length().coerceAtMost(MAX_ACTIONS)) {
-                val action = actions.optJSONObject(index) ?: continue
-                val name = action.optString("action").lowercase()
-                Log.i(TAG, "Action $name: $action")
-                when (name) {
-                    "tap", "click" -> {
-                        val eid = action.optInt("eid", -1)
-                        if (eid < 0) return failure("The plan named no element to tap.")
-                        val element = ScreenAutomation.element(eid)
-                            ?: return failure("Element $eid is no longer on screen.")
-                        val verdict = SafetyGuard.assessElement(element.label, element.viewId)
-                        if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
-                        if (eid == lastTap) tapStreak += 1 else tapStreak = 0
-                        if (tapStreak >= 2) {
-                            return failure("I stopped because the same control kept being tapped.")
-                        }
-                        lastTap = eid
-                        val result = ActionVerifier.tap(
-                            eid,
-                            verify = com.jarvis.island.settings.JarvisIslandSettings.instance.verifyActionsEnabled
-                        )
-                        if (!result.success) {
-                            return failure("I couldn't tap element $eid; the screen may have changed.")
-                        }
-                        if (result.changed) changedScreen = true
-                        SystemClock.sleep(650)
+            if (isDone || actionName == "done" || actionName.isEmpty()) {
+                val completionMsg = if (say.isNotEmpty()) say else "Done."
+                JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", completionMsg)
+                return CommandRouter.Outcome(true, true, completionMsg)
+            }
+
+            Log.i(TAG, "Step $step [$actionName]: thought=$thought, say=$say")
+
+            when (actionName) {
+                "tap", "click" -> {
+                    val eid = stepPlan.optInt("eid", -1)
+                    if (eid < 0) return failure("I couldn't identify the element to tap.")
+                    val element = ScreenAutomation.element(eid)
+                        ?: return failure("Element $eid is no longer visible on screen.")
+                    val verdict = SafetyGuard.assessElement(element.label, element.viewId)
+                    if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
+                    if (eid == lastTap) tapStreak += 1 else tapStreak = 0
+                    if (tapStreak >= 2) {
+                        return failure("I stopped because the same control kept being tapped.")
                     }
-                    "tap_grid", "tap_cell" -> {
-                        val cell = action.optInt("cell", -1)
-                        if (cell < 0) return failure("The plan named no grid cell.")
-                        val frame = ScreenSnapshot.analyseBlocking()
-                            ?: return failure("I couldn't take a screenshot to aim with.")
-                        val before = ScreenAutomation.signature()
-                        if (!ScreenSnapshot.tapCell(frame, cell)) {
-                            frame.bitmap.recycle()
-                            return failure("I couldn't tap grid cell $cell.")
-                        }
-                        val changed = ActionVerifier.waitForChange(before, 1_200L)
+                    lastTap = eid
+                    val result = ActionVerifier.tap(
+                        eid,
+                        verify = JarvisIslandSettings.instance.verifyActionsEnabled
+                    )
+                    if (!result.success) {
+                        return failure("I couldn't tap ${element.label.ifBlank { "element $eid" }}.")
+                    }
+                    history.add("Step $step: Tapped '${element.label.ifBlank { "eid $eid" }}'")
+                    SystemClock.sleep(600)
+                }
+                "tap_grid", "tap_cell" -> {
+                    val cell = stepPlan.optInt("cell", -1)
+                    if (cell < 0) return failure("No grid cell specified.")
+                    val frame = ScreenSnapshot.analyseBlocking()
+                        ?: return failure("Couldn't capture screen to aim.")
+                    val before = ScreenAutomation.signature()
+                    if (!ScreenSnapshot.tapCell(frame, cell)) {
                         frame.bitmap.recycle()
-                        if (changed) changedScreen = true
-                        SystemClock.sleep(650)
+                        return failure("Couldn't tap grid cell $cell.")
                     }
-                    "tap_point" -> {
-                        val x = action.optInt("x", -1)
-                        val y = action.optInt("y", -1)
-                        if (x < 0 || y < 0) return failure("The plan gave no point to tap.")
-                        val result = ActionVerifier.tapFraction(x, y)
-                        if (!result.success) return failure("I couldn't tap that point.")
-                        if (result.changed) changedScreen = true
-                        SystemClock.sleep(600)
+                    ActionVerifier.waitForChange(before, 1_200L)
+                    frame.bitmap.recycle()
+                    history.add("Step $step: Tapped grid cell $cell")
+                    SystemClock.sleep(600)
+                }
+                "tap_point" -> {
+                    val x = stepPlan.optInt("x", -1)
+                    val y = stepPlan.optInt("y", -1)
+                    if (x < 0 || y < 0) return failure("No point specified to tap.")
+                    val result = ActionVerifier.tapFraction(x, y)
+                    if (!result.success) return failure("I couldn't tap that location.")
+                    history.add("Step $step: Tapped point ($x, $y)")
+                    SystemClock.sleep(600)
+                }
+                "long_press", "hold" -> {
+                    val eid = stepPlan.optInt("eid", -1)
+                    if (eid < 0) return failure("No element specified for long-press.")
+                    val element = ScreenAutomation.element(eid)
+                        ?: return failure("Element $eid is no longer visible.")
+                    val verdict = SafetyGuard.assessElement(element.label, element.viewId)
+                    if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
+                    if (!ScreenAutomation.longPress(eid)) return failure("Couldn't long-press that element.")
+                    history.add("Step $step: Long-pressed '${element.label}'")
+                    SystemClock.sleep(500)
+                }
+                "type", "write" -> {
+                    val text = stepPlan.optString("text")
+                    val eid = stepPlan.optInt("eid", -1)
+                    if (eid >= 0) {
+                        ScreenAutomation.tap(eid)
+                        SystemClock.sleep(250)
                     }
-                    "long_press", "hold" -> {
-                        val eid = action.optInt("eid", -1)
-                        if (eid < 0) return failure("I couldn't long-press that element.")
-                        val element = ScreenAutomation.element(eid)
-                            ?: return failure("Element $eid is no longer on screen.")
-                        val verdict = SafetyGuard.assessElement(element.label, element.viewId)
-                        if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
-                        if (!ScreenAutomation.longPress(eid)) {
-                            return failure("I couldn't long-press that element.")
-                        }
-                        changedScreen = true
-                        SystemClock.sleep(500)
+                    val result = ScreenAutomation.typeText(text)
+                    if (!result.success) return failure(result.detail)
+                    history.add("Step $step: Typed '$text'")
+                    SystemClock.sleep(400)
+                }
+                "submit", "send" -> {
+                    if (!ScreenAutomation.submit()) return failure("No send or submit button found.")
+                    history.add("Step $step: Submitted input")
+                    SystemClock.sleep(600)
+                }
+                "scroll" -> {
+                    val dir = stepPlan.optString("direction", "down")
+                    val times = stepPlan.optInt("times", 1)
+                    if (ScreenAutomation.scroll(dir, times) == 0) return failure("This screen does not scroll.")
+                    history.add("Step $step: Scrolled $dir")
+                    SystemClock.sleep(500)
+                }
+                "swipe" -> {
+                    val dir = stepPlan.optString("direction", "up")
+                    if (!ScreenAutomation.swipe(dir)) return failure("Couldn't swipe.")
+                    history.add("Step $step: Swiped $dir")
+                    SystemClock.sleep(450)
+                }
+                "launch", "open" -> {
+                    val app = stepPlan.optString("app", stepPlan.optString("text", "")).trim()
+                    if (app.isEmpty() || ScreenAutomation.launch(context, app) == null) {
+                        return failure("Couldn't open $app.")
                     }
-                    "type", "write" -> {
-                        val value = action.optString("text")
-                        val result = ScreenAutomation.typeText(value)
-                        if (!result.success) return failure(result.detail)
-                        SystemClock.sleep(300)
-                    }
-                    "submit", "send" -> {
-                        if (!ScreenAutomation.submit()) {
-                            return failure("The field has no Send action.")
-                        }
-                        changedScreen = true
-                        SystemClock.sleep(600)
-                    }
-                    "scroll" -> {
-                        val direction = action.optString("direction", "down")
-                        val times = action.optInt("times", 1)
-                        if (ScreenAutomation.scroll(direction, times) == 0) {
-                            return failure("This screen does not scroll.")
-                        }
-                        changedScreen = true
-                        SystemClock.sleep(500)
-                    }
-                    "swipe" -> {
-                        val direction = action.optString("direction", "up")
-                        if (!ScreenAutomation.swipe(direction)) {
-                            return failure("I couldn't swipe.")
-                        }
-                        changedScreen = true
-                        SystemClock.sleep(450)
-                    }
-                    "global", "back", "home" -> {
-                        val target = if (name == "back" || name == "home") name else {
-                            action.optString("name", action.optString("target", "back"))
-                        }
-                        if (!ScreenAutomation.global(target)) {
-                            return failure("I couldn't perform $target.")
-                        }
-                        changedScreen = true
-                        SystemClock.sleep(700)
-                    }
-                    "launch", "open" -> {
-                        val app = action.optString("app", action.optString("text", "")).trim()
-                        if (app.isEmpty() || ScreenAutomation.launch(context, app) == null) {
-                            return failure("I couldn't open $app.")
-                        }
-                        changedScreen = true
-                        SystemClock.sleep(1_800)
-                    }
-                    "wait" -> {
-                        val ms = action.optInt("ms", 600).coerceIn(100, 3_000)
-                        SystemClock.sleep(ms.toLong())
-                    }
-                    else -> Log.w(TAG, "Ignoring unknown action $name")
+                    history.add("Step $step: Opened $app")
+                    SystemClock.sleep(1600)
+                }
+                "global", "back", "home", "recents" -> {
+                    val target = if (actionName in listOf("back", "home", "recents")) actionName
+                    else stepPlan.optString("name", "back")
+                    if (!ScreenAutomation.global(target)) return failure("Couldn't perform $target.")
+                    history.add("Step $step: Performed $target")
+                    SystemClock.sleep(600)
+                }
+                "wait" -> {
+                    val ms = stepPlan.optInt("ms", 600).coerceIn(100, 3000)
+                    SystemClock.sleep(ms.toLong())
+                    history.add("Step $step: Waited ${ms}ms")
+                }
+                else -> {
+                    Log.w(TAG, "Unknown action $actionName")
                 }
             }
 
-            if (changedScreen) {
-                ScreenAutomation.refresh()
-                SystemClock.sleep(400)
-            } else {
-                break
-            }
+            // Settle and observe updated UI hierarchy
+            ScreenAutomation.refresh()
+            SystemClock.sleep(300)
         }
 
-        // The final screen is the evidence. If the model gave a line, say it.
-        val packageName = ScreenAutomation.currentPackage()
-        return CommandRouter.Outcome(
-            true,
-            true,
-            if (lastMessage.isNotEmpty()) lastMessage
-            else "Done. $packageName is on screen."
-        )
+        if (history.isEmpty()) return CommandRouter.Outcome(false, false, "")
+        val pkg = ScreenAutomation.currentPackage()
+        val finalMsg = if (lastMessage.isNotEmpty()) lastMessage else "Done. $pkg is on screen."
+        JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", finalMsg)
+        return CommandRouter.Outcome(true, true, finalMsg)
     }
 
-    private fun failure(message: String): CommandRouter.Outcome =
-        CommandRouter.Outcome(true, false, message)
+    private fun failure(message: String): CommandRouter.Outcome {
+        JarvisIslandAccessibilityService.instance?.showLocalNotification("JARVIS Agent", message)
+        return CommandRouter.Outcome(true, false, message)
+    }
 
-    /**
-     * Apps that draw themselves (WebViews, Flutter, games) expose an empty
-     * tree. In that case the screenshot grid is the only way to aim, so it is
-     * attached to the planner request.
-     */
     private fun gridWhenTreeIsEmpty(): String? {
         if (!ScreenSnapshot.isSupported()) return null
         val elements = ScreenAutomation.snapshot()
@@ -242,55 +237,68 @@ object AiPlanner {
         return runCatching { ScreenSnapshot.describeScreen() }.getOrNull()
     }
 
-    private fun requestPlan(
-        client: JarvisLiveBridgeClient,
+    private fun requestStep(
+        context: Context,
         request: String,
+        history: List<String>,
         outline: String,
         grid: String?,
-        round: Int,
+        stepNumber: Int,
     ): JSONObject? {
         val system = """
-            You control an Android phone through accessibility actions.
+            You are JARVIS, an autonomous mobile agent controlling an Android phone through precise accessibility actions.
+            You will be given:
+            1. User goal
+            2. Action history (actions you executed in earlier steps)
+            3. Current screen outline (e<eid>*|class|label|[x,y])
+
+            Decide the EXACT NEXT SINGLE ACTION to progress toward the user's goal.
             Reply with ONE JSON object and no other text:
-            {"actions":[{"action":"tap","eid":12},{"action":"type","text":"hello"},{"action":"submit"}],"say":"short status"}
-            Allowed actions:
-            tap/click {eid}, tap_grid {cell}, tap_point {x,y}, long_press {eid}, type {text}, submit,
-            scroll {direction:up|down,times}, swipe {direction:up|down|left|right},
-            global {name:back|home|recents|notifications}, launch {app}, wait {ms}.
+            {
+              "thought": "Reasoning for this specific step",
+              "say": "Short status to show user on Dynamic Island (e.g. 'Tapping Wi-Fi')",
+              "action": "tap", // tap, type, submit, scroll, swipe, launch, back, home, recents, wait, done
+              "eid": 12,       // element id from outline (for tap, type, long_press)
+              "text": "query", // text to type (for type action)
+              "direction": "down", // up, down, left, right (for scroll, swipe)
+              "app": "Settings",   // app name to launch (for launch action)
+              "done": false        // set true when user's goal is fully achieved!
+            }
+
             Rules:
-            - Use only eids that appear in the outline. Never invent one.
-            - The outline line is: e<number>[*][{E,S}]|<class>|<label>|[x,y] in 0-1000 coordinates.
-              * means tappable, E means text field, S means scrollable.
-            - If a screenshot grid is present, the app hides its accessibility tree.
-              Use tap_grid {cell} on a cell marked content, or tap_point {x,y} in 0-1000
-              coordinates when the target is inside a cell.
-            - At most 5 actions. The device executes them in order.
-            - If the request is already satisfied, return {"actions":[],"say":"..."}.
-            - If more steps are needed after this batch, say so; you will be shown the new screen.
+            - Output ONLY the immediate next step. Never attempt to batch multiple actions.
+            - Use ONLY eids that appear in the outline.
+            - If the goal is satisfied, return {"thought":"Goal complete","say":"Done!","action":"done","done":true}.
             - Never perform destructive or financial actions.
         """.trimIndent()
+
         val user = buildString {
-            append("Request: ").append(request).append('\n')
-            if (round > 0) append("This is round ").append(round + 1).append("; continue from the current screen.\n")
+            append("Goal: ").append(request).append('\n')
+            if (history.isNotEmpty()) {
+                append("Actions executed so far:\n")
+                history.forEach { append(" - ").append(it).append('\n') }
+            }
+            append("Current Step: ").append(stepNumber).append('\n')
             append("Screen outline:\n").append(outline).append('\n')
             if (grid != null) {
                 append("Screenshot aim grid:\n").append(grid)
             }
         }
+
         val latch = CountDownLatch(1)
         var reply: String? = null
         var error: String? = null
-        client.requestAi(listOf("system" to system, "user" to user)) { answer, failure ->
+        AiRouter.request(context, listOf("system" to system, "user" to user)) { answer, failure, _ ->
             reply = answer
             error = failure
             latch.countDown()
         }
-        if (!latch.await(45, TimeUnit.SECONDS)) {
-            Log.w(TAG, "AI planner timed out")
+        if (!latch.await(35, TimeUnit.SECONDS)) {
+            Log.w(TAG, "AI planner timed out on step $stepNumber")
             return null
         }
         if (reply == null) {
-            Log.w(TAG, "AI planner failed: ${error ?: "unknown"}")
+            Log.w(TAG, "AI planner step $stepNumber failed: ${error ?: "unknown"}")
             return null
         }
         return parseJson(reply!!)
@@ -301,9 +309,26 @@ object AiPlanner {
         val end = raw.lastIndexOf('}')
         if (start < 0 || end <= start) return null
         return try {
-            JSONObject(raw.substring(start, end + 1))
+            val json = JSONObject(raw.substring(start, end + 1))
+            // Support both {"action": "tap", ...} and legacy {"actions": [{...}]}
+            if (json.has("actions") && !json.has("action")) {
+                val actionsArr = json.optJSONArray("actions")
+                if (actionsArr != null && actionsArr.length() > 0) {
+                    val first = actionsArr.getJSONObject(0)
+                    if (json.has("say") && !first.has("say")) {
+                        first.put("say", json.optString("say"))
+                    }
+                    first
+                } else {
+                    json.put("action", "done")
+                    json.put("done", true)
+                    json
+                }
+            } else {
+                json
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not parse planner reply", e)
+            Log.w(TAG, "Could not parse planner reply: $raw", e)
             null
         }
     }

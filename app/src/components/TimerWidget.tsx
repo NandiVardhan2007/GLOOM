@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Play, Pause, RotateCcw, Plus, Minus, Flag } from "lucide-react";
 import { TimerState } from "../types";
+import { FlagIcon, MinusIcon, PauseIcon, PlayIcon, PlusIcon, RotateCcwIcon } from "./IslandIcons";
 import {
   PersistentTimerData,
   subscribeTimer,
@@ -250,7 +250,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 }}
                 title="-1 min"
               >
-                <Minus size={14} />
+                <MinusIcon size={14} />
               </button>
 
               <button
@@ -270,7 +270,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 }}
                 title={isTimerRunning ? "Pause" : "Start"}
               >
-                {isTimerRunning ? <Pause size={18} /> : <Play size={18} />}
+                {isTimerRunning ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
               </button>
 
               <button
@@ -289,7 +289,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 }}
                 title="+1 min"
               >
-                <Plus size={14} />
+                <PlusIcon size={14} />
               </button>
 
               <button
@@ -308,7 +308,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 }}
                 title="Reset"
               >
-                <RotateCcw size={14} />
+                <RotateCcwIcon size={14} />
               </button>
             </div>
           </div>
@@ -375,11 +375,11 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
             >
               {isStopwatchRunning ? (
                 <>
-                  <Pause size={14} /> Pause
+                  <PauseIcon size={14} /> Pause
                 </>
               ) : (
                 <>
-                  <Play size={14} /> Start
+                  <PlayIcon size={14} /> Start
                 </>
               )}
             </button>
@@ -401,7 +401,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 fontWeight: 600,
               }}
             >
-              <Flag size={13} /> Lap
+              <FlagIcon size={13} /> Lap
             </button>
 
             <button
@@ -420,7 +420,7 @@ export const TimerWidget: React.FC<TimerWidgetProps> = ({ onTimerUpdate }) => {
                 fontWeight: 600,
               }}
             >
-              <RotateCcw size={13} /> Reset
+              <RotateCcwIcon size={13} /> Reset
             </button>
           </div>
 

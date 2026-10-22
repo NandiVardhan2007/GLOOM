@@ -56,7 +56,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.jarvis.island.bridge.JarvisLiveBridgeClient
+import com.jarvis.island.ai.AiRouter
 import com.jarvis.island.security.JarvisSecurity
 import com.jarvis.island.ui.Apple
 import com.jarvis.island.ui.AppleButton
@@ -269,7 +269,7 @@ class VoiceUnlockActivity : ComponentActivity() {
                                     if (com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain == "local") {
                                         "I couldn't do that on the phone, and the on-device brain is selected."
                                     } else {
-                                        "I couldn't do that. Pair with the desktop for open-ended actions."
+                                        "I couldn't do that. Pair with your desktop or add a cloud key in Settings."
                                     }
                                 )
                             }
@@ -321,21 +321,21 @@ class VoiceUnlockActivity : ComponentActivity() {
     }
 
     private fun askAi(text: String) {
-        val client = JarvisLiveBridgeClient.activeClient
-        if (client == null) {
-            status = "Pair with the desktop to use the assistant"
+        if (!AiRouter.canReachModel(applicationContext)) {
+            status = "Add a cloud key in Settings > AI & Brain"
             failed = true
-            speak("Pair with the desktop to use the assistant.")
+            speak("Add a cloud API key in Settings, or pair with your desktop.")
             return
         }
         thinking = true
         status = "Thinking…"
-        client.requestAi(
+        AiRouter.request(
+            applicationContext,
             listOf(
                 "system" to SYSTEM_PROMPT,
                 "user" to text
             )
-        ) { answer, error ->
+        ) { answer, error, _ ->
             thinking = false
             if (answer != null) {
                 reply = answer

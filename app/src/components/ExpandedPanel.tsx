@@ -19,20 +19,20 @@ import { NetworkView } from "./NetworkView";
 import { SettingsView } from "./SettingsView";
 import { LiveBridgeView } from "./LiveBridgeView";
 import {
-  LayoutGrid,
-  Music,
-  Sliders,
-  Coffee,
-  Pin,
-  PinOff,
-  Settings,
-  ChevronUp,
-  X,
-  Zap,
-  Smartphone,
-  FileText,
-  Activity,
-} from "lucide-react";
+  GridIcon,
+  MusicNoteIcon,
+  SmartphoneIcon,
+  FileTextIcon,
+  ActivityIcon,
+  SlidersIcon,
+  CoffeeIcon,
+  BoltIcon,
+  PinIcon,
+  PinOffIcon,
+  GearIcon,
+  ChevronUpIcon,
+  CloseIcon,
+} from "./IslandIcons";
 
 interface ExpandedPanelProps {
   media: MediaState;
@@ -83,13 +83,13 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
   };
 
   const navCapsuleItems: { id: ActiveTab; icon: React.ReactNode; label: string }[] = [
-    { id: "dashboard", icon: <LayoutGrid size={14} strokeWidth={1.7} />, label: "Dashboard" },
-    { id: "media", icon: <Music size={14} strokeWidth={1.7} />, label: "Music" },
-    { id: "bridge", icon: <Smartphone size={14} strokeWidth={1.7} />, label: "File Beam & Phone" },
-    { id: "notes", icon: <FileText size={14} strokeWidth={1.7} />, label: "Notepad" },
-    { id: "network", icon: <Activity size={14} strokeWidth={1.7} />, label: "Network" },
-    { id: "controls", icon: <Sliders size={14} strokeWidth={1.7} />, label: "Control Center" },
-    { id: "timer", icon: <Coffee size={14} strokeWidth={1.7} />, label: "Focus Timer" },
+    { id: "dashboard", icon: <GridIcon size={14} strokeWidth={1.7} />, label: "Dashboard" },
+    { id: "media", icon: <MusicNoteIcon size={14} strokeWidth={1.7} />, label: "Music" },
+    { id: "bridge", icon: <SmartphoneIcon size={14} strokeWidth={1.7} />, label: "File Beam & Phone" },
+    { id: "notes", icon: <FileTextIcon size={14} strokeWidth={1.7} />, label: "Notepad" },
+    { id: "network", icon: <ActivityIcon size={14} strokeWidth={1.7} />, label: "Network" },
+    { id: "controls", icon: <SlidersIcon size={14} strokeWidth={1.7} />, label: "Control Center" },
+    { id: "timer", icon: <CoffeeIcon size={14} strokeWidth={1.7} />, label: "Focus Timer" },
   ];
 
   return (
@@ -190,7 +190,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
                   boxShadow: "0 0 6px rgba(48, 209, 88, 0.4)",
                 }}
               >
-                <Zap size={10} color="#30d158" fill={telemetry.isCharging ? "#30d158" : "transparent"} />
+                <BoltIcon size={10} color={telemetry.isCharging ? "#30d158" : "rgba(235,235,245,0.45)"} />
               </div>
             </div>
           )}
@@ -213,7 +213,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
             }}
             title={isPinned ? "Pinned open (click to unpin)" : "Pin island open"}
           >
-            {isPinned ? <Pin size={14} strokeWidth={1.7} /> : <PinOff size={14} strokeWidth={1.7} />}
+            {isPinned ? <PinIcon size={14} strokeWidth={1.7} /> : <PinOffIcon size={14} strokeWidth={1.7} />}
           </button>
 
           {/* Settings Button (Opens In-Island Settings Suite) */}
@@ -248,7 +248,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               }
             }}
           >
-            <Settings size={14} strokeWidth={1.7} />
+            <GearIcon size={14} strokeWidth={1.7} />
           </button>
 
           {/* Collapse / Dismiss Button */}
@@ -277,7 +277,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               e.currentTarget.style.color = "#cbd5e1";
             }}
           >
-            <ChevronUp size={14} />
+            <ChevronUpIcon size={14} />
           </button>
 
           {/* Close & Exit JARVIS Process Button */}
@@ -313,7 +313,7 @@ export const ExpandedPanel: React.FC<ExpandedPanelProps> = ({
               e.currentTarget.style.color = "#f87171";
             }}
           >
-            <X size={14} />
+            <CloseIcon size={14} />
           </button>
         </div>
       </div>

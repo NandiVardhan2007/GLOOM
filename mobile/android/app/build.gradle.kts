@@ -12,8 +12,8 @@ android {
         applicationId = "com.jarvis.island"
         minSdk = 26
         targetSdk = 35
-        versionCode = 23
-        versionName = "1.0.15"
+        versionCode = 24
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -73,6 +73,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Compose BOM
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))

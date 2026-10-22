@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  Bluetooth,
-  Smartphone,
-  ExternalLink,
-  ShieldCheck,
-  RefreshCw,
-} from "lucide-react";
+import { BluetoothIcon, ExternalLinkIcon, RefreshIcon, ShieldIcon, SmartphoneIcon } from "./IslandIcons";
 
 interface BridgeDevice {
   id: string;
@@ -91,7 +85,7 @@ export const BluetoothView: React.FC = () => {
               justifyContent: "center",
             }}
           >
-            <Bluetooth size={18} color={btEnabled ? "#007aff" : "rgba(255, 255, 255, 0.4)"} />
+            <BluetoothIcon size={18} color={btEnabled ? "#007aff" : "rgba(255, 255, 255, 0.4)"} />
           </div>
           <div>
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff" }}>
@@ -155,7 +149,7 @@ export const BluetoothView: React.FC = () => {
               cursor: "pointer",
             }}
           >
-            <ExternalLink size={12} />
+            <ExternalLinkIcon size={12} />
             <span>Open Windows Settings</span>
           </button>
         </div>
@@ -196,7 +190,7 @@ export const BluetoothView: React.FC = () => {
               fontSize: "11px",
             }}
           >
-            <RefreshCw size={12} className={isLoading ? "spin" : ""} />
+            <RefreshIcon size={12} />
             <span>Refresh</span>
           </button>
         </div>
@@ -214,7 +208,7 @@ export const BluetoothView: React.FC = () => {
               fontSize: "11px",
             }}
           >
-            <Smartphone size={24} strokeWidth={1.5} />
+            <SmartphoneIcon size={24} strokeWidth={1.5} />
             <span>No companion mobile devices paired yet</span>
             <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.3)" }}>
               Pair via PIN in the File Beam & Phone tab
@@ -235,7 +229,7 @@ export const BluetoothView: React.FC = () => {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Smartphone size={15} color="#0a84ff" />
+                <SmartphoneIcon size={15} color="#0a84ff" />
                 <div>
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>
                     {dev.name}
@@ -246,7 +240,7 @@ export const BluetoothView: React.FC = () => {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <ShieldCheck size={13} color="#30d158" />
+                <ShieldIcon size={13} color="#30d158" />
                 <span style={{ fontSize: "11px", fontWeight: 600, color: dev.status === "connected" ? "#30d158" : "rgba(255, 255, 255, 0.4)" }}>
                   {dev.status === "connected" ? "Connected" : "Saved"}
                 </span>

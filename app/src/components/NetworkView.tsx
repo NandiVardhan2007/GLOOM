@@ -1,14 +1,6 @@
 import React from "react";
 import { SystemTelemetry } from "../types";
-import {
-  Wifi,
-  ArrowDown,
-  ArrowUp,
-  Globe,
-  Smartphone,
-  ShieldCheck,
-  Zap,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, BoltIcon, GlobeIcon, ShieldIcon, SmartphoneIcon, WifiIcon } from "./IslandIcons";
 
 interface NetworkViewProps {
   telemetry: SystemTelemetry;
@@ -74,7 +66,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
                   justifyContent: "center",
                 }}
               >
-                <ArrowDown size={14} color="#32ade6" />
+                <ArrowDownIcon size={14} color="#32ade6" />
               </div>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>Download</span>
             </div>
@@ -133,7 +125,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
                   justifyContent: "center",
                 }}
               >
-                <ArrowUp size={14} color="#34c759" />
+                <ArrowUpIcon size={14} color="#34c759" />
               </div>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>Upload</span>
             </div>
@@ -182,7 +174,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-            <Globe size={15} color="#32ade6" />
+            <GlobeIcon size={15} color="#32ade6" />
             <span style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff", letterSpacing: "-0.01em" }}>
               Local Network & Ecosystem Bridge
             </span>
@@ -235,7 +227,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "11px" }}>
-              <Wifi size={11} />
+              <WifiIcon size={11} />
               <span>Interface</span>
             </div>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#ffffff" }}>
@@ -256,7 +248,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "11px" }}>
-              <Zap size={11} color="#32ade6" />
+              <BoltIcon size={11} color="#32ade6" />
               <span>Beam Socket</span>
             </div>
             <span className="tabular-nums" style={{ fontSize: "11px", fontWeight: 600, color: "#32ade6" }}>
@@ -277,7 +269,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255, 255, 255, 0.45)", fontSize: "11px" }}>
-              <Smartphone size={11} color="#af52de" />
+              <SmartphoneIcon size={11} color="#af52de" />
               <span>Android Bridge</span>
             </div>
             <span style={{ fontSize: "11px", fontWeight: 600, color: "#af52de" }}>
@@ -297,7 +289,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({ telemetry }) => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <ShieldCheck size={13} color="#34c759" />
+            <ShieldIcon size={13} color="#34c759" />
             <span>JARVIS LiveBridge Authenticated Protocol</span>
           </div>
           <span style={{ color: "#32ade6", fontWeight: 600 }}>Port 53391</span>

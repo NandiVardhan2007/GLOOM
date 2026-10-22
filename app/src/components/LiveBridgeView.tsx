@@ -4,18 +4,18 @@ import { listen } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 import { BridgeActivity, BridgeDevice, BridgeTransfer } from "../types";
 import {
-  Smartphone,
-  QrCode,
-  Share2,
-  Copy,
-  Check,
-  Zap,
-  UploadCloud,
-  FileText,
-  Clock,
-  Shield,
-  FolderOpen,
-} from "lucide-react";
+  SmartphoneIcon,
+  QrCodeIcon,
+  ShareIcon,
+  CopyIcon,
+  CheckIcon,
+  BoltIcon,
+  UploadDocIcon,
+  FileTextIcon,
+  ClockIcon,
+  ShieldIcon,
+  FolderIcon,
+} from "./IslandIcons";
 
 export const LiveBridgeView: React.FC = () => {
   const [devices, setDevices] = useState<BridgeDevice[]>([]);
@@ -280,7 +280,7 @@ export const LiveBridgeView: React.FC = () => {
             flexShrink: 0,
           }}
         >
-          <Shield size={18} color="#ff9f0a" />
+          <ShieldIcon size={18} color="#ff9f0a" />
           <div style={{ lineHeight: 1.35 }}>
             <div style={{ fontSize: "12px", fontWeight: 600, color: "#ff9f0a" }}>
               Pairing request from {pairing.clientDeviceName || "Companion Device"}
@@ -386,7 +386,7 @@ export const LiveBridgeView: React.FC = () => {
                   flexShrink: 0,
                 }}
               >
-                <QrCode size={16} strokeWidth={1.7} />
+                <QrCodeIcon size={16} strokeWidth={1.7} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: "13px", fontWeight: 600, color: "#f5f5f7" }}>
@@ -444,7 +444,7 @@ export const LiveBridgeView: React.FC = () => {
               color: connected ? "#0a84ff" : "rgba(235, 235, 245, 0.55)",
             }}
           >
-            <Smartphone size={16} strokeWidth={1.6} />
+            <SmartphoneIcon size={16} strokeWidth={1.6} />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
@@ -490,7 +490,7 @@ export const LiveBridgeView: React.FC = () => {
             borderRadius: "7px",
           }}
         >
-          <Zap size={11} strokeWidth={1.8} color={connected ? "#30d158" : "rgba(235, 235, 245, 0.45)"} />
+          <BoltIcon size={11} strokeWidth={1.8} color={connected ? "#30d158" : "rgba(235, 235, 245, 0.45)"} />
           <span>{activeDevice ? `${activeDevice.batteryPercent}%` : "—"}</span>
         </div>
       </div>
@@ -535,7 +535,7 @@ export const LiveBridgeView: React.FC = () => {
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                  <Share2 size={15} strokeWidth={1.7} color="#0a84ff" />
+                  <ShareIcon size={15} strokeWidth={1.7} color="#0a84ff" />
                   <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f5f5f7" }}>
                     AirDrop
                   </span>
@@ -557,7 +557,7 @@ export const LiveBridgeView: React.FC = () => {
                     fontWeight: 500,
                   }}
                 >
-                  <FolderOpen size={11} strokeWidth={1.7} />
+                  <FolderIcon size={11} strokeWidth={1.7} />
                   <span>Received</span>
                 </button>
               </div>
@@ -602,7 +602,7 @@ export const LiveBridgeView: React.FC = () => {
                     transition: "transform var(--duration-quick) var(--ease-out), filter var(--duration-quick) var(--ease-out)",
                   }}
                 >
-                  <UploadCloud size={13} strokeWidth={1.8} />
+                  <UploadDocIcon size={13} strokeWidth={1.8} />
                   <span>Choose File</span>
                 </button>
               </div>
@@ -623,7 +623,7 @@ export const LiveBridgeView: React.FC = () => {
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-                  <Copy size={15} strokeWidth={1.7} color="#30d158" />
+                  <CopyIcon size={15} strokeWidth={1.7} color="#30d158" />
                   <span style={{ fontSize: "13px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f5f5f7" }}>
                     Universal Clipboard
                   </span>
@@ -704,7 +704,7 @@ export const LiveBridgeView: React.FC = () => {
                 transition: "all 0.15s ease",
               }}
             >
-              {clipSendState === "sent" ? <Check size={14} /> : <Share2 size={14} />}
+              {clipSendState === "sent" ? <CheckIcon size={14} /> : <ShareIcon size={14} />}
               <span>
                 {clipSendState === "sent"
                   ? "Sent to phone"
@@ -750,7 +750,7 @@ export const LiveBridgeView: React.FC = () => {
                       color: act.activityType === "otp" ? "#ff9f0a" : "#0a84ff",
                     }}
                   >
-                    {act.activityType === "otp" ? <Shield size={16} /> : <Clock size={16} />}
+                    {act.activityType === "otp" ? <ShieldIcon size={16} /> : <ClockIcon size={16} />}
                   </div>
                   <div>
                     <div style={{ fontSize: "12px", fontWeight: 600, color: "#ffffff" }}>
@@ -807,7 +807,7 @@ export const LiveBridgeView: React.FC = () => {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <FileText size={15} color="#0a84ff" />
+                  <FileTextIcon size={15} color="#0a84ff" />
                   <div>
                     <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#ffffff" }}>
                       {t.fileName}

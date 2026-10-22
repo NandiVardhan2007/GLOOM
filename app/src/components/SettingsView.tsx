@@ -2,35 +2,7 @@ import React, { useEffect, useState } from "react";
 import { AppConfig, IslandMode } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 import { ChittiLogo } from "./ChittiLogo";
-import {
-  Sliders,
-  Palette,
-  LayoutGrid,
-  Bot,
-  Lightbulb,
-  Sparkles,
-  Info,
-  Check,
-  ExternalLink,
-  RotateCcw,
-  Monitor,
-  Clock,
-  Maximize2,
-  Volume2,
-  Music,
-  Activity,
-  Wifi,
-  CloudSun,
-  Shield,
-  Coffee,
-  Download,
-  ClipboardList,
-  Pin,
-  FolderOpen,
-  ChevronLeft,
-  Power,
-  Smartphone,
-} from "lucide-react";
+import { ActivityIcon, BotIcon, CheckIcon, ChevronLeftIcon, ClipboardListIcon, ClockIcon, CloudSunIcon, CoffeeIcon, DownloadIcon, ExternalLinkIcon, FolderIcon, GridIcon, InfoIcon, LightbulbIcon, MaximizeIcon, MonitorIcon, MusicNoteIcon, PaletteIcon, PinIcon, PowerIcon, RotateCcwIcon, ShieldIcon, SlidersIcon, SmartphoneIcon, SparkleIcon, SpeakerIcon, WifiIcon } from "./IslandIcons";
 
 export type SettingsCategory =
   | "general"
@@ -281,11 +253,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const navItems: { id: SettingsCategory; label: string; icon: React.ReactNode }[] = [
-    { id: "general", label: "General", icon: <Sliders size={15} /> },
-    { id: "appearance", label: "Appearance", icon: <Palette size={15} /> },
-    { id: "widgets", label: "Widgets", icon: <LayoutGrid size={15} /> },
-    { id: "tips", label: "Tips & Hotkeys", icon: <Lightbulb size={15} /> },
-    { id: "about", label: "About", icon: <Info size={15} /> },
+    { id: "general", label: "General", icon: <SlidersIcon size={15} /> },
+    { id: "appearance", label: "Appearance", icon: <PaletteIcon size={15} /> },
+    { id: "widgets", label: "Widgets", icon: <GridIcon size={15} /> },
+    { id: "tips", label: "Tips & Hotkeys", icon: <LightbulbIcon size={15} /> },
+    { id: "about", label: "About", icon: <InfoIcon size={15} /> },
   ];
 
   return (
@@ -418,7 +390,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               }}
               title="Open full massive settings in standalone window"
             >
-              <ExternalLink size={12} />
+              <ExternalLinkIcon size={12} />
               <span>Open Window</span>
             </button>
           )}
@@ -489,7 +461,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 }}
                 title={standalone ? "Close Settings Window" : "Return to Dashboard"}
               >
-                <ChevronLeft size={13} />
+                <ChevronLeftIcon size={13} />
                 <span>{standalone ? "Close" : "Dashboard"}</span>
               </button>
             )}
@@ -513,7 +485,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Display Style Group */}
               <SettingCard title="Display Style">
                 <SettingRow
-                  icon={<Sliders size={15} color="#0a84ff" />}
+                  icon={<SlidersIcon size={15} color="#0a84ff" />}
                   title="Notch / Island Mode"
                   desc="An edge notch, a floating pill, or a full-width bar."
                 >
@@ -536,7 +508,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Clock size={15} color="#0a84ff" />}
+                  icon={<ClockIcon size={15} color="#0a84ff" />}
                   title="Clock Format"
                   desc="Choose how time is formatted across headers and cards."
                 >
@@ -552,7 +524,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 {config.mode === "island" && (
                   <SettingRow
-                    icon={<Maximize2 size={15} color="#0a84ff" />}
+                    icon={<MaximizeIcon size={15} color="#0a84ff" />}
                     title="Distance from Screen Edge"
                     desc="Offset distance of the floating pill from the top bezel."
                   >
@@ -581,7 +553,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
 
                 <SettingRow
-                  icon={<Maximize2 size={15} color="#0a84ff" />}
+                  icon={<MaximizeIcon size={15} color="#0a84ff" />}
                   title="Island Scale"
                   desc="Adjust overall sizing of the collapsed and expanded capsule."
                 >
@@ -602,7 +574,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Monitor size={15} color="#0a84ff" />}
+                  icon={<MonitorIcon size={15} color="#0a84ff" />}
                   title="Target Monitor"
                   desc="Choose which display the notch overlay centers on."
                 >
@@ -627,7 +599,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Behavior & Gestures Group */}
               <SettingCard title="Behavior & Gestures">
                 <SettingRow
-                  icon={<Check size={15} color="#30d158" />}
+                  icon={<CheckIcon size={15} color="#30d158" />}
                   title="Open at Sign-in"
                   desc="Launch JARVIS automatically when Windows starts."
                 >
@@ -639,7 +611,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Maximize2 size={15} color="#30d158" />}
+                  icon={<MaximizeIcon size={15} color="#30d158" />}
                   title="Expand on Hover"
                   desc="Automatically expand the notch when cursor hovers over it."
                 >
@@ -651,7 +623,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Shield size={15} color="#30d158" />}
+                  icon={<ShieldIcon size={15} color="#30d158" />}
                   title="Hide behind Maximised Windows"
                   desc="Step out of the way when games or applications fill the screen."
                 >
@@ -663,7 +635,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Pin size={15} color="#30d158" />}
+                  icon={<PinIcon size={15} color="#30d158" />}
                   title="Keep Open (Pin Mode)"
                   desc="Don't collapse the expanded notch when cursor leaves."
                 >
@@ -682,7 +654,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <>
               <SettingCard title="Theme & Styling">
                 <SettingRow
-                  icon={<Palette size={15} color="#a855f7" />}
+                  icon={<PaletteIcon size={15} color="#a855f7" />}
                   title="Accent Color"
                   desc="Accent highlights, active rings, and playback waveforms."
                 >
@@ -712,7 +684,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Sparkles size={15} color="#a855f7" />}
+                  icon={<SparkleIcon size={15} color="#a855f7" />}
                   title="Cycle Colours (Rainbow)"
                   desc="Dynamically transition the notch accent hue over time."
                 >
@@ -724,7 +696,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Palette size={15} color="#a855f7" />}
+                  icon={<PaletteIcon size={15} color="#a855f7" />}
                   title="Shape & Corners"
                   desc="Choose between soft rounded pill corners or modern squared edges."
                 >
@@ -739,7 +711,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Palette size={15} color="#a855f7" />}
+                  icon={<PaletteIcon size={15} color="#a855f7" />}
                   title="Material Glass"
                   desc="Aero glass translucency or pure OLED black contrast."
                 >
@@ -755,7 +727,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Sparkles size={15} color="#a855f7" />}
+                  icon={<SparkleIcon size={15} color="#a855f7" />}
                   title="Edge Glow Halo"
                   desc="A soft accent-coloured halo around the notch border."
                 >
@@ -771,7 +743,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<FolderOpen size={15} color="#a855f7" />}
+                  icon={<FolderIcon size={15} color="#a855f7" />}
                   title="Custom Background URL"
                   desc="Paste an image or GIF URL for animated ambient notch skin."
                 >
@@ -799,7 +771,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {activeTab === "widgets" && (
             <SettingCard title="Show in the Notch">
               <SettingRow
-                icon={<Music size={15} color="#0a84ff" />}
+                icon={<MusicNoteIcon size={15} color="#0a84ff" />}
                 title="Now Playing"
                 desc="Artwork, track title, progress bar and playback controls."
               >
@@ -811,7 +783,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Activity size={15} color="#0a84ff" />}
+                icon={<ActivityIcon size={15} color="#0a84ff" />}
                 title="Music Lights Visualizer"
                 desc="Animated waveform frequency bars while music is playing."
               >
@@ -823,7 +795,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Volume2 size={15} color="#0a84ff" />}
+                icon={<SpeakerIcon size={15} color="#0a84ff" />}
                 title="Volume Mixer"
                 desc="Master volume slider and quick audio mute controls."
               >
@@ -835,7 +807,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Bot size={15} color="#0a84ff" />}
+                icon={<BotIcon size={15} color="#0a84ff" />}
                 title="AI Coding Agents & Mascot"
                 desc="Working state, turn completions, and avatar companion."
               >
@@ -847,7 +819,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<ClipboardList size={15} color="#0a84ff" />}
+                icon={<ClipboardListIcon size={15} color="#0a84ff" />}
                 title="Clipboard History & Shelf"
                 desc="Saved text snippets, links, and quick 1-click re-copy."
               >
@@ -859,7 +831,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Activity size={15} color="#0a84ff" />}
+                icon={<ActivityIcon size={15} color="#0a84ff" />}
                 title="System Telemetry"
                 desc="Live processor (CPU) and memory (RAM) usage bars."
               >
@@ -871,7 +843,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Wifi size={15} color="#0a84ff" />}
+                icon={<WifiIcon size={15} color="#0a84ff" />}
                 title="Network Speed Monitor"
                 desc="Real-time download and upload transfer rates."
               >
@@ -883,7 +855,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<CloudSun size={15} color="#0a84ff" />}
+                icon={<CloudSunIcon size={15} color="#0a84ff" />}
                 title="Weather & Temperature"
                 desc="Current weather conditions badge in the header capsule."
               >
@@ -895,7 +867,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Coffee size={15} color="#0a84ff" />}
+                icon={<CoffeeIcon size={15} color="#0a84ff" />}
                 title="Focus Timer & Pomodoro"
                 desc="Work and break interval timer with task tracking."
               >
@@ -907,7 +879,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </SettingRow>
 
               <SettingRow
-                icon={<Volume2 size={15} color="#0a84ff" />}
+                icon={<SpeakerIcon size={15} color="#0a84ff" />}
                 title="Volume HUD Overlay"
                 desc="Popup miniature island overlay when adjusting volume keys."
               >
@@ -994,7 +966,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <SettingRow
-                  icon={<Sparkles size={15} color="#0a84ff" />}
+                  icon={<SparkleIcon size={15} color="#0a84ff" />}
                   title="JARVIS Dynamic Notch"
                   desc="Pixel-perfect dynamic island & notch experience for Windows 10/11."
                 >
@@ -1004,7 +976,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Bot size={15} color="#0a84ff" />}
+                  icon={<BotIcon size={15} color="#0a84ff" />}
                   title="Developer & Architecture"
                   desc="Built with Tauri 2 + Rust + React 18 + TypeScript + Tailwind."
                 >
@@ -1014,7 +986,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Download size={15} color="#0a84ff" />}
+                  icon={<DownloadIcon size={15} color="#0a84ff" />}
                   title="Software Updates"
                   desc={updateStatus}
                 >
@@ -1054,7 +1026,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             gap: "5px",
                           }}
                         >
-                          <Download size={13} />
+                          <DownloadIcon size={13} />
                           <span>Download {updateInfo.latestTag}</span>
                         </button>
 
@@ -1096,7 +1068,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           gap: "4px",
                         }}
                       >
-                        <Smartphone size={12} />
+                        <SmartphoneIcon size={12} />
                         <span>Android APK</span>
                       </button>
                     )}
@@ -1104,7 +1076,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<ExternalLink size={15} color="#30d158" />}
+                  icon={<ExternalLinkIcon size={15} color="#30d158" />}
                   title="PowerShell Setup Installer"
                   desc="Run a single command in PowerShell to automatically install or update JARVIS Desktop"
                 >
@@ -1131,7 +1103,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<RotateCcw size={15} color="#f43f5e" />}
+                  icon={<RotateCcwIcon size={15} color="#f43f5e" />}
                   title="Reset All Settings"
                   desc="Restore all island geometry, appearance and widget toggles to defaults."
                 >
@@ -1153,7 +1125,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Power size={15} color="#f43f5e" />}
+                  icon={<PowerIcon size={15} color="#f43f5e" />}
                   title="Exit JARVIS Application"
                   desc="Cleanly stop all background services, hide all overlays, and terminate the process."
                 >

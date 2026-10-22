@@ -221,21 +221,23 @@ object ScreenAutomation {
 
     fun tap(eid: Int): Boolean {
         val element = element(eid) ?: return false
-        val target = element.actionTarget
-        if (target != null) {
-            if (runCatching { target.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)) {
+        val cx = element.bounds.centerX().toFloat()
+        val cy = element.bounds.centerY().toFloat()
+
+        // Physical touch gesture takes priority for universal compatibility across
+        // native views, Jetpack Compose, Flutter, and WebViews.
+        if (cx > 0f && cy > 0f) {
+            val tapped = tapPoint(cx, cy)
+            if (tapped) {
                 invalidate()
                 return true
             }
-            if (target.isEditable &&
-                runCatching { target.performAction(AccessibilityNodeInfo.ACTION_FOCUS) }.getOrDefault(false)
-            ) {
-                // A focused editable still needs a real touch for some editors.
-            }
         }
-        val tapped = tapPoint(element.bounds.centerX().toFloat(), element.bounds.centerY().toFloat())
+
+        val target = element.actionTarget ?: element.node
+        val clicked = runCatching { target.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)
         invalidate()
-        return tapped
+        return clicked
     }
 
     fun longPress(eid: Int, durationMs: Long = 650L): Boolean {

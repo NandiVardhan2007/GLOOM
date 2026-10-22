@@ -1,18 +1,6 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  Volume2,
-  VolumeX,
-  Sun,
-  Wifi,
-  Bluetooth,
-  BellOff,
-  Bell,
-  Lock,
-  Activity,
-  Calculator,
-  Settings,
-} from "lucide-react";
+import { ActivityIcon, BellIcon, BellOffIcon, BluetoothIcon, CalculatorIcon, GearIcon, LockIcon, SpeakerIcon, SpeakerMutedIcon, SunIcon, WifiIcon } from "./IslandIcons";
 
 interface CommandCenterProps {
   volume: number;
@@ -108,7 +96,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Wi-Fi / Network Toggle"
         >
-          <Wifi size={16} />
+          <WifiIcon size={16} />
           <span style={{ fontSize: "11px", fontWeight: 600 }}>Wi-Fi</span>
         </button>
 
@@ -136,7 +124,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Toggle Bluetooth"
         >
-          <Bluetooth size={16} />
+          <BluetoothIcon size={16} />
           <span style={{ fontSize: "11px", fontWeight: 600 }}>Bluetooth</span>
         </button>
 
@@ -159,7 +147,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Do Not Disturb / Focus"
         >
-          {dndActive ? <BellOff size={16} /> : <Bell size={16} />}
+          {dndActive ? <BellOffIcon size={16} /> : <BellIcon size={16} />}
           <span style={{ fontSize: "11px", fontWeight: 600 }}>Focus</span>
         </button>
 
@@ -182,7 +170,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Toggle Mute"
         >
-          {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          {volume === 0 ? <SpeakerMutedIcon size={16} /> : <SpeakerIcon size={16} />}
           <span style={{ fontSize: "11px", fontWeight: 600 }}>
             {volume === 0 ? "Muted" : "Mute"}
           </span>
@@ -204,9 +192,9 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         {/* Volume Slider */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {volume === 0 ? (
-            <VolumeX size={16} color="#94a3b8" />
+            <SpeakerMutedIcon size={16} color="#94a3b8" />
           ) : (
-            <Volume2 size={16} color="#0a84ff" />
+            <SpeakerIcon size={16} color="#0a84ff" />
           )}
           <input
             type="range"
@@ -236,7 +224,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
         {/* Brightness Slider */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <Sun size={16} color="#fbbf24" />
+          <SunIcon size={16} color="#fbbf24" />
           <input
             type="range"
             min={10}
@@ -293,7 +281,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Lock Windows (Win+L)"
         >
-          <Lock size={13} color="#f87171" />
+          <LockIcon size={13} color="#f87171" />
           <span>Lock</span>
         </button>
 
@@ -316,7 +304,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Open Task Manager"
         >
-          <Activity size={13} color="#34d399" />
+          <ActivityIcon size={13} color="#34d399" />
           <span>TaskMgr</span>
         </button>
 
@@ -339,7 +327,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Open Calculator"
         >
-          <Calculator size={13} color="#fbbf24" />
+          <CalculatorIcon size={13} color="#fbbf24" />
           <span>Calc</span>
         </button>
 
@@ -368,7 +356,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           }}
           title="Open JARVIS Settings & Customization"
         >
-          <Settings size={13} color="#0a84ff" />
+          <GearIcon size={13} color="#0a84ff" />
           <span>Config</span>
         </button>
       </div>

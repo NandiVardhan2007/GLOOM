@@ -531,14 +531,12 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
             val metrics = resources.displayMetrics
             val width = metrics.widthPixels.toFloat()
             val height = metrics.heightPixels.toFloat()
-            // Measured from this device's keyguard (1220x2712): the lock-screen
-            // pattern view is ~0.71 of the screen width and its centre sits at
-            // ~0.658 of the screen height. The previous 0.62/0.55 estimate drew
-            // the whole pattern one row too high, so the keyguard rejected it.
-            val grid = width * 0.71f
+            val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
+            // Calibrated keyguard pattern grid geometry
+            val grid = width * settings.patternGridWidthRatio
             val left = (width - grid) / 2f
             val cell = grid / 3f
-            val top = height * 0.658f - grid / 2f
+            val top = height * settings.patternCenterYRatio - grid / 2f
             val points = pattern.map { index ->
                 PointF(
                     left + cell * (index % 3) + cell / 2f,
@@ -557,12 +555,22 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 .build()
 
             // The pattern bouncer only exists after the keyguard is swiped up.
-            // Drawing straight onto the lock-screen clock silently does nothing,
-            // so reveal the bouncer and wait until its pattern view actually
-            // exists before injecting the stroke.
+            // Bypasses the optical in-display fingerprint sensor (FOD) which sits
+            // in the lower center (0.50w, 0.82-0.88h).
+            val (startX, startY, endX, endY) = when (settings.swipeStrategy) {
+                "Right" -> floatArrayOf(width * 0.78f, height * 0.82f, width * 0.78f, height * 0.25f)
+                "HighCenter" -> floatArrayOf(width * 0.50f, height * 0.62f, width * 0.50f, height * 0.18f)
+                "Custom" -> floatArrayOf(
+                    width * settings.swipeStartXRatio,
+                    height * settings.swipeStartYRatio,
+                    width * settings.swipeEndXRatio,
+                    height * settings.swipeEndYRatio
+                )
+                else -> floatArrayOf(width * 0.22f, height * 0.82f, width * 0.22f, height * 0.25f) // "Left" default
+            }
             val reveal = Path().apply {
-                moveTo(width / 2f, height * 0.88f)
-                lineTo(width / 2f, height * 0.3f)
+                moveTo(startX, startY)
+                lineTo(endX, endY)
             }
             val revealGesture = GestureDescription.Builder()
                 .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 260L))
@@ -597,6 +605,41 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
             true
         } catch (e: Exception) {
             Log.w(TAG, "Could not replay the unlock pattern: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Injects the configured swipe gesture to test dismissing the lock screen without
+     * triggering the in-display fingerprint sensor.
+     */
+    fun testSwipeGesture(): Boolean {
+        return try {
+            val metrics = resources.displayMetrics
+            val width = metrics.widthPixels.toFloat()
+            val height = metrics.heightPixels.toFloat()
+            val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
+            val (startX, startY, endX, endY) = when (settings.swipeStrategy) {
+                "Right" -> floatArrayOf(width * 0.78f, height * 0.82f, width * 0.78f, height * 0.25f)
+                "HighCenter" -> floatArrayOf(width * 0.50f, height * 0.62f, width * 0.50f, height * 0.18f)
+                "Custom" -> floatArrayOf(
+                    width * settings.swipeStartXRatio,
+                    height * settings.swipeStartYRatio,
+                    width * settings.swipeEndXRatio,
+                    height * settings.swipeEndYRatio
+                )
+                else -> floatArrayOf(width * 0.22f, height * 0.82f, width * 0.22f, height * 0.25f)
+            }
+            val reveal = Path().apply {
+                moveTo(startX, startY)
+                lineTo(endX, endY)
+            }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 260L))
+                .build()
+            dispatchGesture(gesture, null, null)
+        } catch (e: Exception) {
+            Log.w(TAG, "Test swipe gesture failed: ${e.message}")
             false
         }
     }

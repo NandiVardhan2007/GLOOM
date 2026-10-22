@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { ClipboardItem } from "../types";
-import { Clipboard, Copy, Check } from "lucide-react";
+import { CheckIcon, ClipboardIcon, CopyIcon } from "./IslandIcons";
 
 export const ClipboardShelf: React.FC = () => {
   const [items, setItems] = useState<ClipboardItem[]>([]);
@@ -61,7 +61,7 @@ export const ClipboardShelf: React.FC = () => {
             fontSize: "12px",
           }}
         >
-          <Clipboard size={16} />
+          <ClipboardIcon size={16} />
           <span>Clipboard history is empty. Copy text anywhere.</span>
         </div>
       ) : (
@@ -95,9 +95,9 @@ export const ClipboardShelf: React.FC = () => {
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               {copiedId === item.id ? (
-                <Check size={14} color="#34d399" />
+                <CheckIcon size={14} color="#34d399" />
               ) : (
-                <Copy size={13} color="rgba(255, 255, 255, 0.4)" />
+                <CopyIcon size={13} color="rgba(255, 255, 255, 0.4)" />
               )}
             </div>
           </div>
