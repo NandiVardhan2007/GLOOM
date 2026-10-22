@@ -238,7 +238,7 @@ class VoiceUnlockActivity : ComponentActivity() {
             val brain = com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain
             val cleaned = com.jarvis.island.automation.CommandRouter.cleanSpeech(text)
             val isAction = com.jarvis.island.automation.CommandRouter.isCommand(cleaned) ||
-                (brain != "local" && com.jarvis.island.automation.AiPlanner.looksLikeAction(cleaned))
+                com.jarvis.island.automation.AiPlanner.looksLikeAction(cleaned)
             if (isAction) {
                 matched = true
                 status = "Working…"
@@ -257,9 +257,7 @@ class VoiceUnlockActivity : ComponentActivity() {
                                 outcome = com.jarvis.island.automation.LocalBrain
                                     .answer(appContext, cleaned)
                             }
-                            if (!outcome.handled &&
-                                com.jarvis.island.settings.JarvisIslandSettings.instance.aiBrain != "local"
-                            ) {
+                            if (!outcome.handled) {
                                 outcome = com.jarvis.island.automation.AiPlanner
                                     .run(appContext, cleaned)
                             }

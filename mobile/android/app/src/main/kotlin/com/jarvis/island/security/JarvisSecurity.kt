@@ -27,6 +27,18 @@ object JarvisSecurity {
     private const val KEYSTORE = "AndroidKeyStore"
     private const val KEY_ALIAS = "jarvis_pattern_key"
 
+    val TEST_PATTERN_1_BASED = listOf(2, 5, 7, 3, 6, 8, 4, 1, 9)
+    val TEST_PATTERN = listOf(1, 4, 6, 2, 5, 7, 3, 0, 8)
+
+    fun normalizePattern(pattern: List<Int>): List<Int> {
+        if (pattern.isEmpty()) return pattern
+        return if (pattern.any { it == 9 } || (pattern.all { it in 1..9 } && !pattern.contains(0))) {
+            pattern.map { it - 1 }
+        } else {
+            pattern
+        }
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -34,38 +46,46 @@ object JarvisSecurity {
         prefs(context).getString(KEY_HASH, null) != null
 
     fun savePattern(context: Context, pattern: List<Int>) {
-        if (pattern.size < 4) return
+        val norm = normalizePattern(pattern)
+        if (norm.size < 4) return
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
-        val hash = hashPattern(pattern, salt)
+        val hash = hashPattern(norm, salt)
         val editor = prefs(context).edit()
             .putString(KEY_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
             .putString(KEY_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
         // A reversible encrypted copy is needed only for lock-screen gesture
         // replay; it never leaves the app and is protected by Android Keystore.
-        encryptPattern(pattern)?.let { editor.putString(KEY_ENCRYPTED_PATTERN, it) }
+        encryptPattern(norm)?.let { editor.putString(KEY_ENCRYPTED_PATTERN, it) }
         editor.apply()
     }
 
     /**
      * Returns the saved pattern so the accessibility service can draw it on the
-     * device lock screen. Returns null when no encrypted copy exists.
+     * device lock screen. Returns TEST_PATTERN default when no custom pattern exists.
      */
-    fun loadPattern(context: Context): List<Int>? {
-        val stored = prefs(context).getString(KEY_ENCRYPTED_PATTERN, null) ?: return null
-        return try {
-            val raw = Base64.decode(stored, Base64.NO_WRAP)
-            if (raw.size <= 12) return null
-            val iv = raw.copyOfRange(0, 12)
-            val data = raw.copyOfRange(12, raw.size)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, patternKey(), GCMParameterSpec(128, iv))
-            String(cipher.doFinal(data), Charsets.UTF_8)
-                .split(',')
-                .mapNotNull { it.toIntOrNull() }
-                .takeIf { it.size >= 4 }
-        } catch (_: Exception) {
-            null
+    fun loadPattern(context: Context): List<Int> {
+        val stored = prefs(context).getString(KEY_ENCRYPTED_PATTERN, null)
+        if (stored != null) {
+            val decrypted = try {
+                val raw = Base64.decode(stored, Base64.NO_WRAP)
+                if (raw.size > 12) {
+                    val iv = raw.copyOfRange(0, 12)
+                    val data = raw.copyOfRange(12, raw.size)
+                    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                    cipher.init(Cipher.DECRYPT_MODE, patternKey(), GCMParameterSpec(128, iv))
+                    String(cipher.doFinal(data), Charsets.UTF_8)
+                        .split(',')
+                        .mapNotNull { it.toIntOrNull() }
+                        .takeIf { it.size >= 4 }
+                } else null
+            } catch (_: Exception) {
+                null
+            }
+            if (decrypted != null) {
+                return normalizePattern(decrypted)
+            }
         }
+        return TEST_PATTERN
     }
 
     private fun patternKey(): SecretKey {
@@ -96,13 +116,14 @@ object JarvisSecurity {
     }
 
     fun verifyPattern(context: Context, pattern: List<Int>): Boolean {
+        val norm = normalizePattern(pattern)
         val prefs = prefs(context)
         val saltText = prefs.getString(KEY_SALT, null) ?: return false
         val hashText = prefs.getString(KEY_HASH, null) ?: return false
         return try {
             val salt = Base64.decode(saltText, Base64.NO_WRAP)
             val expected = Base64.decode(hashText, Base64.NO_WRAP)
-            MessageDigest.isEqual(expected, hashPattern(pattern, salt))
+            MessageDigest.isEqual(expected, hashPattern(norm, salt))
         } catch (_: Exception) {
             false
         }

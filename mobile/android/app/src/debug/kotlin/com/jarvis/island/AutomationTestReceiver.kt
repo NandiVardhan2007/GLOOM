@@ -16,7 +16,14 @@ class AutomationTestReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
-                val result = CommandRouter.handle(context.applicationContext, command)
+                val appCtx = context.applicationContext
+                var result = CommandRouter.handle(appCtx, command)
+                if (!result.handled) {
+                    result = com.jarvis.island.automation.LocalBrain.answer(appCtx, command)
+                }
+                if (!result.handled) {
+                    result = com.jarvis.island.automation.AiPlanner.run(appCtx, command)
+                }
                 Log.i(
                     "JarvisAutomationTest",
                     "command=$command handled=${result.handled} success=${result.success} message=${result.message}"

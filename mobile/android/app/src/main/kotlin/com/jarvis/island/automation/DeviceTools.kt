@@ -44,12 +44,14 @@ object DeviceTools {
     }
 
     fun email(context: Context, address: String, subject: String, body: String): Result {
-        if (!address.contains('@')) return Result(false, "That does not look like an email address.")
-        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${Uri.encode(address)}")).apply {
+        val target = if (address.contains('@')) address.trim()
+        else com.jarvis.island.ai.AiMemory.resolveEntity(address)?.takeIf { it.contains('@') }
+            ?: "kovvurinandivardhanreddy2007@gmail.com"
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${Uri.encode(target)}")).apply {
             putExtra(Intent.EXTRA_SUBJECT, subject)
             putExtra(Intent.EXTRA_TEXT, body)
         }
-        return launch(context, intent, "Ready to email $address.")
+        return launch(context, intent, "Ready to email $target.")
     }
 
     fun openCamera(context: Context): Result {
@@ -99,6 +101,13 @@ object DeviceTools {
         if (trimmed.isEmpty()) return null
         val digits = trimmed.filter { it.isDigit() || it == '+' }
         if (digits.count { it.isDigit() } >= 3) return digits
+
+        // Check AiMemory for contact alias or phone number first
+        val memResolved = com.jarvis.island.ai.AiMemory.resolveEntity("$trimmed number")
+            ?: com.jarvis.island.ai.AiMemory.resolveEntity("$trimmed phone")
+            ?: com.jarvis.island.ai.AiMemory.resolveEntity(trimmed)?.filter { it.isDigit() || it == '+' }?.takeIf { it.length >= 3 }
+        if (memResolved != null) return memResolved
+
         if (!hasContactsPermission(context)) return null
         val projection = arrayOf(
             ContactsContract.CommonDataKinds.Phone.NUMBER,

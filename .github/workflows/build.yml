@@ -152,24 +152,28 @@ jobs:
       - name: Compile Windows Tauri Desktop Binary (Release)
         run: cargo build --release --features custom-protocol --manifest-path app/src-tauri/Cargo.toml
 
-      - name: Prepare Windows Executable Artifact
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress
+
+      - name: Build Windows Setup Installer (Inno Setup)
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Path build-artifacts -Force
-          Copy-Item app/src-tauri/target/release/jarvis.exe build-artifacts/JARVIS-Island-Windows.exe -Force
-          $hash = (Get-FileHash -Algorithm SHA256 -Path build-artifacts/JARVIS-Island-Windows.exe).Hash.ToLower()
-          "$hash  JARVIS-Island-Windows.exe" | Out-File -FilePath build-artifacts/JARVIS-Island-Windows.exe.sha256 -Encoding ascii
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/jarvis.iss
+          $hash = (Get-FileHash -Algorithm SHA256 -Path build-artifacts/JARVIS-Island-Setup.exe).Hash.ToLower()
+          "$hash  JARVIS-Island-Setup.exe" | Out-File -FilePath build-artifacts/JARVIS-Island-Setup.exe.sha256 -Encoding ascii
 
-      - name: Upload Windows EXE Artifact
+      - name: Upload Windows Setup Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Island-Windows-Desktop-EXE
+          name: JARVIS-Island-Windows-Setup-EXE
           path: |
-            build-artifacts/JARVIS-Island-Windows.exe
-            build-artifacts/JARVIS-Island-Windows.exe.sha256
+            build-artifacts/JARVIS-Island-Setup.exe
+            build-artifacts/JARVIS-Island-Setup.exe.sha256
           retention-days: 14
 
   # ══════════════════════════════════════════════════════════════
-  # 3. PUBLISH GITHUB RELEASE (APK & EXE WITH TAG)
+  # 3. PUBLISH GITHUB RELEASE (APK & SETUP EXE WITH TAG)
   # ══════════════════════════════════════════════════════════════
   publish-release:
     name: Publish GitHub Release
@@ -191,7 +195,7 @@ jobs:
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
         with:
-          name: JARVIS-Island-Windows-Desktop-EXE
+          name: JARVIS-Island-Windows-Setup-EXE
           path: release-assets
 
       - name: Create or Update GitHub Release
@@ -203,18 +207,19 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### JARVIS 1.2.0 — Standalone Mobile AI, Pattern Calibration, and Reactive Automation
-            - Standalone Mobile AI: direct in-app API key entry (Groq & OpenRouter) stored securely in Android Keystore AES-256-GCM EncryptedSharedPreferences; automatic fallback to direct cloud HTTPS when away from the desktop PC.
-            - Pattern & Swipe Calibration: bypass optical in-display fingerprint sensors (FOD) with Left/Right/High swipe path options and 3x3 pattern dot grid calibration with interactive visual phone preview.
-            - andee-Grade Reactive Automation: step-by-step observe-plan-act loop with physical touch gesture priority and action history context across all UI frameworks (Compose, Flutter, Instagram, WebViews).
-            - Dynamic Island Live Activity: real-time agent status ("JARVIS: Opening Settings...", "JARVIS: Tapping Wi-Fi...", "JARVIS: Done.") surfaced on the island notch overlay.
-            - Desktop UI icon modernization: replaced all lucide icons across expanded panel and tab views with original SF-style vector glyphs.
-            - No Apple font or symbol assets are bundled. The platform system face and original vector icons are used.
+            ### JARVIS 1.4.0 — Needle-3 Tool Engine, Calibrated Pattern Unlock, Sub-2.5s Direct Automation
+            - **Needle-3 On-Device Tool Caller**: Integrated sub-25ms grammar-constrained local decision engine (`NeedleBridge.kt` + `needle3.cact`) for immediate offline and online screen actions.
+            - **Lock Screen Pattern Unlock & Hardware Calibration**: Full 9-dot gesture unlock verified on hardware with precise center-Y/grid ratio calibration and seamless Keyguard dismissal.
+            - **Sub-2.5s Direct Messaging & App Automation**: Deterministic WhatsApp, SMS, and Email automation targeting verified entry nodes and contact name centers with 0 false-positive memory intercepts.
+            - **Instagram Reel Counter Hardening**: Excludes non-reel/settings pages and rejects backward scrolls to previous reels.
+            - **Stable HIG Island Dimensions**: Removed idle collapse to camera cutout; maintains consistent Apple Human Interface Guidelines aesthetic across states.
+            - **Windows Inno Setup Installer**: Standard Windows Setup wizard (replaces portable executable) with Start Menu integration, desktop shortcut, optional startup launch, and clean uninstaller.
+            - **Desktop & Mobile Parity**: Dynamic Island notch overlay, LiveBridge encrypted communication, and modern SF-style vector glyphs.
           generate_release_notes: true
           files: |
             release-assets/**/JARVIS-Island-Release.apk
             release-assets/**/JARVIS-Island-Release.apk.sha256
-            release-assets/**/JARVIS-Island-Windows.exe
-            release-assets/**/JARVIS-Island-Windows.exe.sha256
+            release-assets/**/JARVIS-Island-Setup.exe
+            release-assets/**/JARVIS-Island-Setup.exe.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

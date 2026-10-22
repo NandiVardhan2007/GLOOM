@@ -168,6 +168,10 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         bridgeClient = JarvisLiveBridgeClient(this)
         JarvisIslandSettings.instance.load(this)
 
+        serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            com.jarvis.island.ai.NeedleBridge.initialize(this@JarvisIslandAccessibilityService)
+        }
+
         setupComposeOverlay()
         registerReceivers()
         setupRealMediaSessions()
@@ -596,72 +600,74 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
      * otherwise the caller falls back to the system unlock prompt.
      */
     fun performUnlockPattern(pattern: List<Int>): Boolean {
-        if (pattern.size < 4) return false
+        val normPattern = com.jarvis.island.security.JarvisSecurity.normalizePattern(pattern)
+        if (normPattern.size < 4) return false
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        if (km != null && !km.isKeyguardLocked) {
+            Log.i(TAG, "Device is already unlocked, skipping pattern replay")
+            return true
+        }
         return try {
-            val metrics = resources.displayMetrics
-            val width = metrics.widthPixels.toFloat()
-            val height = metrics.heightPixels.toFloat()
-            val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
-            // Calibrated keyguard pattern grid geometry
-            val grid = width * settings.patternGridWidthRatio
-            val left = (width - grid) / 2f
-            val cell = grid / 3f
-            val top = height * settings.patternCenterYRatio - grid / 2f
-            val points = pattern.map { index ->
-                PointF(
-                    left + cell * (index % 3) + cell / 2f,
-                    top + cell * (index / 3) + cell / 2f
-                )
-            }
-            val path = Path().apply {
-                moveTo(points.first().x, points.first().y)
-                points.drop(1).forEach { lineTo(it.x, it.y) }
-            }
-            // A human draws this in about 6 s; 150 ms per dot stays well inside
-            // the keyguard's sampling window without feeling sluggish.
-            val duration = (pattern.size * 150L).coerceIn(600L, 2200L)
-            val patternGesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0L, duration))
-                .build()
-
-            // The pattern bouncer only exists after the keyguard is swiped up.
-            // Bypasses the optical in-display fingerprint sensor (FOD) which sits
-            // in the lower center (0.50w, 0.82-0.88h).
-            val (startX, startY, endX, endY) = when (settings.swipeStrategy) {
-                "Right" -> floatArrayOf(width * 0.78f, height * 0.82f, width * 0.78f, height * 0.25f)
-                "HighCenter" -> floatArrayOf(width * 0.50f, height * 0.62f, width * 0.50f, height * 0.18f)
-                "Custom" -> floatArrayOf(
-                    width * settings.swipeStartXRatio,
-                    height * settings.swipeStartYRatio,
-                    width * settings.swipeEndXRatio,
-                    height * settings.swipeEndYRatio
-                )
-                else -> floatArrayOf(width * 0.22f, height * 0.82f, width * 0.22f, height * 0.25f) // "Left" default
-            }
-            val reveal = Path().apply {
-                moveTo(startX, startY)
-                lineTo(endX, endY)
-            }
-            val revealGesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 260L))
-                .build()
-            if (!dispatchGesture(revealGesture, null, null)) {
-                Log.w(TAG, "The system rejected the keyguard swipe-up gesture")
-                return false
-            }
-
+            wakeScreen()
             serviceScope.launch {
-                var bouncerReady = waitForPatternBouncer(2600)
-                if (!bouncerReady) {
-                    Log.w(TAG, "Pattern page did not appear after the first swipe; swiping up again")
-                    dispatchGesture(revealGesture, null, null)
-                    bouncerReady = waitForPatternBouncer(2200)
+                // Give display hardware time to wake from doze/sleep before accepting touch gestures
+                delay(220)
+
+                val metrics = resources.displayMetrics
+                val width = metrics.widthPixels.toFloat()
+                val height = metrics.heightPixels.toFloat()
+                val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
+
+                // The pattern bouncer only exists after the keyguard is swiped up.
+                // Bypasses the optical in-display fingerprint sensor (FOD) which sits
+                // in the lower center (0.50w, 0.82-0.88h).
+                val (startX, startY, endX, endY) = when (settings.swipeStrategy) {
+                    "Right" -> floatArrayOf(width * 0.78f, height * 0.82f, width * 0.78f, height * 0.25f)
+                    "HighCenter" -> floatArrayOf(width * 0.50f, height * 0.62f, width * 0.50f, height * 0.18f)
+                    "Custom" -> floatArrayOf(
+                        width * settings.swipeStartXRatio,
+                        height * settings.swipeStartYRatio,
+                        width * settings.swipeEndXRatio,
+                        height * settings.swipeEndYRatio
+                    )
+                    else -> floatArrayOf(width * 0.22f, height * 0.82f, width * 0.22f, height * 0.25f) // "Left" default
                 }
+                val reveal = Path().apply {
+                    moveTo(startX, startY)
+                    lineTo(endX, endY)
+                }
+                val revealGesture = GestureDescription.Builder()
+                    .addStroke(GestureDescription.StrokeDescription(reveal, 0L, 260L))
+                    .build()
+
+                var bouncerReady = isPatternBouncerVisible()
+                if (!bouncerReady) {
+                    dispatchGesture(revealGesture, null, null)
+                    bouncerReady = waitForPatternBouncer(2600)
+                    if (!bouncerReady) {
+                        Log.w(TAG, "Pattern page did not appear after the first swipe; swiping up again")
+                        dispatchGesture(revealGesture, null, null)
+                        bouncerReady = waitForPatternBouncer(2200)
+                    }
+                }
+
                 if (!bouncerReady) {
                     logKeyguardWindows()
                 } else {
-                    // Let the bouncer finish its entry animation fully (450ms)
-                    delay(450)
+                    // Let the bouncer finish its entry animation fully (350ms)
+                    delay(350)
+                }
+
+                // Calibrated keyguard pattern grid geometry
+                val grid = width * settings.patternGridWidthRatio
+                val left = (width - grid) / 2f
+                val cell = grid / 3f
+                val top = height * settings.patternCenterYRatio - grid / 2f
+                val fallbackPoints = normPattern.map { index ->
+                    PointF(
+                        left + cell * (index % 3) + cell / 2f,
+                        top + cell * (index / 3) + cell / 2f
+                    )
                 }
 
                 // If live pattern view is detected, use its exact physical pixel coordinates!
@@ -669,14 +675,14 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                 val livePoints = if (liveBounds != null && liveBounds.width() > 100) {
                     val cW = liveBounds.width().toFloat() / 3f
                     val cH = liveBounds.height().toFloat() / 3f
-                    pattern.map { index ->
+                    normPattern.map { index ->
                         PointF(
                             liveBounds.left + cW * (index % 3) + cW / 2f,
                             liveBounds.top + cH * (index / 3) + cH / 2f
                         )
                     }
                 } else {
-                    points
+                    fallbackPoints
                 }
 
                 val strokePath = Path().apply {
@@ -692,13 +698,21 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
                         lineTo(pt.x, pt.y)
                     }
                 }
-                val strokeDuration = (pattern.size * 220L).coerceIn(1000L, 2800L)
+                val strokeDuration = (normPattern.size * 220L).coerceIn(1000L, 2800L)
                 val strokeGesture = GestureDescription.Builder()
                     .addStroke(GestureDescription.StrokeDescription(strokePath, 0L, strokeDuration))
                     .build()
 
                 Log.i(TAG, "Replaying unlock gesture across ${livePoints.size} points over ${strokeDuration}ms")
-                if (!dispatchGesture(strokeGesture, null, null)) {
+                val dispatched = dispatchGesture(strokeGesture, object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        Log.i(TAG, "Pattern unlock gesture completed successfully!")
+                    }
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        Log.w(TAG, "Pattern unlock gesture was cancelled by system")
+                    }
+                }, null)
+                if (!dispatched) {
                     Log.w(TAG, "The system rejected the pattern replay gesture")
                 }
             }
@@ -745,18 +759,49 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         if (node == null || depth > 25) return null
         val cls = node.className?.toString().orEmpty()
         val id = node.viewIdResourceName.orEmpty()
-        if (cls.contains("LockPattern", ignoreCase = true) ||
-            cls.contains("PatternView", ignoreCase = true) ||
-            id.contains("lockPattern", ignoreCase = true) ||
-            id.contains("lock_pattern", ignoreCase = true) ||
-            (id.contains("pattern", ignoreCase = true) && cls.contains("View", ignoreCase = true))
-        ) {
-            return node
+        val desc = node.contentDescription?.toString().orEmpty()
+
+        // 1. Prioritize direct hit on the actual lockPatternView widget (not full-screen bouncer container)
+        val isPatternWidget = cls.contains("LockPatternView", ignoreCase = true) ||
+            id.endsWith("lockPatternView", ignoreCase = true) ||
+            id.endsWith("lock_pattern_view", ignoreCase = true) ||
+            (id.contains("lockPattern", ignoreCase = true) && !id.contains("container", ignoreCase = true))
+
+        if (isPatternWidget) {
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            val screenH = resources.displayMetrics.heightPixels.toFloat()
+            if (rect.width() > 100 && rect.height() > 100 && rect.height() < screenH * 0.70f) {
+                return node
+            }
         }
+
+        // Search children first so deepest specific widgets take precedence over parent containers
         for (i in 0 until node.childCount) {
             val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
             val res = searchPatternNode(child, depth + 1)
             if (res != null) return res
+        }
+
+        // 2. Fallback: match any view mentioning pattern, strictly rejecting container/flipper nodes
+        val isContainer = id.contains("container", ignoreCase = true) ||
+            id.contains("flipper", ignoreCase = true) ||
+            id.contains("security", ignoreCase = true) ||
+            cls.contains("Layout", ignoreCase = true)
+
+        if (!isContainer) {
+            if (cls.contains("LockPattern", ignoreCase = true) ||
+                cls.contains("PatternView", ignoreCase = true) ||
+                (id.contains("pattern", ignoreCase = true) && cls.contains("View", ignoreCase = true)) ||
+                desc.contains("pattern", ignoreCase = true)
+            ) {
+                val rect = Rect()
+                node.getBoundsInScreen(rect)
+                val screenH = resources.displayMetrics.heightPixels.toFloat()
+                if (rect.width() > 100 && rect.height() > 100 && rect.height() < screenH * 0.70f) {
+                    return node
+                }
+            }
         }
         return null
     }
@@ -765,17 +810,19 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         val node = findPatternViewNode() ?: return null
         val rect = Rect()
         node.getBoundsInScreen(rect)
-        if (rect.width() > 100 && rect.height() > 100) {
-            val metrics = resources.displayMetrics
-            val screenW = metrics.widthPixels.toFloat()
-            val screenH = metrics.heightPixels.toFloat()
+        val metrics = resources.displayMetrics
+        val screenW = metrics.widthPixels.toFloat()
+        val screenH = metrics.heightPixels.toFloat()
+        // Must be a valid pattern grid widget (not a full screen container)
+        if (rect.width() > 100 && rect.height() > 100 && rect.height() < screenH * 0.70f && rect.width() < screenW * 0.95f) {
             val settings = com.jarvis.island.settings.JarvisIslandSettings.instance
-            settings.patternGridWidthRatio = (rect.width().toFloat() / screenW).coerceIn(0.40f, 0.95f)
-            settings.patternCenterYRatio = (rect.exactCenterY() / screenH).coerceIn(0.35f, 0.90f)
+            settings.patternGridWidthRatio = (rect.width().toFloat() / screenW).coerceIn(0.40f, 0.90f)
+            settings.patternCenterYRatio = (rect.exactCenterY() / screenH).coerceIn(0.40f, 0.85f)
             settings.save(this)
             Log.i(TAG, "Captured real lock pattern bounds: $rect (gridRatio=${settings.patternGridWidthRatio}, centerYRatio=${settings.patternCenterYRatio})")
             return rect
         }
+        Log.w(TAG, "Ignoring non-pattern bounds: $rect")
         return null
     }
 
@@ -906,6 +953,11 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     }
 
     private fun isPatternBouncerVisible(): Boolean {
+        try {
+            val activeRoot = rootInActiveWindow
+            if (activeRoot != null && containsPatternView(activeRoot, 0)) return true
+        } catch (_: Exception) {}
+
         val windowList = try {
             windows
         } catch (e: Exception) {
@@ -925,8 +977,13 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         if (node == null || depth > 25) return false
         val className = node.className?.toString().orEmpty()
         val viewId = node.viewIdResourceName.orEmpty()
+        val desc = node.contentDescription?.toString().orEmpty()
         if (className.contains("Pattern", ignoreCase = true) ||
-            viewId.contains("lock_pattern", ignoreCase = true)
+            className.contains("Bouncer", ignoreCase = true) ||
+            viewId.contains("lock_pattern", ignoreCase = true) ||
+            viewId.contains("pattern", ignoreCase = true) ||
+            viewId.contains("bouncer", ignoreCase = true) ||
+            desc.contains("pattern", ignoreCase = true)
         ) {
             return true
         }

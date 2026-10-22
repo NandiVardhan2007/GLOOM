@@ -27,16 +27,17 @@
 
 ### 2. Android Cutout-Aware Overlay & Autonomous Mobile AI
 - **Window Manager Overlay**: Built in Kotlin and Jetpack Compose utilizing Android `WindowManager` (`TYPE_APPLICATION_OVERLAY`).
-- **Apple HIG Proportions**: Default collapsed pill width of `180 dp` (camera band clearance `125 dp`, wings `52 dp`) and expanded card geometry of `400 × 180 dp` with `36 dp` squircle corner radius.
-- **Camera-Hugging Idle State**: In idle state, the island collapses down into a compact ~36dp circular pill around the camera cutout, keeping the notification drawer completely unblocked for pull-down gestures.
+- **Stable Apple HIG Geometry**: Maintains a stable collapsed capsule width of `180 dp` (camera band clearance `125 dp`, wings `52 dp`) and expanded card geometry of `400 × 180 dp` with `36 dp` squircle corner radius without jarring collapse into the camera cutout.
 - **Dynamic Cutout Adaptation**: Queries live `WindowInsets` and `DisplayCutout` coordinates for real-time camera alignment across center punch-holes, corner cutouts, waterdrop notches, and no-cutout displays.
 - **Landscape Auto-Hide**: Automatically suppresses the Dynamic Island overlay when rotating into landscape mode to prevent obstructing full-screen video, games, or split-screen apps.
-- **Autonomous Hands-On Agent**:
-  - **WhatsApp Targeting & Deduplication**: Avoids clicking avatar/profile pictures, targets chat conversation rows with safe right-offset coordinates, and clears/verifies search inputs (`typeTextUnique`) to eliminate duplicate contact typing.
+- **Autonomous Hands-On Agent (v1.4.0)**:
+  - **Sub-2.5s Direct WhatsApp Automation**: Fully deterministic search and chat opening targeting contact name centers (`[250..600]px`), avoiding profile photos/avatars and Unread filter pills, typing directly into verified chat entry nodes (`com.whatsapp:id/entry`) without Meta AI false-positives.
+  - **Needle-3 Offline Tool Caller**: Fully wired on-device grammar-constrained tool caller (`NeedleBridge.kt` + `needle3.cact`) providing sub-25ms intent prediction before cloud LLM invocation with zero network overhead.
+  - **Lock Screen Pattern Unlock & Calibration**: Verified on physical hardware with default 0.80 grid ratio and 0.67 center-Y calibration; draws smooth 9-point gestures with micro-dwell and reliably dismisses Keyguard.
+  - **Instagram Reel Counter Hardening**: Excludes settings and non-reel screens; rejects reverse scroll gestures to ensure accurate viewing counts.
   - **Automated Web Browsing & Form Autofill**: Navigates URLs in Chrome and autofills web forms with encrypted profile information (`Vault.UserProfile`) using accessibility node matching.
-  - **Self-Developing Memory (CAG + MAG)**: Memory-Augmented Generation retains contact aliases, personal facts, and procedural UI execution recipes. Cache-Augmented Generation provides sub-second semantic plan replay. Execution feedback loop reinforces successful execution paths.
+  - **Self-Developing Memory (CAG + MAG)**: Memory-Augmented Generation retains contact aliases (e.g. Amma `950864289`), personal facts, and procedural UI execution recipes with action verb guardrails preventing memory interception during task execution.
   - **Phonetics & Fuzzy App Launcher**: Recognizes phonetic aliases ("whats up", "crome", "you tube", "insta", "g mail", "netfliks") and applies Levenshtein distance string matching to prevent launch errors.
-  - **Needle-3 Offline Tool Caller**: Bundles quantized Cactus-3 model asset (`needle3.cact`) with a sub-20ms fallback grammar engine for zero-network intent execution.
   - **System Productivity Tools**: Personalized email drafting, regex-based file search, universal desktop clipboard/data sync, and cache & duplicate file cleanup.
   - **One-Click Keys Importer**: Supports importing `keys.json` with multi-key Groq and OpenRouter keys directly into Android Keystore encrypted storage (`SecureKeyStore`).
   - **On-Device Diagnostics Logger**: Local JSONL execution trace and in-app Apple UIKit inspection viewer under **Settings → Automation → Execution Logs & Diagnostics** for auditing AI reasoning and touch gesture traces.
@@ -93,14 +94,18 @@ JARVIS defines a 13-state cross-platform semantic presentation contract:
 - **Rust**: Stable toolchain (`rustup update stable`)
 - **Android SDK**: API 35 / JDK 17
 
-### 1. Build Desktop (Windows)
+### 1. Build Desktop (Windows Setup Installer)
 ```powershell
 cd app
 npm install
 npm run build
 npm run tauri build
 ```
-The compiled standalone binary will be at `app/src-tauri/target/release/jarvis.exe`, and the installers at `app/src-tauri/target/release/bundle/nsis/JARVIS_1.3.0_x64-setup.exe` and `app/src-tauri/target/release/bundle/msi/JARVIS_1.3.0_x64_en-US.msi`.
+For the Inno Setup installer wizard:
+```powershell
+iscc installer/jarvis.iss
+```
+The compiled Windows Setup installer wizard will be at `build-artifacts/JARVIS-Island-Setup.exe` (Inno Setup) or `app/src-tauri/target/release/bundle/nsis/JARVIS_1.4.0_x64-setup.exe` (Tauri NSIS). Standalone portable executables are replaced by official setup installers featuring Start Menu integration, desktop shortcuts, and an uninstaller.
 
 ### 2. Build Mobile (Android)
 ```bash

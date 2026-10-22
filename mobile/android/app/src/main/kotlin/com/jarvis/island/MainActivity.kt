@@ -179,6 +179,9 @@ class MainActivity : ComponentActivity() {
         bridgeClient.startDiscovery { _, _ -> }
         JarvisIslandSettings.instance.load(this)
         com.jarvis.island.automation.ReminderScheduler.rescheduleAll(this)
+        Thread {
+            com.jarvis.island.ai.NeedleBridge.initialize(applicationContext)
+        }.start()
 
         if (com.jarvis.island.voice.VoicePrefs.isWakeWordEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&

@@ -31,7 +31,7 @@ object PhoneMcpBridge {
                         put("protocolVersion", "2024-11-05")
                         put("serverInfo", JSONObject().apply {
                             put("name", "jarvis-android-mcp")
-                            put("version", "1.3.0")
+                            put("version", com.jarvis.island.BuildConfig.VERSION_NAME)
                         })
                         put("capabilities", JSONObject().apply {
                             put("tools", JSONObject())

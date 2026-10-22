@@ -97,12 +97,19 @@ object ScreenAutomation {
             runCatching { root.packageName?.toString() == svc.packageName }.getOrDefault(false)
         }
 
+        var foundAppElements = false
         for (root in ordered) {
             val rootPackage = runCatching { root.packageName?.toString().orEmpty() }.getOrDefault("")
-            if (rootPackage.isNotEmpty()) pkg = rootPackage
+            val isJarvis = rootPackage == svc.packageName
+            if (foundAppElements && isJarvis) {
+                continue
+            }
+            if (rootPackage.isNotEmpty() && !isJarvis) pkg = rootPackage
             val before = result.size
             walk(root, 0, result, seen, null)
-            if (result.size > before) break
+            if (result.size > before && !isJarvis) {
+                foundAppElements = true
+            }
         }
 
         synchronized(lock) {
@@ -129,7 +136,8 @@ object ScreenAutomation {
         val viewId = runCatching { node.viewIdResourceName.orEmpty() }.getOrDefault("")
         val className = runCatching { node.className?.toString().orEmpty() }.getOrDefault("")
         val clickable = runCatching { node.isClickable }.getOrDefault(false)
-        val editable = runCatching { node.isEditable }.getOrDefault(false)
+        val isEditClass = className.contains("EditText", ignoreCase = true) || className.contains("AutoComplete", ignoreCase = true)
+        val editable = runCatching { node.isEditable }.getOrDefault(false) || isEditClass
         val scrollable = runCatching { node.isScrollable }.getOrDefault(false)
         val longClickable = runCatching { node.isLongClickable }.getOrDefault(false)
         val actionable = clickable || editable || longClickable
@@ -229,20 +237,17 @@ object ScreenAutomation {
         val cx = element.bounds.centerX().toFloat()
         val cy = element.bounds.centerY().toFloat()
 
-        // Physical touch gesture takes priority for universal compatibility across
-        // native views, Jetpack Compose, Flutter, and WebViews.
+        var handled = false
         if (cx > 0f && cy > 0f) {
-            val tapped = tapPoint(cx, cy)
-            if (tapped) {
-                invalidate()
-                return true
-            }
+            if (tapPoint(cx, cy)) handled = true
         }
 
         val target = element.actionTarget ?: element.node
-        val clicked = runCatching { target.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)
+        if (runCatching { target.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)) {
+            handled = true
+        }
         invalidate()
-        return clicked
+        return handled
     }
 
     fun longPress(eid: Int, durationMs: Long = 650L): Boolean {
@@ -362,10 +367,12 @@ object ScreenAutomation {
      * 2. If clearFirst is true, clears any existing text completely before typing.
      * 3. Prevents repeated WhatsApp search queries or duplicate messages.
      */
-    fun typeTextUnique(text: String, clearFirst: Boolean = true): TypeResult {
+    fun typeTextUnique(text: String, clearFirst: Boolean = true, targetEid: Int = -1): TypeResult {
         val svc = service() ?: return TypeResult(false, "none", "Accessibility is not running")
-        val focused = focusedEditable(svc) ?: findEditableNode(svc)
+        val targetNode = if (targetEid >= 0) element(targetEid)?.node else null
+        val focused = targetNode ?: focusedEditable(svc) ?: findEditableNode(svc)
         if (focused != null) {
+            runCatching { focused.performAction(AccessibilityNodeInfo.ACTION_FOCUS) }
             val current = runCatching { focused.text?.toString().orEmpty().trim() }.getOrDefault("")
             if (current.equals(text.trim(), ignoreCase = true) || current.endsWith(text.trim(), ignoreCase = true)) {
                 Log.i(TAG, "Field already contains exact text '$text'; skipping duplicate typing.")
@@ -389,15 +396,17 @@ object ScreenAutomation {
                 return TypeResult(true, "set_text", "Typed ${text.length} characters")
             }
         }
-        return typeText(text)
+        return typeText(text, targetEid)
     }
 
-    fun typeText(text: String): TypeResult {
+    fun typeText(text: String, targetEid: Int = -1): TypeResult {
         val svc = service() ?: return TypeResult(false, "none", "Accessibility is not running")
 
         // 1. Direct standard Accessibility ACTION_SET_TEXT (instant, accurate, no double-paste)
-        val focused = focusedEditable(svc) ?: findEditableNode(svc)
+        val targetNode = if (targetEid >= 0) element(targetEid)?.node else null
+        val focused = targetNode ?: focusedEditable(svc) ?: findEditableNode(svc)
         if (focused != null) {
+            runCatching { focused.performAction(AccessibilityNodeInfo.ACTION_FOCUS) }
             val bundle = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
             }
@@ -491,8 +500,30 @@ object ScreenAutomation {
     }
 
     fun tapPoint(x: Float, y: Float): Boolean {
-        val path = Path().apply { moveTo(x, y) }
-        return dispatch(path, 60L)
+        val path = Path().apply {
+            moveTo(x, y)
+            lineTo(x + 1f, y + 1f)
+        }
+        return dispatch(path, 100L)
+    }
+
+    /**
+     * Polls the active accessibility hierarchy until an element matching [predicate] appears,
+     * or [timeoutMs] expires. Returns immediately when found for sub-second execution.
+     */
+    fun waitForElement(
+        timeoutMs: Long = 2500L,
+        pollIntervalMs: Long = 80L,
+        predicate: (Element) -> Boolean
+    ): Element? {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        while (SystemClock.uptimeMillis() < deadline) {
+            refresh()
+            val match = snapshot().firstOrNull(predicate)
+            if (match != null) return match
+            SystemClock.sleep(pollIntervalMs)
+        }
+        return null
     }
 
     fun global(action: String): Boolean {
@@ -526,22 +557,51 @@ object ScreenAutomation {
 
     fun findEditableNode(svc: AccessibilityService? = service()): AccessibilityNodeInfo? {
         val active = svc ?: return null
-        val root = runCatching { active.rootInActiveWindow }.getOrNull() ?: return null
-        return findEditable(root, 0)
+        val candidates = mutableListOf<AccessibilityNodeInfo>()
+        runCatching { active.rootInActiveWindow }?.getOrNull()?.let { candidates.add(it) }
+        try {
+            active.windows?.forEach { w -> w.root?.let { candidates.add(it) } }
+        } catch (_: Exception) {}
+
+        for (root in candidates) {
+            findEditable(root, 0)?.let { return it }
+        }
+        return null
     }
 
     private fun focusedEditable(svc: AccessibilityService): AccessibilityNodeInfo? {
-        val root = runCatching { svc.rootInActiveWindow }.getOrNull() ?: return null
-        val focused = runCatching {
-            root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
-        }.getOrNull()
-        if (focused != null && focused.isEditable) return focused
+        val candidates = mutableListOf<AccessibilityNodeInfo>()
+        runCatching { svc.rootInActiveWindow }?.getOrNull()?.let { candidates.add(it) }
+        try {
+            svc.windows?.forEach { w ->
+                runCatching { w.root }?.getOrNull()?.let { r ->
+                    if (!candidates.contains(r)) candidates.add(r)
+                }
+            }
+        } catch (_: Exception) {}
+
+        for (root in candidates) {
+            val focused = runCatching {
+                root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+            }.getOrNull()
+            if (focused != null) {
+                val isEdit = runCatching { focused.isEditable }.getOrDefault(false)
+                val cls = runCatching { focused.className?.toString().orEmpty() }.getOrDefault("")
+                if (isEdit || cls.contains("EditText", ignoreCase = true) || cls.contains("AutoComplete", ignoreCase = true)) {
+                    return focused
+                }
+            }
+        }
         return findEditableNode(svc)
     }
 
     private fun findEditable(node: AccessibilityNodeInfo, depth: Int): AccessibilityNodeInfo? {
         if (depth > MAX_DEPTH) return null
-        if (runCatching { node.isEditable }.getOrDefault(false)) return node
+        val isEdit = runCatching { node.isEditable }.getOrDefault(false)
+        val cls = runCatching { node.className?.toString().orEmpty() }.getOrDefault("")
+        if (isEdit || cls.contains("EditText", ignoreCase = true) || cls.contains("AutoComplete", ignoreCase = true)) {
+            return node
+        }
         val count = runCatching { node.childCount }.getOrDefault(0)
         for (index in 0 until count) {
             val child = runCatching { node.getChild(index) }.getOrNull() ?: continue

@@ -67,7 +67,9 @@ object AiPlanner {
     }
 
     fun run(context: Context, request: String): CommandRouter.Outcome {
-        if (!AiRouter.canReachModel(context)) {
+        val canReachCloud = AiRouter.canReachModel(context)
+        val isNeedleAvailable = com.jarvis.island.ai.NeedleBridge.isReady(context)
+        if (!canReachCloud && !isNeedleAvailable) {
             return CommandRouter.Outcome(false, false, "")
         }
         if (!ScreenAutomation.isReady()) {
@@ -99,7 +101,7 @@ object AiPlanner {
             com.jarvis.island.logging.JarvisDebugLogger.logEvent(
                 context = context,
                 userRequest = request,
-                handler = if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
+                handler = if (!canReachCloud) "Needle-3 Offline" else if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
                 stepsExecuted = history,
                 isSuccess = false,
                 errorReason = message
@@ -120,24 +122,38 @@ object AiPlanner {
             // Dynamic Dwell Timing: wait for loading spinners and network activity to settle
             SpinnerGuard.waitForScreenIdle(JarvisIslandAccessibilityService.instance, 2500L)
 
+            val elements = ScreenAutomation.snapshot()
             val outline = ScreenAutomation.describe(MAX_OUTLINE_ELEMENTS)
             val safeOutline = PiiMasker.maskText(outline)
             val grid = gridWhenTreeIsEmpty()
             val beforeSignature = ScreenAutomation.signature()
             val beforeVisual = VisualStateDiff.captureSignature(JarvisIslandAccessibilityService.instance?.rootInActiveWindow)
 
-            // CAG (Cache-Augmented Generation): Check semantic plan cache
+            // 1. CAG (Cache-Augmented Generation): Check semantic plan cache
             val cachedStep = AiMemory.getCachedPlan(request, beforeSignature.toString())
-            val stepPlan = cachedStep ?: requestStep(
-                context = context,
-                request = request,
-                history = compressHistory(history),
-                outline = safeOutline,
-                grid = grid,
-                stepNumber = step,
-                isPro = isPro,
-                correctionHint = selfCorrectionHint
-            ) ?: break
+
+            // 2. Needle-3 On-Device Evaluation (sub-20ms Cactus model)
+            val needlePrediction = if (cachedStep == null && isNeedleAvailable) {
+                com.jarvis.island.ai.NeedleBridge.predict(context, request, elements)
+            } else null
+
+            // 3. Selection: Cache -> High-Confidence Needle-3 -> Cloud LLM -> Offline Needle-3 Fallback
+            val stepPlan = cachedStep
+                ?: (if (needlePrediction != null && needlePrediction.confidence >= 0.88f) needlePrediction.toPlanJson() else null)
+                ?: if (canReachCloud) {
+                    requestStep(
+                        context = context,
+                        request = request,
+                        history = compressHistory(history),
+                        outline = safeOutline,
+                        grid = grid,
+                        stepNumber = step,
+                        isPro = isPro,
+                        correctionHint = selfCorrectionHint
+                    )
+                } else {
+                    needlePrediction?.toPlanJson()
+                } ?: break
 
             if (cachedStep == null) {
                 AiMemory.cacheStep(context, request, beforeSignature.toString(), stepPlan)
@@ -170,7 +186,7 @@ object AiPlanner {
                 com.jarvis.island.logging.JarvisDebugLogger.logEvent(
                     context = context,
                     userRequest = request,
-                    handler = if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
+                    handler = if (!canReachCloud) "Needle-3 Offline" else if (isPro) "AiPlanner Pro" else "AiPlanner Flash",
                     aiThought = thought,
                     aiResponse = completionMsg,
                     stepsExecuted = history,
@@ -213,7 +229,7 @@ object AiPlanner {
                     if (isPro && !result.changed) {
                         selfCorrectionHint = "Notice: Tapping '${element.label}' did not change the screen. Consider another control or scroll."
                     }
-                    SystemClock.sleep(600)
+                    SystemClock.sleep(if (isPro) 250 else 160)
                 }
                 "tap_grid", "tap_cell" -> {
                     val cell = stepPlan.optInt("cell", -1)
@@ -225,10 +241,10 @@ object AiPlanner {
                         frame.bitmap.recycle()
                         return failure("Couldn't tap grid cell $cell.")
                     }
-                    ActionVerifier.waitForChange(before, 1_200L)
+                    ActionVerifier.waitForChange(before, 800L)
                     frame.bitmap.recycle()
                     history.add("Step $step: Tapped grid cell $cell")
-                    SystemClock.sleep(600)
+                    SystemClock.sleep(if (isPro) 250 else 160)
                 }
                 "tap_point" -> {
                     val x = stepPlan.optInt("x", -1)
@@ -237,7 +253,7 @@ object AiPlanner {
                     val result = ActionVerifier.tapFraction(x, y)
                     if (!result.success) return failure("I couldn't tap that location.")
                     history.add("Step $step: Tapped point ($x, $y)")
-                    SystemClock.sleep(600)
+                    SystemClock.sleep(if (isPro) 250 else 160)
                 }
                 "long_press", "hold" -> {
                     val eid = stepPlan.optInt("eid", -1)
@@ -248,7 +264,7 @@ object AiPlanner {
                     if (!verdict.allowed) return failure(SafetyGuard.refusal(verdict))
                     if (!ScreenAutomation.longPress(eid)) return failure("Couldn't long-press that element.")
                     history.add("Step $step: Long-pressed '${element.label}'")
-                    SystemClock.sleep(500)
+                    SystemClock.sleep(if (isPro) 300 else 180)
                 }
                 "burst", "tap_burst" -> {
                     val eid = stepPlan.optInt("eid", -1)
@@ -256,7 +272,7 @@ object AiPlanner {
                     if (eid < 0) return failure("No element specified for tap burst.")
                     if (!ScreenAutomation.tapBurst(eid, count)) return failure("Couldn't burst tap element $eid.")
                     history.add("Step $step: Burst tapped eid $eid ($count times)")
-                    SystemClock.sleep(400)
+                    SystemClock.sleep(if (isPro) 220 else 140)
                 }
                 "autofill", "fill_password" -> {
                     val query = stepPlan.optString("account", stepPlan.optString("service", request))
@@ -271,37 +287,37 @@ object AiPlanner {
                     } else {
                         return failure("No credentials found in Vault for '$query'.")
                     }
-                    SystemClock.sleep(500)
+                    SystemClock.sleep(if (isPro) 300 else 180)
                 }
                 "type", "write" -> {
                     val text = stepPlan.optString("text")
                     val eid = stepPlan.optInt("eid", -1)
                     if (eid >= 0) {
                         ScreenAutomation.tap(eid)
-                        SystemClock.sleep(250)
+                        SystemClock.sleep(if (isPro) 180 else 120)
                     }
                     val result = ScreenAutomation.typeTextUnique(text, clearFirst = true)
                     if (!result.success && result.via != "deduped") return failure(result.detail)
                     history.add("Step $step: Typed '$text'")
-                    SystemClock.sleep(400)
+                    SystemClock.sleep(if (isPro) 220 else 140)
                 }
                 "submit", "send" -> {
                     if (!ScreenAutomation.submit()) return failure("No send or submit button found.")
                     history.add("Step $step: Submitted input")
-                    SystemClock.sleep(600)
+                    SystemClock.sleep(if (isPro) 250 else 160)
                 }
                 "scroll" -> {
                     val dir = stepPlan.optString("direction", "down")
                     val times = stepPlan.optInt("times", 1)
                     if (ScreenAutomation.scroll(dir, times) == 0) return failure("This screen does not scroll.")
                     history.add("Step $step: Scrolled $dir")
-                    SystemClock.sleep(500)
+                    SystemClock.sleep(if (isPro) 250 else 160)
                 }
                 "swipe" -> {
                     val dir = stepPlan.optString("direction", "up")
                     if (!ScreenAutomation.swipe(dir)) return failure("Couldn't swipe.")
                     history.add("Step $step: Swiped $dir")
-                    SystemClock.sleep(450)
+                    SystemClock.sleep(if (isPro) 250 else 150)
                 }
                 "launch", "open" -> {
                     val app = stepPlan.optString("app", stepPlan.optString("text", "")).trim()
@@ -309,14 +325,23 @@ object AiPlanner {
                         return failure("Couldn't open $app.")
                     }
                     history.add("Step $step: Opened $app")
-                    SystemClock.sleep(1600)
+                    // Dynamic launch polling instead of static 1600ms sleep
+                    val deadline = SystemClock.uptimeMillis() + 1200L
+                    while (SystemClock.uptimeMillis() < deadline) {
+                        if (ScreenAutomation.currentPackage().contains(app, ignoreCase = true) ||
+                            ScreenAutomation.snapshot().isNotEmpty()) {
+                            break
+                        }
+                        SystemClock.sleep(60)
+                    }
+                    SystemClock.sleep(if (isPro) 200 else 120)
                 }
                 "global", "back", "home", "recents" -> {
                     val target = if (actionName in listOf("back", "home", "recents")) actionName
                     else stepPlan.optString("name", "back")
                     if (!ScreenAutomation.global(target)) return failure("Couldn't perform $target.")
                     history.add("Step $step: Performed $target")
-                    SystemClock.sleep(600)
+                    SystemClock.sleep(if (isPro) 300 else 180)
                 }
                 "wait" -> {
                     val ms = stepPlan.optInt("ms", 600).coerceIn(100, 3000)
@@ -330,7 +355,7 @@ object AiPlanner {
 
             // Settle and observe updated UI hierarchy
             ScreenAutomation.refresh()
-            SystemClock.sleep(300)
+            SystemClock.sleep(if (isPro) 180 else 100)
 
             val afterVisual = VisualStateDiff.captureSignature(JarvisIslandAccessibilityService.instance?.rootInActiveWindow)
             val diff = VisualStateDiff.compare(beforeVisual, afterVisual)

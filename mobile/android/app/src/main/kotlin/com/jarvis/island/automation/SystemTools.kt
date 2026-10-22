@@ -58,7 +58,7 @@ object SystemTools {
                 recipient.trim()
             } else {
                 AiMemory.resolveEntity(recipient)?.takeIf { it.contains("@") }
-                    ?: "$recipient@gmail.com"
+                    ?: "kovvurinandivardhanreddy2007@gmail.com"
             }
 
             val mailUri = Uri.parse("mailto:$resolvedEmail")

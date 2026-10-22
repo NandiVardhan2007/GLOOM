@@ -68,8 +68,8 @@ class JarvisIslandSettings {
         const val DEFAULT_SWIPE_START_Y = 0.82f
         const val DEFAULT_SWIPE_END_X = 0.22f
         const val DEFAULT_SWIPE_END_Y = 0.25f
-        const val DEFAULT_PATTERN_GRID_WIDTH = 0.68f
-        const val DEFAULT_PATTERN_CENTER_Y = 0.56f
+        const val DEFAULT_PATTERN_GRID_WIDTH = 0.80f
+        const val DEFAULT_PATTERN_CENTER_Y = 0.67f
     }
 
     // ── 0. Master & Plugins ──

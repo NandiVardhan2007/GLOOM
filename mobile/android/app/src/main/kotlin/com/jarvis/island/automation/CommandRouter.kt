@@ -3,10 +3,12 @@ package com.jarvis.island.automation
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.accessibility.AccessibilityNodeInfo
 import com.jarvis.island.ai.AiMemory
 import com.jarvis.island.automation.SystemTools
 import android.content.pm.PackageManager
 import android.util.Log
+import com.jarvis.island.service.JarvisIslandAccessibilityService
 import com.jarvis.island.settings.JarvisIslandSettings
 
 /**
@@ -86,6 +88,10 @@ object CommandRouter {
         """^(?:send|text|message)\s+(.+?)\s+(?:saying|with|about|that)\s+(.+)$""",
         RegexOption.IGNORE_CASE
     )
+    private val openWhatsAppChatPattern = Regex(
+        """^(?:open\s+(?:the\s+)?whatsapp\s+(?:to|with|for)\s+(.+)|send\s+(?:a\s+)?(?:whatsapp\s+)?(?:message\s+)?to\s+(.+)|message\s+(.+)\s+on\s+whatsapp)$""",
+        RegexOption.IGNORE_CASE
+    )
     private val callPattern = Regex("""^(?:call|dial|phone)\s+(.+)$""", RegexOption.IGNORE_CASE)
     private val alarmPattern = Regex(
         """^(?:set (?:an )?alarm|wake me(?: up)?)\s+(?:for\s+)?(.+)$""",
@@ -121,6 +127,10 @@ object CommandRouter {
     private val reelShortcuts = setOf(
         "next reel", "next video", "next post", "skip reel",
         "previous reel", "previous video", "previous post"
+    )
+    private val unlockCommands = setOf(
+        "unlock", "unlock phone", "unlock my phone", "unlock mobile", "unlock my mobile",
+        "unlock device", "draw pattern", "replay pattern", "test unlock"
     )
 
     fun cleanSpeech(raw: String): String {
@@ -159,7 +169,8 @@ object CommandRouter {
         if (isReelQuery(lower)) return true
         if (lower in keyboardCommands || lower in navigationCommands ||
             lower in notificationCommands || lower in quickSettingsCommands ||
-            lower in clearCommands || lower in cameraCommands || lower in reelShortcuts
+            lower in clearCommands || lower in cameraCommands || lower in reelShortcuts ||
+            lower in unlockCommands
         ) {
             return true
         }
@@ -182,6 +193,7 @@ object CommandRouter {
             smsToPattern.matches(command) ||
             whatsAppPattern.matches(command) ||
             openAndSendWhatsAppPattern.matches(command) ||
+            openWhatsAppChatPattern.matches(command) ||
             whatsAppShortPattern.matches(command) ||
             callPattern.matches(command) ||
             alarmPattern.matches(command) ||
@@ -244,6 +256,22 @@ object CommandRouter {
         if (lower.contains("reel") && (lower.contains("reset") || lower.contains("clear"))) {
             ReelCounter.resetToday(context)
             return Outcome(true, true, "Today's reel count is reset.")
+        }
+
+        // ── Device Unlock & Pattern Replay ──
+        if (lower in unlockCommands) {
+            val km = context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+            if (km != null && !km.isKeyguardLocked) {
+                return Outcome(true, true, "Your phone is already unlocked.")
+            }
+            val service = JarvisIslandAccessibilityService.instance
+            return if (service != null) {
+                val pattern = com.jarvis.island.security.JarvisSecurity.loadPattern(context)
+                val ok = service.performUnlockPattern(pattern)
+                Outcome(true, ok, if (ok) "Unlocking device." else "Could not unlock.")
+            } else {
+                Outcome(true, false, "Accessibility service not running.")
+            }
         }
 
         // ── Notebook ──
@@ -426,25 +454,31 @@ object CommandRouter {
             }
         }
 
-        // ── Self-Developing Memory: Fact Retrieval ──
-        val memReply = AiMemory.queryMemory(context, lower)
-        if (memReply != null) {
-            return Outcome(true, true, memReply)
-        }
-
-        // ── WhatsApp message ──
+        // ── WhatsApp message & chat opening ──
         openAndSendWhatsAppPattern.matchEntire(command)?.let { match ->
-            return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
+            return sendWhatsApp(context, unquote(match.groupValues[1]), unquote(match.groupValues[2]))
         }
         whatsAppPattern.matchEntire(command)?.let { match ->
-            return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
+            return sendWhatsApp(context, unquote(match.groupValues[1]), unquote(match.groupValues[2]))
         }
         if (lower.startsWith("send ") || lower.startsWith("message ") || lower.startsWith("text ")) {
             if (!lower.contains("email") && !lower.contains("sms")) {
                 whatsAppShortPattern.matchEntire(command)?.let { match ->
-                    return sendWhatsApp(context, match.groupValues[1].trim(), match.groupValues[2].trim())
+                    return sendWhatsApp(context, unquote(match.groupValues[1]), unquote(match.groupValues[2]))
                 }
             }
+        }
+        openWhatsAppChatPattern.matchEntire(command)?.let { match ->
+            val target = (match.groupValues[1].ifEmpty { match.groupValues[2] }.ifEmpty { match.groupValues[3] }).trim()
+            if (target.isNotEmpty() && !target.contains("saying")) {
+                return sendWhatsApp(context, unquote(target), "")
+            }
+        }
+
+        // ── Self-Developing Memory: Fact Retrieval ──
+        val memReply = AiMemory.queryMemory(context, lower)
+        if (memReply != null) {
+            return Outcome(true, true, memReply)
         }
 
         // ── Keyboard and navigation primitives ──
@@ -611,12 +645,14 @@ object CommandRouter {
 
     /**
      * Best-effort WhatsApp flow: open the app, search the contact, open the
-     * conversation, type the message and press Send. Every step reports
-     * honestly when the screen did not offer what it needed.
+     * conversation, type the message and press Send.
+     * Uses dynamic fast polling with sub-100ms intervals instead of static sleeps.
      */
     private fun sendWhatsApp(context: Context, contact: String, message: String): Outcome {
         if (!accessibilityReady()) return accessibilityRequired()
-        val resolvedContact = com.jarvis.island.ai.AiMemory.resolveEntity(contact) ?: contact
+        val cleanContact = unquote(contact)
+        val cleanMsg = unquote(message)
+        val resolvedContact = com.jarvis.island.ai.AiMemory.resolveEntity(cleanContact) ?: cleanContact
         val app = when {
             isInstalled(context, "com.whatsapp") -> "whatsapp"
             isInstalled(context, "com.whatsapp.w4b") -> "whatsapp business"
@@ -625,110 +661,152 @@ object CommandRouter {
         val label = ScreenAutomation.launch(context, app)
             ?: return Outcome(true, false, "I couldn't open WhatsApp.")
         Log.i(TAG, "Sending WhatsApp message to $resolvedContact (original: $contact) via $label")
-        Thread.sleep(2_200)
 
+        // 0. Ensure fresh snapshot and wait for WhatsApp foreground
         ScreenAutomation.refresh()
-        val searchClicked = ScreenAutomation.clickLabel(listOf("search", "search…", "ask meta ai or search"), contains = true)
-        if (!searchClicked) {
-            val searchInput = ScreenAutomation.snapshot().firstOrNull { it.editable }
-            if (searchInput != null) {
-                ScreenAutomation.tap(searchInput.eid)
-            } else {
-                return Outcome(true, false, "I couldn't find the WhatsApp search button.")
-            }
-        }
-        Thread.sleep(600)
-
-        // Ensure WhatsApp search edit text is focused before typing
-        ScreenAutomation.refresh()
-        val searchField = ScreenAutomation.snapshot().firstOrNull { it.editable }
-        if (searchField != null) {
-            ScreenAutomation.tap(searchField.eid)
-            Thread.sleep(200)
+        ScreenAutomation.waitForElement(timeoutMs = 1500L, pollIntervalMs = 50L) {
+            ScreenAutomation.currentPackage().contains("whatsapp")
         }
 
-        val typedContact = ScreenAutomation.typeTextUnique(resolvedContact, clearFirst = true)
-        if (!typedContact.success && typedContact.via != "deduped") {
-            return Outcome(true, false, "I couldn't search for $resolvedContact: ${typedContact.detail}")
-        }
-        Thread.sleep(1_500)
-
-        ScreenAutomation.refresh()
-        val candidates = ScreenAutomation.snapshot()
-
-        // 1. First search for a conversation name text or row container matching the contact
         val wantedContact = resolvedContact.lowercase().trim()
-        val fallbackContact = contact.lowercase().trim()
+        val fallbackContact = cleanContact.lowercase().trim()
 
-        val chatRow = candidates.firstOrNull { elem ->
+        // 1. Check if already in the target contact's chat
+        val snap = ScreenAutomation.refresh()
+        val hasMessageBox = snap.any { elem ->
+            elem.viewId.endsWith("/entry") || elem.viewId.contains("id/entry") || (elem.editable && elem.label.lowercase().contains("message"))
+        }
+        val hasContactName = snap.any { elem ->
+            val l = elem.label.lowercase()
+            l.contains(wantedContact) || l.contains(fallbackContact)
+        }
+        val alreadyInTargetChat = hasMessageBox && hasContactName
+
+        if (!alreadyInTargetChat) {
+            // If in some other chat or info screen, navigate back to HomeActivity
+            val hasSearchBar = ScreenAutomation.snapshot().any { elem ->
+                elem.viewId.contains("search_bar") || elem.viewId.contains("search_input")
+            }
+            if (!hasSearchBar) {
+                ScreenAutomation.global("back")
+                Thread.sleep(300)
+                ScreenAutomation.refresh()
+            }
+
+            // Locate search or check if search input is already active
+            val alreadySearching = ScreenAutomation.snapshot().any { elem ->
+                elem.viewId.contains("search_input")
+            }
+            if (!alreadySearching) {
+                val searchBtn = ScreenAutomation.waitForElement(timeoutMs = 2500L, pollIntervalMs = 70L) { elem ->
+                    val l = elem.label.lowercase()
+                    val id = elem.viewId.lowercase()
+                    !id.contains("meta") && !l.contains("meta") && !id.contains("filter") && !l.contains("unread") &&
+                        (id.contains("search_bar_inner_layout") || id.contains("search_text") || id.contains("search_icon") || (elem.clickable && id.contains("search")))
+                } ?: return Outcome(true, false, "I couldn't find the WhatsApp search button.")
+
+                ScreenAutomation.tap(searchBtn.eid)
+            }
+
+            // 2. Wait for search edit text to be focused/editable
+            val searchField = ScreenAutomation.waitForElement(timeoutMs = 2000L, pollIntervalMs = 70L) { elem ->
+                elem.viewId.contains("search_input")
+            }
+            if (searchField != null) {
+                ScreenAutomation.tap(searchField.eid)
+                Thread.sleep(80)
+            }
+
+            // 3. Type contact name uniquely
+            var typedContact = ScreenAutomation.typeTextUnique(resolvedContact, clearFirst = true)
+            if (!typedContact.success && typedContact.via != "deduped") {
+                Thread.sleep(120)
+                typedContact = ScreenAutomation.typeTextUnique(resolvedContact, clearFirst = true)
+            }
+            if (!typedContact.success && typedContact.via != "deduped") {
+                return Outcome(true, false, "I couldn't search for $resolvedContact: ${typedContact.detail}")
+            }
+
+            // 4. Wait for conversation row to appear in search results
+            val chatRow = ScreenAutomation.waitForElement(timeoutMs = 2500L, pollIntervalMs = 70L) { elem ->
+                val vId = elem.viewId.lowercase()
+                val lbl = elem.label.lowercase()
+                val isAvatar = vId.contains("photo") || vId.contains("avatar") || vId.contains("picture") ||
+                    vId.contains("selector") || elem.bounds.right <= 250 ||
+                    lbl.contains("photo") || lbl.contains("picture")
+                !isAvatar && !elem.editable && !vId.contains("filter") && !vId.contains("token") &&
+                    (lbl.contains(wantedContact) || lbl.contains(fallbackContact)) &&
+                    (vId.contains("conversations_row_contact_name") || vId.contains("contact_name") || vId.contains("name"))
+            } ?: ScreenAutomation.waitForElement(timeoutMs = 1200L, pollIntervalMs = 70L) { elem ->
+                val vId = elem.viewId.lowercase()
+                val lbl = elem.label.lowercase()
+                val isAvatar = vId.contains("photo") || vId.contains("avatar") || vId.contains("picture") ||
+                    vId.contains("selector") || elem.bounds.right <= 250 ||
+                    lbl.contains("photo") || lbl.contains("picture")
+                !isAvatar && !elem.editable && !vId.contains("filter") && !vId.contains("token") &&
+                    (lbl.contains(wantedContact) || lbl.contains(fallbackContact))
+            } ?: return Outcome(true, false, "I couldn't find $resolvedContact in the results.")
+
+            // 5. Open chat by clicking row via both accessibility and touch at center of contact name
+            val clickX = chatRow.bounds.centerX().toFloat()
+            val clickY = chatRow.bounds.centerY().toFloat()
+            val rowNode = chatRow.actionTarget ?: chatRow.node
+            runCatching { rowNode.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+            ScreenAutomation.tap(chatRow.eid)
+            ScreenAutomation.tapPoint(clickX, clickY)
+        }
+
+        // 6. Wait for chat screen message entry box to appear
+        // CRITICAL: Must be WhatsApp's actual chat entry field (com.whatsapp:id/entry), NEVER search_input!
+        val field = ScreenAutomation.waitForElement(timeoutMs = 3500L, pollIntervalMs = 80L) { elem ->
             val vId = elem.viewId.lowercase()
-            val lbl = elem.label.lowercase()
-            val isAvatar = vId.contains("photo") || vId.contains("avatar") || vId.contains("picture") ||
-                lbl.contains("profile photo") || lbl.contains("profile picture")
-            !isAvatar && !elem.editable && (
-                vId.contains("conversations_row_contact_name") ||
-                vId.contains("contact_name") ||
-                vId.contains("chat_title") ||
-                vId.contains("conversations_row_holder")
-            ) && (lbl.contains(wantedContact) || lbl.contains(fallbackContact))
-        } ?: ScreenAutomation.tapLabel(
-            labels = listOf(resolvedContact, contact),
-            contains = true,
-            editable = false
-        ) ?: return Outcome(true, false, "I couldn't find $resolvedContact in the results.")
-
-        // 2. Safe touch coordinates: strictly offset past left avatar (0..200px) to tap the chat title/row
-        val targetX = if (chatRow.bounds.left < 200) {
-            (chatRow.bounds.left + 300).coerceAtMost(chatRow.bounds.right - 40).toFloat()
-        } else {
-            chatRow.bounds.centerX().toFloat()
-        }
-        val targetY = chatRow.bounds.centerY().toFloat()
-
-        if (targetX > 0f && targetY > 0f) {
-            ScreenAutomation.tapPoint(targetX, targetY)
-        } else {
-            ActionVerifier.tap(chatRow.eid, verify = JarvisIslandSettings.instance.verifyActionsEnabled)
-        }
-        Thread.sleep(1_400)
-
-        ScreenAutomation.refresh()
-
-        // 3. Popup Recovery: If a profile picture dialog opened accidentally, tap its "Message" icon
-        val popupMessageBtn = ScreenAutomation.snapshot().firstOrNull { elem ->
-            (elem.label.equals("message", ignoreCase = true) || elem.viewId.contains("message")) &&
-                !elem.editable && elem.clickable && elem.bounds.centerY() > chatRow.bounds.centerY()
-        }
-        if (popupMessageBtn != null && ScreenAutomation.snapshot().none { it.editable }) {
-            ScreenAutomation.tap(popupMessageBtn.eid)
-            Thread.sleep(1_000)
-            ScreenAutomation.refresh()
+            (vId.endsWith("/entry") || vId == "entry" || vId.contains("id/entry")) &&
+            !vId.contains("search")
+        } ?: run {
+            // Popup recovery: check if avatar dialog opened accidentally
+            val popupMessageBtn = ScreenAutomation.snapshot().firstOrNull { elem ->
+                (elem.label.equals("message", ignoreCase = true) || elem.viewId.contains("message")) &&
+                    !elem.editable && elem.clickable && !elem.viewId.contains("search")
+            }
+            if (popupMessageBtn != null) {
+                ScreenAutomation.tap(popupMessageBtn.eid)
+                ScreenAutomation.waitForElement(timeoutMs = 1500L, pollIntervalMs = 70L) { elem ->
+                    elem.viewId.contains("entry") && !elem.viewId.contains("search")
+                }
+            } else null
         }
 
-        // 4. Locate the message text box in the chat screen
-        val field = ScreenAutomation.snapshot().firstOrNull { it.editable }
-            ?: ScreenAutomation.tapLabel(
-                labels = listOf("message", "type a message", "message…", "message..."),
-                contains = true,
-                editable = true
-            )
         if (field == null) {
-            return Outcome(true, false, "I opened $resolvedContact but couldn't find the message box.")
+            return Outcome(true, false, "I searched for $resolvedContact but couldn't open the chat.")
         }
-        ScreenAutomation.tap(field.eid)
-        Thread.sleep(400)
 
-        val typedMessage = ScreenAutomation.typeTextUnique(message, clearFirst = false)
+        ScreenAutomation.tap(field.eid)
+        Thread.sleep(80)
+
+        // If no message was requested, leaving the conversation open is a success!
+        if (cleanMsg.isBlank()) {
+            return Outcome(true, true, "Opened WhatsApp chat with $resolvedContact.")
+        }
+
+        // 7. Type message into the verified chat entry field
+        var typedMessage = ScreenAutomation.typeTextUnique(cleanMsg, clearFirst = false, targetEid = field.eid)
+        if (!typedMessage.success && typedMessage.via != "deduped") {
+            Thread.sleep(120)
+            typedMessage = ScreenAutomation.typeTextUnique(cleanMsg, clearFirst = false, targetEid = field.eid)
+        }
         if (!typedMessage.success && typedMessage.via != "deduped") {
             return Outcome(true, false, "I couldn't type the message: ${typedMessage.detail}")
         }
-        Thread.sleep(400)
-        ScreenAutomation.refresh()
-        val sendBtn = ScreenAutomation.snapshot().firstOrNull {
-            it.viewId.contains("send", ignoreCase = true) ||
-            it.label.equals("send", ignoreCase = true) ||
-            it.label.contains("send message", ignoreCase = true)
+
+        // 8. Wait for Send button to appear
+        val sendBtn = ScreenAutomation.waitForElement(timeoutMs = 1500L, pollIntervalMs = 70L) { elem ->
+            val vId = elem.viewId.lowercase()
+            val lbl = elem.label.lowercase()
+            (vId.endsWith("/send") || vId == "send" || (vId.contains("send") && !vId.contains("send_container"))) ||
+            lbl == "send" ||
+            lbl.contains("send message")
         }
+
         val sent = if (sendBtn != null) {
             ScreenAutomation.tap(sendBtn.eid)
         } else {
@@ -787,13 +865,13 @@ object CommandRouter {
     }
 
     private fun unquote(value: String): String {
-        val trimmed = value.trim()
-        return when {
-            trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"') ->
-                trimmed.substring(1, trimmed.length - 1)
-            trimmed.length >= 2 && trimmed.startsWith('\'') && trimmed.endsWith('\'') ->
-                trimmed.substring(1, trimmed.length - 1)
-            else -> trimmed
+        var str = value.trim()
+        while (str.startsWith('\\') || str.startsWith('"') || str.startsWith('\'')) {
+            str = str.drop(1).trim()
         }
+        while (str.endsWith('\\') || str.endsWith('"') || str.endsWith('\'')) {
+            str = str.dropLast(1).trim()
+        }
+        return str
     }
 }

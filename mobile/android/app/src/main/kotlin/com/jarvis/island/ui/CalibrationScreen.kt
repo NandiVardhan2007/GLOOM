@@ -248,10 +248,14 @@ fun CalibrationScreen(onBack: () -> Unit) {
                         val pattern = JarvisSecurity.loadPattern(context)
                         if (service == null) {
                             Toast.makeText(context, "Accessibility service not running", Toast.LENGTH_SHORT).show()
-                        } else if (pattern == null || pattern.size < 4) {
-                            Toast.makeText(context, "Set a pattern below first", Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(context, "Lock screen to test voice unlock replay", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Locking in 1s to test unlock pattern replay...", Toast.LENGTH_SHORT).show()
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                service.lockScreen()
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    service.performUnlockPattern(pattern)
+                                }, 1400)
+                            }, 1000)
                         }
                     }
                 )
@@ -260,12 +264,26 @@ fun CalibrationScreen(onBack: () -> Unit) {
 
         AppleSection(
             header = "In-App Pattern Recording & Verification",
-            footer = "Draw your 9-dot unlock pattern directly below. Connecting at least 4 dots saves it directly to your device Keystore for autonomous unlocking."
+            footer = "Draw your 9-dot unlock pattern directly below or load the preset sequence (2,5,7,3,6,8,4,1,9). Connecting at least 4 dots saves it directly to your device Keystore for autonomous unlocking."
         ) {
             var drawnPattern by remember { mutableStateOf<List<Int>>(emptyList()) }
             var patternStatus by remember { mutableStateOf<String?>(null) }
             val existingPattern = remember { JarvisSecurity.loadPattern(context) }
-            var hasPattern by remember { mutableStateOf(existingPattern != null && existingPattern.size >= 4) }
+            var hasPattern by remember { mutableStateOf(existingPattern.size >= 4) }
+
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                AppleButton(
+                    text = "Load Sequence (2,5,7,3,6,8,4,1,9)",
+                    primary = false,
+                    icon = JarvisIcons.CheckCircleFill,
+                    onClick = {
+                        JarvisSecurity.savePattern(context, JarvisSecurity.TEST_PATTERN_1_BASED)
+                        hasPattern = true
+                        patternStatus = "Saved test sequence (2,5,7,3,6,8,4,1,9) into Keystore."
+                        Toast.makeText(context, "Saved (2,5,7,3,6,8,4,1,9) to Keystore", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -294,7 +312,7 @@ fun CalibrationScreen(onBack: () -> Unit) {
                 AppleDivider()
                 Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     Text(
-                        text = patternStatus ?: "Active unlock pattern configured (${existingPattern?.size ?: 0} dots).",
+                        text = patternStatus ?: "Active unlock pattern configured (${existingPattern.size} dots).",
                         style = AppleType.footnote,
                         color = if (patternStatus?.contains("at least") == true) Apple.systemRed else Apple.systemGreen
                     )

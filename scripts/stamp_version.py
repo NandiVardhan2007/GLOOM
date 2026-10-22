@@ -47,6 +47,15 @@ def stamp_android(version: str, version_code: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def stamp_iss(version: str) -> None:
+    path = ROOT / "installer/jarvis.iss"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    text = re.sub(r'(?m)^#define\s+MyAppVersion\s+"[^"]*"', f'#define MyAppVersion "{version}"', text)
+    path.write_text(text, encoding="utf-8")
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("usage: stamp_version.py <version> [versionCode]", file=sys.stderr)
@@ -66,6 +75,7 @@ def main() -> int:
     stamp_json("app/src-tauri/tauri.conf.json", version)
     stamp_json("app/package.json", version)
     stamp_android(version, version_code)
+    stamp_iss(version)
     print(f"Stamped release version {version} (versionCode {version_code})")
     return 0
 

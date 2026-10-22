@@ -49,7 +49,10 @@ object InstagramReelTracker {
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val className = event.className?.toString().orEmpty()
-                if (isReelActivity(className) || treeHasReels(service)) {
+                if (isSettingsOrNonReelScreen(service)) {
+                    finishLastReel(service)
+                    inReels = false
+                } else if (isReelActivity(className) || treeHasReels(service)) {
                     enterReels(service)
                 } else if (className.contains("Activity", ignoreCase = true) &&
                     !className.contains("MainTab", ignoreCase = true) &&
@@ -61,12 +64,31 @@ object InstagramReelTracker {
             }
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
-                if (isReelsPager(event.source) || inReels || treeHasReels(service)) {
+                // If scrolling backwards (swiping down to see previous reel), ignore completely
+                if (event.scrollDeltaY < 0) {
+                    Log.d(TAG, "Ignoring backward scroll: swiping down (scrollDeltaY=${event.scrollDeltaY})")
+                    return
+                }
+
+                // If currently inside settings or non-reel page, ensure we exit reels mode
+                if (isSettingsOrNonReelScreen(service)) {
+                    finishLastReel(service)
+                    inReels = false
+                    return
+                }
+
+                if (isReelsPager(event.source)) {
                     advance(service)
                 }
             }
 
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                if (isSettingsOrNonReelScreen(service)) {
+                    finishLastReel(service)
+                    inReels = false
+                    return
+                }
+
                 val now = SystemClock.uptimeMillis()
                 if (inReels) {
                     val desc = event.contentDescription?.toString().orEmpty()
@@ -93,10 +115,15 @@ object InstagramReelTracker {
                     append(event.contentDescription?.toString().orEmpty())
                 }.lowercase()
                 when {
-                    label.contains("reels") || label.contains("reel") || label.contains("clips") -> enterReels(service)
-                    label.contains("home") || label.contains("profile") -> {
+                    label.contains("settings") || label.contains("options") || label.contains("profile") ||
+                        label.contains("home") || label.contains("search") || label.contains("explore") -> {
                         finishLastReel(service)
                         inReels = false
+                    }
+                    label.contains("reels") || label.contains("reel") || label.contains("clips") -> {
+                        if (!isSettingsOrNonReelScreen(service)) {
+                            enterReels(service)
+                        }
                     }
                 }
             }
@@ -144,6 +171,34 @@ object InstagramReelTracker {
         }
     }
 
+    private fun isSettingsOrNonReelScreen(service: AccessibilityService): Boolean {
+        val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return false
+        return checkSettingsNode(root, 0)
+    }
+
+    private fun checkSettingsNode(node: AccessibilityNodeInfo?, depth: Int): Boolean {
+        if (node == null || depth > 12) return false
+        val text = runCatching { node.text?.toString().orEmpty() }.getOrDefault("")
+        val desc = runCatching { node.contentDescription?.toString().orEmpty() }.getOrDefault("")
+        val id = runCatching { node.viewIdResourceName.orEmpty() }.getOrDefault("")
+
+        if (text.equals("Settings and privacy", ignoreCase = true) ||
+            text.equals("Settings", ignoreCase = true) ||
+            text.equals("Accounts Center", ignoreCase = true) ||
+            desc.equals("Settings and privacy", ignoreCase = true) ||
+            (id.contains("action_bar_title", ignoreCase = true) && text.contains("Settings", ignoreCase = true))
+        ) {
+            return true
+        }
+
+        val count = runCatching { node.childCount }.getOrDefault(0)
+        for (i in 0 until count.coerceAtMost(25)) {
+            val child = runCatching { node.getChild(i) }.getOrNull() ?: continue
+            if (checkSettingsNode(child, depth + 1)) return true
+        }
+        return false
+    }
+
     private fun isReelActivity(className: String): Boolean =
         className.contains("Clips", ignoreCase = true) ||
             className.contains("Reel", ignoreCase = true)
@@ -158,7 +213,7 @@ object InstagramReelTracker {
                 cls.contains("RecyclerView", ignoreCase = true) ||
                 cls.contains("ViewGroup", ignoreCase = true)
             ) {
-                if (nodeNamesReels(current) || inReels) return true
+                if (nodeNamesReels(current)) return true
             }
             current = runCatching { current?.parent }.getOrNull()
             depth += 1
@@ -168,15 +223,23 @@ object InstagramReelTracker {
 
     private fun nodeNamesReels(node: AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
+        val id = runCatching { node.viewIdResourceName.orEmpty() }.getOrDefault("")
+        val desc = runCatching { node.contentDescription?.toString().orEmpty() }.getOrDefault("")
+
+        // Never consider bottom navigation bar tabs as reels pager
+        if (id.contains("tab") || id.contains("bar") || desc.contains("tab", ignoreCase = true)) {
+            return false
+        }
+
         var current: AccessibilityNodeInfo? = node
         var depth = 0
         while (current != null && depth < 6) {
-            val id = runCatching { current?.viewIdResourceName.orEmpty() }.getOrDefault("")
-            val desc = runCatching { current?.contentDescription?.toString().orEmpty() }.getOrDefault("")
-            if (id.contains("clip", ignoreCase = true) ||
-                id.contains("reel", ignoreCase = true) ||
-                desc.contains("reel", ignoreCase = true) ||
-                desc.contains("audio", ignoreCase = true)
+            val cId = runCatching { current?.viewIdResourceName.orEmpty() }.getOrDefault("")
+            val cDesc = runCatching { current?.contentDescription?.toString().orEmpty() }.getOrDefault("")
+            if (cId.contains("clip", ignoreCase = true) ||
+                cId.contains("reel", ignoreCase = true) ||
+                cDesc.contains("Reel by", ignoreCase = true) ||
+                cDesc.contains("Original audio", ignoreCase = true)
             ) {
                 return true
             }
@@ -187,6 +250,7 @@ object InstagramReelTracker {
     }
 
     private fun treeHasReels(service: AccessibilityService): Boolean {
+        if (isSettingsOrNonReelScreen(service)) return false
         val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return false
         return findReelsNode(root, 0)
     }
@@ -198,10 +262,15 @@ object InstagramReelTracker {
         val desc = runCatching { node.contentDescription?.toString().orEmpty() }.getOrDefault("")
         val text = runCatching { node.text?.toString().orEmpty() }.getOrDefault("")
 
-        if (id.contains("clip", ignoreCase = true) || id.contains("reel", ignoreCase = true)) return true
+        // Ignore bottom navigation tabs so they do not falsely identify home/search/profile as reels
+        if (id.contains("tab") || id.contains("nav") || desc.contains("tab", ignoreCase = true)) {
+            return false
+        }
+
+        if (id.contains("clips_video_container", ignoreCase = true) || id.contains("reel_viewer", ignoreCase = true)) return true
         if (desc.contains("Reel by", ignoreCase = true) || desc.contains("Original audio", ignoreCase = true)) return true
-        if (text.contains("Original audio", ignoreCase = true) || desc.contains("Audio", ignoreCase = true)) return true
-        if (cls.contains("ViewPager", ignoreCase = true) && id.contains("pager", ignoreCase = true)) return true
+        if (text.contains("Original audio", ignoreCase = true)) return true
+        if (cls.contains("ViewPager", ignoreCase = true) && id.contains("pager", ignoreCase = true) && id.contains("reel", ignoreCase = true)) return true
 
         val count = runCatching { node.childCount }.getOrDefault(0)
         for (index in 0 until count.coerceAtMost(50)) {
