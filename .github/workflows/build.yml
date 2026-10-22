@@ -174,7 +174,7 @@ jobs:
             pub_date = $pubDate
             platforms = @{
               "windows-x86_64" = @{
-                url = "https://github.com/NandiVardhan2007/JARVIS/releases/download/$tag/GLOOM-Island-Setup.exe"
+                url = "https://github.com/NandiVardhan2007/GLOOM/releases/download/$tag/GLOOM-Island-Setup.exe"
               }
             }
           } | ConvertTo-Json -Depth 5

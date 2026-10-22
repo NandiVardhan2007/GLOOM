@@ -2123,7 +2123,7 @@ fun AboutScreen(onNavigateSubPage: (String) -> Unit = {}) {
                 showChevron = true,
                 onClick = {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/NandiVardhan2007/JARVIS"))
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/NandiVardhan2007/GLOOM"))
                     )
                 }
             )

@@ -6,7 +6,7 @@
 #define MyAppName "GLOOM Dynamic Island"
 #define MyAppVersion "1.5.0"
 #define MyAppPublisher "GLOOM Team"
-#define MyAppURL "https://github.com/NandiVardhan2007/JARVIS"
+#define MyAppURL "https://github.com/NandiVardhan2007/GLOOM"
 #define MyAppExeName "gloom.exe"
 
 [Setup]

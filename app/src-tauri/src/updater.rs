@@ -64,8 +64,8 @@ async fn check_github_releases(
         .ok()?;
 
     let endpoints = [
-        "https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest",
         "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest",
+        "https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest",
     ];
 
     for endpoint in endpoints {

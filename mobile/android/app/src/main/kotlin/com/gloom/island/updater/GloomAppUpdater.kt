@@ -71,8 +71,8 @@ class GloomAppUpdater(private val context: Context) {
         updaterScope.launch {
             try {
                 val candidateRepos = listOf(
-                    "https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest",
-                    "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest"
+                    "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest",
+                    "https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest"
                 )
                 var json: JSONObject? = null
                 for (apiUrl in candidateRepos) {

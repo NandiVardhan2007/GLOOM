@@ -9,7 +9,7 @@ import time
 
 class MockUpdaterSecurityValidator:
     ALLOWED_HOST_PREFIXES = (
-        "https://github.com/NandiVardhan2007/JARVIS/releases/download/",
+        "https://github.com/NandiVardhan2007/GLOOM/releases/download/",
         "https://objects.githubusercontent.com/",
     )
 
@@ -69,7 +69,7 @@ class MockLiveBridgeSecurityValidator:
 class TestSecurityAndUpdater(unittest.TestCase):
     def test_updater_approved_hosts(self):
         valid_urls = [
-            "https://github.com/NandiVardhan2007/JARVIS/releases/download/v1.0.5/jarvis.exe",
+            "https://github.com/NandiVardhan2007/GLOOM/releases/download/v1.0.5/jarvis.exe",
             "https://objects.githubusercontent.com/github-production-release-asset-2e65be/artifact.exe",
         ]
         for url in valid_urls:
@@ -77,7 +77,7 @@ class TestSecurityAndUpdater(unittest.TestCase):
 
     def test_updater_rejects_unapproved_hosts_and_cleartext(self):
         invalid_urls = [
-            "http://github.com/NandiVardhan2007/JARVIS/releases/download/v1.0.5/jarvis.exe", # HTTP cleartext
+            "http://github.com/NandiVardhan2007/GLOOM/releases/download/v1.0.5/jarvis.exe", # HTTP cleartext
             "https://evil-attacker.com/malicious_jarvis.exe",
             "https://github.com.attacker.com/release.exe",
             "file:///C:/Windows/System32/cmd.exe",
