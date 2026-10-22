@@ -1,282 +1,145 @@
 package com.jarvis.island.automation
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import com.jarvis.island.service.JarvisIslandAccessibilityService
 import com.jarvis.island.service.JarvisIslandOverlayService
 import com.jarvis.island.settings.JarvisIslandSettings
 
 /**
- * Counts Reels as they are watched.
+ * Counts short-form video reels (Instagram, Facebook, YouTube Shorts) as they are watched.
  *
- * A reel advances when the reels pager scrolls vertically. The counter
- * updates the live Dynamic Island pill in real-time with the Instagram icon
- * and live watch count.
+ * Implements the open-source detection architecture from s0uvik/reels-tracker
+ * (https://github.com/s0uvik/reels-tracker):
+ *  1. Structural verification of the full-screen reel viewer container view IDs
+ *     (never counts in Settings, Profiles, or Feeds).
+ *  2. Center-screen author & caption content fingerprint hashing.
+ *  3. Debounced state machine with session history ring-buffer to completely
+ *     ignore backward navigation when swiping down to see previous reels.
+ *  4. Trailing-edge coalescing to eliminate CPU waste during video playback.
  */
 object InstagramReelTracker {
 
-    private const val TAG = "JarvisReelCounter"
-    private const val INSTAGRAM = "com.instagram.android"
-    private const val FACEBOOK = "com.facebook.katana"
-    private const val COUNT_DEBOUNCE_MS = 500L
-    private const val TREE_CHECK_MS = 1_500L
+    private const val TAG = "JarvisReelTracker"
 
-    private val supportedPackages = setOf(INSTAGRAM, FACEBOOK)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val detector = ReelDetector(debugLogging = false)
+    private val tracker = ReelViewTracker(debounceMs = 500L)
 
-    @Volatile private var inReels = false
-    @Volatile private var lastCountAt = 0L
-    @Volatile private var currentReelStartedAt = 0L
-    @Volatile private var lastTreeCheckAt = 0L
-    @Volatile private var lastPackage = ""
-    @Volatile private var lastReelSignature = ""
+    @Volatile private var pendingUi: TrackedAppUi? = null
+    @Volatile private var inspectScheduled = false
+    @Volatile private var firstPendingAt = 0L
 
     fun onEvent(service: AccessibilityService, event: AccessibilityEvent) {
         if (!JarvisIslandSettings.instance.reelCounterEnabled) return
+
         val pkg = event.packageName?.toString().orEmpty()
-        if (pkg !in supportedPackages) {
-            if (pkg.isNotEmpty() && pkg != lastPackage) {
-                finishLastReel(service)
-                inReels = false
-                lastPackage = pkg
+        val ui = TrackedAppConfig.forPackage(pkg)
+        val now = System.currentTimeMillis()
+
+        if (ui == null) {
+            if (tracker.isViewOpen) {
+                applyActions(service, tracker.onLeftViewer(now))
+                cancelInspection()
+                notifyViewerState(false)
             }
             return
         }
-        lastPackage = pkg
 
         when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                val className = event.className?.toString().orEmpty()
-                if (isSettingsOrNonReelScreen(service)) {
-                    finishLastReel(service)
-                    inReels = false
-                } else if (isReelActivity(className) || treeHasReels(service)) {
-                    enterReels(service)
-                } else if (className.contains("Activity", ignoreCase = true) &&
-                    !className.contains("MainTab", ignoreCase = true) &&
-                    !className.contains("MainActivity", ignoreCase = true)
-                ) {
-                    finishLastReel(service)
-                    inReels = false
-                }
-            }
-
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
-                // If scrolling backwards (swiping down to see previous reel), ignore completely
-                if (event.scrollDeltaY < 0) {
-                    Log.d(TAG, "Ignoring backward scroll: swiping down (scrollDeltaY=${event.scrollDeltaY})")
-                    return
-                }
-
-                // If currently inside settings or non-reel page, ensure we exit reels mode
-                if (isSettingsOrNonReelScreen(service)) {
-                    finishLastReel(service)
-                    inReels = false
-                    return
-                }
-
-                if (isReelsPager(event.source)) {
-                    advance(service)
-                }
+                detector.onScrollEvent(ui, event)
+                scheduleInspection(service, ui)
             }
-
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                if (isSettingsOrNonReelScreen(service)) {
-                    finishLastReel(service)
-                    inReels = false
-                    return
-                }
-
-                val now = SystemClock.uptimeMillis()
-                if (inReels) {
-                    val desc = event.contentDescription?.toString().orEmpty()
-                    val txt = event.text.joinToString(" ")
-                    val candidate = if (desc.contains("Original audio", ignoreCase = true) || desc.contains("Reel by", ignoreCase = true)) desc
-                    else if (txt.contains("Original audio", ignoreCase = true)) txt else ""
-                    if (candidate.isNotEmpty() && candidate != lastReelSignature) {
-                        lastReelSignature = candidate
-                        advance(service)
-                    }
-                }
-                if (now - lastTreeCheckAt >= TREE_CHECK_MS) {
-                    lastTreeCheckAt = now
-                    if (!inReels && treeHasReels(service)) {
-                        enterReels(service)
-                    }
-                }
-            }
-
-            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
-                val label = buildString {
-                    append(event.text.joinToString(" "))
-                    append(' ')
-                    append(event.contentDescription?.toString().orEmpty())
-                }.lowercase()
-                when {
-                    label.contains("settings") || label.contains("options") || label.contains("profile") ||
-                        label.contains("home") || label.contains("search") || label.contains("explore") -> {
-                        finishLastReel(service)
-                        inReels = false
-                    }
-                    label.contains("reels") || label.contains("reel") || label.contains("clips") -> {
-                        if (!isSettingsOrNonReelScreen(service)) {
-                            enterReels(service)
-                        }
-                    }
-                }
+                scheduleInspection(service, ui)
             }
         }
     }
 
-    private fun enterReels(service: AccessibilityService) {
-        if (inReels) return
-        inReels = true
-        currentReelStartedAt = SystemClock.uptimeMillis() - 1200L
-        val currentCount = ReelCounter.today(service)
-        JarvisIslandAccessibilityService.instance?.updateReelCount(currentCount)
-        JarvisIslandOverlayService.instance?.updateReelCount(currentCount)
-        Log.i(TAG, "Reels viewer opened (today count: $currentCount)")
-    }
-
-    /** A new reel is on screen. Count the previous one if it was watched. */
-    private fun advance(service: AccessibilityService) {
+    private fun scheduleInspection(service: AccessibilityService, ui: TrackedAppUi) {
+        pendingUi = ui
         val now = SystemClock.uptimeMillis()
-        if (now - lastCountAt < COUNT_DEBOUNCE_MS) return
-        val watchedMs = if (currentReelStartedAt > 0L) now - currentReelStartedAt else 1200L
-        currentReelStartedAt = now
-        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(250L, 1500L)
-        if (watchedMs < minimum) {
-            Log.d(TAG, "Skipping a reel watched for only ${watchedMs}ms (minimum: ${minimum}ms)")
-            return
+        if (!inspectScheduled) {
+            inspectScheduled = true
+            firstPendingAt = now
         }
-        lastCountAt = now
-        val today = ReelCounter.record(service)
-        Log.i(TAG, "Reel counted after ${watchedMs}ms; today=$today")
-        JarvisIslandAccessibilityService.instance?.updateReelCount(today)
-        JarvisIslandOverlayService.instance?.updateReelCount(today)
+        mainHandler.removeCallbacksAndMessages(null)
+        val waited = now - firstPendingAt
+        val delay = if (waited >= TrackedAppConfig.INSPECT_MAX_WAIT_MS) 0L else TrackedAppConfig.INSPECT_SETTLE_MS
+        mainHandler.postDelayed({
+            runInspection(service)
+        }, delay)
     }
 
-    private fun finishLastReel(service: AccessibilityService) {
-        if (!inReels) return
-        val watchedMs = SystemClock.uptimeMillis() - currentReelStartedAt
-        val minimum = (JarvisIslandSettings.instance.reelMinDwellMs.toLong()).coerceIn(250L, 1500L)
-        if (watchedMs >= minimum) {
-            lastCountAt = SystemClock.uptimeMillis()
-            val today = ReelCounter.record(service)
-            Log.i(TAG, "Counted the last reel after ${watchedMs}ms; today=$today")
-            JarvisIslandAccessibilityService.instance?.updateReelCount(today)
-            JarvisIslandOverlayService.instance?.updateReelCount(today)
-        }
+    private fun cancelInspection() {
+        mainHandler.removeCallbacksAndMessages(null)
+        inspectScheduled = false
+        pendingUi = null
     }
 
-    private fun isSettingsOrNonReelScreen(service: AccessibilityService): Boolean {
-        val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return false
-        return checkSettingsNode(root, 0)
-    }
+    private fun runInspection(service: AccessibilityService) {
+        inspectScheduled = false
+        val ui = pendingUi ?: return
+        pendingUi = null
 
-    private fun checkSettingsNode(node: AccessibilityNodeInfo?, depth: Int): Boolean {
-        if (node == null || depth > 12) return false
-        val text = runCatching { node.text?.toString().orEmpty() }.getOrDefault("")
-        val desc = runCatching { node.contentDescription?.toString().orEmpty() }.getOrDefault("")
-        val id = runCatching { node.viewIdResourceName.orEmpty() }.getOrDefault("")
+        val root = runCatching { service.rootInActiveWindow }.getOrNull()
+        val now = System.currentTimeMillis()
 
-        if (text.equals("Settings and privacy", ignoreCase = true) ||
-            text.equals("Settings", ignoreCase = true) ||
-            text.equals("Accounts Center", ignoreCase = true) ||
-            desc.equals("Settings and privacy", ignoreCase = true) ||
-            (id.contains("action_bar_title", ignoreCase = true) && text.contains("Settings", ignoreCase = true))
-        ) {
-            return true
-        }
-
-        val count = runCatching { node.childCount }.getOrDefault(0)
-        for (i in 0 until count.coerceAtMost(25)) {
-            val child = runCatching { node.getChild(i) }.getOrNull() ?: continue
-            if (checkSettingsNode(child, depth + 1)) return true
-        }
-        return false
-    }
-
-    private fun isReelActivity(className: String): Boolean =
-        className.contains("Clips", ignoreCase = true) ||
-            className.contains("Reel", ignoreCase = true)
-
-    private fun isReelsPager(node: AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
-        var current: AccessibilityNodeInfo? = node
-        var depth = 0
-        while (current != null && depth < 8) {
-            val cls = runCatching { current?.className?.toString().orEmpty() }.getOrDefault("")
-            if (cls.contains("ViewPager", ignoreCase = true) ||
-                cls.contains("RecyclerView", ignoreCase = true) ||
-                cls.contains("ViewGroup", ignoreCase = true)
-            ) {
-                if (nodeNamesReels(current)) return true
+        when (val result = detector.inspect(ui, root)) {
+            is ReelDetector.Result.InViewer -> {
+                notifyViewerState(true)
+                applyActions(service, tracker.onReelVisible(ui.appKey, result.fingerprint, now))
             }
-            current = runCatching { current?.parent }.getOrNull()
-            depth += 1
-        }
-        return false
-    }
-
-    private fun nodeNamesReels(node: AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
-        val id = runCatching { node.viewIdResourceName.orEmpty() }.getOrDefault("")
-        val desc = runCatching { node.contentDescription?.toString().orEmpty() }.getOrDefault("")
-
-        // Never consider bottom navigation bar tabs as reels pager
-        if (id.contains("tab") || id.contains("bar") || desc.contains("tab", ignoreCase = true)) {
-            return false
-        }
-
-        var current: AccessibilityNodeInfo? = node
-        var depth = 0
-        while (current != null && depth < 6) {
-            val cId = runCatching { current?.viewIdResourceName.orEmpty() }.getOrDefault("")
-            val cDesc = runCatching { current?.contentDescription?.toString().orEmpty() }.getOrDefault("")
-            if (cId.contains("clip", ignoreCase = true) ||
-                cId.contains("reel", ignoreCase = true) ||
-                cDesc.contains("Reel by", ignoreCase = true) ||
-                cDesc.contains("Original audio", ignoreCase = true)
-            ) {
-                return true
+            ReelDetector.Result.NotInViewer -> {
+                if (tracker.isViewOpen) {
+                    applyActions(service, tracker.onLeftViewer(now))
+                }
+                notifyViewerState(false)
             }
-            current = runCatching { current?.parent }.getOrNull()
-            depth += 1
+            ReelDetector.Result.InViewerUnidentified -> {
+                // Viewer is open but page is mid-scroll or loading; maintain current viewer state
+                notifyViewerState(true)
+            }
         }
-        return false
     }
 
-    private fun treeHasReels(service: AccessibilityService): Boolean {
-        if (isSettingsOrNonReelScreen(service)) return false
-        val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return false
-        return findReelsNode(root, 0)
+    private fun applyActions(service: AccessibilityService, actions: List<ReelViewTracker.Action>) {
+        if (actions.isEmpty()) return
+        for (action in actions) {
+            when (action) {
+                is ReelViewTracker.Action.Started -> {
+                    if (action.isNewView) {
+                        val today = ReelCounter.record(service)
+                        Log.i(TAG, "New ${action.app} reel counted; today=$today")
+                        JarvisIslandAccessibilityService.instance?.updateReelCount(today)
+                        JarvisIslandOverlayService.instance?.updateReelCount(today)
+                    } else {
+                        Log.d(TAG, "Re-viewing previous reel; counter not incremented")
+                    }
+                }
+                is ReelViewTracker.Action.Closed -> {
+                    Log.d(TAG, "Closed reel after ${action.durationMs}ms")
+                }
+            }
+        }
     }
 
-    private fun findReelsNode(node: AccessibilityNodeInfo?, depth: Int): Boolean {
-        if (node == null || depth > 20) return false
-        val id = runCatching { node.viewIdResourceName.orEmpty() }.getOrDefault("")
-        val cls = runCatching { node.className?.toString().orEmpty() }.getOrDefault("")
-        val desc = runCatching { node.contentDescription?.toString().orEmpty() }.getOrDefault("")
-        val text = runCatching { node.text?.toString().orEmpty() }.getOrDefault("")
+    private fun notifyViewerState(inViewer: Boolean) {
+        val a11y = JarvisIslandAccessibilityService.instance
+        val overlay = JarvisIslandOverlayService.instance
+        a11y?.updateReelViewerActive(inViewer)
+        overlay?.updateReelViewerActive(inViewer)
+    }
 
-        // Ignore bottom navigation tabs so they do not falsely identify home/search/profile as reels
-        if (id.contains("tab") || id.contains("nav") || desc.contains("tab", ignoreCase = true)) {
-            return false
-        }
-
-        if (id.contains("clips_video_container", ignoreCase = true) || id.contains("reel_viewer", ignoreCase = true)) return true
-        if (desc.contains("Reel by", ignoreCase = true) || desc.contains("Original audio", ignoreCase = true)) return true
-        if (text.contains("Original audio", ignoreCase = true)) return true
-        if (cls.contains("ViewPager", ignoreCase = true) && id.contains("pager", ignoreCase = true) && id.contains("reel", ignoreCase = true)) return true
-
-        val count = runCatching { node.childCount }.getOrDefault(0)
-        for (index in 0 until count.coerceAtMost(50)) {
-            val child = runCatching { node.getChild(index) }.getOrNull() ?: continue
-            if (findReelsNode(child, depth + 1)) return true
-        }
-        return false
+    fun reset() {
+        cancelInspection()
+        detector.forget()
+        tracker.reset()
     }
 }

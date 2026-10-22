@@ -108,7 +108,18 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
     fun updateReelCount(count: Int) {
         serviceScope.launch {
             reelCount = count
-            showReelCounterUntil = System.currentTimeMillis() + 8000L
+            showReelCounterUntil = System.currentTimeMillis() + 6000L
+        }
+    }
+
+    fun updateReelViewerActive(inViewer: Boolean) {
+        serviceScope.launch {
+            if (isInstagramForeground != inViewer) {
+                isInstagramForeground = inViewer
+                if (!inViewer) {
+                    showReelCounterUntil = System.currentTimeMillis() + 3000L
+                }
+            }
         }
     }
 
@@ -236,16 +247,6 @@ class JarvisIslandAccessibilityService : AccessibilityService() {
         val current = event ?: return
         val currentPkg = current.packageName?.toString().orEmpty()
         if (currentPkg == packageName) return
-
-        if (currentPkg == "com.instagram.android" || currentPkg == "com.facebook.katana") {
-            if (!isInstagramForeground) {
-                isInstagramForeground = true
-                reelCount = com.jarvis.island.automation.ReelCounter.today(this)
-                updateReelCount(reelCount)
-            }
-        } else if (current.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && currentPkg.isNotEmpty()) {
-            isInstagramForeground = false
-        }
 
         try {
             com.jarvis.island.automation.InstagramReelTracker.onEvent(this, current)

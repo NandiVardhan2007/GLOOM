@@ -85,7 +85,18 @@ class JarvisIslandOverlayService : Service() {
     fun updateReelCount(count: Int) {
         serviceScope.launch {
             reelCount = count
-            showReelCounterUntil = System.currentTimeMillis() + 8000L
+            showReelCounterUntil = System.currentTimeMillis() + 6000L
+        }
+    }
+
+    fun updateReelViewerActive(inViewer: Boolean) {
+        serviceScope.launch {
+            if (isInstagramForeground != inViewer) {
+                isInstagramForeground = inViewer
+                if (!inViewer) {
+                    showReelCounterUntil = System.currentTimeMillis() + 3000L
+                }
+            }
         }
     }
 
