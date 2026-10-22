@@ -225,12 +225,16 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.6.0 — macOS Genie Dock Effect, Architecture Streamlining, and Mobile Intelligence Suite
-            - **macOS Genie Minimize & Restore Effect**: Smooth 50-slice cubic-bezier mesh deformation that fluidly funnels windows into the active dock icon or expands them into view.
-            - **Zero-Gap Mobile Notch**: Eliminated status bar gap; mobile Dynamic Island now anchors flush against the top display bezel with subpixel overbleed.
-            - **Restored Mobile Intelligence & Voice Suite**: Complete support for on-device Vosk offline wake-word, Gemini/Groq/OpenRouter cloud API keys, and autonomous planning logs.
-            - **Streamlined Repository Architecture**: Reorganized into dedicated top-level `Desktop` and `Android` workspaces with single consolidated root licensing.
-            - **Hardened Inno Setup & NSIS Bundles**: Dedicated application GUID preventing directory overrides and ensuring silent background auto-updates.
+            ### GLOOM 1.7.0 — Desktop Living Calendar, Windhawk Genie Tuning, PWA Dock Icons & Mobile Intelligence Overhaul
+            - **Desktop Living Island Calendar**: Interactive month view with breathing pulse ring for today, smooth month navigation & slide transitions, event indicator dots, date hover micro-scaling, and selected day mini agenda.
+            - **Windhawk-Quality Genie Effect & Tuning**: 60-slice cubic-bezier mesh deformation with customizable duration slider (200-800ms) and style selection (Windhawk Mesh Warp vs. Classic Suck) in Settings.
+            - **Web App / PWA Dock Icon Resolution**: Resolved dock and taskbar icons for browser-hosted web apps (e.g. WhatsApp Web) matching Start Menu shortcuts and profiles.
+            - **Edge Controls Precision & Scroll**: Controllable via mouse wheel scroll on hover; narrowed vertical hit-testing with 120ms debounce to eliminate accidental edge triggers.
+            - **Apple Lock/Unlock Animation (Android)**: Fluid spring shackle lift and unlatch rotation animation on lock screen.
+            - **All Installed Apps Notification Access (Android)**: Dynamic enumeration with QUERY_ALL_PACKAGES, real-time search, and per-app toggle controls.
+            - **Dual Neural Voice Models (Android)**: Deep masculine voice and Siri-tuned acoustic model with interactive pitch/rate tuning.
+            - **Live Themes & Customization (Android)**: Full persistence for accent colors, fonts, corner radii, blur/transparency, and AMOLED display modes.
+            - **Hardened Reel Counter (Android)**: Debounced 1200ms dwell verification, scroll jitter rejection, and session deduplication.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk

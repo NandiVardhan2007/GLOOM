@@ -2074,6 +2074,8 @@ static MH_DOCK_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_TOPBAR_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LEFT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_RIGHT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
+static MH_LEFT_ENTRY_MS: AtomicI64 = AtomicI64::new(0);
+static MH_RIGHT_ENTRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LAST_MONITOR_UPDATE_MS: AtomicI64 = AtomicI64::new(0);
 static MH_CACHED_MON_POS: Mutex<Option<(i32, i32)>> = Mutex::new(None);
 static MH_CACHED_MON_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
@@ -2193,7 +2195,12 @@ fn setup_volume_mixer_watchdog(app_handle: AppHandle) {
             .is_some_and(|m| {
                 let pos = m.position();
                 let size = m.size();
-                pt.x <= pos.x + 8 && pt.y >= pos.y && pt.y <= pos.y + size.height as i32
+                let gloom_scale = crate::utils::get_gloom_scale(&app_handle);
+                let sc = m.scale_factor() * gloom_scale;
+                let nh = (196.0 * sc) as i32;
+                let mid_y = pos.y + (size.height as i32 / 2);
+                let in_v_zone = (pt.y - mid_y).abs() <= ((nh / 2) + 16);
+                in_v_zone && pt.x >= pos.x && pt.x <= pos.x + 6
             });
         if !at_left_edge && MH_LAST_LEFT_EDGE_HOVER.swap(0, Ordering::Relaxed) != 0 {
             MH_LEFT_EXPIRY_MS.store(0, Ordering::Relaxed);
@@ -3104,13 +3111,17 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
 
         // --- Left Edge (Volume) ---
         if !fg_fs {
-            let at_left_edge =
-                cursor.x <= (mon_x + 8) && cursor.y >= mon_y && cursor.y <= (mon_y + mon_h);
+            let gloom_scale = crate::utils::get_gloom_scale(app_handle);
+            let sc = app_handle
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .map_or(1.0, |m| m.scale_factor() * gloom_scale);
+            let nh = (196.0 * sc) as i32;
+            let mid_y = mon_y + (mon_h / 2);
+            let in_v_zone = (cursor.y - mid_y).abs() <= ((nh / 2) + 16);
+            let at_left_edge = in_v_zone && cursor.x >= mon_x && cursor.x <= (mon_x + 6);
 
-            // The collapsed card extends past the 8px edge band, so once the
-            // edge hover is established, keep it alive while the cursor is
-            // over the card too (otherwise pausing on the mixer button lets
-            // the hover expire and the HUD hides mid-click).
             let over_card = !at_left_edge
                 && !in_mixer
                 && MH_LAST_LEFT_EDGE_HOVER.load(Ordering::Relaxed) != 0
@@ -3119,21 +3130,31 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
                     .ok()
                     .flatten()
                     .is_some_and(|m| {
-                        let gloom_scale = crate::utils::get_gloom_scale(app_handle);
                         let ms = m.size();
                         let mp = m.position();
-                        let sc = m.scale_factor() * gloom_scale;
-                        let nw = (42.0 * sc) as i32;
-                        let nh = (196.0 * sc) as i32;
+                        let m_sc = m.scale_factor() * gloom_scale;
+                        let nw = (42.0 * m_sc) as i32;
+                        let nh_c = (196.0 * m_sc) as i32;
                         let nx = mp.x;
-                        let ny = mp.y + (ms.height as i32 / 2) - (nh / 2);
+                        let ny = mp.y + (ms.height as i32 / 2) - (nh_c / 2);
                         cursor.x >= nx
                             && cursor.x <= nx + nw
                             && cursor.y >= ny
-                            && cursor.y <= ny + nh
+                            && cursor.y <= ny + nh_c
                     });
 
-            if at_left_edge || in_mixer || over_card {
+            if at_left_edge {
+                let entry = MH_LEFT_ENTRY_MS.load(Ordering::Relaxed);
+                if entry == 0 {
+                    MH_LEFT_ENTRY_MS.store(now, Ordering::Relaxed);
+                } else if now - entry >= 120 {
+                    MH_LEFT_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
+                }
+            } else if !in_mixer && !over_card {
+                MH_LEFT_ENTRY_MS.store(0, Ordering::Relaxed);
+            }
+
+            if in_mixer || over_card {
                 MH_LEFT_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
             }
 
@@ -3145,6 +3166,7 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
                 MH_LAST_LEFT_EDGE_HOVER.store(new_val, Ordering::Relaxed);
             }
         } else {
+            MH_LEFT_ENTRY_MS.store(0, Ordering::Relaxed);
             let prev = MH_LAST_LEFT_EDGE_HOVER.load(Ordering::Relaxed);
             if prev != 0 {
                 let _ = app_handle.emit("volume-edge-hover", false);
@@ -3154,10 +3176,49 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
 
         // --- Right Edge (Brightness) ---
         if !fg_fs {
-            let at_right_edge =
-                cursor.x >= (mon_x + mon_w - 8) && cursor.y >= mon_y && cursor.y <= (mon_y + mon_h);
+            let gloom_scale = crate::utils::get_gloom_scale(app_handle);
+            let sc = app_handle
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .map_or(1.0, |m| m.scale_factor() * gloom_scale);
+            let nh = (196.0 * sc) as i32;
+            let mid_y = mon_y + (mon_h / 2);
+            let in_v_zone = (cursor.y - mid_y).abs() <= ((nh / 2) + 16);
+            let at_right_edge = in_v_zone && cursor.x >= (mon_x + mon_w - 6) && cursor.x <= (mon_x + mon_w);
+
+            let over_right_card = !at_right_edge
+                && MH_LAST_RIGHT_EDGE_HOVER.load(Ordering::Relaxed) != 0
+                && app_handle
+                    .primary_monitor()
+                    .ok()
+                    .flatten()
+                    .is_some_and(|m| {
+                        let ms = m.size();
+                        let mp = m.position();
+                        let m_sc = m.scale_factor() * gloom_scale;
+                        let nw = (42.0 * m_sc) as i32;
+                        let nh_c = (196.0 * m_sc) as i32;
+                        let nx = mp.x + ms.width as i32 - nw;
+                        let ny = mp.y + (ms.height as i32 / 2) - (nh_c / 2);
+                        cursor.x >= nx
+                            && cursor.x <= nx + nw
+                            && cursor.y >= ny
+                            && cursor.y <= ny + nh_c
+                    });
 
             if at_right_edge {
+                let entry = MH_RIGHT_ENTRY_MS.load(Ordering::Relaxed);
+                if entry == 0 {
+                    MH_RIGHT_ENTRY_MS.store(now, Ordering::Relaxed);
+                } else if now - entry >= 120 {
+                    MH_RIGHT_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
+                }
+            } else if !over_right_card {
+                MH_RIGHT_ENTRY_MS.store(0, Ordering::Relaxed);
+            }
+
+            if over_right_card {
                 MH_RIGHT_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
             }
 
@@ -3169,6 +3230,7 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
                 MH_LAST_RIGHT_EDGE_HOVER.store(new_val, Ordering::Relaxed);
             }
         } else {
+            MH_RIGHT_ENTRY_MS.store(0, Ordering::Relaxed);
             let prev = MH_LAST_RIGHT_EDGE_HOVER.load(Ordering::Relaxed);
             if prev != 0 {
                 let _ = app_handle.emit("brightness-edge-hover", false);
@@ -4069,7 +4131,11 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
 
                     let is_browser_host = lowercase_path.contains("msedge.exe")
                         || lowercase_path.contains("chrome.exe")
-                        || lowercase_path.contains("brave.exe");
+                        || lowercase_path.contains("brave.exe")
+                        || lowercase_path.contains("chrome_proxy.exe")
+                        || lowercase_path.contains("msedge_proxy.exe");
+
+                    let is_whatsapp = title.to_lowercase().contains("whatsapp");
 
                     // A browser window and an installed PWA running under the same
                     // browser can share a title, so the title alone cannot tell them
@@ -4087,11 +4153,15 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                         None
                     };
                     let is_browser_pwa = is_browser_host
-                        && window_aumid
-                            .as_deref()
-                            .map_or(false, crate::commands::is_browser_pwa_aumid);
+                        && (is_whatsapp
+                            || lowercase_path.contains("proxy")
+                            || window_aumid
+                                .as_deref()
+                                .map_or(false, crate::commands::is_browser_pwa_aumid));
 
-                    let final_name = if ((is_browser_host
+                    let final_name = if is_browser_host && is_whatsapp {
+                        "WhatsApp".to_string()
+                    } else if ((is_browser_host
                         && (is_browser_pwa || window_aumid.is_none()))
                         || name == "ApplicationFrameHost"
                         || name == "SystemSettings")
@@ -4119,7 +4189,9 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                         // Packaged apps (Store/UWP/PWAs) expose their package identity on the
                         // window. Using it as the path makes pinned shell-app entries match
                         // their running windows and gives the icon code an exact AUMID.
-                        let path = if is_uwp_frame
+                        let path = if is_whatsapp {
+                            crate::commands::find_pwa_shortcut_path("whatsapp").unwrap_or(path)
+                        } else if is_uwp_frame
                             || lowercase_path.contains("\\windowsapps\\")
                             || is_browser_host
                         {

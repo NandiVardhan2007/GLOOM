@@ -46,7 +46,6 @@ class GloomLiveBridgeClient(private val context: Context) {
     }
 
     private val TAG = "GloomLiveBridge"
-    private val mouseExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val telemetryRunning = java.util.concurrent.atomic.AtomicBoolean(false)
     var desktopIp: String? = null
@@ -264,6 +263,7 @@ class GloomLiveBridgeClient(private val context: Context) {
                 put("deviceId", Build.MODEL)
                 put("name", "${Build.MANUFACTURER} ${Build.MODEL}")
                 put("port", 53391)
+                put("authToken", FileBeamReceiver.getOrInitAuthToken(context))
             }.toString().toByteArray(Charsets.UTF_8)
             val packet = DatagramPacket(payload, payload.size, InetAddress.getByName("255.255.255.255"), 53390)
             socket.send(packet)
@@ -357,36 +357,6 @@ class GloomLiveBridgeClient(private val context: Context) {
             } catch (e: Exception) {
                 Log.w(TAG, "Clipboard sync failed: ${e.message}")
             }
-        }
-    }
-
-    fun sendMouseInput(action: String, dx: Float = 0f, dy: Float = 0f, button: String = "left") {
-        val ip = desktopIp ?: return
-        val port = desktopPort
-        mouseExecutor.execute {
-            try {
-                val payload = JSONObject().apply {
-                    put("action", action)
-                    put("dx", dx)
-                    put("dy", dy)
-                    put("button", button)
-                }.toString().toByteArray(Charsets.UTF_8)
-
-                val conn = openSecureConnection("https://$ip:$port/api/mouse") ?: return@execute
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("Content-Length", payload.size.toString())
-                conn.setRequestProperty("X-Gloom-Auth-Token", FileBeamReceiver.currentAuthToken)
-                val now = System.currentTimeMillis()
-                conn.setRequestProperty("X-Gloom-Timestamp", now.toString())
-                conn.setRequestProperty("X-Gloom-Nonce", generateSecureNonce())
-                conn.doOutput = true
-                conn.connectTimeout = 800
-                conn.readTimeout = 800
-                conn.outputStream.use { it.write(payload) }
-                val _code = conn.responseCode
-                conn.disconnect()
-            } catch (_: Exception) {}
         }
     }
 

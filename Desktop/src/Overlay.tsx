@@ -371,9 +371,18 @@ function VolumeNotch({
 		startDrag(e.clientY);
 	};
 
+	const handleWheel = (e: React.WheelEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		const step = e.deltaY < 0 ? 0.02 : -0.02;
+		const newVolume = Math.max(0, Math.min(1, Math.round((volume + step) * 100) / 100));
+		onVolumeChange(newVolume);
+	};
+
 	return (
 		<motion.div
 			className="volume-notch-wrapper"
+			onWheel={handleWheel}
 			style={{ transformOrigin: "left center" }}
 			initial={{ scaleX: 0, scaleY: 0.5, opacity: 0, filter: "blur(12px)", y: "-50%" }}
 			animate={{ scaleX: 1, scaleY: 1, opacity: 1, filter: "blur(0px)", y: "-50%" }}
@@ -545,9 +554,18 @@ function BrightnessNotch({
 		startDrag(e.clientY);
 	};
 
+	const handleWheel = (e: React.WheelEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		const step = e.deltaY < 0 ? 2 : -2;
+		const newBrightness = Math.max(0, Math.min(100, Math.round(brightness + step)));
+		onBrightnessChange(newBrightness);
+	};
+
 	return (
 		<motion.div
 			className="brightness-notch-wrapper"
+			onWheel={handleWheel}
 			style={{ transformOrigin: "right center" }}
 			initial={{ scaleX: 0, scaleY: 0.5, opacity: 0, filter: "blur(12px)", y: "-50%" }}
 			animate={{ scaleX: 1, scaleY: 1, opacity: 1, filter: "blur(0px)", y: "-50%" }}
@@ -993,7 +1011,8 @@ function OverlayApp() {
 					windowRect={genieData.windowRect}
 					dockTarget={genieData.dockTarget}
 					direction={genieData.direction}
-					durationMs={genieData.durationMs}
+					durationMs={genieData.durationMs ?? parseInt(localStorage.getItem("gloom-dock-genie-duration") || "380")}
+					style={(localStorage.getItem("gloom-dock-genie-style") || "windhawk") as "windhawk" | "suck"}
 					onComplete={() => {
 						setMode("idle");
 						setGenieData(null);

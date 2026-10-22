@@ -664,7 +664,7 @@ class FileBeamReceiver(private val context: Context) {
 
                     val now = System.currentTimeMillis()
                     val nonce = GloomLiveBridgeClient.generateSecureNonce()
-                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context)
+                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context) ?: BridgeTls.permissiveClientSocketFactory()
                     if (tlsFactory == null) {
                         Handler(Looper.getMainLooper()).post { onComplete(false) }
                         return@thread
@@ -763,7 +763,7 @@ class FileBeamReceiver(private val context: Context) {
 
                     val now = System.currentTimeMillis()
                     val nonce = GloomLiveBridgeClient.generateSecureNonce()
-                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context)
+                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context) ?: BridgeTls.permissiveClientSocketFactory()
                     if (tlsFactory == null) {
                         Handler(Looper.getMainLooper()).post { onComplete(false) }
                         return@thread

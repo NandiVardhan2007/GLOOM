@@ -118,7 +118,6 @@ import com.gloom.island.bridge.FileBeamReceiver
 import com.gloom.island.bridge.GloomLiveBridgeClient
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import com.gloom.island.ui.RemoteTrackpad
 import com.gloom.island.ui.Apple
 import com.gloom.island.ui.AppleButton
 import com.gloom.island.ui.AppleDivider
@@ -141,7 +140,6 @@ import com.gloom.island.ui.SecurityScreen
 import com.gloom.island.ui.VoiceSettingsScreen
 import com.gloom.island.ui.AutomationScreen
 import com.gloom.island.ui.CloudAiScreen
-import com.gloom.island.ui.CalibrationScreen
 import com.gloom.island.ui.ExecutionLogsScreen
 import com.gloom.island.ui.VaultScreen
 import com.gloom.island.ui.NotificationSettingsScreen
@@ -375,15 +373,11 @@ fun GloomMasterApp(
 
     val haptic = LocalHapticFeedback.current
     val settings = remember { GloomIslandSettings.instance }
-    var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) } // "home", "plugins", "settings", "about", "trackpad"
+    var currentScreen by remember(initialScreen) { mutableStateOf(initialScreen) } // "home", "plugins", "settings", "about"
     var settingsSubPage by remember { mutableStateOf<String?>(null) } // "position", "size", "themes", "behavior", "apps"
 
-    BackHandler(enabled = settingsSubPage != null || currentScreen == "trackpad") {
-        if (settingsSubPage != null) {
-            settingsSubPage = null
-        } else {
-            currentScreen = "home"
-        }
+    BackHandler(enabled = settingsSubPage != null) {
+        settingsSubPage = null
     }
 
     val tabs = listOf(
@@ -395,16 +389,14 @@ fun GloomMasterApp(
     Scaffold(
         containerColor = Apple.background,
         bottomBar = {
-            if (currentScreen != "trackpad") {
-                AppleTabBar(
-                    tabs = tabs,
-                    selectedId = currentScreen,
-                    onSelect = { id ->
-                        currentScreen = id
-                        settingsSubPage = null
-                    }
-                )
-            }
+            AppleTabBar(
+                tabs = tabs,
+                selectedId = currentScreen,
+                onSelect = { id ->
+                    currentScreen = id
+                    settingsSubPage = null
+                }
+            )
         }
     ) { innerPadding ->
         Box(
@@ -419,9 +411,6 @@ fun GloomMasterApp(
                 label = "screenTransition"
             ) { (screen, subPage) ->
                 when {
-                    screen == "trackpad" -> {
-                        RemoteTrackpad(onClose = { currentScreen = "home" })
-                    }
                     subPage == "privacy" -> {
                         PrivacyPolicyScreen(onBack = { settingsSubPage = null })
                     }
@@ -444,8 +433,7 @@ fun GloomMasterApp(
                             onOpenReceivedFiles = onOpenReceivedFiles,
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
-                            onRestartService = onRestartService,
-                            onOpenTrackpad = { currentScreen = "trackpad" }
+                            onRestartService = onRestartService
                         )
                     }
                     screen == "settings" && subPage == null -> {
@@ -473,12 +461,8 @@ fun GloomMasterApp(
                     screen == "settings" && subPage == "security" -> {
                         SecurityScreen(
                             onBack = { settingsSubPage = null },
-                            onOpenCalibration = { settingsSubPage = "calibration" },
                             onOpenVault = { settingsSubPage = "vault" }
                         )
-                    }
-                    screen == "settings" && subPage == "calibration" -> {
-                        CalibrationScreen(onBack = { settingsSubPage = "security" })
                     }
                     screen == "settings" && subPage == "vault" -> {
                         VaultScreen(onBack = { settingsSubPage = "security" })
@@ -514,8 +498,7 @@ fun GloomMasterApp(
                             onOpenReceivedFiles = onOpenReceivedFiles,
                             onSimulateMusic = onSimulateMusic,
                             onSyncClipboard = onSyncClipboard,
-                            onRestartService = onRestartService,
-                            onOpenTrackpad = { currentScreen = "trackpad" }
+                            onRestartService = onRestartService
                         )
                     }
                 }
@@ -542,8 +525,7 @@ fun HomeScreen(
     onOpenReceivedFiles: () -> Unit = {},
     onSimulateMusic: () -> Unit,
     onSyncClipboard: () -> Unit,
-    onRestartService: () -> Unit,
-    onOpenTrackpad: () -> Unit = {}
+    onRestartService: () -> Unit
 ) {
     val context = LocalContext.current
     val settings = remember { GloomIslandSettings.instance }
@@ -689,14 +671,6 @@ fun HomeScreen(
             )
             AppleDivider()
             AppleRow(
-                title = "Remote trackpad",
-                icon = GloomIcons.Mouse,
-                iconTint = Apple.systemIndigo,
-                showChevron = true,
-                onClick = onOpenTrackpad
-            )
-            AppleDivider()
-            AppleRow(
                 title = "Preview music activity",
                 icon = GloomIcons.MusicNote,
                 iconTint = Apple.systemPink,
@@ -707,75 +681,11 @@ fun HomeScreen(
 
         AppleSection(
             header = "Activity & Screen Time",
-            footer = "Tracks daily screen usage and Instagram Reels locally on this phone with zero cloud transmission."
+            footer = "Tracks daily Instagram Reels locally on this phone with zero cloud transmission."
         ) {
             val reelsToday = com.gloom.island.automation.ReelCounter.today(context)
             val reelsTotal = com.gloom.island.automation.ReelCounter.total(context)
-            val screenTimeMins = com.gloom.island.automation.ScreenTimeTracker.getTodayTotalMinutes(context)
-            val topApps = remember { com.gloom.island.automation.ScreenTimeTracker.getTodayTopApps(context) }
 
-            AppleRow(
-                title = "Screen Time Today",
-                subtitle = if (screenTimeMins > 0) "Active device usage" else "Tracking active",
-                value = com.gloom.island.automation.ScreenTimeTracker.formatDuration(screenTimeMins),
-                icon = GloomIcons.Display,
-                iconTint = Apple.systemBlue
-            )
-
-            if (topApps.isNotEmpty()) {
-                AppleDivider()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        "Top Apps Today",
-                        style = AppleType.footnote,
-                        color = Apple.secondaryLabel
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    val appColors = listOf(Apple.systemBlue, Apple.systemOrange, Apple.systemTeal, Apple.systemPurple)
-                    topApps.forEachIndexed { idx, app ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = app.appName,
-                                style = AppleType.subheadline,
-                                color = Apple.label,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = com.gloom.island.automation.ScreenTimeTracker.formatDuration(app.totalMinutes),
-                                style = AppleType.subheadline,
-                                color = Apple.secondaryLabel
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Apple.fillTertiary)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(fraction = app.percentage)
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(appColors[idx % appColors.size])
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                    }
-                }
-            }
-
-            AppleDivider()
             AppleRow(
                 title = "Instagram Reels",
                 subtitle = if (settings.reelCounterEnabled) "Watched today" else "Counter is off",
@@ -816,7 +726,6 @@ fun HomeScreen(
                 destructive = false,
                 onClick = {
                     com.gloom.island.automation.ReelCounter.resetToday(context)
-                    com.gloom.island.automation.ScreenTimeTracker.resetToday(context)
                     android.widget.Toast.makeText(
                         context,
                         "Today's stats reset",
@@ -1076,7 +985,7 @@ private fun IslandPreview() {
 }
 
 @Composable
-fun PluginsScreen(onOpenTrackpad: () -> Unit = {}) {
+fun PluginsScreen() {
     val scrollState = rememberScrollState()
 
     Column(
@@ -1146,15 +1055,6 @@ fun PluginsScreen(onOpenTrackpad: () -> Unit = {}) {
                 subtitle = "Send files to and from your PC over the LAN",
                 icon = GloomIcons.Beam,
                 iconTint = Apple.systemTeal
-            )
-            AppleDivider()
-            AppleRow(
-                title = "Remote Trackpad",
-                subtitle = "Control the Windows pointer from your phone",
-                icon = GloomIcons.Mouse,
-                iconTint = Apple.systemIndigo,
-                showChevron = true,
-                onClick = onOpenTrackpad
             )
         }
 
@@ -1747,6 +1647,13 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
     val scrollState = rememberScrollState()
 
     var themeStyle by remember { mutableStateOf(settings.themeStyle) }
+    var accentColorHex by remember { mutableStateOf(settings.accentColorHex) }
+    var displayThemeMode by remember { mutableStateOf(settings.displayThemeMode) }
+    var fontFamilyChoice by remember { mutableStateOf(settings.fontFamilyChoice) }
+    var cornerRadius by remember { mutableIntStateOf(settings.cornerRadius) }
+    var expandedCornerRadius by remember { mutableIntStateOf(settings.expandedCornerRadius) }
+    var blurTransparency by remember { mutableFloatStateOf(settings.blurTransparency) }
+    var iconStyle by remember { mutableStateOf(settings.iconStyle) }
     var showBorders by remember { mutableStateOf(settings.showBorders) }
     var borderGlow by remember { mutableStateOf(settings.borderGlow) }
 
@@ -1766,17 +1673,32 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
                 }
                 settings.resetThemes(context)
                 themeStyle = settings.themeStyle
+                accentColorHex = settings.accentColorHex
+                displayThemeMode = settings.displayThemeMode
+                fontFamilyChoice = settings.fontFamilyChoice
+                cornerRadius = settings.cornerRadius
+                expandedCornerRadius = settings.expandedCornerRadius
+                blurTransparency = settings.blurTransparency
+                iconStyle = settings.iconStyle
                 showBorders = settings.showBorders
                 borderGlow = settings.borderGlow
             }
         )
 
+        // Preset Themes
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Preset Color Palettes",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
                 listOf("Obsidian Black", "Cyber Cyan", "Emerald Matrix", "Material Purple").forEach { themeName ->
                     val active = themeStyle == themeName
                     val palette = IslandThemePalettes.getTheme(themeName)
@@ -1792,6 +1714,9 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
                                 shape = RoundedCornerShape(10.dp)
                             )
                             .clickable {
+                                if (settings.hapticFeedback) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
                                 themeStyle = themeName
                                 settings.themeStyle = themeName
                                 settings.save(context)
@@ -1809,7 +1734,249 @@ fun ThemesSettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+            }
+        }
 
+        // Custom Accent Color
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Accent Color",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Applied to active island highlights, transfer progress, and badges.",
+                    color = Color(0xFF8E8E93),
+                    fontSize = 12.sp
+                )
+
+                val accentColors = listOf(
+                    "#0A84FF" to "Blue",
+                    "#38BDF8" to "Cyan",
+                    "#30D158" to "Green",
+                    "#BF5AF2" to "Purple",
+                    "#FF375F" to "Pink",
+                    "#FF9F0A" to "Orange",
+                    "#FFD60A" to "Gold",
+                    "#FFFFFF" to "White"
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    accentColors.forEach { (hex, _) ->
+                        val color = Color(android.graphics.Color.parseColor(hex))
+                        val isSelected = accentColorHex.equals(hex, ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) Color.White else Color(0x33FFFFFF),
+                                    shape = CircleShape
+                                )
+                                .clickable {
+                                    if (settings.hapticFeedback) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    accentColorHex = hex
+                                    settings.accentColorHex = hex
+                                    settings.save(context)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(if (hex == "#FFFFFF") Color.Black else Color.White)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Display Theme Mode (Dark / Light / AMOLED)
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Display Theme Mode",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                val modes = listOf("Dark", "Light", "AMOLED")
+                val selectedIdx = when (displayThemeMode.lowercase()) {
+                    "light" -> 1
+                    "amoled" -> 2
+                    else -> 0
+                }
+                AppleSegmentedControl(
+                    options = modes,
+                    selectedIndex = selectedIdx,
+                    onSelect = { idx ->
+                        val chosen = when (idx) {
+                            1 -> "light"
+                            2 -> "amoled"
+                            else -> "dark"
+                        }
+                        displayThemeMode = chosen
+                        settings.displayThemeMode = chosen
+                        settings.save(context)
+                    }
+                )
+            }
+        }
+
+        // Font Family Choice
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Typography Font",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                val fontOptions = listOf("System", "Rounded", "Serif", "Mono")
+                val selectedFontIdx = fontOptions.indexOfFirst { it.equals(fontFamilyChoice, ignoreCase = true) }.coerceAtLeast(0)
+                AppleSegmentedControl(
+                    options = fontOptions,
+                    selectedIndex = selectedFontIdx,
+                    onSelect = { idx ->
+                        val choice = fontOptions[idx]
+                        fontFamilyChoice = choice
+                        settings.fontFamilyChoice = choice
+                        settings.save(context)
+                    }
+                )
+            }
+        }
+
+        // Corner Radii Customization
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Corner Radii",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                AppleSliderRow(
+                    title = "Pill Corner Radius",
+                    valueText = "$cornerRadius dp",
+                    value = cornerRadius.toFloat(),
+                    valueRange = 10f..24f,
+                    onValueChange = {
+                        cornerRadius = it.toInt()
+                        settings.cornerRadius = it.toInt()
+                        settings.save(context)
+                    }
+                )
+
+                AppleDivider()
+
+                AppleSliderRow(
+                    title = "Expanded Corner Radius",
+                    valueText = "$expandedCornerRadius dp",
+                    value = expandedCornerRadius.toFloat(),
+                    valueRange = 20f..44f,
+                    onValueChange = {
+                        expandedCornerRadius = it.toInt()
+                        settings.expandedCornerRadius = it.toInt()
+                        settings.save(context)
+                    }
+                )
+            }
+        }
+
+        // Blur & Transparency
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Glass Surface & Blur",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                AppleSliderRow(
+                    title = "Background Opacity",
+                    valueText = "${(blurTransparency * 100).toInt()}%",
+                    value = blurTransparency,
+                    valueRange = 0.40f..1.0f,
+                    onValueChange = {
+                        blurTransparency = it
+                        settings.blurTransparency = it
+                        settings.save(context)
+                    }
+                )
+            }
+        }
+
+        // Icon Style
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Icon Style",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                val iconOptions = listOf("SF Rounded", "Minimal", "Outlined")
+                val selectedIconIdx = iconOptions.indexOfFirst { it.equals(iconStyle, ignoreCase = true) }.coerceAtLeast(0)
+                AppleSegmentedControl(
+                    options = iconOptions,
+                    selectedIndex = selectedIconIdx,
+                    onSelect = { idx ->
+                        val choice = iconOptions[idx]
+                        iconStyle = choice
+                        settings.iconStyle = choice
+                        settings.save(context)
+                    }
+                )
+            }
+        }
+
+        // Visual Accents (Borders & Shimmer)
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 SettingsSwitch(
                     title = "Show Outer Borders",
                     description = "Displays sleek accent border around island.",

@@ -84,6 +84,14 @@ export function useSettings() {
 	const [dockGenieEnabled, setDockGenieEnabled] = useState(
 		() => localStorage.getItem("gloom-dock-genie-effect") !== "false"
 	);
+	const [dockGenieDuration, setDockGenieDurationState] = useState(() => {
+		const val = localStorage.getItem("gloom-dock-genie-duration");
+		return val !== null ? parseInt(val) : 380;
+	});
+	const [dockGenieStyle, setDockGenieStyleState] = useState<"windhawk" | "suck">(() => {
+		const val = localStorage.getItem("gloom-dock-genie-style");
+		return val === "suck" ? "suck" : "windhawk";
+	});
 	const [dockIconOnly, setDockIconOnly] = useState(
 		() => localStorage.getItem("gloom-dock-icon-only") === "true"
 	);
@@ -214,6 +222,9 @@ export function useSettings() {
 			apply(getVal("gloom-brightness-edge-enabled"), setBrightnessEdgeEnabled, readBool);
 			apply(getVal("gloom-dock-enabled"), setDockEnabled, readBool);
 			apply(getVal("gloom-dock-preview-enabled"), setDockPreviewEnabled, readBool);
+			apply(getVal("gloom-dock-genie-effect"), setDockGenieEnabled, readBool);
+			apply(getVal("gloom-dock-genie-duration"), setDockGenieDurationState, parseInt);
+			apply(getVal("gloom-dock-genie-style"), setDockGenieStyleState, (v) => (v === "suck" ? "suck" : "windhawk"));
 			apply(getVal("gloom-dock-icon-only"), setDockIconOnly, readBool);
 			apply(getVal("gloom-dock-separator-enabled"), setDockSeparatorEnabled, readBool);
 			apply(getVal("gloom-start-icon"), setStartIcon, (v) => v);
@@ -641,6 +652,16 @@ export function useSettings() {
 		saveSetting("gloom-dock-genie-effect", String(next));
 	};
 
+	const setDockGenieDuration = (val: number) => {
+		setDockGenieDurationState(val);
+		saveSetting("gloom-dock-genie-duration", String(val));
+	};
+
+	const setDockGenieStyle = (val: "windhawk" | "suck") => {
+		setDockGenieStyleState(val);
+		saveSetting("gloom-dock-genie-style", val);
+	};
+
 	const toggleDockIconOnly = () => {
 		const next = !dockIconOnly;
 		setDockIconOnly(next);
@@ -1004,6 +1025,10 @@ export function useSettings() {
 		toggleDockPreview,
 		dockGenieEnabled,
 		toggleDockGenie,
+		dockGenieDuration,
+		setDockGenieDuration,
+		dockGenieStyle,
+		setDockGenieStyle,
 		dockIconOnly,
 		toggleDockIconOnly,
 		dockSeparatorEnabled,

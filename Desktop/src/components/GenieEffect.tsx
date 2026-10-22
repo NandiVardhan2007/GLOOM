@@ -13,26 +13,33 @@ export interface WindowRect {
 	height: number;
 }
 
+export type GenieStyle = "windhawk" | "suck";
+
 export interface GenieEffectProps {
 	imageSrc: string;
 	windowRect: WindowRect;
 	dockTarget: GenieTarget;
 	direction: "minimize" | "restore";
 	durationMs?: number;
+	style?: GenieStyle;
 	onComplete?: () => void;
 }
 
 /**
- * macOS-style Genie Effect for GLOOM Dock.
+ * Pixel-faithful macOS / Windhawk Genie Effect for GLOOM Dock.
  * Mathematically deforms a window into a fluid cubic-bezier funnel
- * terminating at the active dock icon.
+ * terminating at the active dock icon position.
+ *
+ * Slices the window into 60 horizontal deformation strips, with the bottom
+ * leading the suck-in animation, authentic waist pinch, and 60 fps requestAnimationFrame.
  */
 export const GenieEffect: React.FC<GenieEffectProps> = ({
 	imageSrc,
 	windowRect,
 	dockTarget,
 	direction,
-	durationMs = 340,
+	durationMs = 380,
+	style = "windhawk",
 	onComplete
 }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -54,7 +61,7 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 		canvas.height = window.innerHeight * dpr;
 		ctx.scale(dpr, dpr);
 
-		const SLICES = 50; // Number of horizontal deformation slices
+		const SLICES = 60; // 60 deformation slices for pixel-smooth mesh warp
 		const targetW = dockTarget.width || 48;
 		const targetX = dockTarget.x;
 		const targetY = dockTarget.y;
@@ -64,8 +71,8 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 		const srcW = windowRect.width;
 		const srcH = windowRect.height;
 
-		const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-		const easeInCubic = (t: number) => t * t * t;
+		const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 2.8);
+		const easeInCubic = (t: number) => Math.pow(t, 2.8);
 
 		const render = (now: number) => {
 			if (!startTime) startTime = now;
@@ -79,22 +86,24 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 
 			if (rawProgress >= 1) {
 				if (direction === "restore") {
-					// Draw final static frame at restore end
 					ctx.drawImage(img, windowRect.x, windowRect.y, srcW, srcH);
 				}
 				onComplete?.();
 				return;
 			}
 
-			// Render the slices from top (0) to bottom (1)
+			// Render slices from top (v=0) to bottom (v=1)
 			for (let i = 0; i < SLICES; i++) {
-				const v = i / SLICES; // Vertical fraction 0.0 to 1.0
+				const v = i / SLICES; // Vertical fraction 0.0 (top) to 1.0 (bottom)
 				const nextV = (i + 1) / SLICES;
 
-				// In macOS Genie:
-				// Bottom slices lead the suck-in animation, top slices lag behind.
-				const leadFactor = Math.pow(v, 1.4);
-				const sliceT = Math.max(0, Math.min(1, p * (1 + 0.35 * leadFactor) - 0.35 * (1 - leadFactor)));
+				// In Windhawk / macOS Genie:
+				// The bottom slices lead the funnel suck-in, while the top lags behind.
+				const leadFactor = style === "windhawk" ? Math.pow(v, 1.35) : Math.pow(Math.abs(v - 0.5) * 2, 1.2);
+				const sliceT = Math.max(
+					0,
+					Math.min(1, p * (1 + 0.38 * leadFactor) - 0.38 * (1 - leadFactor))
+				);
 				const easedT = direction === "minimize" ? easeInCubic(sliceT) : easeOutCubic(sliceT);
 
 				// Compute vertical Y position
@@ -106,16 +115,16 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 				const nextCurrentY = nextStartY + (targetY - nextStartY) * easedT;
 				const sliceHeight = Math.max(1, nextCurrentY - currentY);
 
-				// Compute horizontal center X via cubic bezier curve towards dock icon
-				const spineT = Math.pow(sliceT, 1.2);
+				// Compute horizontal center X via cubic curve towards dock icon
+				const spineT = Math.pow(sliceT, 1.22);
 				const currentCenterX = srcCenter + (targetX - srcCenter) * spineT;
 
 				// Compute width with signature genie waist pinch:
 				// Pinch is strongest in the lower middle section, funneling to targetW
-				const pinchWave = Math.sin(Math.PI * Math.pow(v, 0.7));
-				const pinchAmount = easedT * (0.6 + 0.4 * pinchWave);
+				const pinchWave = Math.sin(Math.PI * Math.pow(v, 0.72));
+				const pinchAmount = easedT * (0.64 + 0.36 * pinchWave);
 				const currentW = Math.max(
-					targetW * (1 - p * 0.5),
+					targetW * (1 - p * 0.45),
 					srcW * (1 - pinchAmount) + targetW * pinchAmount
 				);
 
@@ -125,8 +134,8 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 				const sy = v * img.height;
 				const sh = (nextV - v) * img.height;
 
-				// Opacity & subtle blur fade near final collapse
-				ctx.globalAlpha = Math.max(0.1, 1 - Math.pow(p, 4) * 0.9);
+				// Opacity & subtle fade near final collapse
+				ctx.globalAlpha = Math.max(0.05, 1 - Math.pow(p, 4.5) * 0.95);
 
 				// Draw slice
 				ctx.drawImage(img, 0, sy, img.width, sh, currentX, currentY, currentW, sliceHeight);
@@ -142,7 +151,7 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 		return () => {
 			if (animationFrameId) cancelAnimationFrame(animationFrameId);
 		};
-	}, [imageSrc, windowRect, dockTarget, direction, durationMs, onComplete]);
+	}, [imageSrc, windowRect, dockTarget, direction, durationMs, style, onComplete]);
 
 	return (
 		<canvas

@@ -874,7 +874,6 @@ fun AppleContinuityActivity(
     secondaryColor: Color,
     onBeamFile: () -> Unit,
     onSyncClipboard: () -> Unit,
-    onOpenTrackpad: () -> Unit,
     onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -974,12 +973,6 @@ fun AppleContinuityActivity(
                 label = "Clipboard",
                 modifier = Modifier.weight(1f),
                 onClick = onSyncClipboard
-            )
-            ContinuityButton(
-                icon = GloomIcons.Mouse,
-                label = "Trackpad",
-                modifier = Modifier.weight(1f),
-                onClick = onOpenTrackpad
             )
         }
     }

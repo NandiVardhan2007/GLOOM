@@ -53,7 +53,8 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Inbox,
-	Music
+	Music,
+	Smartphone
 } from "lucide-react";
 
 /**
@@ -1637,6 +1638,19 @@ function App() {
 		}
 	};
 
+	const beamFileToMobile = (item: ShelfItem) => {
+		if (!item.path) return;
+		showShelfNotice(`Beaming "${item.name}" to Mobile Island...`);
+		invoke("beam_file_to_device", { path: item.path })
+			.then(() => {
+				showShelfNotice(`Beamed "${item.name}" to Mobile Island!`);
+			})
+			.catch((err) => {
+				console.error("[bridge] beam failed:", err);
+				showShelfNotice(`Could not beam file: ${err}`);
+			});
+	};
+
 	// Shelf drag-and-drop plumbing. The backend registers its own OLE drop
 	// target (src-tauri/src/shelf.rs) because wry's target can go stale when
 	// WebView2 recreates its render child; it emits the shelf-drag-* events
@@ -1694,7 +1708,16 @@ function App() {
 		Promise.all([
 			listen<{ paths?: string[]; text?: string }>("shelf-drag-enter", enter),
 			listen("shelf-drag-leave", leave),
-			listen<{ paths?: string[]; text?: string }>("shelf-drag-drop", drop)
+			listen<{ paths?: string[]; text?: string }>("shelf-drag-drop", drop),
+			listen<{ path?: string; name?: string }>("bridge-file-received", (event) => {
+				const { path, name } = event.payload;
+				if (path) {
+					addShelfItems([path]);
+					showShelfNotice(`Received "${name || "file"}" from Mobile Island`);
+					setGloomMode("shelf");
+					collapseShelfSoon(4000);
+				}
+			})
 		])
 			.then((fns) => {
 				if (cancelled) {
@@ -2746,7 +2769,7 @@ function App() {
 			return announcement.url ? 168 : 148;
 		}
 		// Sized to the calendar's week-row count plus the timer's fixed content.
-		if (gloomMode === "calendar") return calendarMonthRows >= 6 ? 305 : 273;
+		if (gloomMode === "calendar") return calendarMonthRows >= 6 ? 320 : 288;
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
 		// plus room for the scrollbar once the tiles overflow it.
@@ -4011,6 +4034,18 @@ function App() {
 																			? `Text · ${item.text?.length ?? 0} chars`
 																			: item.name}
 																	</span>
+																	{item.type === "file" && item.path && (
+																		<button
+																			className="shelf-tile-beam"
+																			title="Beam to Mobile Island"
+																			onClick={(e) => {
+																				e.stopPropagation();
+																				beamFileToMobile(item);
+																			}}
+																		>
+																			<Smartphone size={10} strokeWidth={2.4} />
+																		</button>
+																	)}
 																	<button
 																		className="shelf-tile-remove"
 																		title="Remove from shelf"

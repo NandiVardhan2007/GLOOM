@@ -61,7 +61,6 @@ fun GloomIslandApp(
     onLongPressExpand: () -> Unit = {},
     onBeamSampleFile: () -> Unit = {},
     onSyncClipboard: () -> Unit = {},
-    onOpenTrackpad: () -> Unit = {},
     onMediaPlayPause: () -> Unit = {},
     onMediaNext: () -> Unit = {},
     onMediaPrev: () -> Unit = {},
@@ -358,7 +357,6 @@ fun GloomIslandApp(
                             secondaryColor = palette.secondaryAccent,
                             onBeamFile = onBeamSampleFile,
                             onSyncClipboard = onSyncClipboard,
-                            onOpenTrackpad = onOpenTrackpad,
                             onClose = onToggleExpand
                         )
                         else -> AppleCompactContent(

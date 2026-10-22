@@ -15,6 +15,8 @@ mod updater;
 mod utils;
 mod wifi;
 mod window_region;
+mod bridge_tls;
+mod livebridge;
 
 use std::sync::atomic::Ordering;
 use tauri::Manager;
@@ -146,6 +148,8 @@ fn main() {
             shelf_drag_icon,
             shelf_prune,
             shelf_open,
+            beam_file_to_device,
+            get_bridge_devices,
             get_active_windows,
             get_tray_apps,
             show_tray_context_menu,
@@ -219,6 +223,7 @@ fn main() {
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());
+            livebridge::start_livebridge_service(app.handle().clone());
             // Populate the settings cache before anything else: a webview can
             // invoke save_setting as soon as it loads, which happens before the
             // rest of this hook runs.

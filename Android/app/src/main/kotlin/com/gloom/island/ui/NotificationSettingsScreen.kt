@@ -39,17 +39,16 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gloom.island.automation.AutomationSelfCheck
 import com.gloom.island.settings.GloomIslandSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.absoluteValue
 
-private data class LaunchableApp(val label: String, val packageName: String)
+data class InstalledAppItem(val label: String, val packageName: String)
 
 /**
  * Notification rules: which alerts may enter the island, and how they are
- * triaged before anything is shown.
+ * triaged before anything is shown. Supports all installed applications on the device.
  */
 @Composable
 fun NotificationSettingsScreen(onBack: () -> Unit) {
@@ -59,29 +58,33 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
     val blocked = settings.blockedPackages
 
     var query by remember { mutableStateOf("") }
-    var apps by remember { mutableStateOf<List<LaunchableApp>>(emptyList()) }
+    var apps by remember { mutableStateOf<List<InstalledAppItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        apps = withContext(Dispatchers.IO) { loadLaunchableApps(context) }
+        val loaded = withContext(Dispatchers.IO) { loadAllInstalledApps(context) }
+        apps = loaded
+        isLoading = false
     }
 
     val filtered = remember(query, apps, blocked) {
         val base = apps.toMutableList()
-        // Keep muted packages visible even when they have no launcher icon.
+        // Ensure all blocked packages appear even if not yet enumerated
         blocked.forEach { packageName ->
             if (base.none { it.packageName == packageName }) {
-                base.add(LaunchableApp(packageName.substringAfterLast('.'), packageName))
+                base.add(InstalledAppItem(packageName.substringAfterLast('.'), packageName))
             }
         }
         val needle = query.trim().lowercase()
-        base
-            .filter {
-                needle.isEmpty() ||
-                    it.label.lowercase().contains(needle) ||
+        val list = if (needle.isEmpty()) {
+            base
+        } else {
+            base.filter {
+                it.label.lowercase().contains(needle) ||
                     it.packageName.lowercase().contains(needle)
             }
-            .sortedBy { it.label.lowercase() }
-            .take(80)
+        }
+        list.sortedBy { it.label.lowercase() }
     }
 
     Column(
@@ -138,21 +141,21 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
         }
 
         AppleSection(
-            header = "Apps",
+            header = "Apps (${if (isLoading) "Loading…" else "${filtered.size} available"})",
             footer = "Turning an app off keeps its alerts in the shade. Everything else continues to appear in the island."
         ) {
             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search apps", color = Apple.tertiaryLabel) },
+                    placeholder = { Text("Search all installed apps", color = Apple.tertiaryLabel) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = {}),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            if (apps.isEmpty()) {
+            if (isLoading) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -160,7 +163,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Reading installed apps…",
+                        "Reading all installed packages…",
                         style = AppleType.footnote,
                         color = Apple.secondaryLabel
                     )
@@ -172,7 +175,9 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                     message = "Try a different name or package."
                 )
             } else {
-                filtered.forEachIndexed { index, app ->
+                // Show up to 150 matching apps in the scroll list
+                val displayList = filtered.take(150)
+                displayList.forEachIndexed { index, app ->
                     if (index > 0) AppleDivider()
                     AppToggleRow(
                         label = app.label,
@@ -183,6 +188,15 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                         }
                     )
                 }
+                if (filtered.size > 150) {
+                    AppleDivider()
+                    Text(
+                        text = "+ ${filtered.size - 150} more apps (refine search to see specific apps)",
+                        style = AppleType.footnote,
+                        color = Apple.secondaryLabel,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
 
@@ -190,23 +204,22 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
     }
 }
 
-private fun loadLaunchableApps(context: Context): List<LaunchableApp> {
+private fun loadAllInstalledApps(context: Context): List<InstalledAppItem> {
     val manager = context.packageManager
-    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-    val resolved = try {
-        manager.queryIntentActivities(intent, 0)
+    val packages = try {
+        manager.getInstalledPackages(0)
     } catch (e: Exception) {
         emptyList()
     }
-    return resolved.mapNotNull { info ->
-        val packageName = info.activityInfo?.packageName ?: return@mapNotNull null
+    return packages.mapNotNull { pkgInfo ->
+        val packageName = pkgInfo.packageName ?: return@mapNotNull null
         if (packageName == context.packageName) return@mapNotNull null
         val label = try {
-            info.loadLabel(manager).toString()
+            pkgInfo.applicationInfo?.loadLabel(manager)?.toString() ?: packageName
         } catch (e: Exception) {
             packageName
         }
-        LaunchableApp(label, packageName)
+        InstalledAppItem(label = label.ifBlank { packageName }, packageName = packageName)
     }
         .distinctBy { it.packageName }
         .sortedBy { it.label.lowercase() }
@@ -246,51 +259,54 @@ private fun AppToggleRow(
     ) {
         Box(
             modifier = Modifier
-                .size(29.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(monogramColor(packageName)),
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(appTileColor(packageName)),
             contentAlignment = Alignment.Center
         ) {
+            val glyph = label.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
+                ?: packageName.firstOrNull { it.isLetter() }?.uppercaseChar()?.toString()
+                ?: "•"
             Text(
-                text = label.take(1).uppercase(),
-                style = AppleType.footnote.copy(fontWeight = FontWeight.SemiBold),
-                color = Color.White
+                text = glyph,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
             )
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                label,
+                text = label,
                 style = AppleType.body,
                 color = Apple.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                packageName,
+                text = packageName,
                 style = AppleType.caption2,
                 color = Apple.tertiaryLabel,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         AppleSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
-private fun monogramColor(packageName: String): Color {
-    val palette = listOf(
-        Apple.systemBlue,
-        Apple.systemIndigo,
-        Apple.systemPurple,
-        Apple.systemPink,
-        Apple.systemRed,
-        Apple.systemOrange,
-        Apple.systemYellow,
-        Apple.systemGreen,
-        Apple.systemTeal,
-        Apple.systemGray,
+private fun appTileColor(packageName: String): Color {
+    val hash = packageName.hashCode().absoluteValue
+    val hues = listOf(
+        Color(0xFF007AFF), // Blue
+        Color(0xFF34C759), // Green
+        Color(0xFFFF9500), // Orange
+        Color(0xFFFF2D55), // Pink
+        Color(0xFF5856D6), // Purple
+        Color(0xFF30B0C7), // Teal
+        Color(0xFFFF3B30), // Red
+        Color(0xFF64D2FF), // Cyan
     )
-    return palette[(packageName.hashCode() and Int.MAX_VALUE) % palette.size]
+    return hues[hash % hues.size]
 }

@@ -531,14 +531,6 @@ class GloomIslandOverlayService : Service() {
                     onSyncClipboard = {
                         bridgeClient.syncClipboardToDesktop("Manual clipboard sync triggered")
                     },
-                    onOpenTrackpad = {
-                        collapseIsland()
-                        val itn = Intent(this@GloomIslandOverlayService, com.gloom.island.MainActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                            putExtra("open_screen", "trackpad")
-                        }
-                        startActivity(itn)
-                    },
                     onMediaPlayPause = { toggleMediaPlayback() },
                     onMediaNext = { skipToNextMedia() },
                     onMediaPrev = { skipToPrevMedia() },

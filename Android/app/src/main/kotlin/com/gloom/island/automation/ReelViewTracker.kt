@@ -33,6 +33,9 @@ class ReelViewTracker(
     val isViewOpen: Boolean
         get() = open != null
 
+    val currentFingerprint: String?
+        get() = open?.fingerprint
+
     val openSince: Long?
         get() = open?.startedAt
 
@@ -101,6 +104,6 @@ class ReelViewTracker(
     companion object {
         const val DEFAULT_DEBOUNCE_MS = 500L
         const val DEFAULT_MAX_VIEW_DURATION_MS = 10 * 60 * 1000L
-        const val DEFAULT_HISTORY_CAPACITY = 40
+        const val DEFAULT_HISTORY_CAPACITY = 100
     }
 }

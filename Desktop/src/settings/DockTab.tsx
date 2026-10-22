@@ -112,6 +112,10 @@ interface DockTabProps {
 	toggleDockPreview: () => void;
 	dockGenieEnabled: boolean;
 	toggleDockGenie: () => void;
+	dockGenieDuration: number;
+	setDockGenieDuration: (val: number) => void;
+	dockGenieStyle: "windhawk" | "suck";
+	setDockGenieStyle: (val: "windhawk" | "suck") => void;
 	dockIconOnly: boolean;
 	toggleDockIconOnly: () => void;
 	dockSeparatorEnabled: boolean;
@@ -150,6 +154,10 @@ export function DockTab({
 	toggleDockPreview,
 	dockGenieEnabled,
 	toggleDockGenie,
+	dockGenieDuration,
+	setDockGenieDuration,
+	dockGenieStyle,
+	setDockGenieStyle,
 	dockIconOnly,
 	toggleDockIconOnly,
 	dockSeparatorEnabled,
@@ -259,6 +267,41 @@ export function DockTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
+
+						{dockGenieEnabled && (
+							<>
+								<SettingRow
+									icon={Sparkles}
+									label="Genie Animation Style"
+									desc="Select the warp mesh deformation style"
+								>
+									<select
+										className="settings-select"
+										value={dockGenieStyle}
+										onChange={(e) => setDockGenieStyle(e.target.value as "windhawk" | "suck")}
+									>
+										<option value="windhawk">Windhawk Mesh Warp</option>
+										<option value="suck">Classic Suck</option>
+									</select>
+								</SettingRow>
+
+								<SettingRow
+									icon={Timer}
+									label="Genie Speed / Duration"
+									desc={`Animation duration: ${dockGenieDuration}ms`}
+								>
+									<input
+										type="range"
+										min="200"
+										max="800"
+										step="20"
+										value={dockGenieDuration}
+										onChange={(e) => setDockGenieDuration(parseInt(e.target.value))}
+										className="settings-slider"
+									/>
+								</SettingRow>
+							</>
+						)}
 
 						<SettingRow icon={Circle} label="Icon Only" desc="Remove icon background and padding">
 							<label className="toggle-switch">

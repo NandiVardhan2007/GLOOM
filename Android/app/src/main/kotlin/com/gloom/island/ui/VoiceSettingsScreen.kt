@@ -3,6 +3,7 @@ package com.gloom.island.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -19,7 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +36,7 @@ import com.gloom.island.service.VoiceUnlockActivity
 import com.gloom.island.voice.VoicePrefs
 import com.gloom.island.voice.WakeWordModel
 import com.gloom.island.voice.WakeWordService
+import java.util.Locale
 
 @Composable
 fun VoiceSettingsScreen(onBack: () -> Unit) {
@@ -44,6 +48,26 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
     var downloading by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
+
+    // Voice Model customization state
+    var voiceGender by remember { mutableStateOf(VoicePrefs.getVoiceGender(context)) }
+    var voicePitch by remember { mutableFloatStateOf(VoicePrefs.getVoicePitch(context)) }
+    var voiceRate by remember { mutableFloatStateOf(VoicePrefs.getVoiceRate(context)) }
+
+    // Local TTS instance for instant testing and preview
+    var testTts by remember { mutableStateOf<TextToSpeech?>(null) }
+    DisposableEffect(Unit) {
+        val tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                // Initialized
+            }
+        }
+        testTts = tts
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+        }
+    }
 
     fun hasMicrophone(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
@@ -102,12 +126,23 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
         )
     }
 
+    fun playVoiceTest() {
+        val tts = testTts ?: return
+        VoicePrefs.applyToTts(tts, context)
+        val sampleText = if (voiceGender == VoicePrefs.GENDER_MALE) {
+            "GLOOM voice assistant active. Ready for commands."
+        } else {
+            "Hi there! How can I help you today?"
+        }
+        tts.speak(sampleText, TextToSpeech.QUEUE_FLUSH, null, "gloom-sample")
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
     ) {
-        AppleSubHeader(title = "Hey GLOOM", onBack = onBack)
+        AppleSubHeader(title = "Voice & Speech", onBack = onBack)
 
         AppleSection(
             header = "Voice Assistant",
@@ -138,7 +173,70 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
             )
         }
 
-        AppleSection(header = "Speech Model") {
+        AppleSection(
+            header = "Voice Model",
+            footer = "Select your preferred assistant voice profile. The female profile is tuned for high-clarity neural assistant acoustic presence. The male profile provides a deeper, resonant masculine register."
+        ) {
+            val genderOptions = listOf("Female (Siri-Tuned)", "Male (Deep)")
+            val selectedGenderIndex = if (voiceGender == VoicePrefs.GENDER_MALE) 1 else 0
+
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                AppleSegmentedControl(
+                    options = genderOptions,
+                    selectedIndex = selectedGenderIndex,
+                    onSelect = { idx ->
+                        val selected = if (idx == 1) VoicePrefs.GENDER_MALE else VoicePrefs.GENDER_FEMALE
+                        voiceGender = selected
+                        VoicePrefs.setVoiceGender(context, selected)
+                        val newPitch = if (selected == VoicePrefs.GENDER_MALE) VoicePrefs.DEFAULT_MALE_PITCH else VoicePrefs.DEFAULT_FEMALE_PITCH
+                        voicePitch = newPitch
+                        VoicePrefs.setVoicePitch(context, newPitch)
+                        testTts?.let { VoicePrefs.applyToTts(it, context) }
+                    }
+                )
+            }
+
+            AppleDivider()
+
+            AppleSliderRow(
+                title = "Pitch Tuning",
+                valueText = "${(voicePitch * 100).toInt()}%",
+                value = voicePitch,
+                valueRange = 0.6f..1.5f,
+                onValueChange = {
+                    voicePitch = it
+                    VoicePrefs.setVoicePitch(context, it)
+                    testTts?.setPitch(it)
+                }
+            )
+
+            AppleDivider()
+
+            AppleSliderRow(
+                title = "Speech Rate",
+                valueText = "${(voiceRate * 100).toInt()}%",
+                value = voiceRate,
+                valueRange = 0.7f..1.5f,
+                onValueChange = {
+                    voiceRate = it
+                    VoicePrefs.setVoiceRate(context, it)
+                    testTts?.setSpeechRate(it)
+                }
+            )
+
+            AppleDivider()
+
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                AppleButton(
+                    text = "Test Voice",
+                    primary = false,
+                    icon = GloomIcons.Waveform,
+                    onClick = { playVoiceTest() }
+                )
+            }
+        }
+
+        AppleSection(header = "Speech Recognition Model") {
             AppleRow(
                 title = "Offline English model",
                 subtitle = if (modelInstalled) "Installed" else "About 40 MB, downloaded once",
@@ -177,7 +275,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
             } else {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     AppleButton(
-                        text = if (modelInstalled) "Reinstall Model" else "Download Model",
+                        text = if (modelInstalled) "Reinstall Speech Model" else "Download Speech Model",
                         primary = !modelInstalled,
                         onClick = { downloadModel() }
                     )
@@ -185,7 +283,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        AppleSection(header = "Try It") {
+        AppleSection(header = "Try Assistant") {
             AppleRow(
                 title = "Open assistant",
                 subtitle = "Ask a question or say “Unlock my mobile”",
@@ -211,7 +309,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
         }
 
         Text(
-            text = "Wake word audio never leaves the phone. Only the text of a question is sent to your paired desktop, which calls the AI provider you configured.",
+            text = "Wake word audio never leaves the phone. Speech synthesized using high-quality local neural TTS matching your chosen profile.",
             style = AppleType.footnote,
             color = Apple.secondaryLabel,
             modifier = Modifier.padding(horizontal = 36.dp, vertical = 18.dp)

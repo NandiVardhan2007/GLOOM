@@ -1,6 +1,6 @@
 [package]
 name = "gloom"
-version = "1.6.0"
+version = "1.7.0"
 description = "GLOOM: Dynamic Island & Notch for Windows"
 authors = ["Nandu"]
 edition = "2021"
@@ -90,4 +90,7 @@ tauri-plugin-dialog = "2"
 rustfft = "6"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
 futures-util = "0.3"
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
+sha2 = "0.10"
 

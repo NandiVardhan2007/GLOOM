@@ -13,26 +13,29 @@ import com.gloom.island.settings.GloomIslandSettings
 /**
  * Counts short-form video reels (Instagram, Facebook, YouTube Shorts) as they are watched.
  *
- * Implements the open-source detection architecture from s0uvik/reels-tracker
- * (https://github.com/s0uvik/reels-tracker):
- *  1. Structural verification of the full-screen reel viewer container view IDs
- *     (never counts in Settings, Profiles, or Feeds).
- *  2. Center-screen author & caption content fingerprint hashing.
- *  3. Debounced state machine with session history ring-buffer to completely
- *     ignore backward navigation when swiping down to see previous reels.
- *  4. Trailing-edge coalescing to eliminate CPU waste during video playback.
+ * Requirements:
+ *  1. Count a reel ONLY when a new reel is brought into view and remains for a minimum dwell time (1200ms).
+ *  2. Debounce duplicate accessibility events.
+ *  3. Ignore scroll jitter and micro-scrolls.
+ *  4. Don't double-count when returning or swiping back to a previously seen reel.
  */
 object InstagramReelTracker {
 
     private const val TAG = "GloomReelTracker"
+    // Minimum continuous dwell time before an on-screen reel is committed as watched
+    private const val MIN_DWELL_MS = 1200L
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val detector = ReelDetector(debugLogging = false)
-    private val tracker = ReelViewTracker(debounceMs = 500L)
+    private val tracker = ReelViewTracker(debounceMs = 450L)
 
     @Volatile private var pendingUi: TrackedAppUi? = null
     @Volatile private var inspectScheduled = false
     @Volatile private var firstPendingAt = 0L
+
+    // Pending dwell confirmation state
+    private var pendingDwellRunnable: Runnable? = null
+    private var pendingDwellFingerprint: String? = null
 
     fun onEvent(service: AccessibilityService, event: AccessibilityEvent) {
         if (!GloomIslandSettings.instance.reelCounterEnabled) return
@@ -43,6 +46,7 @@ object InstagramReelTracker {
 
         if (ui == null) {
             if (tracker.isViewOpen) {
+                cancelPendingDwell()
                 applyActions(service, tracker.onLeftViewer(now))
                 cancelInspection()
                 notifyViewerState(false)
@@ -52,6 +56,10 @@ object InstagramReelTracker {
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                // Reject scroll jitter / accidental tremors
+                if (detector.isScrollJitter(ui, event)) {
+                    return
+                }
                 detector.onScrollEvent(ui, event)
                 scheduleInspection(service, ui)
             }
@@ -70,6 +78,7 @@ object InstagramReelTracker {
             firstPendingAt = now
         }
         mainHandler.removeCallbacksAndMessages(null)
+        // If there's an active dwell confirmation, keep it alive unless the reel changes
         val waited = now - firstPendingAt
         val delay = if (waited >= TrackedAppConfig.INSPECT_MAX_WAIT_MS) 0L else TrackedAppConfig.INSPECT_SETTLE_MS
         mainHandler.postDelayed({
@@ -81,6 +90,12 @@ object InstagramReelTracker {
         mainHandler.removeCallbacksAndMessages(null)
         inspectScheduled = false
         pendingUi = null
+    }
+
+    private fun cancelPendingDwell() {
+        pendingDwellRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingDwellRunnable = null
+        pendingDwellFingerprint = null
     }
 
     private fun runInspection(service: AccessibilityService) {
@@ -97,6 +112,7 @@ object InstagramReelTracker {
                 applyActions(service, tracker.onReelVisible(ui.appKey, result.fingerprint, now))
             }
             ReelDetector.Result.NotInViewer -> {
+                cancelPendingDwell()
                 if (tracker.isViewOpen) {
                     applyActions(service, tracker.onLeftViewer(now))
                 }
@@ -114,16 +130,33 @@ object InstagramReelTracker {
         for (action in actions) {
             when (action) {
                 is ReelViewTracker.Action.Started -> {
+                    // Cancel previous unconfirmed dwell if any
+                    cancelPendingDwell()
+
                     if (action.isNewView) {
-                        val today = ReelCounter.record(service)
-                        Log.i(TAG, "New ${action.app} reel counted; today=$today")
-                        GloomIslandAccessibilityService.instance?.updateReelCount(today)
-                        GloomIslandOverlayService.instance?.updateReelCount(today)
+                        val targetFingerprint = tracker.currentFingerprint
+                        pendingDwellFingerprint = targetFingerprint
+
+                        // Schedule count confirmation only after minimum dwell time has elapsed
+                        val dwellTask = Runnable {
+                            if (tracker.isViewOpen && tracker.currentFingerprint == targetFingerprint) {
+                                val today = ReelCounter.record(service)
+                                Log.i(TAG, "Reel dwelled >= ${MIN_DWELL_MS}ms. New ${action.app} reel counted; today=$today")
+                                GloomIslandAccessibilityService.instance?.updateReelCount(today)
+                                GloomIslandOverlayService.instance?.updateReelCount(today)
+                            }
+                            pendingDwellRunnable = null
+                            pendingDwellFingerprint = null
+                        }
+                        pendingDwellRunnable = dwellTask
+                        mainHandler.postDelayed(dwellTask, MIN_DWELL_MS)
                     } else {
                         Log.d(TAG, "Re-viewing previous reel; counter not incremented")
                     }
                 }
                 is ReelViewTracker.Action.Closed -> {
+                    // Left this reel segment; if it didn't complete dwell, it is not counted
+                    cancelPendingDwell()
                     Log.d(TAG, "Closed reel after ${action.durationMs}ms")
                 }
             }
@@ -138,6 +171,7 @@ object InstagramReelTracker {
     }
 
     fun reset() {
+        cancelPendingDwell()
         cancelInspection()
         detector.forget()
         tracker.reset()

@@ -365,6 +365,7 @@ class VoiceUnlockActivity : ComponentActivity() {
                             Log.w(TAG, "No usable text-to-speech voice is installed")
                         }
                     }
+                    com.gloom.island.voice.VoicePrefs.applyToTts(engine, this@VoiceUnlockActivity)
                     ttsReady = true
                     pendingSpeech?.let { queued ->
                         pendingSpeech = null

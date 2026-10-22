@@ -44,6 +44,11 @@ class GloomIslandSettings {
         const val DEFAULT_THEME = "Obsidian Black"
         const val DEFAULT_SHOW_BORDERS = true
         const val DEFAULT_BORDER_GLOW = true
+        const val DEFAULT_ACCENT_COLOR = "#0A84FF"
+        const val DEFAULT_FONT_FAMILY = "System"
+        const val DEFAULT_BLUR_TRANSPARENCY = 0.92f
+        const val DEFAULT_ICON_STYLE = "SF Rounded"
+        const val DEFAULT_DISPLAY_THEME = "amoled"
         const val DEFAULT_SHOW_ON_LOCK_SCREEN = true
         const val DEFAULT_SHOW_IN_LANDSCAPE = false
         const val DEFAULT_AUTO_EXPAND_TRANSFER = true
@@ -123,6 +128,11 @@ class GloomIslandSettings {
     var themeStyle by mutableStateOf(DEFAULT_THEME)
     var showBorders by mutableStateOf(DEFAULT_SHOW_BORDERS)
     var borderGlow by mutableStateOf(DEFAULT_BORDER_GLOW)
+    var accentColorHex by mutableStateOf(DEFAULT_ACCENT_COLOR)
+    var fontFamilyChoice by mutableStateOf(DEFAULT_FONT_FAMILY)
+    var blurTransparency by mutableFloatStateOf(DEFAULT_BLUR_TRANSPARENCY)
+    var iconStyle by mutableStateOf(DEFAULT_ICON_STYLE)
+    var displayThemeMode by mutableStateOf(DEFAULT_DISPLAY_THEME)
 
     // ── 4. Behavior & Gestures ──
     var showOnLockScreen by mutableStateOf(DEFAULT_SHOW_ON_LOCK_SCREEN)
@@ -180,6 +190,11 @@ class GloomIslandSettings {
         themeStyle = prefs.getString("theme_style", DEFAULT_THEME) ?: DEFAULT_THEME
         showBorders = prefs.getBoolean("show_borders", DEFAULT_SHOW_BORDERS)
         borderGlow = prefs.getBoolean("border_glow", DEFAULT_BORDER_GLOW)
+        accentColorHex = prefs.getString("accent_color_hex", DEFAULT_ACCENT_COLOR) ?: DEFAULT_ACCENT_COLOR
+        fontFamilyChoice = prefs.getString("font_family_choice", DEFAULT_FONT_FAMILY) ?: DEFAULT_FONT_FAMILY
+        blurTransparency = prefs.getFloat("blur_transparency", DEFAULT_BLUR_TRANSPARENCY)
+        iconStyle = prefs.getString("icon_style", DEFAULT_ICON_STYLE) ?: DEFAULT_ICON_STYLE
+        displayThemeMode = prefs.getString("display_theme_mode", DEFAULT_DISPLAY_THEME) ?: DEFAULT_DISPLAY_THEME
 
         showOnLockScreen = prefs.getBoolean("show_on_lock_screen", DEFAULT_SHOW_ON_LOCK_SCREEN)
         showInLandscape = prefs.getBoolean("show_in_landscape", DEFAULT_SHOW_IN_LANDSCAPE)
@@ -280,6 +295,11 @@ class GloomIslandSettings {
             .putString("theme_style", themeStyle)
             .putBoolean("show_borders", showBorders)
             .putBoolean("border_glow", borderGlow)
+            .putString("accent_color_hex", accentColorHex)
+            .putString("font_family_choice", fontFamilyChoice)
+            .putFloat("blur_transparency", blurTransparency)
+            .putString("icon_style", iconStyle)
+            .putString("display_theme_mode", displayThemeMode)
             .putBoolean("show_on_lock_screen", showOnLockScreen)
             .putBoolean("show_in_landscape", showInLandscape)
             .putBoolean("auto_expand_transfer", autoExpandOnTransfer)
@@ -323,6 +343,11 @@ class GloomIslandSettings {
         themeStyle = DEFAULT_THEME
         showBorders = DEFAULT_SHOW_BORDERS
         borderGlow = DEFAULT_BORDER_GLOW
+        accentColorHex = DEFAULT_ACCENT_COLOR
+        fontFamilyChoice = DEFAULT_FONT_FAMILY
+        blurTransparency = DEFAULT_BLUR_TRANSPARENCY
+        iconStyle = DEFAULT_ICON_STYLE
+        displayThemeMode = DEFAULT_DISPLAY_THEME
         save(context)
     }
 

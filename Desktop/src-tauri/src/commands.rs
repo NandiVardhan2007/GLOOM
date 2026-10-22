@@ -76,6 +76,16 @@ pub async fn shelf_open(path: String) -> Result<(), String> {
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn beam_file_to_device(app: AppHandle, path: String, target_ip: Option<String>) -> Result<(), String> {
+    crate::livebridge::stream_file_to_companion(app, &path, target_ip)
+}
+
+#[tauri::command]
+pub fn get_bridge_devices() -> Vec<crate::livebridge::BridgeDevice> {
+    crate::livebridge::get_known_devices()
+}
+
 /// Drops shelf entries whose files no longer exist (moved, deleted, drive
 /// unplugged). Called once at startup so the shelf does not accumulate dead
 /// references across sessions.
@@ -1308,13 +1318,111 @@ pub fn is_aumid_path(path: &str) -> bool {
     true
 }
 
-fn is_browser_host_process(path: &str) -> bool {
+pub(crate) fn is_browser_host_process(path: &str) -> bool {
     let p = path.to_lowercase();
     p.contains("msedge.exe")
         || p.contains("chrome.exe")
         || p.contains("brave.exe")
         || p.contains("vivaldi.exe")
         || p.contains("firefox.exe")
+        || p.contains("chrome_proxy.exe")
+        || p.contains("msedge_proxy.exe")
+}
+
+pub fn find_pwa_shortcut_path(keyword: &str) -> Option<String> {
+    let kw = keyword.to_lowercase();
+    let appdata = std::env::var("APPDATA").ok()?;
+    let candidate_dirs = [
+        format!(r"{}\Microsoft\Windows\Start Menu\Programs\Chrome Apps", appdata),
+        format!(r"{}\Microsoft\Windows\Start Menu\Programs\Edge Apps", appdata),
+        format!(r"{}\Microsoft\Windows\Start Menu\Programs\Brave Apps", appdata),
+        format!(r"{}\Microsoft\Windows\Start Menu\Programs", appdata),
+    ];
+    for dir in &candidate_dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()).map_or(false, |e| e.eq_ignore_ascii_case("lnk")) {
+                    let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+                    if file_stem.contains(&kw) || kw.contains(&file_stem) {
+                        return Some(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn find_pwa_shortcut_or_icon(name_or_title: &str) -> Option<String> {
+    let kw = name_or_title.trim();
+    if kw.is_empty() {
+        return None;
+    }
+    let clean_kw = if let Some(idx) = kw.find(')') {
+        kw[idx + 1..].trim()
+    } else {
+        kw
+    };
+    let clean_kw = clean_kw.split(" - ").next().unwrap_or(clean_kw).trim();
+    let clean_lower = clean_kw.to_lowercase();
+
+    if let Some(lnk_path) = find_pwa_shortcut_path(clean_kw) {
+        if let Some(icon_loc) = crate::utils::get_shortcut_icon_location(&lnk_path) {
+            if let Some(b64) = crate::utils::image_file_to_base64(&icon_loc) {
+                return Some(b64);
+            }
+        }
+        if let Some((target_exe, args)) = crate::utils::resolve_shortcut(&lnk_path) {
+            if let Some(icon_path) = find_browser_pwa_icon(&target_exe, &args) {
+                if let Some(b64) = crate::utils::image_file_to_base64(&icon_path) {
+                    return Some(b64);
+                }
+            }
+        }
+    }
+
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let bases = [
+            format!(r"{}\Google\Chrome\User Data", local),
+            format!(r"{}\Microsoft\Edge\User Data", local),
+            format!(r"{}\BraveSoftware\Brave-Browser\User Data", local),
+        ];
+        for base in &bases {
+            if let Ok(entries) = std::fs::read_dir(base) {
+                for entry in entries.flatten() {
+                    let prof = entry.path();
+                    let web_apps = prof.join("Web Applications");
+                    if !web_apps.is_dir() {
+                        continue;
+                    }
+                    if let Ok(app_entries) = std::fs::read_dir(&web_apps) {
+                        for app_entry in app_entries.flatten() {
+                            let p = app_entry.path();
+                            if p.is_dir() {
+                                if let Ok(files) = std::fs::read_dir(&p) {
+                                    for f in files.flatten() {
+                                        let fp = f.path();
+                                        let fname = fp.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+                                        if (fname.contains(&clean_lower) || clean_lower.contains(&fname))
+                                            && fp.extension().and_then(|e| e.to_str()).map_or(false, |ext| {
+                                                matches!(ext.to_lowercase().as_str(), "ico" | "png" | "jpg" | "webp")
+                                            })
+                                        {
+                                            if let Some(b64) = crate::utils::image_file_to_base64(&fp.to_string_lossy()) {
+                                                return Some(b64);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Resolves the icon of a shell application id (Store/UWP/packaged PWA) through
@@ -1513,8 +1621,20 @@ pub(crate) fn is_browser_pwa_aumid(id: &str) -> bool {
 }
 
 unsafe fn pwa_icon_for_window(hwnd: HWND, process_path: &str) -> Option<String> {
-    // The window's own AppUserModelID is the most reliable identity: it is always
-    // present, unlike the process command line (Edge reuses its browser process).
+    let mut title_buf = [0u16; 256];
+    let len = windows::Win32::UI::WindowsAndMessaging::GetWindowTextW(hwnd, &mut title_buf);
+    let window_title = if len > 0 {
+        String::from_utf16_lossy(&title_buf[..len as usize])
+    } else {
+        String::new()
+    };
+
+    if !window_title.is_empty() {
+        if let Some(icon) = find_pwa_shortcut_or_icon(&window_title) {
+            return Some(icon);
+        }
+    }
+
     match crate::utils::get_window_app_user_model_id(hwnd) {
         Some(id) if id.contains('!') => {
             if let Some(icon) = icon_from_aumid(&id) {
@@ -1522,46 +1642,52 @@ unsafe fn pwa_icon_for_window(hwnd: HWND, process_path: &str) -> Option<String> 
             }
         }
         Some(id) if is_browser_pwa_aumid(&id) => {
-            // PWA window. The canonical app id is in the AUMID when available,
-            // otherwise it must come from the command line. That is safe here
-            // because this window is known to be a PWA and the profile lookup
-            // requires the `--app-id=` form of the executable's arguments.
             let mut pid = 0u32;
             windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
-            if pid == 0 {
-                return None;
-            }
-            if let Some(app_id) = browser_web_app_id_from_aumid(&id) {
-                if let Some(icon_path) =
-                    find_browser_pwa_icon(process_path, &format!("--app-id={}", app_id))
-                {
-                    if let Some(icon) = crate::utils::image_file_to_base64(&icon_path) {
+            if pid != 0 {
+                if let Some(app_id) = browser_web_app_id_from_aumid(&id) {
+                    if let Some(icon_path) =
+                        find_browser_pwa_icon(process_path, &format!("--app-id={}", app_id))
+                    {
+                        if let Some(icon) = crate::utils::image_file_to_base64(&icon_path) {
+                            return Some(icon);
+                        }
+                    }
+                }
+                if let Some(command_line) = process_command_line(pid) {
+                    if let Some(icon) = pwa_icon_from_command_line(process_path, &command_line) {
                         return Some(icon);
                     }
                 }
             }
-            if let Some(command_line) = process_command_line(pid) {
-                if let Some(icon) = pwa_icon_from_command_line(process_path, &command_line) {
+            return None;
+        }
+        Some(_) => {
+            if !window_title.is_empty() {
+                if let Some(icon) = find_pwa_shortcut_or_icon(&window_title) {
                     return Some(icon);
                 }
             }
             return None;
         }
-        // A regular browser window ("Chrome", "MSEdge", "Brave", ...). Chromium can
-        // host PWA windows in the same process as the browser, so the process
-        // command line may advertise an `--app-id` that does not belong to this
-        // window. Do not consult it; let the caller fall back to the window icon.
-        Some(_) => return None,
         None => {}
     }
     // Fall back to the process command line for hosts that don't stamp the window.
     let mut pid = 0u32;
     windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
-    if pid == 0 {
-        return None;
+    if pid != 0 {
+        if let Some(command_line) = process_command_line(pid) {
+            if let Some(icon) = pwa_icon_from_command_line(process_path, &command_line) {
+                return Some(icon);
+            }
+        }
     }
-    let command_line = process_command_line(pid)?;
-    pwa_icon_from_command_line(process_path, &command_line)
+    if !window_title.is_empty() {
+        if let Some(icon) = find_pwa_shortcut_or_icon(&window_title) {
+            return Some(icon);
+        }
+    }
+    None
 }
 
 /// Finds the icon Chromium stores for an installed web app in the browser profile.
@@ -1697,6 +1823,9 @@ fn image_size_score(path: &std::path::Path) -> u64 {
         } else if let Ok(n) = token.parse::<u64>() {
             score = score.max(n * n);
         }
+    }
+    if score == 0 {
+        score = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     }
     score
 }

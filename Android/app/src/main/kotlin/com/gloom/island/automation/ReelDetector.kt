@@ -25,6 +25,29 @@ class ReelDetector(private val debugLogging: Boolean = false) {
 
     private val lastScrollIndex = HashMap<String, Int>()
 
+    /**
+     * Checks if a scroll event is a minor jitter or micro-tremor that should not
+     * trigger a state machine transition or reel change.
+     */
+    fun isScrollJitter(ui: TrackedAppUi, event: AccessibilityEvent): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            val deltaY = event.scrollDeltaY
+            val deltaX = event.scrollDeltaX
+            if (deltaY != 0 || deltaX != 0) {
+                // Ignore micro-scrolls under 45px
+                if (abs(deltaY) in 1..45 && abs(deltaX) in 0..45) {
+                    return true
+                }
+            }
+        }
+        val prev = lastScrollIndex[ui.packageName]
+        val curr = event.fromIndex
+        if (prev != null && prev == curr && event.itemCount > 1) {
+            return true
+        }
+        return false
+    }
+
     fun onScrollEvent(ui: TrackedAppUi, event: AccessibilityEvent) {
         val index = event.fromIndex
         if (index >= 0 && event.itemCount > 1) {
