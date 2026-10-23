@@ -9,7 +9,6 @@ import com.gloom.island.security.PiiMasker
 import com.gloom.island.security.Vault
 import com.gloom.island.service.GloomIslandAccessibilityService
 import com.gloom.island.settings.GloomIslandSettings
-import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

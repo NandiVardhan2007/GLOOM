@@ -6,7 +6,6 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.BroadcastReceiver
 import android.content.ClipboardManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -18,10 +17,8 @@ import androidx.core.content.ContextCompat
 import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.media.AudioManager
-import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
-import android.media.session.PlaybackState
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler

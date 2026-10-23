@@ -20,14 +20,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import org.json.JSONObject
-import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.InputStreamReader
 import java.io.OutputStream
-import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URL
 import java.security.MessageDigest

@@ -7,7 +7,6 @@ import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -36,7 +35,6 @@ import com.gloom.island.service.VoiceUnlockActivity
 import com.gloom.island.voice.VoicePrefs
 import com.gloom.island.voice.WakeWordModel
 import com.gloom.island.voice.WakeWordService
-import java.util.Locale
 
 @Composable
 fun VoiceSettingsScreen(onBack: () -> Unit) {

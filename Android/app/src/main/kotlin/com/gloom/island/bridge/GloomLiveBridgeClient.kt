@@ -12,7 +12,6 @@ import org.json.JSONObject
 import java.io.OutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface

@@ -27,8 +27,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -65,7 +63,6 @@ import com.gloom.island.ui.AppleButton
 import com.gloom.island.ui.AppleType
 import com.gloom.island.ui.GloomIcons
 import com.gloom.island.ui.GloomIcon
-import com.gloom.island.voice.AppLauncher
 import kotlinx.coroutines.delay
 import java.util.Locale
 

@@ -3,7 +3,6 @@ package com.gloom.island.automation
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import java.time.LocalDate

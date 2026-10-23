@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.media.AudioManager
 import android.media.MediaMetadata
@@ -13,7 +12,6 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper

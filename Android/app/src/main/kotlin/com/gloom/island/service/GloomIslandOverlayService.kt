@@ -43,7 +43,6 @@ import com.gloom.island.bridge.FileBeamReceiver
 import com.gloom.island.bridge.GloomLiveBridgeClient
 import com.gloom.island.cutout.CutoutDetector
 import com.gloom.island.cutout.CutoutMetrics
-import com.gloom.island.security.GloomSecurity
 import com.gloom.island.settings.GloomIslandSettings
 import com.gloom.island.ui.ActiveTransferInfo
 import com.gloom.island.ui.BridgeDeviceInfo
