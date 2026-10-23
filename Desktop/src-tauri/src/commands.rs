@@ -159,7 +159,7 @@ pub async fn update_notch_rect(rect: IntRect) {
 pub fn set_window_height(window: Window, height: f64) {
     if let Ok(scale_factor) = window.scale_factor() {
         if let Ok(physical_size) = window.inner_size() {
-            let logical_width = physical_size.width as f64 / scale_factor;
+            let logical_width = crate::monitors::physical_to_logical(physical_size.width as f64, scale_factor);
             let _ = window.set_size(tauri::LogicalSize::new(logical_width, height));
         }
     }
@@ -3249,14 +3249,11 @@ pub fn clear_volume_mixer_rect() {
 
 /// Unregisters the notch and dock AppBars so Windows gives their work area back.
 pub fn release_appbars(handle: &AppHandle) {
-    if let Some(w) = handle.get_webview_window("main") {
-        if let Ok(hwnd) = w.hwnd() {
-            unregister_appbar_native(hwnd);
-        }
-    }
-    if let Some(w) = handle.get_webview_window("dock") {
-        if let Ok(hwnd) = w.hwnd() {
-            unregister_appbar_native(hwnd);
+    for (label, w) in handle.webview_windows() {
+        if label.starts_with("main") || label.starts_with("dock") {
+            if let Ok(hwnd) = w.hwnd() {
+                unregister_appbar_native(hwnd);
+            }
         }
     }
     MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);

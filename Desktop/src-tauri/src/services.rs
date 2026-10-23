@@ -3667,7 +3667,8 @@ pub fn register_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::mo
         return;
     };
     let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
-    let ph = ((420.0 * gloom_scale) * mon.scale_factor) as i32;
+    let (final_x, final_y, final_width, ph) =
+        crate::monitors::calculate_window_physical_bounds(mon, 420.0, gloom_scale, false);
     let pr = ((40.0 * gloom_scale) * mon.scale_factor) as i32;
 
     unsafe {
@@ -3677,8 +3678,8 @@ pub fn register_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::mo
         };
         use windows::Win32::UI::WindowsAndMessaging::{
             GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
-            WS_EX_TOOLWINDOW,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+            WS_EX_NOACTIVATE as WS_EX_NA, WS_EX_TOOLWINDOW,
         };
 
         let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
@@ -3713,10 +3714,6 @@ pub fn register_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::mo
         SHAppBarMessage(ABM_QUERYPOS, &mut abd);
         SHAppBarMessage(ABM_SETPOS, &mut abd);
 
-        let final_x = mon.x;
-        let final_y = mon.y;
-        let final_width = mon.width as i32;
-
         let mut current_rect = RECT::default();
         let mut already_positioned = false;
         if GetWindowRect(hwnd, &mut current_rect).is_ok() {
@@ -3732,14 +3729,25 @@ pub fn register_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::mo
         }
 
         if !already_positioned {
+            // Position first to bind window to target monitor and initialize monitor DPI
             let _ = SetWindowPos(
                 hwnd,
                 None,
                 final_x,
                 final_y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+            // Sizing second to apply physical dimensions on the target monitor
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
                 final_width,
                 ph,
-                SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
             );
         }
 
@@ -3759,16 +3767,27 @@ pub fn unregister_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::
         let ph = ((420.0 * gloom_scale) * mon.scale_factor) as i32;
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{
-                SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
+                SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
             };
+            // Position first
             let _ = SetWindowPos(
                 hwnd,
                 None,
                 mon.x,
                 mon.y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+            // Sizing second
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
                 mon.width as i32,
                 ph,
-                SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
             );
         }
         re_assert_topmost(hwnd);
@@ -3884,8 +3903,8 @@ pub fn register_dock_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crat
         };
         use windows::Win32::UI::WindowsAndMessaging::{
             GetWindowLongPtrW, RegisterWindowMessageW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
-            WS_EX_TOOLWINDOW,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+            WS_EX_NOACTIVATE as WS_EX_NA, WS_EX_TOOLWINDOW,
         };
 
         let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
@@ -3925,14 +3944,25 @@ pub fn register_dock_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crat
         SHAppBarMessage(ABM_SETPOS, &mut abd);
 
         let final_y = mon.y + mon.height as i32 - ph;
+        // Position first
         let _ = SetWindowPos(
             hwnd,
             None,
             mon.x,
             final_y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+        // Sizing second
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
             mon.width as i32,
             ph,
-            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         );
 
         re_assert_topmost(hwnd);
@@ -3972,16 +4002,28 @@ pub fn reposition_autohide_dock_on_monitor(
             unsafe {
                 use windows::Win32::Foundation::HWND;
                 use windows::Win32::UI::WindowsAndMessaging::{
-                    SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
+                    SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+                    SWP_NOZORDER,
                 };
+                // Position first
                 let _ = SetWindowPos(
                     HWND(hwnd_val as *mut _),
                     None,
                     mon_clone.x,
                     final_y,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+                // Sizing second
+                let _ = SetWindowPos(
+                    HWND(hwnd_val as *mut _),
+                    None,
+                    0,
+                    0,
                     mon_clone.width as i32,
                     ph,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
                 );
             }
             if let Ok(hwnd) = dock_clone.hwnd() {

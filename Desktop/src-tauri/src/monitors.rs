@@ -143,6 +143,44 @@ pub fn resolve_monitors_for_setting(
     vec![primary]
 }
 
+/// Converts physical pixel dimensions to logical units based on the display scale factor.
+pub fn physical_to_logical(physical_px: f64, scale_factor: f64) -> f64 {
+    if scale_factor <= 0.0 {
+        physical_px
+    } else {
+        physical_px / scale_factor
+    }
+}
+
+/// Converts logical pixel dimensions to physical device pixels based on the display scale factor.
+pub fn logical_to_physical(logical_px: f64, scale_factor: f64) -> f64 {
+    if scale_factor <= 0.0 {
+        logical_px
+    } else {
+        logical_px * scale_factor
+    }
+}
+
+/// Calculates the window target rectangle (x, y, width, height) in physical pixels
+/// for placing a window with given logical dimensions on a monitor with mixed DPI.
+pub fn calculate_window_physical_bounds(
+    mon: &MonitorInfo,
+    logical_height: f64,
+    gloom_scale: f64,
+    is_bottom_dock: bool,
+) -> (i32, i32, i32, i32) {
+    let scaled_logical = logical_height * gloom_scale;
+    let physical_height = logical_to_physical(scaled_logical, mon.scale_factor).round() as i32;
+    let physical_width = mon.width as i32;
+    let target_x = mon.x;
+    let target_y = if is_bottom_dock {
+        mon.y + mon.height as i32 - physical_height
+    } else {
+        mon.y
+    };
+    (target_x, target_y, physical_width, physical_height)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,5 +308,85 @@ mod tests {
         assert_eq!(res[0].x, -2560);
         assert_eq!(res[0].y, -200);
         assert_eq!(res[0].scale_factor, 1.5);
+    }
+
+    #[test]
+    fn test_physical_to_logical_conversions() {
+        // 100% scale (scale factor 1.0)
+        assert_eq!(physical_to_logical(1920.0, 1.0), 1920.0);
+        assert_eq!(logical_to_physical(1920.0, 1.0), 1920.0);
+
+        // 125% scale (scale factor 1.25)
+        assert_eq!(physical_to_logical(2560.0, 1.25), 2048.0);
+        assert_eq!(logical_to_physical(2048.0, 1.25), 2560.0);
+
+        // 150% scale (scale factor 1.5)
+        assert_eq!(physical_to_logical(1500.0, 1.5), 1000.0);
+        assert_eq!(logical_to_physical(1000.0, 1.5), 1500.0);
+
+        // 200% scale (scale factor 2.0)
+        assert_eq!(physical_to_logical(3840.0, 2.0), 1920.0);
+        assert_eq!(logical_to_physical(1920.0, 2.0), 3840.0);
+    }
+
+    #[test]
+    fn test_calculate_window_physical_bounds_top_notch() {
+        let primary = MonitorInfo {
+            id: r"\\.\DISPLAY1".into(),
+            name: "DISPLAY1".into(),
+            label: "Primary".into(),
+            is_primary: true,
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            scale_factor: 1.0,
+        };
+        // Top notch with logical height 420.0, gloom scale 1.0
+        let (x, y, w, h) = calculate_window_physical_bounds(&primary, 420.0, 1.0, false);
+        assert_eq!((x, y, w, h), (0, 0, 1920, 420));
+
+        // Mixed DPI secondary display at x=1920, 125% scale (1.25)
+        let secondary = MonitorInfo {
+            id: r"\\.\DISPLAY2".into(),
+            name: "DISPLAY2".into(),
+            label: "Secondary 125%".into(),
+            is_primary: false,
+            x: 1920,
+            y: 0,
+            width: 2560,
+            height: 1440,
+            scale_factor: 1.25,
+        };
+        let (sx, sy, sw, sh) = calculate_window_physical_bounds(&secondary, 420.0, 1.0, false);
+        assert_eq!(sx, 1920);
+        assert_eq!(sy, 0);
+        assert_eq!(sw, 2560);
+        // 420.0 * 1.25 = 525 physical px
+        assert_eq!(sh, 525);
+    }
+
+    #[test]
+    fn test_calculate_window_physical_bounds_bottom_dock() {
+        // Bottom dock on monitor with negative X coordinate and 150% scaling
+        let left_mon = MonitorInfo {
+            id: r"\\.\DISPLAY_LEFT".into(),
+            name: "DISPLAY_LEFT".into(),
+            label: "Left Display".into(),
+            is_primary: false,
+            x: -2560,
+            y: -200,
+            width: 2560,
+            height: 1440,
+            scale_factor: 1.5,
+        };
+        // Dock height 600.0, scale 1.0
+        let (lx, ly, lw, lh) = calculate_window_physical_bounds(&left_mon, 600.0, 1.0, true);
+        assert_eq!(lx, -2560);
+        // 600 * 1.5 = 900 physical px
+        assert_eq!(lh, 900);
+        // y + height - physical_height = -200 + 1440 - 900 = 340
+        assert_eq!(ly, 340);
+        assert_eq!(lw, 2560);
     }
 }
