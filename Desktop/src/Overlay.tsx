@@ -821,6 +821,7 @@ function OverlayApp() {
 			durationMs?: number;
 		}>("gloom-genie-animate", (event) => {
 			if (splashActiveRef.current) return;
+			if (localStorage.getItem("gloom-dock-genie-effect") === "false") return;
 			setGenieData(event.payload);
 			setMode("genie");
 		});
@@ -847,7 +848,14 @@ function OverlayApp() {
 		"gloom-volume-edge-enabled": setVolumeEdgeEnabled,
 		"gloom-brightness-overlay-enabled": setBrightnessOverlayEnabled,
 		"gloom-brightness-edge-enabled": setBrightnessEdgeEnabled,
-		"gloom-scale": setScale
+		"gloom-scale": setScale,
+		"gloom-dock-genie-effect": (val: any) => {
+			const enabled = val !== false && val !== "false";
+			if (!enabled) {
+				setMode((prev) => (prev === "genie" ? "idle" : prev));
+				setGenieData(null);
+			}
+		}
 	});
 
 	// Side effects: reset overlay mode to idle when overlay is disabled

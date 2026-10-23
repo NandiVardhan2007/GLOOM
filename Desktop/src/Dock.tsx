@@ -451,7 +451,7 @@ const Dock = memo(function Dock() {
 	useSettingsSync({
 		"gloom-dock-mode": setDockMode,
 		"gloom-dock-preview-enabled": setDockPreviewEnabled,
-		"gloom-dock-genie-effect": (val: string) => setDockGenieEnabled(val !== "false"),
+		"gloom-dock-genie-effect": (val: any) => setDockGenieEnabled(val !== false && val !== "false"),
 		"gloom-dock-icon-only": setDockIconOnly,
 		"gloom-dock-separator-enabled": setDockSeparatorEnabled,
 		"gloom-dock-adaptive": setDockAdaptive,
@@ -677,7 +677,8 @@ const Dock = memo(function Dock() {
 				// Several windows: bring the most recent forward, then cycle.
 				await invoke("focus_app_windows", { hwnds: app.all_hwnds.map(([hwnd]) => hwnd) });
 			} else if (app.hwnd) {
-				if (dockGenieEnabled) {
+				const isGenieOn = dockGenieEnabled && localStorage.getItem("gloom-dock-genie-effect") !== "false";
+				if (isGenieOn) {
 					try {
 						const geom = await invoke<{ x: number; y: number; width: number; height: number; is_minimized: boolean } | null>("get_window_geometry", { hwnd: app.hwnd });
 						if (geom && geom.width > 60 && geom.height > 60) {
@@ -708,7 +709,7 @@ const Dock = memo(function Dock() {
 									windowRect: { x: geom.x, y: geom.y, width: geom.width, height: geom.height },
 									dockTarget,
 									direction: geom.is_minimized ? "restore" : "minimize",
-									durationMs: 340
+									durationMs: parseInt(localStorage.getItem("gloom-dock-genie-duration") || "380")
 								});
 							}
 						}
