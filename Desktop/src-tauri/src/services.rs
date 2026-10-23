@@ -4350,22 +4350,88 @@ pub fn reposition_all_windows(app_handle: &AppHandle) {
     let notch_reserves = notch_mode_reserves_work_area(notch_mode.as_deref());
 
     // 1. Notch windows
-    for (idx, mon) in target_notch_mons.iter().enumerate() {
-        let win = if idx == 0 {
+    let active_notch_labels: std::collections::HashSet<String> = target_notch_mons
+        .iter()
+        .map(|m| crate::monitors::safe_notch_window_label(m))
+        .collect();
+
+    for mon in &target_notch_mons {
+        let label = crate::monitors::safe_notch_window_label(mon);
+        let win = if label == "main" {
             app_handle.get_webview_window("main")
+        } else if let Some(w) = app_handle.get_webview_window(&label) {
+            Some(w)
         } else {
-            let label = format!("main-{}", idx);
-            if let Some(w) = app_handle.get_webview_window(&label) {
+            tauri::WebviewWindowBuilder::new(
+                app_handle,
+                &label,
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("GLOOM")
+            .inner_size(mon.width as f64, 420.0)
+            .position(mon.x as f64, mon.y as f64)
+            .decorations(false)
+            .transparent(true)
+            .resizable(false)
+            .maximizable(false)
+            .minimizable(false)
+            .closable(false)
+            .always_on_top(true)
+            .visible_on_all_workspaces(true)
+            .focused(false)
+            .skip_taskbar(true)
+            .shadow(false)
+            .visible(false)
+            .build()
+            .ok()
+        };
+
+        if let Some(w) = win {
+            let _ = w.set_ignore_cursor_events(true);
+            if notch_reserves {
+                register_appbar_on_monitor(&w, mon);
+            } else {
+                unregister_appbar_on_monitor(&w, mon);
+            }
+        }
+    }
+
+    // Clean up any secondary notch windows that are no longer selected
+    for (label, w) in app_handle.webview_windows() {
+        if label.starts_with("main-") && !active_notch_labels.contains(&label) {
+            if let Ok(hwnd) = w.hwnd() {
+                unregister_appbar_native(hwnd);
+                mark_appbar_registered(hwnd.0 as isize, false);
+            }
+            let _ = w.destroy();
+        }
+    }
+
+    // 2. Dock windows
+    if crate::utils::dock_enabled() {
+        let dock_mode = get_setting_str(app_handle, "gloom-dock-mode");
+        let dock_is_fixed = dock_mode.as_deref() == Some("fixed");
+
+        let active_dock_labels: std::collections::HashSet<String> = target_dock_mons
+            .iter()
+            .map(|m| crate::monitors::safe_dock_window_label(m))
+            .collect();
+
+        for mon in &target_dock_mons {
+            let label = crate::monitors::safe_dock_window_label(mon);
+            let win = if label == "dock" {
+                app_handle.get_webview_window("dock")
+            } else if let Some(w) = app_handle.get_webview_window(&label) {
                 Some(w)
             } else {
                 tauri::WebviewWindowBuilder::new(
                     app_handle,
                     &label,
-                    tauri::WebviewUrl::App("index.html".into()),
+                    tauri::WebviewUrl::App("dock.html".into()),
                 )
-                .title("GLOOM")
-                .inner_size(mon.width as f64, 420.0)
-                .position(mon.x as f64, mon.y as f64)
+                .title("GLOOM Dock")
+                .inner_size(mon.width as f64, 600.0)
+                .position(mon.x as f64, (mon.y + mon.height as i32 - 600) as f64)
                 .decorations(false)
                 .transparent(true)
                 .resizable(false)
@@ -4380,71 +4446,6 @@ pub fn reposition_all_windows(app_handle: &AppHandle) {
                 .visible(false)
                 .build()
                 .ok()
-            }
-        };
-
-        if let Some(w) = win {
-            let _ = w.set_ignore_cursor_events(true);
-            if notch_reserves {
-                register_appbar_on_monitor(&w, mon);
-            } else {
-                unregister_appbar_on_monitor(&w, mon);
-            }
-        }
-    }
-
-    // Clean up any extra secondary notch windows
-    let mut extra_notch_idx = target_notch_mons.len();
-    loop {
-        let label = format!("main-{}", extra_notch_idx);
-        if let Some(w) = app_handle.get_webview_window(&label) {
-            if let Ok(hwnd) = w.hwnd() {
-                unregister_appbar_native(hwnd);
-                mark_appbar_registered(hwnd.0 as isize, false);
-            }
-            let _ = w.destroy();
-            extra_notch_idx += 1;
-        } else {
-            break;
-        }
-    }
-
-    // 2. Dock windows
-    if crate::utils::dock_enabled() {
-        let dock_mode = get_setting_str(app_handle, "gloom-dock-mode");
-        let dock_is_fixed = dock_mode.as_deref() == Some("fixed");
-
-        for (idx, mon) in target_dock_mons.iter().enumerate() {
-            let win = if idx == 0 {
-                app_handle.get_webview_window("dock")
-            } else {
-                let label = format!("dock-{}", idx);
-                if let Some(w) = app_handle.get_webview_window(&label) {
-                    Some(w)
-                } else {
-                    tauri::WebviewWindowBuilder::new(
-                        app_handle,
-                        &label,
-                        tauri::WebviewUrl::App("dock.html".into()),
-                    )
-                    .title("GLOOM Dock")
-                    .inner_size(mon.width as f64, 600.0)
-                    .position(mon.x as f64, (mon.y + mon.height as i32 - 600) as f64)
-                    .decorations(false)
-                    .transparent(true)
-                    .resizable(false)
-                    .maximizable(false)
-                    .minimizable(false)
-                    .closable(false)
-                    .always_on_top(true)
-                    .visible_on_all_workspaces(true)
-                    .focused(false)
-                    .skip_taskbar(true)
-                    .shadow(false)
-                    .visible(false)
-                    .build()
-                    .ok()
-                }
             };
 
             if let Some(w) = win {
@@ -4457,37 +4458,27 @@ pub fn reposition_all_windows(app_handle: &AppHandle) {
             }
         }
 
-        // Clean up any extra secondary dock windows
-        let mut extra_dock_idx = target_dock_mons.len();
-        loop {
-            let label = format!("dock-{}", extra_dock_idx);
-            if let Some(w) = app_handle.get_webview_window(&label) {
+        // Clean up any secondary dock windows that are no longer selected
+        for (label, w) in app_handle.webview_windows() {
+            if label.starts_with("dock-") && !active_dock_labels.contains(&label) {
                 if let Ok(hwnd) = w.hwnd() {
                     unregister_appbar_native(hwnd);
                     mark_dock_appbar_registered(hwnd.0 as isize, false);
                 }
                 let _ = w.destroy();
-                extra_dock_idx += 1;
-            } else {
-                break;
             }
         }
     } else {
         if let Some(w) = app_handle.get_webview_window("dock") {
             disable_dock_appbar(w);
         }
-        let mut extra_dock_idx = 1;
-        loop {
-            let label = format!("dock-{}", extra_dock_idx);
-            if let Some(w) = app_handle.get_webview_window(&label) {
+        for (label, w) in app_handle.webview_windows() {
+            if label.starts_with("dock-") {
                 if let Ok(hwnd) = w.hwnd() {
                     unregister_appbar_native(hwnd);
                     mark_dock_appbar_registered(hwnd.0 as isize, false);
                 }
                 let _ = w.destroy();
-                extra_dock_idx += 1;
-            } else {
-                break;
             }
         }
     }

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Monitor } from "lucide-react";
+import { Monitor, Check } from "lucide-react";
 
 export interface MonitorInfo {
 	id: string;
+	gdi_name: string;
 	name: string;
 	label: string;
 	is_primary: boolean;
@@ -18,7 +19,7 @@ export interface MonitorInfo {
 interface DisplayPlacementSectionProps {
 	title: string;
 	description: string;
-	value: string; // "primary" | "all" | monitor id
+	value: string; // "primary" | "all" | JSON array of IDs | single ID
 	onChange: (val: string) => void;
 }
 
@@ -59,6 +60,87 @@ export function DisplayPlacementSection({
 
 	const isSingleMonitor = monitors.length <= 1;
 
+	// Parse current selected IDs based on setting value
+	const selectedIds = useMemo(() => {
+		const trimmed = (value || "").trim();
+		if (!trimmed || trimmed === "primary") {
+			const primary = monitors.find((m) => m.is_primary) || monitors[0];
+			return primary ? new Set([primary.id]) : new Set<string>();
+		}
+		if (trimmed === "all") {
+			return new Set(monitors.map((m) => m.id));
+		}
+		// Try JSON array
+		try {
+			const parsed = JSON.parse(trimmed);
+			if (Array.isArray(parsed)) {
+				return new Set<string>(parsed.filter((item) => typeof item === "string"));
+			}
+		} catch {
+			// Not JSON
+		}
+		// Comma-separated or single ID
+		if (trimmed.includes(",")) {
+			return new Set<string>(trimmed.split(",").map((s) => s.trim()).filter(Boolean));
+		}
+		return new Set<string>([trimmed]);
+	}, [value, monitors]);
+
+	const isSelected = (m: MonitorInfo): boolean => {
+		const trimmed = (value || "").trim();
+		if (trimmed === "all") return true;
+		if (!trimmed || trimmed === "primary") return m.is_primary;
+		return (
+			selectedIds.has(m.id) ||
+			(!!m.gdi_name && selectedIds.has(m.gdi_name)) ||
+			(!!m.name && selectedIds.has(m.name))
+		);
+	};
+
+	// Count currently selected connected monitors
+	const selectedCount = useMemo(() => {
+		return monitors.filter((m) => isSelected(m)).length;
+	}, [monitors, value, selectedIds]);
+
+	const handleToggleMonitor = (m: MonitorInfo) => {
+		if (isSingleMonitor) return;
+
+		const currentlySelected = isSelected(m);
+
+		// Disallow unchecking the last remaining selected monitor
+		if (currentlySelected && selectedCount <= 1) {
+			return;
+		}
+
+		// Convert current state into an explicit array of IDs
+		const currentSelectedList: string[] = [];
+		for (const mon of monitors) {
+			if (isSelected(mon)) {
+				currentSelectedList.push(mon.id);
+			}
+		}
+
+		let nextIds: string[];
+		if (currentlySelected) {
+			nextIds = currentSelectedList.filter(
+				(id) => id !== m.id && id !== m.gdi_name && id !== m.name
+			);
+		} else {
+			nextIds = [...currentSelectedList, m.id];
+		}
+
+		// Save as explicit JSON array
+		onChange(JSON.stringify(nextIds));
+	};
+
+	const handleSelectPrimaryShortcut = () => {
+		onChange("primary");
+	};
+
+	const handleSelectAllShortcut = () => {
+		onChange("all");
+	};
+
 	// Calculate bounding box for canvas layout
 	const minX = monitors.length > 0 ? Math.min(...monitors.map((m) => m.x)) : 0;
 	const maxX = monitors.length > 0 ? Math.max(...monitors.map((m) => m.x + m.width)) : 1920;
@@ -69,23 +151,8 @@ export function DisplayPlacementSection({
 	const totalH = Math.max(1, maxY - minY);
 
 	const canvasWidth = 360;
-	const canvasHeight = 130;
+	const canvasHeight = 120;
 	const scale = Math.min((canvasWidth - 40) / totalW, (canvasHeight - 30) / totalH);
-
-	const isSelected = (m: MonitorInfo) => {
-		if (value === "all") return true;
-		if (value === "primary" || !value) return m.is_primary;
-		return value === m.id || value === m.name;
-	};
-
-	const handleBoxClick = (m: MonitorInfo) => {
-		if (isSingleMonitor) return;
-		if (m.is_primary) {
-			onChange("primary");
-		} else {
-			onChange(m.id);
-		}
-	};
 
 	return (
 		<div className="display-placement-container">
@@ -97,25 +164,24 @@ export function DisplayPlacementSection({
 					<div className="setting-label">{title}</div>
 					<div className="setting-desc">{description}</div>
 				</div>
-				<div className="setting-control">
-					<select
-						className="settings-select"
-						value={isSingleMonitor ? "primary" : value || "primary"}
-						disabled={isSingleMonitor}
-						onChange={(e) => onChange(e.target.value)}
-					>
-						<option value="primary">Main display only (Primary)</option>
-						{!isSingleMonitor &&
-							monitors.map((m) => (
-								<option key={m.id} value={m.id}>
-									{m.label}
-								</option>
-							))}
-						{!isSingleMonitor && (
-							<option value="all">Both monitors (All displays)</option>
-						)}
-					</select>
-				</div>
+				{!isSingleMonitor && (
+					<div className="display-shortcuts">
+						<button
+							type="button"
+							className={`display-shortcut-btn ${(value || "").trim() === "primary" ? "active" : ""}`}
+							onClick={handleSelectPrimaryShortcut}
+						>
+							Primary only
+						</button>
+						<button
+							type="button"
+							className={`display-shortcut-btn ${(value || "").trim() === "all" ? "active" : ""}`}
+							onClick={handleSelectAllShortcut}
+						>
+							All displays
+						</button>
+					</div>
+				)}
 			</div>
 
 			{/* Interactive Windows 11 style Monitor Layout Canvas */}
@@ -140,35 +206,80 @@ export function DisplayPlacementSection({
 							const left = (m.x - minX) * scale + 20;
 							const top = (m.y - minY) * scale + 15;
 							const active = isSelected(m);
+							const disabled = isSingleMonitor || (active && selectedCount <= 1);
 
 							return (
 								<button
 									key={m.id || idx}
 									type="button"
-									className={`display-box ${active ? "selected" : ""}`}
+									className={`display-box ${active ? "selected" : ""} ${disabled ? "locked" : ""}`}
 									style={{
 										left: `${left}px`,
 										top: `${top}px`,
 										width: `${boxW}px`,
 										height: `${boxH}px`
 									}}
-									onClick={() => handleBoxClick(m)}
-									title={m.label}
+									onClick={() => handleToggleMonitor(m)}
+									title={`${m.label}${active && selectedCount <= 1 ? " (At least one display must stay selected)" : ""}`}
 								>
 									<span className="display-box-number">{idx + 1}</span>
 									{m.is_primary && <span className="display-box-badge">Primary</span>}
+									{active && (
+										<span className="display-box-check">
+											<Check size={12} strokeWidth={3} />
+										</span>
+									)}
 								</button>
 							);
 						})
 					)}
 				</div>
+
+				{/* Per-Monitor Checklist */}
+				{!isSingleMonitor && monitors.length > 0 && (
+					<div className="display-checklist" role="group" aria-label="Monitors checklist">
+						{monitors.map((m, idx) => {
+							const active = isSelected(m);
+							const isOnlySelected = active && selectedCount <= 1;
+
+							return (
+								<label
+									key={m.id || idx}
+									className={`display-check-item ${active ? "checked" : ""} ${isOnlySelected ? "locked" : ""}`}
+								>
+									<input
+										type="checkbox"
+										className="display-check-input"
+										checked={active}
+										disabled={isOnlySelected}
+										onChange={() => handleToggleMonitor(m)}
+										aria-label={m.label}
+									/>
+									<span className="display-check-indicator">
+										{active && <Check size={12} strokeWidth={3} />}
+									</span>
+									<div className="display-check-text">
+										<span className="display-check-title">
+											Monitor {idx + 1} - {m.name}
+											{m.is_primary && <span className="display-primary-pill">Primary</span>}
+										</span>
+										<span className="display-check-specs">
+											{m.width}×{m.height} • {Math.round(m.scale_factor * 100)}% scaling
+										</span>
+									</div>
+								</label>
+							);
+						})}
+					</div>
+				)}
+
 				{isSingleMonitor ? (
 					<div className="display-single-hint">
 						Single display detected. Placement is locked to your primary monitor.
 					</div>
 				) : (
 					<div className="display-multi-hint">
-						Click a display above or use the dropdown to set placement.
+						Click monitors above or check the boxes to customize placement. At least one display must stay selected.
 					</div>
 				)}
 			</div>
