@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
 import android.os.CancellationSignal
+import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 
 /**
  * Uses the platform biometric prompt so the app can keep ComponentActivity as
@@ -29,29 +31,42 @@ object BiometricAuth {
         onFallback: (() -> Unit)? = null
     ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            onError("Fingerprint unlock requires Android 9 or newer")
+            onFallback?.invoke() ?: onError("Fingerprint unlock requires Android 9 or newer")
             return
         }
-        val executor = activity.mainExecutor
-        val builder = BiometricPrompt.Builder(activity)
-            .setTitle("Unlock GLOOM")
-            .setSubtitle("Confirm with your fingerprint")
-            .setNegativeButton("Use pattern", executor) { _, _ ->
-                onFallback?.invoke() ?: onError("Cancelled")
-            }
-        val prompt = builder.build()
-        prompt.authenticate(
-            CancellationSignal(),
-            executor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
-                    onSuccess()
-                }
+        Api28Impl.prompt(activity, onSuccess, onError, onFallback)
+    }
 
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
-                    onError(errString?.toString() ?: "Authentication failed")
+    @RequiresApi(Build.VERSION_CODES.P)
+    private object Api28Impl {
+        @RequiresPermission(android.Manifest.permission.USE_BIOMETRIC)
+        fun prompt(
+            activity: Activity,
+            onSuccess: () -> Unit,
+            onError: (String) -> Unit,
+            onFallback: (() -> Unit)? = null
+        ) {
+            val executor = activity.mainExecutor
+            val builder = BiometricPrompt.Builder(activity)
+                .setTitle("Unlock GLOOM")
+                .setSubtitle("Confirm with your fingerprint")
+                .setNegativeButton("Use pattern", executor) { _, _ ->
+                    onFallback?.invoke() ?: onError("Cancelled")
                 }
-            }
-        )
+            val prompt = builder.build()
+            prompt.authenticate(
+                CancellationSignal(),
+                executor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
+                        onSuccess()
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
+                        onError(errString?.toString() ?: "Authentication failed")
+                    }
+                }
+            )
+        }
     }
 }

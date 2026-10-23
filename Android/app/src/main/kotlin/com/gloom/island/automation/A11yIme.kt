@@ -5,6 +5,7 @@ import android.accessibilityservice.InputMethod
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.RequiresApi
 
 /**
  * Types through the accessibility service's own input connection (API 33+).
@@ -23,38 +24,22 @@ object A11yIme {
     private const val READ_BUDGET_MS = 700L
     private const val READ_POLL_MS = 60L
     private const val SESSION_WAIT_MS = 450L
+    private const val MAX_READ = 8192
 
-    fun available(service: AccessibilityService): Boolean = connection(service) != null
+    fun available(service: AccessibilityService): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && Api33Impl.available(service)
+    }
 
     /** Replaces the focused editor's contents. Null means the channel is absent. */
     fun replace(service: AccessibilityService, text: String): String? {
-        val conn = awaitConnection(service) ?: return null
-        clear(conn)
-        runCatching { conn.commitText(text, 1, null) }.onFailure {
-            Log.w(TAG, "commitText failed", it)
-            return null
-        }
-        var got = ""
-        val deadline = SystemClock.uptimeMillis() + READ_BUDGET_MS
-        do {
-            Thread.sleep(READ_POLL_MS)
-            got = read(conn) ?: return null
-            if (got == text) break
-        } while (SystemClock.uptimeMillis() < deadline)
-        return got
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        return Api33Impl.replace(service, text)
     }
 
     /** Fires the focused editor's own IME action (Send / Search / Done / Next). */
     fun submit(service: AccessibilityService): Boolean {
-        val conn = connection(service) ?: return false
-        val info = runCatching { service.inputMethod?.currentInputEditorInfo }.getOrNull() ?: return false
-        val action = if (info.actionId != 0) {
-            info.actionId
-        } else {
-            info.imeOptions and android.view.inputmethod.EditorInfo.IME_MASK_ACTION
-        }
-        if (action == 0 || action == android.view.inputmethod.EditorInfo.IME_ACTION_NONE) return false
-        return runCatching { conn.performEditorAction(action); true }.getOrDefault(false)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        return Api33Impl.submit(service)
     }
 
     /**
@@ -63,48 +48,85 @@ object A11yIme {
      * visible Send control instead.
      */
     fun sendsOnlyFromButton(service: AccessibilityService): Boolean {
-        if (connection(service) == null) return false
-        val info = runCatching { service.inputMethod?.currentInputEditorInfo }.getOrNull() ?: return false
-        return info.actionId == 0 &&
-            info.imeOptions and android.view.inputmethod.EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        return Api33Impl.sendsOnlyFromButton(service)
     }
 
-    private fun awaitConnection(service: AccessibilityService): InputMethod.AccessibilityInputConnection? {
-        val deadline = SystemClock.uptimeMillis() + SESSION_WAIT_MS
-        while (true) {
-            connection(service)?.let { return it }
-            if (SystemClock.uptimeMillis() >= deadline) return null
-            Thread.sleep(50)
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private object Api33Impl {
+
+        fun available(service: AccessibilityService): Boolean = connection(service) != null
+
+        fun replace(service: AccessibilityService, text: String): String? {
+            val conn = awaitConnection(service) ?: return null
+            clear(conn)
+            runCatching { conn.commitText(text, 1, null) }.onFailure {
+                Log.w(TAG, "commitText failed", it)
+                return null
+            }
+            var got = ""
+            val deadline = SystemClock.uptimeMillis() + READ_BUDGET_MS
+            do {
+                Thread.sleep(READ_POLL_MS)
+                got = read(conn) ?: return null
+                if (got == text) break
+            } while (SystemClock.uptimeMillis() < deadline)
+            return got
         }
-    }
 
-    private fun connection(service: AccessibilityService): InputMethod.AccessibilityInputConnection? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-        val inputMethod = runCatching { service.inputMethod }.getOrNull() ?: return null
-        if (!runCatching { inputMethod.currentInputStarted }.getOrDefault(false)) return null
-        return runCatching { inputMethod.currentInputConnection }.getOrNull()
-    }
-
-    private fun clear(conn: InputMethod.AccessibilityInputConnection) {
-        val surrounding = runCatching { conn.getSurroundingText(MAX_READ, MAX_READ, 0) }.getOrNull() ?: return
-        val text = surrounding.text?.toString().orEmpty()
-        if (text.isEmpty()) return
-        val start = surrounding.selectionStart
-        val end = surrounding.selectionEnd
-        runCatching {
-            if (start >= 0 && end >= 0) {
-                conn.deleteSurroundingText(start, text.length - end)
+        fun submit(service: AccessibilityService): Boolean {
+            val conn = connection(service) ?: return false
+            val info = runCatching { service.inputMethod?.currentInputEditorInfo }.getOrNull() ?: return false
+            val action = if (info.actionId != 0) {
+                info.actionId
             } else {
-                conn.setSelection(surrounding.offset, surrounding.offset + text.length)
+                info.imeOptions and android.view.inputmethod.EditorInfo.IME_MASK_ACTION
+            }
+            if (action == 0 || action == android.view.inputmethod.EditorInfo.IME_ACTION_NONE) return false
+            return runCatching { conn.performEditorAction(action); true }.getOrDefault(false)
+        }
+
+        fun sendsOnlyFromButton(service: AccessibilityService): Boolean {
+            if (connection(service) == null) return false
+            val info = runCatching { service.inputMethod?.currentInputEditorInfo }.getOrNull() ?: return false
+            return info.actionId == 0 &&
+                info.imeOptions and android.view.inputmethod.EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
+        }
+
+        private fun awaitConnection(service: AccessibilityService): InputMethod.AccessibilityInputConnection? {
+            val deadline = SystemClock.uptimeMillis() + SESSION_WAIT_MS
+            while (true) {
+                connection(service)?.let { return it }
+                if (SystemClock.uptimeMillis() >= deadline) return null
+                Thread.sleep(50)
             }
         }
-    }
 
-    private fun read(conn: InputMethod.AccessibilityInputConnection): String? {
-        val surrounding = runCatching { conn.getSurroundingText(MAX_READ, MAX_READ, 0) }.getOrNull()
-            ?: return null
-        return surrounding.text?.toString().orEmpty()
-    }
+        private fun connection(service: AccessibilityService): InputMethod.AccessibilityInputConnection? {
+            val inputMethod = runCatching { service.inputMethod }.getOrNull() ?: return null
+            if (!runCatching { inputMethod.currentInputStarted }.getOrDefault(false)) return null
+            return runCatching { inputMethod.currentInputConnection }.getOrNull()
+        }
 
-    private const val MAX_READ = 8192
+        private fun clear(conn: InputMethod.AccessibilityInputConnection) {
+            val surrounding = runCatching { conn.getSurroundingText(MAX_READ, MAX_READ, 0) }.getOrNull() ?: return
+            val text = surrounding.text?.toString().orEmpty()
+            if (text.isEmpty()) return
+            val start = surrounding.selectionStart
+            val end = surrounding.selectionEnd
+            runCatching {
+                if (start >= 0 && end >= 0) {
+                    conn.deleteSurroundingText(start, text.length - end)
+                } else {
+                    conn.setSelection(surrounding.offset, surrounding.offset + text.length)
+                }
+            }
+        }
+
+        private fun read(conn: InputMethod.AccessibilityInputConnection): String? {
+            val surrounding = runCatching { conn.getSurroundingText(MAX_READ, MAX_READ, 0) }.getOrNull()
+                ?: return null
+            return surrounding.text?.toString().orEmpty()
+        }
+    }
 }

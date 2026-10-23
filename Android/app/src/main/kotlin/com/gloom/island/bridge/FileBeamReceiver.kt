@@ -42,7 +42,8 @@ import kotlin.concurrent.thread
  * Handles incoming/outgoing file beams and clipboard synchronization from GLOOM Windows Desktop.
  * Enforces per-request authentication, replay protection, checksum verification, and safe path traversal.
  */
-class FileBeamReceiver(private val context: Context) {
+class FileBeamReceiver(context: Context) {
+    private val context: Context = context.applicationContext
 
     interface FileTransferListener {
         fun onTransferStarted(fileName: String, fileSizeMb: Float, isUpload: Boolean)

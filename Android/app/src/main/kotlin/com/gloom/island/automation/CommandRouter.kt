@@ -294,10 +294,11 @@ object CommandRouter {
         }
         notePattern.matchEntire(command)?.let { match ->
             val body = unquote(match.groupValues[1])
-            val looksLikeReminder = TimeParser.parse(body) != null &&
+            val parsedTime = TimeParser.parse(body)
+            val looksLikeReminder = parsedTime != null &&
                 (body.startsWith("to ", ignoreCase = true) || body.startsWith("that i ", ignoreCase = true))
             if (looksLikeReminder) {
-                val atMs = TimeParser.parse(body)!!
+                val atMs = parsedTime ?: return Outcome(true, false, "What should I remember?")
                 val task = TimeParser.stripTime(body).removePrefix("to ").trim()
                 val reminder = Notebook.addReminder(context, task, atMs)
                 ReminderScheduler.schedule(context, reminder)

@@ -224,10 +224,10 @@ class GloomNotificationListener : NotificationListenerService() {
         if (settings.notificationTriageEnabled) {
             val channelName = runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    getSystemService(NotificationManager::class.java)
-                        ?.getNotificationChannel(sbn.packageName, sbn.notification.channelId)
-                        ?.name?.toString()
-                        .orEmpty()
+                    val ranking = Ranking()
+                    if (currentRanking?.getRanking(sbn.key, ranking) == true) {
+                        ranking.channel?.name?.toString().orEmpty()
+                    } else ""
                 } else ""
             }.getOrDefault("")
             val verdict = com.gloom.island.automation.NotificationTriage.classify(
@@ -345,12 +345,13 @@ class GloomNotificationListener : NotificationListenerService() {
     private fun isSilent(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NotificationManager::class.java)
-            val channel = runCatching {
-                manager?.getNotificationChannel(sbn.packageName, notification.channelId)
-            }.getOrNull()
-            if (channel != null) {
-                return channel.importance < NotificationManager.IMPORTANCE_DEFAULT
+            val ranking = Ranking()
+            if (currentRanking?.getRanking(sbn.key, ranking) == true) {
+                val channel = ranking.channel
+                if (channel != null) {
+                    return channel.importance < NotificationManager.IMPORTANCE_DEFAULT
+                }
+                return ranking.importance < NotificationManager.IMPORTANCE_DEFAULT
             }
         }
         return notification.sound == null &&
@@ -548,7 +549,7 @@ class GloomNotificationListener : NotificationListenerService() {
 
     private fun startProgressTicker() {
         stopProgressTicker()
-        progressTicker = object : Runnable {
+        val ticker = object : Runnable {
             override fun run() {
                 if (currentTrackInfo.isPlaying && currentTrackInfo.durationMs > 0) {
                     val nextPos = (currentTrackInfo.positionMs + 500).coerceAtMost(currentTrackInfo.durationMs)
@@ -562,7 +563,8 @@ class GloomNotificationListener : NotificationListenerService() {
                 mainHandler.postDelayed(this, 500)
             }
         }
-        mainHandler.postDelayed(progressTicker!!, 500)
+        progressTicker = ticker
+        mainHandler.postDelayed(ticker, 500)
     }
 
     private fun stopProgressTicker() {

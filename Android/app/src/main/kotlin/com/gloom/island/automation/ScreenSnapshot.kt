@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.os.Build
 import android.view.Display
+import androidx.annotation.RequiresApi
 import com.gloom.island.service.GloomIslandAccessibilityService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
@@ -68,31 +69,42 @@ object ScreenSnapshot {
             onResult(null)
             return
         }
-        try {
-            service.takeScreenshot(
-                Display.DEFAULT_DISPLAY,
-                executor,
-                object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                        val buffer = screenshot.hardwareBuffer
-                        val bitmap = try {
-                            Bitmap.wrapHardwareBuffer(buffer, screenshot.colorSpace)
-                                ?.copy(Bitmap.Config.ARGB_8888, false)
-                        } catch (e: Exception) {
-                            null
-                        } finally {
-                            runCatching { buffer.close() }
-                        }
-                        onResult(bitmap)
-                    }
+        Api30Impl.takeScreenshot(service, executor, onResult)
+    }
 
-                    override fun onFailure(errorCode: Int) {
-                        onResult(null)
+    @RequiresApi(Build.VERSION_CODES.R)
+    private object Api30Impl {
+        fun takeScreenshot(
+            service: AccessibilityService,
+            executor: Executor,
+            onResult: (Bitmap?) -> Unit
+        ) {
+            try {
+                service.takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    executor,
+                    object : AccessibilityService.TakeScreenshotCallback {
+                        override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                            val buffer = screenshot.hardwareBuffer
+                            val bitmap = try {
+                                Bitmap.wrapHardwareBuffer(buffer, screenshot.colorSpace)
+                                    ?.copy(Bitmap.Config.ARGB_8888, false)
+                            } catch (e: Exception) {
+                                null
+                            } finally {
+                                runCatching { buffer.close() }
+                            }
+                            onResult(bitmap)
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            onResult(null)
+                        }
                     }
-                }
-            )
-        } catch (e: Exception) {
-            onResult(null)
+                )
+            } catch (e: Exception) {
+                onResult(null)
+            }
         }
     }
 

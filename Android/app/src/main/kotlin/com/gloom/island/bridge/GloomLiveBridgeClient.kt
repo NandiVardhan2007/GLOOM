@@ -29,7 +29,8 @@ import kotlin.concurrent.thread
  * streams device telemetry (battery, WiFi, active playback),
  * and handles 2-way Universal Clipboard & high-speed file beaming.
  */
-class GloomLiveBridgeClient(private val context: Context) {
+class GloomLiveBridgeClient(context: Context) {
+    private val context: Context = context.applicationContext
 
     companion object {
         var activeClient: GloomLiveBridgeClient? = null
@@ -48,14 +49,17 @@ class GloomLiveBridgeClient(private val context: Context) {
     private val TAG = "GloomLiveBridge"
     private val mainHandler = Handler(Looper.getMainLooper())
     private val telemetryRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val isConnectedState = java.util.concurrent.atomic.AtomicBoolean(false)
     var desktopIp: String? = null
         private set
     var desktopPort: Int = 53391
         private set
-    var isConnected: Boolean = false
-        private set
+    val isConnected: Boolean
+        get() = isConnectedState.get()
 
     private var multicastLock: WifiManager.MulticastLock? = null
+    @Volatile
+    private var subnetScanExecutor: java.util.concurrent.ExecutorService? = null
 
     private fun acquireMulticastLock() {
         try {
@@ -160,67 +164,76 @@ class GloomLiveBridgeClient(private val context: Context) {
 
         // 2. Fallback Active Subnet Scan (for networks with AP/broadcast isolation)
         thread(isDaemon = true, name = "Gloom-Subnet-Scanner") {
-            while (!isConnected) {
-                try {
-                    Thread.sleep(2500)
-                    if (isConnected) break
+            val executor = java.util.concurrent.Executors.newFixedThreadPool(16) { r ->
+                Thread(r).apply { isDaemon = true }
+            }
+            subnetScanExecutor = executor
+            try {
+                while (!isConnected && !executor.isShutdown) {
+                    try {
+                        Thread.sleep(2500)
+                        if (isConnected || executor.isShutdown) break
 
-                    val localIp = getLocalIpv4Address()
-                    if (localIp == null) {
-                        // Discovery often starts before Wi-Fi finishes associating.
-                        Log.w(TAG, "No private LAN address yet; retrying discovery")
-                        continue
-                    }
-                    val prefix = localIp.substringBeforeLast(".") + "."
-
-                    for (i in 1..254) {
-                        if (isConnected) break
-                        val target = "$prefix$i"
-                        if (target == localIp) continue
-                        thread(isDaemon = true) {
-                            try {
-                                // Discovery probe only: the status endpoint is unauthenticated
-                                // and carries no secrets, so it tolerates the yet-unpinned
-                                // certificate. The fingerprint it returns is pinned below.
-                                val url = URL("https://$target:53391/api/status")
-                                val conn = url.openConnection() as HttpsURLConnection
-                                BridgeTls.permissiveClientSocketFactory()?.let {
-                                    conn.sslSocketFactory = it
-                                }
-                                conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
-                                conn.connectTimeout = 350
-                                conn.readTimeout = 350
-                                conn.requestMethod = "GET"
-                                if (conn.responseCode in 200..299) {
-                                    val resp = conn.inputStream.bufferedReader().readText()
-                                    conn.disconnect()
-                                    if (resp.contains("GLOOM") || resp.contains("LiveBridge")) {
-                                        val fingerprint = try {
-                                            JSONObject(resp).optString("tlsFingerprint", "")
-                                        } catch (_: Exception) {
-                                            ""
-                                        }
-                                        if (fingerprint.isNotEmpty()) {
-                                            if (!BridgeTls.pinDesktopFingerprint(context, fingerprint)) {
-                                                Log.w(TAG, "Subnet probe at $target does not match the pinned desktop certificate")
-                                                return@thread
-                                            }
-                                        }
-                                        onDiscovered("GLOOM Desktop", target, 53391, onConnected)
-                                    }
-                                }
-                            } catch (_: Exception) {}
+                        val localIp = getLocalIpv4Address()
+                        if (localIp == null) {
+                            // Discovery often starts before Wi-Fi finishes associating.
+                            Log.w(TAG, "No private LAN address yet; retrying discovery")
+                            continue
                         }
-                        Thread.sleep(8)
+                        val prefix = localIp.substringBeforeLast(".") + "."
+
+                        for (i in 1..254) {
+                            if (isConnected || executor.isShutdown) break
+                            val target = "$prefix$i"
+                            if (target == localIp) continue
+                            executor.submit {
+                                if (isConnected) return@submit
+                                try {
+                                    // Discovery probe only: the status endpoint is unauthenticated
+                                    // and carries no secrets, so it tolerates the yet-unpinned
+                                    // certificate. The fingerprint it returns is pinned below.
+                                    val url = URL("https://$target:53391/api/status")
+                                    val conn = url.openConnection() as HttpsURLConnection
+                                    BridgeTls.permissiveClientSocketFactory()?.let {
+                                        conn.sslSocketFactory = it
+                                    }
+                                    conn.hostnameVerifier = HostnameVerifier { _, _ -> true }
+                                    conn.connectTimeout = 350
+                                    conn.readTimeout = 350
+                                    conn.requestMethod = "GET"
+                                    if (conn.responseCode in 200..299) {
+                                        val resp = conn.inputStream.bufferedReader().readText()
+                                        conn.disconnect()
+                                        if (resp.contains("GLOOM") || resp.contains("LiveBridge")) {
+                                            val fingerprint = try {
+                                                JSONObject(resp).optString("tlsFingerprint", "")
+                                            } catch (_: Exception) {
+                                                ""
+                                            }
+                                            if (fingerprint.isNotEmpty()) {
+                                                if (!BridgeTls.pinDesktopFingerprint(context, fingerprint)) {
+                                                    Log.w(TAG, "Subnet probe at $target does not match the pinned desktop certificate")
+                                                    return@submit
+                                                }
+                                            }
+                                            onDiscovered("GLOOM Desktop", target, 53391, onConnected)
+                                        }
+                                    }
+                                } catch (_: Exception) {}
+                            }
+                            Thread.sleep(8)
+                        }
+                        if (!isConnected && !executor.isShutdown) {
+                            Log.w(TAG, "No desktop answered on ${prefix}0/24; retrying")
+                            Thread.sleep(5000)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Subnet scan error: ${e.message}")
+                        Thread.sleep(3000)
                     }
-                    if (!isConnected) {
-                        Log.w(TAG, "No desktop answered on ${prefix}0/24; retrying")
-                        Thread.sleep(5000)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Subnet scan error: ${e.message}")
-                    Thread.sleep(3000)
                 }
+            } finally {
+                executor.shutdownNow()
             }
         }
     }
@@ -231,10 +244,11 @@ class GloomLiveBridgeClient(private val context: Context) {
         port: Int,
         onConnected: (String, String) -> Unit
     ) {
-        if (isConnected) return
+        if (!isConnectedState.compareAndSet(false, true)) return
         desktopIp = host
         desktopPort = port
-        isConnected = true
+        subnetScanExecutor?.shutdownNow()
+        subnetScanExecutor = null
         // The instance that actually found the desktop becomes the one the UI
         // pairs through; otherwise the dialog can talk to a client with no IP.
         activeClient = this
@@ -329,7 +343,7 @@ class GloomLiveBridgeClient(private val context: Context) {
                     val code = postJson("https://$desktopIp:$desktopPort/api/telemetry", payload)
                     if (code == 401 || code == 403) {
                         Log.w(TAG, "Desktop rejected the bridge token; dropping unverified peer ${desktopIp}")
-                        isConnected = false
+                        isConnectedState.set(false)
                         desktopIp = null
                         return@thread
                     }
@@ -455,7 +469,7 @@ class GloomLiveBridgeClient(private val context: Context) {
         desktopIp = ip
         desktopPort = port
         BridgeTls.storeDesktopFingerprint(context, fingerprint)
-        isConnected = true
+        isConnectedState.set(true)
     }
 
     /**
@@ -528,7 +542,9 @@ class GloomLiveBridgeClient(private val context: Context) {
      * discovery so a rotated desktop certificate can be re-pinned.
      */
     fun forgetDesktop() {
-        isConnected = false
+        isConnectedState.set(false)
+        subnetScanExecutor?.shutdownNow()
+        subnetScanExecutor = null
         desktopIp = null
         FileBeamReceiver.clearPairedToken(context)
         BridgeTls.clearDesktopPin(context)

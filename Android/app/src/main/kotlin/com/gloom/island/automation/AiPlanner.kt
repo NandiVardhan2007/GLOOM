@@ -510,11 +510,12 @@ object AiPlanner {
             Log.w(TAG, "AI planner timed out on step $stepNumber")
             return null
         }
-        if (reply == null) {
+        val currentReply = reply
+        if (currentReply == null) {
             Log.w(TAG, "AI planner step $stepNumber failed: ${error ?: "unknown"}")
             return null
         }
-        return parseJson(reply!!)
+        return parseJson(currentReply)
     }
 
     private fun parseJson(raw: String): JSONObject? {

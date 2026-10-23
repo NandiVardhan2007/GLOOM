@@ -184,7 +184,10 @@ object Vault {
         if (accountElement != null && entry.account.isNotBlank()) {
             ScreenAutomation.tap(accountElement.eid)
             android.os.SystemClock.sleep(250)
-            A11yIme.replace(svc, entry.account)
+            val replaced = A11yIme.replace(svc, entry.account)
+            if (replaced == null) {
+                ScreenAutomation.typeTextUnique(entry.account, clearFirst = true, targetEid = accountElement.eid)
+            }
             success = true
             android.os.SystemClock.sleep(300)
         }
@@ -192,7 +195,10 @@ object Vault {
         if (passwordElement != null && entry.secret.isNotBlank()) {
             ScreenAutomation.tap(passwordElement.eid)
             android.os.SystemClock.sleep(250)
-            A11yIme.replace(svc, entry.secret)
+            val replaced = A11yIme.replace(svc, entry.secret)
+            if (replaced == null) {
+                ScreenAutomation.typeTextUnique(entry.secret, clearFirst = true, targetEid = passwordElement.eid)
+            }
             success = true
         }
 

@@ -120,11 +120,12 @@ fun PatternLockView(
                 cap = StrokeCap.Round
             )
         }
-        if (dragging && selected.isNotEmpty() && cursor != null) {
+        val currentCursor = cursor
+        if (dragging && selected.isNotEmpty() && currentCursor != null) {
             drawLine(
                 color = lineColor.copy(alpha = 0.55f),
                 start = dotCenter(selected.last(), width),
-                end = cursor!!,
+                end = currentCursor,
                 strokeWidth = cell * 0.045f,
                 cap = StrokeCap.Round
             )
