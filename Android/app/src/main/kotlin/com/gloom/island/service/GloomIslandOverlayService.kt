@@ -1,6 +1,7 @@
 package com.gloom.island.service
 
 import java.io.File
+import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -14,7 +15,10 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.Region
 import android.view.View
+import android.view.ViewTreeObserver
+import java.lang.reflect.Proxy
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -570,35 +574,11 @@ class GloomIslandOverlayService : Service() {
         ).toInt()
     }
 
-    private fun getCollapsedWidthPx(): Int {
-        val density = resources.displayMetrics.density
-        return ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
-    }
-
-    private fun getExpandedWidthPx(): Int {
-        val density = resources.displayMetrics.density
-        val screenWidth = resources.displayMetrics.widthPixels
-        val expandedCardWidthPx = ((GloomIslandSettings.instance.expandedWidth + 48) * density).toInt()
-        return minOf(screenWidth, expandedCardWidthPx)
-    }
-
     private fun getCollapsedHeightPx(): Int {
         val density = resources.displayMetrics.density
         return ((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
     }
 
-    private fun getOverlayGravity(): Int {
-        return when (GloomIslandSettings.instance.gravity) {
-            "Left" -> Gravity.TOP or Gravity.START
-            "Right" -> Gravity.TOP or Gravity.END
-            else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        }
-    }
-
-    private fun getOverlayXOffsetPx(): Int {
-        val density = resources.displayMetrics.density
-        return (GloomIslandSettings.instance.positionX * density).toInt()
-    }
 
     @Suppress("DEPRECATION")
     private fun getOverlayFlags(): Int {
@@ -760,7 +740,56 @@ class GloomIslandOverlayService : Service() {
         }
 
         composeView = view
+        setupTouchableRegion(view)
         addOverlayView()
+    }
+
+    @SuppressLint("PrivateApi")
+    private fun setupTouchableRegion(view: View) {
+        try {
+            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
+            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
+
+            val proxy = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass)
+            ) { _, method, args ->
+                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
+                    val inoutInfo = args[0]
+                    if (!isExpanded) {
+                        val density = resources.displayMetrics.density
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 32) * density).toInt()
+                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
+                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
+                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
+                        val left = when (GloomIslandSettings.instance.gravity) {
+                            "Left" -> posXOffsetPx
+                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
+                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                        }
+                        val right = left + pillWidthPx
+                        val top = 0
+                        val bottom = posYPx + pillHeightPx
+
+                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
+                        val region = touchableRegionField.get(inoutInfo) as Region
+                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
+                    } else {
+                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
+                    }
+                }
+                null
+            }
+
+            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+            addMethod.invoke(view.viewTreeObserver, proxy)
+        } catch (_: Exception) {
+            // Fallback gracefully on custom ROMs
+        }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -791,9 +820,8 @@ class GloomIslandOverlayService : Service() {
     }
 
     private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
-        val width = if (isExpanded) getExpandedWidthPx() else getCollapsedWidthPx()
         return WindowManager.LayoutParams(
-            width,
+            WindowManager.LayoutParams.MATCH_PARENT,
             height,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -804,8 +832,8 @@ class GloomIslandOverlayService : Service() {
             getOverlayFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = if (isExpanded) Gravity.TOP or Gravity.CENTER_HORIZONTAL else getOverlayGravity()
-            x = if (isExpanded) 0 else getOverlayXOffsetPx()
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -829,16 +857,13 @@ class GloomIslandOverlayService : Service() {
 
         updateVisibilityForOrientation()
         params.flags = getOverlayFlags()
-        if (isExpanded) {
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            params.x = 0
-            params.width = getExpandedWidthPx()
-            params.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
+        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        params.x = 0
+        params.width = WindowManager.LayoutParams.MATCH_PARENT
+        params.height = if (isExpanded) {
+            dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
-            params.gravity = getOverlayGravity()
-            params.x = getOverlayXOffsetPx()
-            params.width = getCollapsedWidthPx()
-            params.height = getCollapsedHeightPx()
+            getCollapsedHeightPx()
         }
         try {
             windowManager.updateViewLayout(view, params)
@@ -856,7 +881,7 @@ class GloomIslandOverlayService : Service() {
         if (!isViewAttached && !view.isAttachedToWindow) return
         params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         params.x = 0
-        params.width = getExpandedWidthPx()
+        params.width = WindowManager.LayoutParams.MATCH_PARENT
         params.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         params.flags = getOverlayFlags()
         try {
@@ -889,9 +914,9 @@ class GloomIslandOverlayService : Service() {
         val view = composeView ?: return
         val params = layoutParams ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
-        params.gravity = getOverlayGravity()
-        params.x = getOverlayXOffsetPx()
-        params.width = getCollapsedWidthPx()
+        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        params.x = 0
+        params.width = WindowManager.LayoutParams.MATCH_PARENT
         params.height = getCollapsedHeightPx()
         params.flags = getOverlayFlags()
         try {

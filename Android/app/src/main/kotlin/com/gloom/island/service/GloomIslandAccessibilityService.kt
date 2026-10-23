@@ -1,6 +1,7 @@
 package com.gloom.island.service
 
 import java.io.File
+import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -12,6 +13,7 @@ import android.content.res.Configuration
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.Rect
+import android.graphics.Region
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import android.content.IntentFilter
@@ -28,7 +30,9 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
+import java.lang.reflect.Proxy
 import android.view.accessibility.AccessibilityEvent
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
@@ -480,35 +484,11 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         ).toInt()
     }
 
-    private fun getCollapsedWidthPx(): Int {
-        val density = resources.displayMetrics.density
-        return ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
-    }
-
-    private fun getExpandedWidthPx(): Int {
-        val density = resources.displayMetrics.density
-        val screenWidth = resources.displayMetrics.widthPixels
-        val expandedCardWidthPx = ((GloomIslandSettings.instance.expandedWidth + 48) * density).toInt()
-        return minOf(screenWidth, expandedCardWidthPx)
-    }
-
     private fun getCollapsedHeightPx(): Int {
         val density = resources.displayMetrics.density
         return ((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
     }
 
-    private fun getOverlayGravity(): Int {
-        return when (GloomIslandSettings.instance.gravity) {
-            "Left" -> Gravity.TOP or Gravity.START
-            "Right" -> Gravity.TOP or Gravity.END
-            else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        }
-    }
-
-    private fun getOverlayXOffsetPx(): Int {
-        val density = resources.displayMetrics.density
-        return (GloomIslandSettings.instance.positionX * density).toInt()
-    }
 
     @Suppress("DEPRECATION")
     private fun getOverlayFlags(): Int {
@@ -563,22 +543,18 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         } else {
             getCollapsedHeightPx()
         }
-        val initialWidth = if (isExpanded) {
-            getExpandedWidthPx()
-        } else {
-            getCollapsedWidthPx()
-        }
 
         // TYPE_ACCESSIBILITY_OVERLAY renders above Lock Screen / Keyguard
+        // Anchored permanently to MATCH_PARENT full width to eliminate horizontal buffer resize artifacts
         layoutParams = WindowManager.LayoutParams(
-            initialWidth,
+            WindowManager.LayoutParams.MATCH_PARENT,
             initialHeight,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             getOverlayFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = if (isExpanded) Gravity.TOP or Gravity.CENTER_HORIZONTAL else getOverlayGravity()
-            x = if (isExpanded) 0 else getOverlayXOffsetPx()
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -683,7 +659,56 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
 
         composeView = view
+        setupTouchableRegion(view)
         addOverlayView()
+    }
+
+    @SuppressLint("PrivateApi")
+    private fun setupTouchableRegion(view: View) {
+        try {
+            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
+            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
+
+            val proxy = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass)
+            ) { _, method, args ->
+                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
+                    val inoutInfo = args[0]
+                    if (!isExpanded) {
+                        val density = resources.displayMetrics.density
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 32) * density).toInt()
+                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
+                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
+                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
+                        val left = when (GloomIslandSettings.instance.gravity) {
+                            "Left" -> posXOffsetPx
+                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
+                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                        }
+                        val right = left + pillWidthPx
+                        val top = 0
+                        val bottom = posYPx + pillHeightPx
+
+                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
+                        val region = touchableRegionField.get(inoutInfo) as Region
+                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
+                    } else {
+                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
+                    }
+                }
+                null
+            }
+
+            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+            addMethod.invoke(view.viewTreeObserver, proxy)
+        } catch (_: Exception) {
+            // Fallback gracefully on custom ROMs
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -728,16 +753,13 @@ class GloomIslandAccessibilityService : AccessibilityService() {
 
         updateVisibilityForOrientation()
         layoutParams.flags = getOverlayFlags()
-        if (isExpanded) {
-            layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            layoutParams.x = 0
-            layoutParams.width = getExpandedWidthPx()
-            layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
+        layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        layoutParams.x = 0
+        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
+        layoutParams.height = if (isExpanded) {
+            dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
-            layoutParams.gravity = getOverlayGravity()
-            layoutParams.x = getOverlayXOffsetPx()
-            layoutParams.width = getCollapsedWidthPx()
-            layoutParams.height = getCollapsedHeightPx()
+            getCollapsedHeightPx()
         }
         try {
             windowManager.updateViewLayout(view, layoutParams)
@@ -754,7 +776,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         if (!isViewAttached && !view.isAttachedToWindow) return
         layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         layoutParams.x = 0
-        layoutParams.width = getExpandedWidthPx()
+        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         layoutParams.flags = getOverlayFlags()
         try {
@@ -786,9 +808,9 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     private fun applyCollapsedDimensions() {
         val view = composeView ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
-        layoutParams.gravity = getOverlayGravity()
-        layoutParams.x = getOverlayXOffsetPx()
-        layoutParams.width = getCollapsedWidthPx()
+        layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        layoutParams.x = 0
+        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = getCollapsedHeightPx()
         layoutParams.flags = getOverlayFlags()
         try {

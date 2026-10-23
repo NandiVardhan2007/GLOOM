@@ -37,15 +37,15 @@ class SingleOverlayCoordinatorTest {
         val positionYDp = 2
         val density = 3.0f
 
-        // Collapsed layout params must never be MATCH_PARENT (-1)
+        // Overlay window width is MATCH_PARENT (-1) to eliminate reposition/resize glitches,
+        // while overlay height is strictly constrained.
         val matchParent = -1
-        val collapsedWidthPx = ((pillWidthDp + 24) * density).toInt()
+        val collapsedWidthPx = matchParent
         val collapsedHeightPx = ((positionYDp + pillHeightDp + 16) * density).toInt()
 
-        assertTrue(collapsedWidthPx > 0)
+        assertEquals(matchParent, collapsedWidthPx)
         assertTrue(collapsedHeightPx > 0)
-        assertTrue("Collapsed width must not be MATCH_PARENT", collapsedWidthPx != matchParent)
-        assertEquals(612, collapsedWidthPx) // (180 + 24) * 3 = 612px on 1080p (3.0x density)
+        assertTrue("Collapsed height must not be MATCH_PARENT", collapsedHeightPx != matchParent)
         assertEquals(165, collapsedHeightPx) // (2 + 37 + 16) * 3 = 165px
     }
 
@@ -137,21 +137,21 @@ class SingleOverlayCoordinatorTest {
     fun expandCancelAndScreenOffStateMachine() {
         var isExpanded = false
         var isPendingShrink = false
-        var windowWidth = 204 // collapsed
-        val collapsedWidth = 204
-        val expandedWidth = 448 // 400 + 48
+        var windowHeight = 165 // collapsed
+        val collapsedHeight = 165
+        val expandedHeight = 650 // (expandedHeight + positionY + 44) * density
 
         fun onExpand() {
             isExpanded = true
             isPendingShrink = false
-            windowWidth = expandedWidth
+            windowHeight = expandedHeight
         }
 
         fun onCollapseRequested(immediate: Boolean) {
             isExpanded = false
             if (immediate) {
                 isPendingShrink = false
-                windowWidth = collapsedWidth
+                windowHeight = collapsedHeight
             } else {
                 isPendingShrink = true
             }
@@ -161,20 +161,20 @@ class SingleOverlayCoordinatorTest {
             // Idempotent finally block: if !isExpanded apply collapsed dimensions
             if (!isExpanded) {
                 isPendingShrink = false
-                windowWidth = collapsedWidth
+                windowHeight = collapsedHeight
             }
         }
 
         // Test 1: Expand -> window is expanded
         onExpand()
         assertTrue(isExpanded)
-        assertEquals(expandedWidth, windowWidth)
+        assertEquals(expandedHeight, windowHeight)
 
         // Test 2: Collapse requested -> isPendingShrink is true, window not yet shrunk
         onCollapseRequested(immediate = false)
         assertFalse(isExpanded)
         assertTrue(isPendingShrink)
-        assertEquals(expandedWidth, windowWidth) // still wide for smooth animation
+        assertEquals(expandedHeight, windowHeight) // still expanded for smooth animation
 
         // Test 3: Re-expand within 380ms -> cancels shrink, window stays expanded
         onExpand()
@@ -182,34 +182,32 @@ class SingleOverlayCoordinatorTest {
         assertFalse(isPendingShrink)
         // Coroutine cancellation triggers finally: isExpanded is true, must NOT shrink
         onPendingShrinkComplete()
-        assertEquals(expandedWidth, windowWidth) // must NOT shrink to collapsedWidth!
+        assertEquals(expandedHeight, windowHeight) // must NOT shrink to collapsedHeight!
 
         // Test 4: Collapse and allow timer to finish -> window shrinks
         onCollapseRequested(immediate = false)
         onPendingShrinkComplete()
         assertFalse(isExpanded)
         assertFalse(isPendingShrink)
-        assertEquals(collapsedWidth, windowWidth)
+        assertEquals(collapsedHeight, windowHeight)
 
         // Test 5: Immediate collapse on screen off -> shrinks immediately
         onExpand()
         onCollapseRequested(immediate = true)
         assertFalse(isExpanded)
         assertFalse(isPendingShrink)
-        assertEquals(collapsedWidth, windowWidth)
+        assertEquals(collapsedHeight, windowHeight)
     }
 
     @Test
-    fun expandedWindowBoundsNeverUseMatchParent() {
-        val screenWidth = 1080
-        val expandedSettingWidth = 400
-        val density = 3.0f
-        val expandedCardWidthPx = ((expandedSettingWidth + 48) * density).toInt() // (448 * 3) = 1344px clamped to 1080
-        val width = minOf(screenWidth, expandedCardWidthPx)
-
+    fun overlayWindowWidthIsPermanentlyMatchParentToPreventRepositionJumps() {
         val matchParent = -1
-        assertTrue("Expanded width must not be MATCH_PARENT", width != matchParent)
-        assertTrue(width > 0 && width <= screenWidth)
-        assertEquals(1080, width)
+        fun getWindowWidth(isExpanded: Boolean): Int {
+            // Overlay window width is always MATCH_PARENT
+            return if (isExpanded) matchParent else matchParent
+        }
+
+        assertEquals(matchParent, getWindowWidth(isExpanded = false))
+        assertEquals(matchParent, getWindowWidth(isExpanded = true))
     }
 }
