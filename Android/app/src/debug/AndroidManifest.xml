@@ -3,7 +3,8 @@
     <application>
         <receiver
             android:name=".AutomationTestReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.SET_DEBUG_APP">
             <intent-filter>
                 <action android:name="com.gloom.island.TEST_AUTOMATION" />
             </intent-filter>

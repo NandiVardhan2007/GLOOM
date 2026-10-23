@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Permit cleartext traffic for local P2P LiveBridge LAN connectivity -->
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Disable cleartext traffic globally; all LiveBridge companion traffic runs over TLS -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

@@ -1,6 +1,7 @@
 package com.gloom.island.service
 
 import java.io.File
+import android.app.KeyguardManager
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.BroadcastReceiver
@@ -13,6 +14,7 @@ import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.Rect
 import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.media.AudioManager
@@ -55,6 +57,7 @@ import com.gloom.island.ui.ActiveTransferInfo
 import com.gloom.island.ui.BridgeDeviceInfo
 import com.gloom.island.ui.GloomIslandApp
 import com.gloom.island.ui.MediaTrackInfo
+import com.gloom.island.ui.LockIslandEvent
 import com.gloom.island.ui.NotificationIslandEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -132,6 +135,49 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var pendingSpeech: String? = null
+
+    private var activeLockEvent by mutableStateOf<LockIslandEvent?>(null)
+    private var lockEventJob: Job? = null
+
+    fun triggerLockEvent(isUnlocked: Boolean) {
+        serviceScope.launch {
+            activeLockEvent = LockIslandEvent(isUnlocked = isUnlocked, timestampMs = System.currentTimeMillis())
+            lockEventJob?.cancel()
+            lockEventJob = launch {
+                delay(2200)
+                activeLockEvent = null
+            }
+        }
+    }
+
+    private val lockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_ON -> {
+                    val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+                    val locked = km?.isKeyguardLocked ?: true
+                    if (locked) {
+                        triggerLockEvent(isUnlocked = false)
+                    }
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    triggerLockEvent(isUnlocked = false)
+                }
+                Intent.ACTION_USER_PRESENT -> {
+                    triggerLockEvent(isUnlocked = true)
+                }
+            }
+        }
+    }
+
+    private val internalLockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.gloom.island.ACTION_LOCK_EVENT") {
+                val isUnlocked = intent.getBooleanExtra("is_unlocked", false)
+                triggerLockEvent(isUnlocked = isUnlocked)
+            }
+        }
+    }
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -226,6 +272,19 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                     activeTransfer = ActiveTransferInfo()
                 }
             }
+
+            override fun onTransferFailed(fileName: String, error: String) {
+                serviceScope.launch {
+                    activeTransfer = activeTransfer.copy(
+                        fileName = fileName,
+                        speedMbps = "Failed",
+                        isActive = true
+                    )
+                    scheduleAutoCollapse()
+                    delay(3500)
+                    activeTransfer = ActiveTransferInfo()
+                }
+            }
         })
 
         fileBeamReceiver = FileBeamReceiver(this)
@@ -303,12 +362,20 @@ class GloomIslandAccessibilityService : AccessibilityService() {
             addAction(GloomIslandSettings.ACTION_MEDIA_NEXT)
             addAction(GloomIslandSettings.ACTION_MEDIA_PREV)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(settingsReceiver, filter)
-        }
+        ContextCompat.registerReceiver(this, settingsReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        // System Screen & Keyguard Lock/Unlock Broadcasts (system-only filter requires no export flag)
+        val lockFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        registerReceiver(lockReceiver, lockFilter)
+
+        // Internal app lock event broadcast (not exported to external apps)
+        val internalLockFilter = IntentFilter("com.gloom.island.ACTION_LOCK_EVENT")
+        ContextCompat.registerReceiver(this, internalLockReceiver, internalLockFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     private fun setupRealMediaSessions() {
@@ -456,9 +523,9 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                         }
                     },
                     onBeamSampleFile = {
-                        val itn = Intent(this@GloomIslandAccessibilityService, com.gloom.island.MainActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                            putExtra("action_beam_file_picker", true)
+                        val itn = Intent(this@GloomIslandAccessibilityService, com.gloom.island.bridge.ShareToPcActivity::class.java).apply {
+                            action = "com.gloom.island.ACTION_PICK_AND_SHARE"
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         }
                         startActivity(itn)
                         collapseIsland()
@@ -492,6 +559,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                     reelCount = reelCount,
                     isInstagramForeground = isInstagramForeground,
                     showReelCounterUntil = showReelCounterUntil,
+                    lockEvent = activeLockEvent,
                     onSwipeDown = {
                         performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
                     },
@@ -550,6 +618,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     private fun expandIsland() {
         isExpanded = true
         windowResizeJob?.cancel()
+        layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         layoutParams.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
@@ -564,8 +633,9 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         isExpanded = false
         windowResizeJob?.cancel()
         windowResizeJob = serviceScope.launch {
-            delay(380)
+            delay(450)
             if (isExpanded) return@launch
+            layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             layoutParams.width = dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
             layoutParams.height = dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
             layoutParams.flags = getOverlayFlags()
@@ -1116,6 +1186,8 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         try {
             unregisterReceiver(settingsReceiver)
             unregisterReceiver(batteryReceiver)
+            unregisterReceiver(lockReceiver)
+            unregisterReceiver(internalLockReceiver)
         } catch (e: Exception) {}
         composeView?.let {
             try {

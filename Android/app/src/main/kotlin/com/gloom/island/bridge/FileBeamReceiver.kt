@@ -48,6 +48,7 @@ class FileBeamReceiver(private val context: Context) {
         fun onTransferStarted(fileName: String, fileSizeMb: Float, isUpload: Boolean)
         fun onTransferProgress(fileName: String, progress: Float, speedMbps: String, isUpload: Boolean)
         fun onTransferCompleted(fileName: String, file: File?, isUpload: Boolean)
+        fun onTransferFailed(fileName: String, error: String) {}
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -206,7 +207,6 @@ class FileBeamReceiver(private val context: Context) {
                                 val downloadDir = getGloomDownloadDirectory(context)
 
                                 val tmpFile = File(downloadDir, "$safeFileName.${System.currentTimeMillis()}.tmp")
-                                val destFile = File(downloadDir, safeFileName)
                                 val md = MessageDigest.getInstance("SHA-256")
                                 val buffer = ByteArray(65536)
                                 var totalRead = 0L
@@ -251,6 +251,7 @@ class FileBeamReceiver(private val context: Context) {
                                         socket.close()
                                         return@thread
                                     }
+                                    val destFile = resolveUniqueDestinationFile(downloadDir, safeFileName)
                                     tmpFile.renameTo(destFile)
                                     notifyFileSavedToUser(context, destFile)
                                     Log.i(TAG, "GLOOM Stream completed: ${destFile.absolutePath} ($totalRead bytes)")
@@ -259,7 +260,7 @@ class FileBeamReceiver(private val context: Context) {
                                         notifyTransferProgress(safeFileName, 1.0f, "112 MB/s", false)
                                         notifyTransferCompleted(safeFileName, destFile, false)
                                     }
-                                    val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"received\":true,\"status\":\"ok\",\"fileName\":\"$safeFileName\"}"
+                                    val resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"received\":true,\"status\":\"ok\",\"fileName\":\"${destFile.name}\"}"
                                     output.write(resp.toByteArray(Charsets.UTF_8))
                                 } else {
                                     tmpFile.delete()
@@ -339,7 +340,7 @@ class FileBeamReceiver(private val context: Context) {
                                     }
 
                                     val tmpFile = File(downloadDir, "$safeFileName.${System.currentTimeMillis()}.tmp")
-                                    val destFile = File(downloadDir, safeFileName)
+                                    val destFile = resolveUniqueDestinationFile(downloadDir, safeFileName)
                                     FileOutputStream(tmpFile).use { it.write(bytes) }
                                     tmpFile.renameTo(destFile)
                                     notifyFileSavedToUser(context, destFile)
@@ -521,6 +522,23 @@ class FileBeamReceiver(private val context: Context) {
             return if (safe.isEmpty() || safe.startsWith(".")) "Received_File.bin" else safe
         }
 
+        fun resolveUniqueDestinationFile(directory: File, fileName: String): File {
+            val initial = File(directory, fileName)
+            if (!initial.exists()) return initial
+
+            val dotIndex = fileName.lastIndexOf('.')
+            val namePart = if (dotIndex > 0) fileName.substring(0, dotIndex) else fileName
+            val extPart = if (dotIndex > 0) fileName.substring(dotIndex) else ""
+
+            var counter = 1
+            while (counter < 10000) {
+                val candidate = File(directory, "$namePart ($counter)$extPart")
+                if (!candidate.exists()) return candidate
+                counter++
+            }
+            return File(directory, "$namePart (${System.currentTimeMillis()})$extPart")
+        }
+
         fun addListener(listener: FileTransferListener) {
             if (!listeners.contains(listener)) {
                 listeners.add(listener)
@@ -541,6 +559,10 @@ class FileBeamReceiver(private val context: Context) {
 
         fun notifyTransferCompleted(fileName: String, file: File?, isUpload: Boolean) {
             listeners.forEach { it.onTransferCompleted(fileName, file, isUpload) }
+        }
+
+        fun notifyTransferFailed(fileName: String, error: String) {
+            listeners.forEach { it.onTransferFailed(fileName, error) }
         }
 
         fun getGloomDownloadDirectory(context: Context): File {
@@ -627,8 +649,8 @@ class FileBeamReceiver(private val context: Context) {
             onComplete: (Boolean) -> Unit
         ) {
             thread(isDaemon = true, name = "Gloom-BeamUri-Thread") {
+                var fileName = "mobile_file_${System.currentTimeMillis()}.bin"
                 try {
-                    var fileName = "mobile_file_${System.currentTimeMillis()}.bin"
                     var totalBytes = 0L
 
                     runCatching {
@@ -664,8 +686,9 @@ class FileBeamReceiver(private val context: Context) {
 
                     val now = System.currentTimeMillis()
                     val nonce = GloomLiveBridgeClient.generateSecureNonce()
-                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context) ?: BridgeTls.permissiveClientSocketFactory()
+                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context)
                     if (tlsFactory == null) {
+                        Log.w(TAG, "Cannot beam file: desktop certificate is not pinned")
                         Handler(Looper.getMainLooper()).post { onComplete(false) }
                         return@thread
                     }
@@ -733,12 +756,16 @@ class FileBeamReceiver(private val context: Context) {
                             notifyTransferCompleted(fileName, File(fileName), true)
                             onComplete(true)
                         } else {
+                            notifyTransferFailed(fileName, "Failed (HTTP ${conn.responseCode})")
                             onComplete(false)
                         }
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Beaming URI failed: ${e.message}")
-                    Handler(Looper.getMainLooper()).post { onComplete(false) }
+                    Handler(Looper.getMainLooper()).post {
+                        notifyTransferFailed(fileName, e.message ?: "Failed")
+                        onComplete(false)
+                    }
                 }
             }
         }
@@ -763,8 +790,9 @@ class FileBeamReceiver(private val context: Context) {
 
                     val now = System.currentTimeMillis()
                     val nonce = GloomLiveBridgeClient.generateSecureNonce()
-                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context) ?: BridgeTls.permissiveClientSocketFactory()
+                    val tlsFactory = BridgeTls.pinnedClientSocketFactory(context)
                     if (tlsFactory == null) {
+                        Log.w(TAG, "Cannot beam file: desktop certificate is not pinned")
                         Handler(Looper.getMainLooper()).post { onComplete(false) }
                         return@thread
                     }
@@ -824,12 +852,14 @@ class FileBeamReceiver(private val context: Context) {
                             notifyTransferCompleted(file.name, file, true)
                             onComplete(true)
                         } else {
+                            notifyTransferFailed(file.name, "Failed (HTTP ${conn.responseCode})")
                             onComplete(false)
                         }
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Beaming file failed: ${e.message}")
                     Handler(Looper.getMainLooper()).post {
+                        notifyTransferFailed(file.name, e.message ?: "Failed")
                         onComplete(false)
                     }
                 }

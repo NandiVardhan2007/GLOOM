@@ -241,7 +241,17 @@ class GloomLiveBridgeClient(private val context: Context) {
         releaseMulticastLock()
         Log.i(TAG, "Successfully connected to GLOOM Desktop at $desktopIp:$desktopPort ($name)")
         onConnected(name, host)
-        startTelemetryReporting()
+
+        val hasPinnedCert = BridgeTls.desktopFingerprint(context) != null
+        if (!hasPinnedCert) {
+            autoPairWithDesktop(host, port) { paired ->
+                if (paired) {
+                    startTelemetryReporting()
+                }
+            }
+        } else {
+            startTelemetryReporting()
+        }
     }
 
     private fun isPrivateIpv4(host: String): Boolean {
@@ -528,61 +538,64 @@ class GloomLiveBridgeClient(private val context: Context) {
         startDiscovery { _, _ -> }
     }
 
+    fun autoPairWithDesktop(host: String, port: Int, onResult: ((Boolean) -> Unit)? = null) {
+        thread(isDaemon = true, name = "Gloom-AutoPair-Thread") {
+            var paired = false
+            try {
+                val payload = JSONObject().apply {
+                    put("clientDeviceId", Build.MODEL)
+                    put("clientDeviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
+                }.toString().toByteArray(Charsets.UTF_8)
+
+                val conn = openSecureConnection("https://$host:$port/api/pair/confirm")
+                if (conn != null) {
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.doOutput = true
+                    conn.connectTimeout = 32000
+                    conn.readTimeout = 32000
+                    conn.outputStream.use { it.write(payload) }
+                    val code = conn.responseCode
+                    if (code in 200..299) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        val pairResponse = JSONObject(body)
+                        val token = pairResponse.optString("authToken", "")
+                        if (token.isNotBlank()) {
+                            FileBeamReceiver.storePairedToken(context, token)
+                            BridgeTls.storeDesktopFingerprint(
+                                context,
+                                pairResponse.optString("serverTlsFingerprint", "")
+                            )
+                            val certPem = pairResponse.optString("clientCertPem", "")
+                            val keyPem = pairResponse.optString("clientKeyPem", "")
+                            if (certPem.isNotBlank() && keyPem.isNotBlank() &&
+                                BridgeTls.storeClientIdentity(context, certPem, keyPem)
+                            ) {
+                                FileBeamReceiver.restartServerWithTls()
+                            }
+                            paired = true
+                            startTelemetryReporting()
+                            Log.i(TAG, "Same-network auto-pairing succeeded with GLOOM Desktop")
+                        }
+                    } else {
+                        Log.w(TAG, "Same-network auto-pairing rejected with HTTP $code")
+                    }
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Same-network auto-pairing error: ${e.message}")
+            }
+            mainHandler.post { onResult?.invoke(paired) }
+        }
+    }
+
     fun confirmPairing(challengeId: String, pin: String, onResult: (Boolean) -> Unit) {
         val ip = desktopIp
         if (ip == null) {
             onResult(false)
             return
         }
-        thread(isDaemon = true, name = "Gloom-Pairing-Confirm") {
-            var paired = false
-            try {
-                val payload = JSONObject().apply {
-                    put("challengeId", challengeId)
-                    put("pin", pin)
-                    put("clientDeviceId", Build.MODEL)
-                    put("clientDeviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
-                }.toString().toByteArray(Charsets.UTF_8)
-
-                val conn = openSecureConnection("https://$ip:$desktopPort/api/pair/confirm") ?: run {
-                    mainHandler.post { onResult(false) }
-                    return@thread
-                }
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.doOutput = true
-                conn.connectTimeout = 4000
-                conn.readTimeout = 4000
-                conn.outputStream.use { it.write(payload) }
-                val code = conn.responseCode
-                if (code in 200..299) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val pairResponse = JSONObject(body)
-                    val token = pairResponse.optString("authToken", "")
-                    if (token.isNotBlank()) {
-                        FileBeamReceiver.storePairedToken(context, token)
-                        BridgeTls.storeDesktopFingerprint(
-                            context,
-                            pairResponse.optString("serverTlsFingerprint", "")
-                        )
-                        val certPem = pairResponse.optString("clientCertPem", "")
-                        val keyPem = pairResponse.optString("clientKeyPem", "")
-                        if (certPem.isNotBlank() && keyPem.isNotBlank() &&
-                            BridgeTls.storeClientIdentity(context, certPem, keyPem)
-                        ) {
-                            // Switch the companion server from bootstrap HTTP to pinned TLS.
-                            FileBeamReceiver.restartServerWithTls()
-                        }
-                        paired = true
-                        startTelemetryReporting()
-                    }
-                }
-                conn.disconnect()
-            } catch (e: Exception) {
-                Log.w(TAG, "Pairing confirmation failed: ${e.message}")
-            }
-            mainHandler.post { onResult(paired) }
-        }
+        autoPairWithDesktop(ip, desktopPort, onResult)
     }
 
     private fun openSecureConnection(urlString: String): HttpsURLConnection? {
