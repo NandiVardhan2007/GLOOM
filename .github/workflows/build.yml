@@ -225,9 +225,11 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.8.4 — Glitch-Free Accessibility Dynamic Island Collapse & Notification Styles
-            - **Glitch-Free Accessibility Island Collapse**: Permanently anchored `GloomIslandAccessibilityService` to `MATCH_PARENT` full-width window parameters and dynamic hardware insets (`TOUCHABLE_INSETS_REGION`). Completely eliminates the left-corner jump/snap glitch where the collapsed pill shifted to the left edge before centering.
-            - **Per-App Notification Styles & Quick Actions**: Added the extensible `NotificationStyleRegistry` with bespoke styling for WhatsApp, WhatsApp Business, Instagram, and Snapchat. Supports inline `RemoteInput` reply with keyguard protection and "Open App" fallbacks.
+            ### GLOOM 1.9.0 — Multi-Monitor Display Placement & Island Polish
+            - **Multi-Monitor Display Placement**: Independent display configuration for Desktop Notch and Dock with an interactive Windows 11-style monitor canvas, accessible per-monitor checklist, and persistent hardware PNP ID/interface path resolution.
+            - **Genie Effect Removal**: Completely excised the legacy Genie effect across Desktop and Android in favor of smooth native animations, ensuring zero layout glitches and graceful migration for existing user settings.
+            - **Android Island Lock/Unlock Stability**: Eliminated card width distortion during lock/unlock animations, normalized lock label font sizing across system font scales (1.0x, 1.3x, 2.0x), and bounded expanded window width to prevent touch traps.
+            - **Clean Architectural Modernization**: Removed deprecated private insets reflection, restricted Tauri desktop window capabilities to explicit patterns (`main*`, `dock*`), and enforced mixed-DPI position-first window positioning.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk
