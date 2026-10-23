@@ -86,6 +86,16 @@ pub fn get_bridge_devices() -> Vec<crate::livebridge::BridgeDevice> {
     crate::livebridge::get_known_devices()
 }
 
+#[tauri::command]
+pub fn respond_livebridge_pairing(device_id: String, allow: bool) -> bool {
+    crate::livebridge::resolve_livebridge_pairing(&device_id, allow)
+}
+
+#[tauri::command]
+pub fn clear_trusted_devices(app: AppHandle) -> Result<(), String> {
+    crate::livebridge::clear_all_trusted_devices(&app)
+}
+
 /// Drops shelf entries whose files no longer exist (moved, deleted, drive
 /// unplugged). Called once at startup so the shelf does not accumulate dead
 /// references across sessions.

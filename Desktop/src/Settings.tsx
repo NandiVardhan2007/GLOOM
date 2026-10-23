@@ -163,6 +163,8 @@ function SettingsApp() {
 					)}
 					{activeTab === "notch" && (
 						<NotchTab
+							islandStyle={settings.islandStyle}
+							handleIslandStyleChange={settings.handleIslandStyleChange}
 							notchMode={settings.notchMode}
 							setNotchModeValue={settings.setNotchModeValue}
 							notchEdgeDelay={settings.notchEdgeDelay}

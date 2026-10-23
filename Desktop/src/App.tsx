@@ -31,6 +31,7 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
@@ -550,6 +551,10 @@ function App() {
 		const raw = localStorage.getItem("gloom-notch-mode") || "fixed";
 		if (raw === "auto-hide") return "smart";
 		return raw;
+	});
+
+	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
+		return localStorage.getItem("gloom-island-style") === "pill" ? "pill" : "notch";
 	});
 
 	useEffect(() => {
@@ -1095,11 +1100,24 @@ function App() {
 			releaseNotchHover();
 		});
 
+		const unlistenPairingRequest = listen<{ deviceId: string; deviceName: string; ip: string }>(
+			"livebridge-pairing-request",
+			async (event) => {
+				const { deviceId, deviceName, ip } = event.payload;
+				const confirmed = await ask(
+					`Device "${deviceName}" (${ip}) wants to connect to GLOOM on this PC. Allow this device?`,
+					{ title: "GLOOM Mobile Connection", kind: "info" }
+				);
+				invoke("respond_livebridge_pairing", { deviceId, allow: confirmed }).catch(() => {});
+			}
+		);
+
 		return () => {
 			unlistenVisibility.then((f) => f());
 			unlistenNotchOverlap.then((f) => f());
 			unlistenNotchEdgeHover.then((f) => f());
 			unlistenNotchPointerLeft.then((f) => f());
+			unlistenPairingRequest.then((f) => f());
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [windowLabel]);
@@ -1138,7 +1156,8 @@ function App() {
 				} catch {}
 			},
 			"gloom-show-update-indicator": (value) => setShowUpdateIndicator(String(value) === "true"),
-			"gloom-time-format-24h": setTimeFormat24h
+			"gloom-time-format-24h": setTimeFormat24h,
+			"gloom-island-style": (v: unknown) => setIslandStyle(v === "pill" ? "pill" : "notch")
 		},
 		[windowLabel]
 	);
@@ -2807,7 +2826,8 @@ function App() {
 	// The pill's target geometry: the animation springs toward it, and the
 	// window region below is cut from it, so the region is already at the
 	// final size while the pill animates.
-	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : 0) : -150;
+	const isPill = islandStyle === "pill";
+	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : (isPill ? 10 : 0)) : -150;
 	const pillTargetWidth = !isReady
 		? 34
 		: isExpanded && isVisible && !isHidden
@@ -2866,7 +2886,7 @@ function App() {
 			>
 				<motion.div
 					ref={gloomRef}
-					className={`gloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""}`}
+					className={`gloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""} ${isPill ? "pill-mode" : ""}`}
 					onMouseEnter={() => setIsNotchHovered(true)}
 					onMouseLeave={() => setIsNotchHovered(false)}
 					onWheel={handleWheel}
@@ -2889,8 +2909,8 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: isImpacted ? 0 : 18,
-						borderTopRightRadius: isImpacted ? 0 : 18,
+						borderTopLeftRadius: isPill ? (isCalendarMode ? 28 : 18) : (isImpacted ? 0 : 18),
+						borderTopRightRadius: isPill ? (isCalendarMode ? 28 : 18) : (isImpacted ? 0 : 18),
 						borderBottomLeftRadius: isCalendarMode ? 28 : 18,
 						borderBottomRightRadius: isCalendarMode ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
@@ -2920,7 +2940,7 @@ function App() {
 						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
 					}}
 				>
-					<EdgeSurface edge="top" flares={isImpacted} />
+					<EdgeSurface edge="top" flares={isPill ? false : isImpacted} />
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div

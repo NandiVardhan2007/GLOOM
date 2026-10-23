@@ -131,10 +131,20 @@ export async function applyTheme(
 		brightness = cachedBrightness !== null ? parseFloat(cachedBrightness) : 0.15;
 	}
 
+	// Resolve "system" mode dynamically
+	let resolvedMode = mode;
+	if (mode === "system") {
+		const isDark =
+			typeof window !== "undefined" &&
+			window.matchMedia &&
+			window.matchMedia("(prefers-color-scheme: dark)").matches;
+		resolvedMode = isDark ? "dark" : "light";
+	}
+
 	const op = opacity;
 	const opExpanded = Math.min(1.0, opacity + 0.12);
 
-	if (mode === "light") {
+	if (resolvedMode === "light") {
 		root.style.setProperty("--gloom-bg", `rgba(255, 255, 255, ${op})`);
 		root.style.setProperty("--gloom-bg-expanded", `rgba(245, 245, 247, ${opExpanded})`);
 		root.style.setProperty("--gloom-text", "#1c1c1e");
@@ -147,7 +157,7 @@ export async function applyTheme(
 		root.classList.remove("dark-mode");
 		root.classList.add("theme-light");
 		root.classList.remove("theme-dark", "theme-custom", "theme-adaptive");
-	} else if (mode === "custom") {
+	} else if (resolvedMode === "custom") {
 		const hsl = hexToHsl(customColor);
 		hsl.s = saturation * 100;
 		hsl.l = brightness * 100;
@@ -183,7 +193,7 @@ export async function applyTheme(
 			root.classList.add("dark-mode");
 			root.classList.remove("light-mode");
 		}
-	} else if (mode === "adaptive") {
+	} else if (resolvedMode === "adaptive") {
 		try {
 			const accentHex = await invoke<string>("get_system_accent_color");
 			const hsl = hexToHsl(accentHex);
@@ -258,7 +268,6 @@ export function initTheme() {
 	// Sync settings.json in background to avoid flickers
 	invoke<Record<string, any>>("load_settings")
 		.then(async (settings) => {
-			// Don't write a stale mirror value back while the window reloads.
 			if (await reloadIfMirrorWasStale(settings)) return;
 			const mode = settings["gloom-theme-mode"] ? String(settings["gloom-theme-mode"]) : syncMode;
 			const color = settings["gloom-theme-color"]
@@ -310,10 +319,14 @@ export function initTheme() {
 	];
 
 	// Listen to setting changes broadcasted from settings window
-	// (localStorage sync is handled by saveAndLocal in Settings.tsx; we just apply the theme)
 	const settingsPromise = listen<{ key: string; value: any }>("settings-changed", (event) => {
-		const { key } = event.payload;
+		const { key, value } = event.payload;
 		if (gloomThemeKeys.includes(key)) {
+			if (value !== null && value !== undefined) {
+				localStorage.setItem(key, String(value));
+			} else {
+				localStorage.removeItem(key);
+			}
 			applyThemeFromStorage();
 		}
 	});
@@ -330,20 +343,40 @@ export function initTheme() {
 	});
 
 	// Listen to external edits (e.g. settings.json edited outside the app)
-	// localStorage sync is handled by useSettingsSync hook; we just apply the theme
 	const externalPromise = listen<{ key: string; value: any }>(
 		"settings-external-changed",
 		(event) => {
-			const { key } = event.payload;
+			const { key, value } = event.payload;
 			if (gloomThemeKeys.includes(key)) {
+				if (value !== null && value !== undefined) {
+					localStorage.setItem(key, String(value));
+				} else {
+					localStorage.removeItem(key);
+				}
 				applyThemeFromStorage();
 			}
 		}
 	);
 
+	// React to OS system dark/light theme changes if mode is "system"
+	const onSystemThemeChange = () => {
+		const currentMode = localStorage.getItem("gloom-theme-mode") || "dark";
+		if (currentMode === "system") {
+			applyThemeFromStorage();
+		}
+	};
+	let mediaWatcher: MediaQueryList | null = null;
+	if (typeof window !== "undefined" && window.matchMedia) {
+		mediaWatcher = window.matchMedia("(prefers-color-scheme: dark)");
+		mediaWatcher.addEventListener("change", onSystemThemeChange);
+	}
+
 	return () => {
 		settingsPromise.then((f) => f());
 		accentPromise.then((f) => f());
 		externalPromise.then((f) => f());
+		if (mediaWatcher) {
+			mediaWatcher.removeEventListener("change", onSystemThemeChange);
+		}
 	};
 }

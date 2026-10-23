@@ -150,6 +150,8 @@ fn main() {
             shelf_open,
             beam_file_to_device,
             get_bridge_devices,
+            respond_livebridge_pairing,
+            clear_trusted_devices,
             get_active_windows,
             get_tray_apps,
             show_tray_context_menu,

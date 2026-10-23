@@ -3,19 +3,18 @@
  *
  * Fetches the released updater manifest the same way the app's updater does and
  * enforces `CHECK_TIMEOUT_SECS` from src-tauri/src/updater.rs as a wall-clock
- * budget. Catches: missing/partial latest.json, missing platform entries or
- * signatures, broken asset URLs, and networks so slow that update checks would
- * time out for users like the release machine (the 3.8.7 bug).
+ * budget. Catches: missing/partial latest.json, missing platform entries,
+ * broken asset URLs, and slow network routes.
  *
  * Usage:
- *   bun scripts/verify-updater.mjs          # checks the live 'latest' release
- *   bun scripts/verify-updater.mjs v3.9.0   # checks a specific tag and version
+ *   node scripts/verify-updater.mjs          # checks the live 'latest' release
+ *   node scripts/verify-updater.mjs v1.7.0   # checks a specific tag and version
  */
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repo = "SehajveerSingh2005/bloom";
+const repo = "NandiVardhan2007/GLOOM";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tag = process.argv[2];
 
@@ -26,13 +25,13 @@ if (!Number.isFinite(budgetSecs) || budgetSecs <= 0) {
 	process.exit(1);
 }
 
-if (tag && !/^v\d+\.\d+\.\d+$/.test(tag)) {
-	console.error("Tag must look like v3.9.0");
+if (tag && !/^v?\d+\.\d+\.\d+$/.test(tag)) {
+	console.error("Tag must look like v1.7.0 or 1.7.0");
 	process.exit(1);
 }
 
 const manifestUrl = tag
-	? `https://github.com/${repo}/releases/download/${tag}/latest.json`
+	? `https://github.com/${repo}/releases/download/${tag.startsWith("v") ? tag : `v${tag}`}/latest.json`
 	: `https://github.com/${repo}/releases/latest/download/latest.json`;
 const expectedVersion = tag?.replace(/^v/, "");
 
@@ -79,35 +78,34 @@ try {
 }
 
 if (manifest) {
-	if (expectedVersion && manifest.version !== expectedVersion) {
+	const manifestVer = (manifest.version ?? "").replace(/^v/, "");
+	if (expectedVersion && manifestVer !== expectedVersion) {
 		fail("manifest version", `expected ${expectedVersion}, got ${manifest.version}`);
 	} else {
 		pass("manifest version", manifest.version);
 	}
 
 	const platforms = manifest.platforms ?? {};
-	const required = ["windows-x86_64", "windows-x86_64-nsis", "windows-x86_64-msi"];
-	for (const key of required) {
-		const entry = platforms[key];
-		if (!entry?.url || !entry?.signature) {
-			fail(`platform "${key}"`, "missing url or signature");
-			continue;
-		}
+	const entry = platforms["windows-x86_64"] ?? platforms["windows-x86_64-nsis"];
+	if (!entry?.url) {
+		fail('platform "windows-x86_64"', "missing url");
+	} else {
+		pass('platform "windows-x86_64"', entry.url);
 		try {
 			const { res, seconds } = await fetchWithinBudget(entry.url, {
 				headers: { Range: "bytes=0-0" }
 			});
 			const elapsed = seconds.toFixed(1);
 			if (res.status !== 200 && res.status !== 206) {
-				fail(`platform "${key}" asset`, `HTTP ${res.status} after ${elapsed}s`);
+				fail('platform "windows-x86_64" asset', `HTTP ${res.status} after ${elapsed}s`);
 			} else if (seconds >= budgetSecs) {
-				fail(`platform "${key}" asset within the app timeout`, `${elapsed}s`);
+				fail('platform "windows-x86_64" asset within the app timeout', `${elapsed}s`);
 			} else {
-				pass(`platform "${key}" asset`, `${elapsed}s of ${budgetSecs}s`);
+				pass('platform "windows-x86_64" asset', `${elapsed}s of ${budgetSecs}s`);
 			}
 		} catch (error) {
 			fail(
-				`platform "${key}" asset`,
+				'platform "windows-x86_64" asset',
 				error?.name === "AbortError" ? `timed out at ${budgetSecs}s` : String(error)
 			);
 		}

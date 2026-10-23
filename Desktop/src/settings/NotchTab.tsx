@@ -17,6 +17,8 @@ import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 
 interface NotchTabProps {
+	islandStyle: "notch" | "pill";
+	handleIslandStyleChange: (style: "notch" | "pill") => void;
 	notchMode: string;
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
@@ -62,6 +64,8 @@ interface NotchTabProps {
 }
 
 export function NotchTab({
+	islandStyle,
+	handleIslandStyleChange,
 	notchMode,
 	setNotchModeValue,
 	notchEdgeDelay,
@@ -102,8 +106,18 @@ export function NotchTab({
 }: NotchTabProps) {
 	return (
 		<>
-			<div className="setting-group-label">Notch</div>
+			<div className="setting-group-label">Notch & Pill</div>
 			<div className="setting-group">
+				<SettingRow icon={Circle} label="Display Style" desc="Choose between attached Notch or floating Pill">
+					<select
+						className="settings-select"
+						value={islandStyle}
+						onChange={(e) => handleIslandStyleChange(e.target.value as "notch" | "pill")}
+					>
+						<option value="notch">Notch (Attached)</option>
+						<option value="pill">Pill (Floating)</option>
+					</select>
+				</SettingRow>
 				<SettingRow icon={PanelTop} label="Notch Behavior" desc="Choose how the notch appears">
 					<select
 						className="settings-select"

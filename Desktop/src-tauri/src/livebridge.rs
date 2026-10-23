@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, UdpSocket};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::bridge_tls;
 
@@ -40,6 +41,79 @@ pub struct BridgeTransfer {
 
 static DEVICES: Mutex<Option<HashMap<String, BridgeDevice>>> = Mutex::new(None);
 static ACTIVE_TRANSFERS: Mutex<Option<HashMap<String, BridgeTransfer>>> = Mutex::new(None);
+static PENDING_PAIRINGS: Mutex<Option<HashMap<String, Sender<bool>>>> = Mutex::new(None);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustedDevice {
+    pub device_id: String,
+    pub name: String,
+    pub ip: String,
+    pub token: String,
+    pub paired_at_ms: u64,
+}
+
+pub fn load_trusted_devices_from_path(path: &Path) -> HashMap<String, TrustedDevice> {
+    if let Ok(data) = std::fs::read_to_string(path) {
+        if let Ok(map) = serde_json::from_str::<HashMap<String, TrustedDevice>>(&data) {
+            return map;
+        }
+    }
+    HashMap::new()
+}
+
+pub fn save_trusted_device_to_path(path: &Path, dev: TrustedDevice) {
+    let mut map = load_trusted_devices_from_path(path);
+    map.insert(dev.device_id.clone(), dev);
+    if let Ok(json) = serde_json::to_string_pretty(&map) {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, json);
+    }
+}
+
+pub fn get_trusted_devices_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("trusted_devices.json"))
+}
+
+pub fn load_trusted_devices(app: &AppHandle) -> HashMap<String, TrustedDevice> {
+    if let Some(path) = get_trusted_devices_path(app) {
+        load_trusted_devices_from_path(&path)
+    } else {
+        HashMap::new()
+    }
+}
+
+pub fn save_trusted_device(app: &AppHandle, dev: TrustedDevice) {
+    if let Some(path) = get_trusted_devices_path(app) {
+        save_trusted_device_to_path(&path, dev);
+    }
+}
+
+pub fn is_device_trusted(app: &AppHandle, device_id: &str) -> bool {
+    let map = load_trusted_devices(app);
+    map.contains_key(device_id)
+}
+
+pub fn clear_all_trusted_devices(app: &AppHandle) -> Result<(), String> {
+    if let Some(path) = get_trusted_devices_path(app) {
+        if path.exists() {
+            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+pub fn resolve_livebridge_pairing(device_id: &str, allow: bool) -> bool {
+    let mut guard = lock(&PENDING_PAIRINGS);
+    if let Some(map) = guard.as_mut() {
+        if let Some(sender) = map.remove(device_id) {
+            let _ = sender.send(allow);
+            return true;
+        }
+    }
+    false
+}
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
@@ -306,30 +380,93 @@ fn handle_bridge_connection<S: Read + Write>(stream: &mut S, peer_ip: &str, app:
         return;
     }
 
-    // 2. Pairing Confirm
+    // 2. Pairing Confirm (TOFU: Trust-on-First-Use)
     if request_line.starts_with("POST /api/pair/confirm") {
         let mut body = vec![0u8; content_len as usize];
         let _ = stream.read_exact(&mut body);
+
+        let (dev_id, name) = if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) {
+            let id = json.get("clientDeviceId").and_then(|v| v.as_str()).unwrap_or("Mobile").to_string();
+            let n = json.get("clientDeviceName").and_then(|v| v.as_str()).unwrap_or("Mobile Island").to_string();
+            (id, n)
+        } else {
+            ("Mobile".to_string(), "Mobile Island".to_string())
+        };
+
+        let mut is_trusted = is_device_trusted(app, &dev_id);
+
+        if !is_trusted {
+            // Prompt the desktop user with a one-time TOFU authorization prompt
+            let (tx, rx) = channel::<bool>();
+            {
+                let mut guard = lock(&PENDING_PAIRINGS);
+                let map = guard.get_or_insert_with(HashMap::new);
+                map.insert(dev_id.clone(), tx);
+            }
+
+            let _ = app.emit(
+                "livebridge-pairing-request",
+                serde_json::json!({
+                    "deviceId": dev_id.clone(),
+                    "deviceName": name.clone(),
+                    "ip": peer_ip
+                }),
+            );
+
+            // Wait up to 30 seconds for user response
+            match rx.recv_timeout(Duration::from_secs(30)) {
+                Ok(true) => {
+                    is_trusted = true;
+                }
+                _ => {
+                    let mut guard = lock(&PENDING_PAIRINGS);
+                    if let Some(map) = guard.as_mut() {
+                        map.remove(&dev_id);
+                    }
+                }
+            }
+        }
+
+        if !is_trusted {
+            let err_json = serde_json::json!({ "error": "Pairing rejected by user" }).to_string();
+            let resp = format!(
+                "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                err_json.len(),
+                err_json
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            let _ = stream.flush();
+            return;
+        }
+
         let (client_cert, client_key, client_fp) = bridge_tls::issue_client_identity()
             .unwrap_or_else(|_| (String::new(), String::new(), String::new()));
 
         let token = format!("gloom-token-{}", current_time_ms());
-        if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) {
-            let dev_id = json.get("clientDeviceId").and_then(|v| v.as_str()).unwrap_or("Mobile").to_string();
-            let name = json.get("clientDeviceName").and_then(|v| v.as_str()).unwrap_or("Mobile Island").to_string();
-            update_device(
-                BridgeDevice {
-                    device_id: dev_id,
-                    name,
-                    ip: peer_ip.to_string(),
-                    port: BRIDGE_PORT,
-                    status: "connected".to_string(),
-                    auth_token: token.clone(),
-                    last_seen_ms: current_time_ms(),
-                },
-                app,
-            );
-        }
+
+        save_trusted_device(
+            app,
+            TrustedDevice {
+                device_id: dev_id.clone(),
+                name: name.clone(),
+                ip: peer_ip.to_string(),
+                token: token.clone(),
+                paired_at_ms: current_time_ms(),
+            },
+        );
+
+        update_device(
+            BridgeDevice {
+                device_id: dev_id,
+                name,
+                ip: peer_ip.to_string(),
+                port: BRIDGE_PORT,
+                status: "connected".to_string(),
+                auth_token: token.clone(),
+                last_seen_ms: current_time_ms(),
+            },
+            app,
+        );
 
         let resp_json = serde_json::json!({
             "authToken": token,
@@ -383,6 +520,28 @@ fn handle_bridge_connection<S: Read + Write>(stream: &mut S, peer_ip: &str, app:
 
     // 4. File Beaming Receiver (/api/beam/stream)
     if request_line.starts_with("POST /api/beam/stream") {
+        let is_authed = {
+            let guard = lock(&DEVICES);
+            let in_active = guard.as_ref().map(|map| {
+                map.values().any(|d| (!auth_token.is_empty() && d.auth_token == auth_token) || d.ip == peer_ip)
+            }).unwrap_or(false);
+            in_active || {
+                let trusted = load_trusted_devices(app);
+                trusted.values().any(|d| (!auth_token.is_empty() && d.token == auth_token) || d.ip == peer_ip)
+            }
+        };
+
+        if !is_authed {
+            let err_json = serde_json::json!({ "error": "Unauthorized" }).to_string();
+            let resp = format!(
+                "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                err_json.len(),
+                err_json
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            return;
+        }
+
         if content_len == 0 || content_len > MAX_STREAM_BYTES {
             let err_json = serde_json::json!({ "error": "Invalid or missing file size" }).to_string();
             let resp = format!(
@@ -757,5 +916,34 @@ mod tests {
         let json = serde_json::to_string(&transfer).expect("serialization succeeds");
         assert!(json.contains("photo.jpg"));
         assert!(json.contains("\"progress\":0.5"));
+    }
+
+    #[test]
+    fn test_trusted_devices_persistence() {
+        let temp_dir = std::env::temp_dir().join(format!("gloom_test_{}", current_time_ms()));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let path = temp_dir.join("trusted_devices.json");
+
+        assert!(!path.exists());
+        let initial = load_trusted_devices_from_path(&path);
+        assert!(initial.is_empty());
+
+        let dev = TrustedDevice {
+            device_id: "phone-123".to_string(),
+            name: "Pixel 8".to_string(),
+            ip: "192.168.1.100".to_string(),
+            token: "token-abc".to_string(),
+            paired_at_ms: current_time_ms(),
+        };
+
+        save_trusted_device_to_path(&path, dev.clone());
+        assert!(path.exists());
+
+        let loaded = load_trusted_devices_from_path(&path);
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded.get("phone-123").unwrap().name, "Pixel 8");
+        assert_eq!(loaded.get("phone-123").unwrap().ip, "192.168.1.100");
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

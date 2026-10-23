@@ -144,6 +144,10 @@ export function useSettings() {
 		const val = localStorage.getItem("gloom-notch-edge-delay");
 		return val !== null ? parseInt(val) : 200;
 	});
+	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
+		const val = localStorage.getItem("gloom-island-style");
+		return val === "pill" ? "pill" : "notch";
+	});
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(20);
 	const [updateStatus, setUpdateStatus] = useState<
 		"idle" | "checking" | "available" | "uptodate" | "error" | "downloading" | "installing"
@@ -244,6 +248,7 @@ export function useSettings() {
 
 			apply(getVal("gloom-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("gloom-notch-edge-delay"), setNotchEdgeDelay, parseInt);
+			apply(getVal("gloom-island-style"), setIslandStyle, (v) => (v === "pill" ? "pill" : "notch"));
 			apply(getVal("gloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("gloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
@@ -277,6 +282,10 @@ export function useSettings() {
 	const saveSetting = (key: string, value: string | null): Promise<boolean> => {
 		const operation = saveQueue.current.then(async () => {
 			if (saveFailed.current) return false;
+			try {
+				if (value === null) localStorage.removeItem(key);
+				else localStorage.setItem(key, value);
+			} catch {}
 			try {
 				await invoke<void>("save_setting", { key, value });
 			} catch (error) {
@@ -356,6 +365,7 @@ export function useSettings() {
 		"gloom-dock-edge-delay": setDockEdgeDelay,
 		"gloom-notch-mode": setNotchMode,
 		"gloom-notch-edge-delay": setNotchEdgeDelay,
+		"gloom-island-style": (v) => setIslandStyle(v === "pill" ? "pill" : "notch"),
 		"gloom-dock-enabled": setDockEnabled,
 		"gloom-dock-icon-only": setDockIconOnly,
 		"gloom-dock-separator-enabled": setDockSeparatorEnabled,
@@ -777,6 +787,11 @@ export function useSettings() {
 		saveSetting("gloom-notch-edge-delay", val.toString());
 	};
 
+	const handleIslandStyleChange = (style: "notch" | "pill") => {
+		setIslandStyle(style);
+		saveSetting("gloom-island-style", style);
+	};
+
 	const handleThresholdChange = (val: number) => {
 		setLowBatteryThreshold(val);
 		saveSetting("gloom-low-battery-threshold", val.toString());
@@ -976,6 +991,8 @@ export function useSettings() {
 		setNotchModeValue,
 		notchEdgeDelay,
 		handleNotchEdgeDelayChange,
+		islandStyle,
+		handleIslandStyleChange,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,
