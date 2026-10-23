@@ -11,7 +11,6 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { MixerIcon, SpeakerIcon } from "./icons";
 import "./Overlay.css";
 import { EdgeSurface } from "./components/EdgeSurface";
-import { GenieEffect, type GenieTarget, type WindowRect } from "./components/GenieEffect";
 import { initTheme } from "./theme";
 import { createRegionSender, measureElements, type RegionRect } from "./windowRegion";
 
@@ -618,14 +617,7 @@ function OverlayApp() {
 		return initTheme();
 	}, []);
 
-	type Mode = "idle" | "volume" | "brightness" | "splash" | "updating" | "genie";
-	const [genieData, setGenieData] = useState<{
-		imageSrc: string;
-		windowRect: WindowRect;
-		dockTarget: GenieTarget;
-		direction: "minimize" | "restore";
-		durationMs?: number;
-	} | null>(null);
+	type Mode = "idle" | "volume" | "brightness" | "splash" | "updating";
 	const [mode, setMode] = useState<Mode>("idle");
 	const [updateStatus, setUpdateStatus] = useState<string>("checking");
 	const [updateProgress, setUpdateProgress] = useState(0);
@@ -813,26 +805,12 @@ function OverlayApp() {
 			}
 		);
 
-		const geniePromise = listen<{
-			imageSrc: string;
-			windowRect: WindowRect;
-			dockTarget: GenieTarget;
-			direction: "minimize" | "restore";
-			durationMs?: number;
-		}>("gloom-genie-animate", (event) => {
-			if (splashActiveRef.current) return;
-			if (localStorage.getItem("gloom-dock-genie-effect") === "false") return;
-			setGenieData(event.payload);
-			setMode("genie");
-		});
-
 		return () => {
 			volPromise.then((fn) => fn());
 			volEdgePromise.then((fn) => fn());
 			brightPromise.then((fn) => fn());
 			brightEdgePromise.then((fn) => fn());
 			autoUpdatePromise.then((fn) => fn());
-			geniePromise.then((fn) => fn());
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [
@@ -848,14 +826,7 @@ function OverlayApp() {
 		"gloom-volume-edge-enabled": setVolumeEdgeEnabled,
 		"gloom-brightness-overlay-enabled": setBrightnessOverlayEnabled,
 		"gloom-brightness-edge-enabled": setBrightnessEdgeEnabled,
-		"gloom-scale": setScale,
-		"gloom-dock-genie-effect": (val: any) => {
-			const enabled = val !== false && val !== "false";
-			if (!enabled) {
-				setMode((prev) => (prev === "genie" ? "idle" : prev));
-				setGenieData(null);
-			}
-		}
+		"gloom-scale": setScale
 	});
 
 	// Side effects: reset overlay mode to idle when overlay is disabled
@@ -984,7 +955,7 @@ function OverlayApp() {
 	useEffect(() => {
 		const width = window.innerWidth;
 		const height = window.innerHeight;
-		if (mode === "splash" || mode === "updating" || mode === "genie") {
+		if (mode === "splash" || mode === "updating") {
 			sendOverlayRegion([{ x: 0, y: 0, width, height }]);
 			return;
 		}
@@ -1012,22 +983,6 @@ function OverlayApp() {
 
 	return (
 		<div className="overlay-container">
-			{/* macOS Genie Animation */}
-			{mode === "genie" && genieData && (
-				<GenieEffect
-					imageSrc={genieData.imageSrc}
-					windowRect={genieData.windowRect}
-					dockTarget={genieData.dockTarget}
-					direction={genieData.direction}
-					durationMs={genieData.durationMs ?? parseInt(localStorage.getItem("gloom-dock-genie-duration") || "380")}
-					style={(localStorage.getItem("gloom-dock-genie-style") || "zorin") as any}
-					onComplete={() => {
-						setMode("idle");
-						setGenieData(null);
-					}}
-				/>
-			)}
-
 			{/* Splash Screen */}
 			<AnimatePresence>
 				{mode === "splash" && (

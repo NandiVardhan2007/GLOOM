@@ -2,7 +2,7 @@
 .SYNOPSIS
     GLOOM Windows One-Line Installer
 .DESCRIPTION
-    Downloads and installs the latest verified GLOOM Dynamic Island & macOS Genie Dock release.
+    Downloads and installs the latest verified GLOOM Dynamic Island & Desktop Dock release.
 .EXAMPLE
     irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.ps1 | iex
 #>
@@ -22,7 +22,7 @@ Write-Host @"
   / ___| |    / _ \ / _ \|  \/  |
  | |  _| |   | | | | | | | |\/| |
  | |_| | |___| |_| | |_| | |  | |
-  \____|_____|\___/ \___/|_|  |_|  Dynamic Island & macOS Genie Dock
+  \____|_____|\___/ \___/|_|  |_|  Dynamic Island & Desktop Dock
   ==============================================================
 "@ -ForegroundColor Cyan
 

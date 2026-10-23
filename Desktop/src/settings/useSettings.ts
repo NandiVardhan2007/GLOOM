@@ -81,17 +81,6 @@ export function useSettings() {
 	});
 	const [dockEnabled, setDockEnabled] = useState(true);
 	const [dockPreviewEnabled, setDockPreviewEnabled] = useState(true);
-	const [dockGenieEnabled, setDockGenieEnabled] = useState(
-		() => localStorage.getItem("gloom-dock-genie-effect") !== "false"
-	);
-	const [dockGenieDuration, setDockGenieDurationState] = useState(() => {
-		const val = localStorage.getItem("gloom-dock-genie-duration");
-		return val !== null ? parseInt(val) : 380;
-	});
-	const [dockGenieStyle, setDockGenieStyleState] = useState<"zorin" | "windhawk" | "suck">(() => {
-		const val = localStorage.getItem("gloom-dock-genie-style");
-		return val === "suck" ? "suck" : val === "windhawk" ? "windhawk" : "zorin";
-	});
 	const [dockIconOnly, setDockIconOnly] = useState(
 		() => localStorage.getItem("gloom-dock-icon-only") === "true"
 	);
@@ -224,11 +213,11 @@ export function useSettings() {
 			apply(getVal("gloom-auto-update"), setAutoUpdate, readBool);
 			apply(getVal("gloom-volume-edge-enabled"), setVolumeEdgeEnabled, readBool);
 			apply(getVal("gloom-brightness-edge-enabled"), setBrightnessEdgeEnabled, readBool);
+			localStorage.removeItem("gloom-dock-genie-effect");
+			localStorage.removeItem("gloom-dock-genie-duration");
+			localStorage.removeItem("gloom-dock-genie-style");
 			apply(getVal("gloom-dock-enabled"), setDockEnabled, readBool);
 			apply(getVal("gloom-dock-preview-enabled"), setDockPreviewEnabled, readBool);
-			apply(getVal("gloom-dock-genie-effect"), setDockGenieEnabled, readBool);
-			apply(getVal("gloom-dock-genie-duration"), setDockGenieDurationState, parseInt);
-			apply(getVal("gloom-dock-genie-style"), setDockGenieStyleState, (v) => (v === "suck" ? "suck" : v === "windhawk" ? "windhawk" : "zorin"));
 			apply(getVal("gloom-dock-icon-only"), setDockIconOnly, readBool);
 			apply(getVal("gloom-dock-separator-enabled"), setDockSeparatorEnabled, readBool);
 			apply(getVal("gloom-start-icon"), setStartIcon, (v) => v);
@@ -371,9 +360,6 @@ export function useSettings() {
 		"gloom-dock-separator-enabled": setDockSeparatorEnabled,
 		"gloom-start-icon": setStartIcon,
 		"gloom-dock-preview-enabled": setDockPreviewEnabled,
-		"gloom-dock-genie-effect": (val: any) => setDockGenieEnabled(val !== false && val !== "false"),
-		"gloom-dock-genie-duration": (val: any) => setDockGenieDurationState(Number(val) || 380),
-		"gloom-dock-genie-style": (val: any) => setDockGenieStyleState(val === "suck" ? "suck" : val === "windhawk" ? "windhawk" : "zorin"),
 		"gloom-dock-adaptive": setDockAdaptive,
 		"gloom-dock-win-number-enabled": setDockWinNumberEnabled,
 		"gloom-dock-extras-position": setDockExtrasPosition,
@@ -657,22 +643,6 @@ export function useSettings() {
 		const next = !dockPreviewEnabled;
 		setDockPreviewEnabled(next);
 		saveSetting("gloom-dock-preview-enabled", String(next));
-	};
-
-	const toggleDockGenie = () => {
-		const next = !dockGenieEnabled;
-		setDockGenieEnabled(next);
-		saveSetting("gloom-dock-genie-effect", String(next));
-	};
-
-	const setDockGenieDuration = (val: number) => {
-		setDockGenieDurationState(val);
-		saveSetting("gloom-dock-genie-duration", String(val));
-	};
-
-	const setDockGenieStyle = (val: "zorin" | "windhawk" | "suck") => {
-		setDockGenieStyleState(val);
-		saveSetting("gloom-dock-genie-style", val);
 	};
 
 	const toggleDockIconOnly = () => {
@@ -1043,12 +1013,6 @@ export function useSettings() {
 		handleDockEdgeDelayChange,
 		dockPreviewEnabled,
 		toggleDockPreview,
-		dockGenieEnabled,
-		toggleDockGenie,
-		dockGenieDuration,
-		setDockGenieDuration,
-		dockGenieStyle,
-		setDockGenieStyle,
 		dockIconOnly,
 		toggleDockIconOnly,
 		dockSeparatorEnabled,

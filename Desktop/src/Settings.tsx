@@ -214,12 +214,6 @@ function SettingsApp() {
 							handleDockEdgeDelayChange={settings.handleDockEdgeDelayChange}
 							dockPreviewEnabled={settings.dockPreviewEnabled}
 							toggleDockPreview={settings.toggleDockPreview}
-							dockGenieEnabled={settings.dockGenieEnabled}
-							toggleDockGenie={settings.toggleDockGenie}
-							dockGenieDuration={settings.dockGenieDuration}
-							setDockGenieDuration={settings.setDockGenieDuration}
-							dockGenieStyle={settings.dockGenieStyle}
-							setDockGenieStyle={settings.setDockGenieStyle}
 							dockIconOnly={settings.dockIconOnly}
 							toggleDockIconOnly={settings.toggleDockIconOnly}
 							dockSeparatorEnabled={settings.dockSeparatorEnabled}

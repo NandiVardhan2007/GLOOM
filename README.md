@@ -4,7 +4,7 @@
 
   # G L O O M
 
-  ### Next-Generation Dynamic Island & Zorin OS Magic Lamp Dock Ecosystem
+  ### Next-Generation Dynamic Island & Fluid Desktop Dock Ecosystem
   **A seamless, glanceable activity surface & fluid desktop dock crafted for Windows 11/10 and Android**
 
   <p align="center">
@@ -20,7 +20,6 @@
   <p align="center">
     <a href="#-what-is-gloom">What is GLOOM</a> •
     <a href="#-key-features">Features</a> •
-    <a href="#-zorin-os-magic-lamp-dock-effect">Magic Lamp / Genie Effect</a> •
     <a href="#-dual-island-styles-notch--pill">Island Styles</a> •
     <a href="#-livebridge-continuity">LiveBridge</a> •
     <a href="#-installation--quickstart">Install</a> •
@@ -33,7 +32,7 @@
 
 ## ⚡ What is GLOOM?
 
-**GLOOM** reimagines how you interact with ongoing tasks, media, system metrics, and cross-device continuity. Blending the fluid elegance of Apple's **Dynamic Island** with the tactile delight of the iconic **Zorin OS / Compiz Magic Lamp Genie Dock**, GLOOM lives unobtrusively at the periphery of your workspace — expanding when needed and melting into the bezel when idle.
+**GLOOM** reimagines how you interact with ongoing tasks, media, system metrics, and cross-device continuity. Blending the fluid elegance of Apple's **Dynamic Island** with the tactile delight of a fluid desktop dock, GLOOM lives unobtrusively at the periphery of your workspace — expanding when needed and melting into the bezel when idle.
 
 Whether on your dual-monitor Windows workstation or your Android smartphone, GLOOM maintains unified physics, instant TLS-encrypted universal clipboard and file beams, and local offline AI tools.
 
@@ -49,7 +48,7 @@ Whether on your dual-monitor Windows workstation or your Android smartphone, GLO
     <td width="50%">
       <h3 align="center">🖥️ Windows Desktop Suite</h3>
       <ul>
-        <li><b>Zorin OS Magic Lamp Dock Effect</b>: True 120-slice cubic-bezier liquid mesh deformation that fluidly funnels and suctions minimized windows into their dock icon with authentic waist pinch and volumetric specular sheen.</li>
+        <li><b>Fluid Desktop Dock</b>: Seamless dock replacement featuring running app indicators, live hover previews, drag-and-drop reordering, and instant native window toggling.</li>
         <li><b>Notch & Pill Topologies</b>: Switch between a classic floating squircle pill and a MacBook-style flush bezel notch with concave shoulder curves.</li>
         <li><b>Layered Pass-Through Architecture</b>: Transparent topmost overlay (<code>WS_EX_LAYERED</code>) with pixel-accurate click-through detection.</li>
         <li><b>Fullscreen Intelligence</b>: Auto-suppresses when full-screen 3D games, presentations, or video players gain focus.</li>
@@ -68,30 +67,6 @@ Whether on your dual-monitor Windows workstation or your Android smartphone, GLO
     </td>
   </tr>
 </table>
-
----
-
-## 🧞 Zorin OS Magic Lamp & Genie Dock Effect
-
-GLOOM brings the legendary **Zorin OS / Compiz Magic Lamp Genie Effect** to Windows:
-
-```
-    ┌────────────────────────┐
-    │     Desktop Window     │
-    │   ┌────────────────┐   │
-    └───┼────────────────┼───┘
-         \              /       ◄── 50-slice cubic-bezier deformation
-          \            /        ◄── Asymmetric pinch towards active dock target
-           \          /
-            │        │
-           ┌┴────────┴┐
-           │ Dock App │         ◄── Window funnels seamlessly into icon
-           └──────────┘
-```
-
-- **120-Slice Canvas Mesh Deformation**: Ultra-smooth, GPU-accelerated canvas slicing with cubic-bezier horizontal warping, wave-like lag propagation, and sub-pixel anti-aliasing.
-- **Dynamic Dock Targeting**: Calculates the precise bounding rectangle of the target application icon on the GLOOM dock or Windows taskbar.
-- **Customizable Dynamics**: Configure animation duration (150ms–800ms), curve intensity, and toggle between Genie and classic Scale transitions.
 
 ---
 
@@ -175,7 +150,7 @@ The codebase is organized into clean, dedicated workspaces:
 GLOOM/
 ├── Desktop/                  # Windows Desktop Tauri Workspace
 │   ├── src/                  # React 19 + TypeScript Frontend
-│   │   ├── components/       # DynamicIsland, GenieEffect, QuickPanel, EdgeSurface
+│   │   ├── components/       # DynamicIsland, QuickPanel, EdgeSurface
 │   │   ├── settings/         # Appearance, Dock, Notch, General tabs
 │   │   └── hooks/            # LiveBridge & Telemetry hooks
 │   └── src-tauri/            # Rust Backend (Win32 APIs, rustls bridge, system hooks)

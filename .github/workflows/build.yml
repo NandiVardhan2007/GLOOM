@@ -228,7 +228,6 @@ jobs:
             ### GLOOM 1.8.4 — Glitch-Free Accessibility Dynamic Island Collapse & Notification Styles
             - **Glitch-Free Accessibility Island Collapse**: Permanently anchored `GloomIslandAccessibilityService` to `MATCH_PARENT` full-width window parameters and dynamic hardware insets (`TOUCHABLE_INSETS_REGION`). Completely eliminates the left-corner jump/snap glitch where the collapsed pill shifted to the left edge before centering.
             - **Per-App Notification Styles & Quick Actions**: Added the extensible `NotificationStyleRegistry` with bespoke styling for WhatsApp, WhatsApp Business, Instagram, and Snapchat. Supports inline `RemoteInput` reply with keyguard protection and "Open App" fallbacks.
-            - **Desktop Genie Effect Toggle Fix**: Verified instantaneous native window focus when the Zorin OS Magic Lamp toggle is OFF, with fluid 120-slice cubic Bézier liquid funnel animation when ON.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk

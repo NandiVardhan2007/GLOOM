@@ -110,12 +110,6 @@ interface DockTabProps {
 	handleDockEdgeDelayChange: (val: number) => void;
 	dockPreviewEnabled: boolean;
 	toggleDockPreview: () => void;
-	dockGenieEnabled: boolean;
-	toggleDockGenie: () => void;
-	dockGenieDuration: number;
-	setDockGenieDuration: (val: number) => void;
-	dockGenieStyle: "zorin" | "windhawk" | "suck";
-	setDockGenieStyle: (val: "zorin" | "windhawk" | "suck") => void;
 	dockIconOnly: boolean;
 	toggleDockIconOnly: () => void;
 	dockSeparatorEnabled: boolean;
@@ -152,12 +146,6 @@ export function DockTab({
 	handleDockEdgeDelayChange,
 	dockPreviewEnabled,
 	toggleDockPreview,
-	dockGenieEnabled,
-	toggleDockGenie,
-	dockGenieDuration,
-	setDockGenieDuration,
-	dockGenieStyle,
-	setDockGenieStyle,
 	dockIconOnly,
 	toggleDockIconOnly,
 	dockSeparatorEnabled,
@@ -252,57 +240,6 @@ export function DockTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
-
-						<SettingRow
-							icon={Sparkles}
-							label="Zorin OS Magic Lamp (Genie Effect)"
-							desc="Fluid funnel animation when minimizing or restoring windows"
-						>
-							<label className="toggle-switch">
-								<input
-									type="checkbox"
-									checked={dockGenieEnabled}
-									onChange={toggleDockGenie}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-
-						{dockGenieEnabled && (
-							<>
-								<SettingRow
-									icon={Sparkles}
-									label="Genie Animation Style"
-									desc="Select the warp mesh deformation style"
-								>
-									<select
-										className="settings-select"
-										value={dockGenieStyle}
-										onChange={(e) => setDockGenieStyle(e.target.value as "zorin" | "windhawk" | "suck")}
-									>
-										<option value="zorin">Zorin OS Magic Lamp (Fluid Cubic Bezier)</option>
-										<option value="windhawk">Windhawk Mesh Warp</option>
-										<option value="suck">Classic Suck</option>
-									</select>
-								</SettingRow>
-
-								<SettingRow
-									icon={Timer}
-									label="Genie Speed / Duration"
-									desc={`Animation duration: ${dockGenieDuration}ms`}
-								>
-									<input
-										type="range"
-										min="200"
-										max="800"
-										step="20"
-										value={dockGenieDuration}
-										onChange={(e) => setDockGenieDuration(parseInt(e.target.value))}
-										className="settings-slider"
-									/>
-								</SettingRow>
-							</>
-						)}
 
 						<SettingRow icon={Circle} label="Icon Only" desc="Remove icon background and padding">
 							<label className="toggle-switch">

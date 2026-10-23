@@ -1448,6 +1448,31 @@ mod tests {
     }
 
     #[test]
+    fn legacy_genie_settings_keys_load_safely_and_do_not_break_settings() {
+        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
+        let path = test_settings_path();
+        let legacy_json = serde_json::json!({
+            "gloom-dock-enabled": "true",
+            "gloom-dock-genie-effect": "true",
+            "gloom-dock-genie-duration": "380",
+            "gloom-dock-genie-style": "zorin"
+        });
+        std::fs::write(&path, legacy_json.to_string()).unwrap();
+
+        let settings = super::read_settings_file(&path).unwrap();
+        assert_eq!(settings["gloom-dock-enabled"], "true");
+        assert_eq!(settings["gloom-dock-genie-effect"], "true");
+
+        super::save_setting_file(&path, "gloom-dock-mode".into(), serde_json::json!("smart")).unwrap();
+        let updated = super::read_settings_file(&path).unwrap();
+        assert_eq!(updated["gloom-dock-mode"], "smart");
+        assert_eq!(updated["gloom-dock-enabled"], "true");
+
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_dir(path.parent().unwrap()).unwrap();
+    }
+
+    #[test]
     fn taskbar_marker_round_trips_the_original_state() {
         for state in [0, 1, 2, 3] {
             let rect = windows::Win32::Foundation::RECT {
