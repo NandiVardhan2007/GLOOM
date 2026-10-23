@@ -225,7 +225,7 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.8.0 — Expandable Mobile Dynamic Island, Multi-File Sharing, Desktop Theme Engine & Hardened Ecosystem
+            ### GLOOM 1.8.1 — Expandable Mobile Dynamic Island, Multi-File Sharing, Desktop Theme Engine & Hardened Ecosystem
             - **Expandable Mobile Dynamic Island & File Sharing**: Fluid expanding Dynamic Island with dedicated "File Sharing" option to pick and beam single or multiple files to the connected PC over pinned TLS.
             - **System Share-Sheet ("Share to PC")**: Send files, documents, and media to your GLOOM PC from any Android app with automatic retry and toast feedback.
             - **Glitch-Free Dynamic Island Collapse**: Re-engineered reverse animation anchored top-center with synchronized width/height scaling, eliminating jitter and jump glitches.
