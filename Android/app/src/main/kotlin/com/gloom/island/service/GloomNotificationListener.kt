@@ -169,6 +169,8 @@ class GloomNotificationListener : NotificationListenerService() {
             ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
             ?: ""
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
+        val conversationTitle = extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString() ?: ""
+        val isGroup = extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
 
         // 2. Check for MediaStyle token directly in notification
         val token = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -304,6 +306,8 @@ class GloomNotificationListener : NotificationListenerService() {
             title = title,
             text = text,
             subText = subText,
+            conversationTitle = conversationTitle,
+            isGroup = isGroup,
             largeIcon = largeIconBitmap,
             contentIntent = sbn.notification.contentIntent,
             postTimeMs = sbn.postTime,

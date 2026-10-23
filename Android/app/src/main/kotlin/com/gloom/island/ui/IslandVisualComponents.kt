@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.app.KeyguardManager
+import android.content.Context
 import androidx.compose.material3.Text
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.platform.LocalContext
@@ -247,6 +249,8 @@ fun AppleCompactContent(
                             background = Apple.systemBlue.copy(alpha = 0.18f)
                         )
                         IslandCompactKind.NOTIFICATION -> {
+                            val notifStyle = NotificationStyleRegistry.getStyleForPackage(notification?.packageName)
+                            val notifAccent = notifStyle.accentColor
                             if (notification?.largeIcon != null) {
                                 Image(
                                     bitmap = notification.largeIcon.asImageBitmap(),
@@ -255,13 +259,13 @@ fun AppleCompactContent(
                                     modifier = Modifier
                                         .size(AppleIslandSpec.compactArtwork)
                                         .clip(CircleShape)
-                                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
+                                        .border(0.5.dp, notifAccent.copy(alpha = 0.5f), CircleShape)
                                 )
                             } else {
                                 CompactGlyphCircle(
                                     icon = GloomIcons.Bell,
-                                    tint = Color.White,
-                                    background = Color(0x1FFFFFFF)
+                                    tint = notifAccent,
+                                    background = notifAccent.copy(alpha = 0.18f)
                                 )
                             }
                         }
@@ -637,7 +641,7 @@ fun AppleTransferActivity(
 }
 
 /**
- * Apple's expanded notification presentation.
+ * Apple's expanded notification presentation with per-app styling and quick actions.
  */
 @Composable
 fun AppleNotificationActivity(
@@ -650,12 +654,22 @@ fun AppleNotificationActivity(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val haptic = LocalHapticFeedback.current
+    val appStyle = remember(event.packageName) {
+        NotificationStyleRegistry.getStyleForPackage(event.packageName)
+    }
+    val effectiveAccent = appStyle.accentColor
     var copied by remember(event.id) { mutableStateOf(false) }
     var isReplying by remember(event.id) { mutableStateOf(false) }
     var replyText by remember(event.id) { mutableStateOf("") }
     var replySent by remember(event.id) { mutableStateOf(false) }
+    var replyError by remember(event.id) { mutableStateOf(false) }
     val otpCode = event.otpCode
     val replyAction = event.replyAction
+
+    val isKeyguardLocked = remember {
+        val km = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        km?.isKeyguardLocked == true
+    }
 
     fun copyCode() {
         val code = otpCode ?: return
@@ -687,34 +701,55 @@ fun AppleNotificationActivity(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (event.largeIcon != null) {
-                Image(
-                    bitmap = event.largeIcon.asImageBitmap(),
-                    contentDescription = "Sender avatar",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(AppleIslandSpec.artwork)
-                        .clip(CircleShape)
-                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
-                )
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    Image(
+                        bitmap = event.largeIcon.asImageBitmap(),
+                        contentDescription = "Sender avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(AppleIslandSpec.artwork)
+                            .clip(CircleShape)
+                            .border(1.dp, effectiveAccent.copy(alpha = 0.5f), CircleShape)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(effectiveAccent)
+                            .border(1.dp, Color.Black, CircleShape)
+                    )
+                }
             } else {
                 Box(
                     modifier = Modifier
                         .size(AppleIslandSpec.artwork)
                         .clip(CircleShape)
-                        .background(Color(0x1FFFFFFF)),
+                        .background(effectiveAccent.copy(alpha = 0.18f))
+                        .border(1.dp, effectiveAccent.copy(alpha = 0.4f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    GloomIcon(GloomIcons.Bell, Color.White, 20.dp)
+                    GloomIcon(GloomIcons.Bell, effectiveAccent, 20.dp)
                 }
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = event.appName.ifBlank { "Notification" }.uppercase(),
-                    style = IslandType.caption,
-                    color = Apple.secondaryLabel,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = event.appName.ifBlank { appStyle.brandName }.uppercase(),
+                        style = IslandType.caption,
+                        color = effectiveAccent,
+                        maxLines = 1
+                    )
+                    if (event.conversationTitle.isNotBlank() && event.conversationTitle != event.title) {
+                        Text(
+                            text = " • ${event.conversationTitle}",
+                            style = IslandType.caption,
+                            color = Apple.secondaryLabel,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
                 Text(
                     text = event.title.ifBlank { "New message" },
                     style = IslandType.title,
@@ -746,7 +781,7 @@ fun AppleNotificationActivity(
                 Text(
                     text = if (copied) "Copied" else "Copy",
                     style = IslandType.caption,
-                    color = if (copied) Apple.systemGreen else accentColor
+                    color = if (copied) Apple.systemGreen else effectiveAccent
                 )
             }
         } else {
@@ -754,9 +789,17 @@ fun AppleNotificationActivity(
                 text = event.text,
                 style = IslandType.subtitle.copy(lineHeight = 16.sp),
                 color = Apple.secondaryLabel,
-                maxLines = 2,
+                maxLines = if (isReplying) 1 else 2,
                 overflow = TextOverflow.Ellipsis
             )
+            if (event.subText.isNotBlank()) {
+                Text(
+                    text = event.subText,
+                    style = IslandType.caption,
+                    color = Apple.tertiaryLabel,
+                    maxLines = 1
+                )
+            }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -775,6 +818,29 @@ fun AppleNotificationActivity(
                 Spacer(Modifier.width(6.dp))
                 Text("Reply Sent", style = IslandType.caption, color = Color.White)
             }
+        } else if (replyError) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Apple.systemRed.copy(alpha = 0.25f))
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GloomIcon(GloomIcons.XCircleFill, Apple.systemRed, 14.dp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Could not send reply", style = IslandType.caption, color = Color.White)
+                }
+                Text(
+                    text = "Open App",
+                    style = IslandType.caption,
+                    color = effectiveAccent,
+                    modifier = Modifier.clickable { onOpen() }
+                )
+            }
         } else if (isReplying && replyAction != null) {
             Row(
                 modifier = Modifier
@@ -789,7 +855,7 @@ fun AppleNotificationActivity(
                     value = replyText,
                     onValueChange = { replyText = it },
                     textStyle = IslandType.subtitle.copy(color = Color.White),
-                    cursorBrush = SolidColor(Apple.systemBlue),
+                    cursorBrush = SolidColor(effectiveAccent),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                     decorationBox = { innerTextField ->
@@ -809,12 +875,15 @@ fun AppleNotificationActivity(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Apple.systemBlue)
+                            .background(effectiveAccent)
                             .clickable {
                                 val ok = replyAction.send(context, replyText)
                                 if (ok) {
                                     replySent = true
+                                    replyError = false
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                } else {
+                                    replyError = true
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -828,53 +897,63 @@ fun AppleNotificationActivity(
                 if (otpCode != null) {
                     AppleActivityButton(
                         text = if (copied) "Copied" else "Copy Code",
-                        background = accentColor,
+                        background = effectiveAccent,
                         foreground = Color.White,
                         modifier = Modifier.weight(1f),
                         onClick = { copyCode() }
                     )
                     AppleActivityButton(
-                        text = "Open App",
+                        text = appStyle.openActionLabel,
                         background = Color(0x24FFFFFF),
                         foreground = Color.White,
                         modifier = Modifier.weight(1f),
                         onClick = onOpen
                     )
                 } else if (replyAction != null) {
+                    if (isKeyguardLocked) {
+                        AppleActivityButton(
+                            text = "Unlock to Reply",
+                            background = effectiveAccent.copy(alpha = 0.8f),
+                            foreground = Color.White,
+                            modifier = Modifier.weight(1.2f),
+                            onClick = onOpen
+                        )
+                    } else {
+                        AppleActivityButton(
+                            text = appStyle.replyActionLabel,
+                            background = effectiveAccent,
+                            foreground = Color.White,
+                            modifier = Modifier.weight(1.2f),
+                            onClick = { isReplying = true }
+                        )
+                    }
                     AppleActivityButton(
-                        text = "Reply",
-                        background = accentColor,
-                        foreground = Color.White,
-                        modifier = Modifier.weight(1.2f),
-                        onClick = { isReplying = true }
-                    )
-                    AppleActivityButton(
-                        text = "Open",
+                        text = appStyle.openActionLabel,
                         background = Color(0x24FFFFFF),
                         foreground = Color.White,
-                        modifier = Modifier.weight(0.9f),
+                        modifier = Modifier.weight(1.0f),
                         onClick = onOpen
                     )
                     AppleActivityButton(
                         text = "Dismiss",
                         background = Color(0x24FFFFFF),
                         foreground = Color.White,
-                        modifier = Modifier.weight(0.9f),
+                        modifier = Modifier.weight(0.8f),
                         onClick = onDismiss
                     )
                 } else {
                     AppleActivityButton(
-                        text = "Open App",
-                        background = accentColor,
+                        text = appStyle.openActionLabel,
+                        background = effectiveAccent,
                         foreground = Color.White,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.2f),
                         onClick = onOpen
                     )
                     AppleActivityButton(
                         text = "Dismiss",
                         background = Color(0x24FFFFFF),
                         foreground = Color.White,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(0.8f),
                         onClick = onDismiss
                     )
                 }

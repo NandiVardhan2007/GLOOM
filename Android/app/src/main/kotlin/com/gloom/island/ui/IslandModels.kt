@@ -5,6 +5,7 @@ import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
 
 data class NotificationReplyAction(
@@ -19,9 +20,12 @@ data class NotificationReplyAction(
             val bundle = Bundle()
             bundle.putCharSequence(resultKey, replyText)
             RemoteInput.addResultsToIntent(arrayOf(remoteInput), intent, bundle)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                RemoteInput.setResultsSource(intent, RemoteInput.SOURCE_FREE_FORM_INPUT)
+            }
             pendingIntent.send(context, 0, intent)
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -69,12 +73,35 @@ data class NotificationIslandEvent(
     val title: String = "",
     val text: String = "",
     val subText: String = "",
+    val conversationTitle: String = "",
+    val isGroup: Boolean = false,
     val largeIcon: Bitmap? = null,
     val contentIntent: PendingIntent? = null,
     val postTimeMs: Long = System.currentTimeMillis(),
     val otpCode: String? = null,
     val replyAction: NotificationReplyAction? = null
-)
+) {
+    fun openApp(context: Context): Boolean {
+        if (contentIntent != null) {
+            try {
+                contentIntent.send()
+                return true
+            } catch (_: Exception) {
+                // Expired or canceled pending intent; fall through to launch intent
+            }
+        }
+        return try {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                true
+            } else false
+        } catch (_: Exception) {
+            false
+        }
+    }
+}
 
 data class SystemToastEvent(
     val type: String = "", // "charging" | "bluetooth" | "ringer" | "clipboard"

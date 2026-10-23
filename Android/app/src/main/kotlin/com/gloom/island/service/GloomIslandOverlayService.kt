@@ -610,11 +610,7 @@ class GloomIslandOverlayService : Service() {
                     mediaTrack = mediaTrack,
                     activeNotification = activeNotification,
                     onNotificationClick = {
-                        try {
-                            activeNotification?.contentIntent?.send()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                        activeNotification?.openApp(applicationContext)
                         activeNotification = null
                         collapseIsland()
                     },
