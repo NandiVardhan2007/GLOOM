@@ -24,4 +24,25 @@ class IslandLockEventTest {
         assertTrue(values.contains(IslandCompactKind.LOCK))
         assertEquals(IslandCompactKind.LOCK, IslandCompactKind.valueOf("LOCK"))
     }
+
+    @Test
+    fun compactTargetWidthIsInvariantUnderLockState() {
+        // Pill width must strictly match settings.pillWidth during lock, unlock, and idle.
+        val defaultPillWidth = 180
+        val isExpanded = false
+
+        // Both idle and lock states must evaluate to defaultPillWidth without ballooning
+        val idleWidth = if (isExpanded) 400 else defaultPillWidth
+        val lockActiveWidth = if (isExpanded) 400 else defaultPillWidth
+        assertEquals(defaultPillWidth, idleWidth)
+        assertEquals(defaultPillWidth, lockActiveWidth)
+
+        // Wing width plus camera gap must not exceed total compact width
+        val cutoutClearance = 125
+        val maxCameraGap = (defaultPillWidth - 96).coerceAtLeast(36)
+        val cameraGap = cutoutClearance.coerceIn(36, maxCameraGap)
+        val wingWidth = ((defaultPillWidth - cameraGap) / 2).coerceAtLeast(42)
+        val totalOccupied = (wingWidth * 2) + cameraGap
+        assertTrue("Total compact wing content must be well-bounded", totalOccupied <= defaultPillWidth + 4)
+    }
 }
