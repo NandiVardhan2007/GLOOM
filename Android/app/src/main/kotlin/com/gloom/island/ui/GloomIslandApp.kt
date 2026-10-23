@@ -137,14 +137,16 @@ fun GloomIslandApp(
 
     // Default pill width cleanly balances camera band and wings (no collapse to camera circle on idle)
     val compactWidth = settings.pillWidth.dp
+    val lockPillWidth = (settings.cutoutClearance.dp + 126.dp).coerceAtLeast(compactWidth)
+    val effectiveCompactWidth = if (isLockActive) lockPillWidth else compactWidth
 
-    val maxCameraGap = (compactWidth - 96.dp).coerceAtLeast(36.dp)
+    val maxCameraGap = (effectiveCompactWidth - 96.dp).coerceAtLeast(36.dp)
     val cameraGap = settings.cutoutClearance.dp.coerceIn(36.dp, maxCameraGap)
-    val wingWidth = ((compactWidth - cameraGap) / 2).coerceAtLeast(46.dp)
+    val wingWidth = ((effectiveCompactWidth - cameraGap) / 2).coerceAtLeast(54.dp)
     val compactInset = 8.dp
 
     val targetWidth by animateDpAsState(
-        targetValue = if (isExpanded) settings.expandedWidth.dp else compactWidth,
+        targetValue = if (isExpanded) settings.expandedWidth.dp else effectiveCompactWidth,
         animationSpec = islandSpring,
         label = "islandWidth"
     )

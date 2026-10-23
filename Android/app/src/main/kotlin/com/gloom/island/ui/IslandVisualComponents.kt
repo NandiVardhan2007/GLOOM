@@ -359,9 +359,13 @@ fun AppleCompactContent(
                             val unlocked = lockEvent?.isUnlocked == true
                             Text(
                                 text = if (unlocked) "Unlocked" else "Locked",
-                                style = IslandType.compactNumber.copy(fontSize = 11.sp),
+                                style = IslandType.compactNumber.copy(
+                                    fontSize = 10.5.sp,
+                                    letterSpacing = (-0.3).sp
+                                ),
                                 color = if (unlocked) Apple.systemGreen else Apple.secondaryLabel,
-                                maxLines = 1
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                         IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
