@@ -279,8 +279,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun hasAccessibilityPermission(): Boolean {
-        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        return enabled != null && enabled.contains(packageName)
+        return GloomIslandAccessibilityService.isAccessibilityServiceEnabled(this)
     }
 
     private fun requestOverlayPermission() {
@@ -309,7 +308,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startOverlayService() {
-        if (GloomIslandAccessibilityService.isRunning) return
+        if (GloomIslandAccessibilityService.isRunning ||
+            GloomIslandAccessibilityService.isAccessibilityServiceEnabled(this)
+        ) {
+            return
+        }
         val intent = Intent(this, GloomIslandOverlayService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)

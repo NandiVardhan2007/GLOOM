@@ -131,21 +131,61 @@ class GloomIslandOverlayService : Service() {
     private val lockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_SCREEN_ON -> {
-                    val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-                    val locked = km?.isKeyguardLocked ?: true
-                    if (locked) {
-                        triggerLockEvent(isUnlocked = false)
-                    }
-                }
-                Intent.ACTION_SCREEN_OFF -> {
-                    triggerLockEvent(isUnlocked = false)
-                }
-                Intent.ACTION_USER_PRESENT -> {
-                    triggerLockEvent(isUnlocked = true)
-                }
+                Intent.ACTION_SCREEN_ON -> handleScreenOn()
+                Intent.ACTION_SCREEN_OFF -> handleScreenOff()
+                Intent.ACTION_USER_PRESENT -> handleUserPresent()
             }
         }
+    }
+
+    private fun handleScreenOff() {
+        collapseIsland(immediate = true)
+        notificationJob?.cancel()
+        activeNotification = null
+
+        if (!GloomIslandSettings.instance.showOnLockScreen) {
+            composeView?.visibility = android.view.View.GONE
+            layoutParams?.let { params ->
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                try {
+                    composeView?.let { windowManager.updateViewLayout(it, params) }
+                } catch (_: Exception) {}
+            }
+        }
+        triggerLockEvent(isUnlocked = false)
+    }
+
+    private fun handleScreenOn() {
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val locked = km?.isKeyguardLocked ?: true
+        if (locked) {
+            if (GloomIslandSettings.instance.showOnLockScreen) {
+                applyCollapsedDimensions()
+                if (GloomIslandSettings.instance.isIslandEnabled) {
+                    composeView?.visibility = android.view.View.VISIBLE
+                }
+                triggerLockEvent(isUnlocked = false)
+            } else {
+                composeView?.visibility = android.view.View.GONE
+                layoutParams?.let { params ->
+                    params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    try {
+                        composeView?.let { windowManager.updateViewLayout(it, params) }
+                    } catch (_: Exception) {}
+                }
+            }
+        } else {
+            handleUserPresent()
+        }
+    }
+
+    private fun handleUserPresent() {
+        collapseIsland(immediate = true)
+        applyCollapsedDimensions()
+        if (GloomIslandSettings.instance.isIslandEnabled) {
+            composeView?.visibility = android.view.View.VISIBLE
+        }
+        triggerLockEvent(isUnlocked = true)
     }
 
     private val internalLockReceiver = object : BroadcastReceiver() {
@@ -218,7 +258,9 @@ class GloomIslandOverlayService : Service() {
         // including the keyguard. Running both leaves two islands on screen and
         // two copies of each notification. Accessibility wins once it is bound;
         // until then this service keeps the island alive.
-        if (GloomIslandAccessibilityService.isRunning) {
+        if (GloomIslandAccessibilityService.isRunning ||
+            GloomIslandAccessibilityService.isAccessibilityServiceEnabled(this)
+        ) {
             Log.i("GloomOverlay", "Accessibility island owns the overlay; stopping this duplicate")
             stopSelf()
             return
@@ -292,6 +334,18 @@ class GloomIslandOverlayService : Service() {
                 isConnected = true
             )
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (GloomIslandAccessibilityService.isRunning ||
+            GloomIslandAccessibilityService.isAccessibilityServiceEnabled(this)
+        ) {
+            Log.i("GloomOverlay", "Accessibility island active; stopping duplicate overlay service")
+            removeOverlaySafely()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
     }
 
     private fun registerReceivers() {
@@ -519,20 +573,79 @@ class GloomIslandOverlayService : Service() {
         ).toInt()
     }
 
+    private fun getCollapsedWidthPx(): Int {
+        val density = resources.displayMetrics.density
+        return ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
+    }
+
+    private fun getCollapsedHeightPx(): Int {
+        val density = resources.displayMetrics.density
+        return ((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
+    }
+
+    private fun getOverlayGravity(): Int {
+        return when (GloomIslandSettings.instance.gravity) {
+            "Left" -> Gravity.TOP or Gravity.START
+            "Right" -> Gravity.TOP or Gravity.END
+            else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        }
+    }
+
+    private fun getOverlayXOffsetPx(): Int {
+        val density = resources.displayMetrics.density
+        return (GloomIslandSettings.instance.positionX * density).toInt()
+    }
+
     @Suppress("DEPRECATION")
     private fun getOverlayFlags(): Int {
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         if (GloomIslandSettings.instance.showOnLockScreen) {
             flags = flags or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
         }
         return flags
     }
 
+    private var isViewAttached = false
+
+    private fun addOverlayView() {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        if (isViewAttached || view.isAttachedToWindow) return
+        try {
+            windowManager.addView(view, params)
+            isViewAttached = true
+            updateVisibilityForOrientation()
+        } catch (e: Exception) {
+            Log.e("GloomOverlay", "Error adding overlay view", e)
+        }
+    }
+
+    fun removeOverlaySafely() {
+        val view = composeView ?: return
+        if (!isViewAttached && !view.isAttachedToWindow) return
+        try {
+            if (view.isAttachedToWindow) {
+                windowManager.removeViewImmediate(view)
+            } else {
+                windowManager.removeView(view)
+            }
+        } catch (e: Exception) {
+            Log.w("GloomOverlay", "Error removing overlay view", e)
+        } finally {
+            isViewAttached = false
+            composeView = null
+        }
+    }
+
     private fun setupComposeOverlay() {
-        if (GloomIslandAccessibilityService.isRunning) {
+        if (GloomIslandAccessibilityService.isRunning ||
+            GloomIslandAccessibilityService.isAccessibilityServiceEnabled(this)
+        ) {
             return
         }
         cutoutMetrics = CutoutDetector.detectCutout(this, null)
@@ -540,7 +653,7 @@ class GloomIslandOverlayService : Service() {
         val initialHeight = if (isExpanded) {
             dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
-            dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
+            getCollapsedHeightPx()
         }
 
         val params = buildLayoutParams(initialHeight)
@@ -631,14 +744,20 @@ class GloomIslandOverlayService : Service() {
             }
         }
 
+        view.setOnTouchListener { _, event ->
+            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
+                if (isExpanded) {
+                    collapseIsland()
+                }
+                true
+            } else {
+                false
+            }
+        }
+
         composeView = view
         setupTouchableRegion(view)
-        try {
-            windowManager.addView(composeView, params)
-            updateVisibilityForOrientation()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        addOverlayView()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -647,15 +766,24 @@ class GloomIslandOverlayService : Service() {
     }
 
     private fun updateVisibilityForOrientation(config: android.content.res.Configuration = resources.configuration) {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
         val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        val shouldHide = isLandscape && !GloomIslandSettings.instance.showInLandscape
+        val shouldHide = (isLandscape && !GloomIslandSettings.instance.showInLandscape) ||
+                !GloomIslandSettings.instance.isIslandEnabled
         if (shouldHide) {
-            if (isExpanded) collapseIsland()
-            composeView?.visibility = android.view.View.GONE
+            if (isExpanded) collapseIsland(immediate = true)
+            view.visibility = android.view.View.GONE
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            try {
+                windowManager.updateViewLayout(view, params)
+            } catch (_: Exception) {}
         } else {
-            if (GloomIslandSettings.instance.isIslandEnabled) {
-                composeView?.visibility = android.view.View.VISIBLE
-            }
+            view.visibility = android.view.View.VISIBLE
+            params.flags = getOverlayFlags()
+            try {
+                windowManager.updateViewLayout(view, params)
+            } catch (_: Exception) {}
         }
     }
 
@@ -676,8 +804,8 @@ class GloomIslandOverlayService : Service() {
                     if (!isExpanded) {
                         val density = resources.displayMetrics.density
                         val screenWidth = resources.displayMetrics.widthPixels
-                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 32) * density).toInt()
-                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
+                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
+                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
                         val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
                         val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
                         val left = when (GloomIslandSettings.instance.gravity) {
@@ -701,14 +829,15 @@ class GloomIslandOverlayService : Service() {
 
             val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
             addMethod.invoke(view.viewTreeObserver, proxy)
-        } catch (_: Exception) {
-            // Fallback gracefully on custom ROMs
+        } catch (_: Throwable) {
+            // Graceful fallback: window layout bounds themselves constrain touches
         }
     }
 
     private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
+        val width = if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else getCollapsedWidthPx()
         return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            width,
             height,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -719,7 +848,8 @@ class GloomIslandOverlayService : Service() {
             getOverlayFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            gravity = if (isExpanded) Gravity.TOP or Gravity.CENTER_HORIZONTAL else getOverlayGravity()
+            x = if (isExpanded) 0 else getOverlayXOffsetPx()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -727,54 +857,87 @@ class GloomIslandOverlayService : Service() {
     }
 
     private fun updateOverlayParameters() {
+        val view = composeView ?: return
         val params = layoutParams ?: return
+        if (!isViewAttached && !view.isAttachedToWindow) return
+
+        if (!GloomIslandSettings.instance.isIslandEnabled) {
+            if (isExpanded) collapseIsland(immediate = true)
+            view.visibility = android.view.View.GONE
+            params.flags = getOverlayFlags() or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            try {
+                windowManager.updateViewLayout(view, params)
+            } catch (_: Exception) {}
+            return
+        }
+
+        updateVisibilityForOrientation()
         params.flags = getOverlayFlags()
-        params.width = WindowManager.LayoutParams.MATCH_PARENT
-        params.height = if (isExpanded) {
-            dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
+        if (isExpanded) {
+            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            params.x = 0
+            params.width = WindowManager.LayoutParams.MATCH_PARENT
+            params.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
-            dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
+            params.gravity = getOverlayGravity()
+            params.x = getOverlayXOffsetPx()
+            params.width = getCollapsedWidthPx()
+            params.height = getCollapsedHeightPx()
         }
         try {
-            composeView?.let { windowManager.updateViewLayout(it, params) }
+            windowManager.updateViewLayout(view, params)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("GloomOverlay", "Error updating overlay layout", e)
         }
     }
 
     private fun expandIsland() {
+        if (!GloomIslandSettings.instance.isIslandEnabled) return
         isExpanded = true
         windowResizeJob?.cancel()
+        val view = composeView ?: return
         val params = layoutParams ?: return
+        if (!isViewAttached && !view.isAttachedToWindow) return
         params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        params.x = 0
         params.width = WindowManager.LayoutParams.MATCH_PARENT
         params.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
-        params.flags = getOverlayFlags() and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
+        params.flags = getOverlayFlags()
         try {
-            composeView?.let { windowManager.updateViewLayout(it, params) }
+            windowManager.updateViewLayout(view, params)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("GloomOverlay", "Error expanding overlay view", e)
         }
     }
 
-    private fun collapseIsland() {
+    private fun collapseIsland(immediate: Boolean = false) {
+        if (!isExpanded && !immediate) return
         isExpanded = false
         windowResizeJob?.cancel()
-        // Let the Compose collapse spring finish before shrinking window height,
-        // maintaining the full width anchor so the notch stays perfectly centered with zero jumps.
-        windowResizeJob = serviceScope.launch {
-            delay(400)
-            if (isExpanded) return@launch
-            val params = layoutParams ?: return@launch
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            params.width = WindowManager.LayoutParams.MATCH_PARENT
-            params.height = dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
-            params.flags = getOverlayFlags()
-            try {
-                composeView?.let { windowManager.updateViewLayout(it, params) }
-            } catch (e: Exception) {
-                e.printStackTrace()
+        if (immediate) {
+            applyCollapsedDimensions()
+        } else {
+            windowResizeJob = serviceScope.launch {
+                delay(380)
+                if (isExpanded) return@launch
+                applyCollapsedDimensions()
             }
+        }
+    }
+
+    private fun applyCollapsedDimensions() {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        if (!isViewAttached && !view.isAttachedToWindow) return
+        params.gravity = getOverlayGravity()
+        params.x = getOverlayXOffsetPx()
+        params.width = getCollapsedWidthPx()
+        params.height = getCollapsedHeightPx()
+        params.flags = getOverlayFlags()
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            Log.w("GloomOverlay", "Error applying collapsed dimensions", e)
         }
     }
 
@@ -850,11 +1013,7 @@ class GloomIslandOverlayService : Service() {
             unregisterReceiver(lockReceiver)
             unregisterReceiver(internalLockReceiver)
         } catch (e: Exception) {}
-        composeView?.let {
-            try {
-                windowManager.removeView(it)
-            } catch (e: Exception) {}
-        }
+        removeOverlaySafely()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
