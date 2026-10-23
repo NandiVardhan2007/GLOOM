@@ -41,6 +41,7 @@ import android.content.Context
 import androidx.compose.material3.Text
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -357,11 +358,16 @@ fun AppleCompactContent(
                         )
                         IslandCompactKind.LOCK -> {
                             val unlocked = lockEvent?.isUnlocked == true
+                            val density = LocalDensity.current
+                            val fontScale = density.fontScale.coerceAtLeast(0.5f)
+                            // Scale-independent font units ensure "Unlocked" never clips or ellipsizes at system font scale 1.0, 1.3, or 2.0
+                            val lockFontSize = (10f / fontScale).sp
+                            val lockLetterSpacing = (-0.35f / fontScale).sp
                             Text(
                                 text = if (unlocked) "Unlocked" else "Locked",
                                 style = IslandType.compactNumber.copy(
-                                    fontSize = 10.sp,
-                                    letterSpacing = (-0.35).sp
+                                    fontSize = lockFontSize,
+                                    letterSpacing = lockLetterSpacing
                                 ),
                                 color = if (unlocked) Apple.systemGreen else Apple.secondaryLabel,
                                 maxLines = 1,

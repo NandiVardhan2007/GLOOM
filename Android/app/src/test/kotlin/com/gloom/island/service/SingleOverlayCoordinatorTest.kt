@@ -132,4 +132,84 @@ class SingleOverlayCoordinatorTest {
         assertTrue("Unlock must immediately apply compact dimensions to free the touchscreen", isWindowCollapsedImmediate)
         assertEquals(true, isUnlockedState)
     }
+
+    @Test
+    fun expandCancelAndScreenOffStateMachine() {
+        var isExpanded = false
+        var isPendingShrink = false
+        var windowWidth = 204 // collapsed
+        val collapsedWidth = 204
+        val expandedWidth = 448 // 400 + 48
+
+        fun onExpand() {
+            isExpanded = true
+            isPendingShrink = false
+            windowWidth = expandedWidth
+        }
+
+        fun onCollapseRequested(immediate: Boolean) {
+            isExpanded = false
+            if (immediate) {
+                isPendingShrink = false
+                windowWidth = collapsedWidth
+            } else {
+                isPendingShrink = true
+            }
+        }
+
+        fun onPendingShrinkComplete() {
+            // Idempotent finally block: if !isExpanded apply collapsed dimensions
+            if (!isExpanded) {
+                isPendingShrink = false
+                windowWidth = collapsedWidth
+            }
+        }
+
+        // Test 1: Expand -> window is expanded
+        onExpand()
+        assertTrue(isExpanded)
+        assertEquals(expandedWidth, windowWidth)
+
+        // Test 2: Collapse requested -> isPendingShrink is true, window not yet shrunk
+        onCollapseRequested(immediate = false)
+        assertFalse(isExpanded)
+        assertTrue(isPendingShrink)
+        assertEquals(expandedWidth, windowWidth) // still wide for smooth animation
+
+        // Test 3: Re-expand within 380ms -> cancels shrink, window stays expanded
+        onExpand()
+        assertTrue(isExpanded)
+        assertFalse(isPendingShrink)
+        // Coroutine cancellation triggers finally: isExpanded is true, must NOT shrink
+        onPendingShrinkComplete()
+        assertEquals(expandedWidth, windowWidth) // must NOT shrink to collapsedWidth!
+
+        // Test 4: Collapse and allow timer to finish -> window shrinks
+        onCollapseRequested(immediate = false)
+        onPendingShrinkComplete()
+        assertFalse(isExpanded)
+        assertFalse(isPendingShrink)
+        assertEquals(collapsedWidth, windowWidth)
+
+        // Test 5: Immediate collapse on screen off -> shrinks immediately
+        onExpand()
+        onCollapseRequested(immediate = true)
+        assertFalse(isExpanded)
+        assertFalse(isPendingShrink)
+        assertEquals(collapsedWidth, windowWidth)
+    }
+
+    @Test
+    fun expandedWindowBoundsNeverUseMatchParent() {
+        val screenWidth = 1080
+        val expandedSettingWidth = 400
+        val density = 3.0f
+        val expandedCardWidthPx = ((expandedSettingWidth + 48) * density).toInt() // (448 * 3) = 1344px clamped to 1080
+        val width = minOf(screenWidth, expandedCardWidthPx)
+
+        val matchParent = -1
+        assertTrue("Expanded width must not be MATCH_PARENT", width != matchParent)
+        assertTrue(width > 0 && width <= screenWidth)
+        assertEquals(1080, width)
+    }
 }

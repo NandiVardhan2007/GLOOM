@@ -14,10 +14,7 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.graphics.Region
 import android.view.View
-import android.view.ViewTreeObserver
-import java.lang.reflect.Proxy
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -578,6 +575,13 @@ class GloomIslandOverlayService : Service() {
         return ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
     }
 
+    private fun getExpandedWidthPx(): Int {
+        val density = resources.displayMetrics.density
+        val screenWidth = resources.displayMetrics.widthPixels
+        val expandedCardWidthPx = ((GloomIslandSettings.instance.expandedWidth + 48) * density).toInt()
+        return minOf(screenWidth, expandedCardWidthPx)
+    }
+
     private fun getCollapsedHeightPx(): Int {
         val density = resources.displayMetrics.density
         return ((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
@@ -756,7 +760,6 @@ class GloomIslandOverlayService : Service() {
         }
 
         composeView = view
-        setupTouchableRegion(view)
         addOverlayView()
     }
 
@@ -787,55 +790,8 @@ class GloomIslandOverlayService : Service() {
         }
     }
 
-    private fun setupTouchableRegion(view: View) {
-        try {
-            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
-            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
-            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
-            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
-            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
-
-            val proxy = Proxy.newProxyInstance(
-                listenerClass.classLoader,
-                arrayOf(listenerClass)
-            ) { _, method, args ->
-                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
-                    val inoutInfo = args[0]
-                    if (!isExpanded) {
-                        val density = resources.displayMetrics.density
-                        val screenWidth = resources.displayMetrics.widthPixels
-                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
-                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
-                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
-                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
-                        val left = when (GloomIslandSettings.instance.gravity) {
-                            "Left" -> posXOffsetPx
-                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
-                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
-                        }
-                        val right = left + pillWidthPx
-                        val top = posYPx
-                        val bottom = top + pillHeightPx
-
-                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
-                        val region = touchableRegionField.get(inoutInfo) as Region
-                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
-                    } else {
-                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
-                    }
-                }
-                null
-            }
-
-            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
-            addMethod.invoke(view.viewTreeObserver, proxy)
-        } catch (_: Throwable) {
-            // Graceful fallback: window layout bounds themselves constrain touches
-        }
-    }
-
     private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
-        val width = if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else getCollapsedWidthPx()
+        val width = if (isExpanded) getExpandedWidthPx() else getCollapsedWidthPx()
         return WindowManager.LayoutParams(
             width,
             height,
@@ -876,7 +832,7 @@ class GloomIslandOverlayService : Service() {
         if (isExpanded) {
             params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             params.x = 0
-            params.width = WindowManager.LayoutParams.MATCH_PARENT
+            params.width = getExpandedWidthPx()
             params.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
             params.gravity = getOverlayGravity()
@@ -900,7 +856,7 @@ class GloomIslandOverlayService : Service() {
         if (!isViewAttached && !view.isAttachedToWindow) return
         params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         params.x = 0
-        params.width = WindowManager.LayoutParams.MATCH_PARENT
+        params.width = getExpandedWidthPx()
         params.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         params.flags = getOverlayFlags()
         try {
@@ -911,16 +867,20 @@ class GloomIslandOverlayService : Service() {
     }
 
     private fun collapseIsland(immediate: Boolean = false) {
-        if (!isExpanded && !immediate) return
+        if (!isExpanded && !immediate && windowResizeJob == null) return
         isExpanded = false
         windowResizeJob?.cancel()
         if (immediate) {
             applyCollapsedDimensions()
         } else {
             windowResizeJob = serviceScope.launch {
-                delay(380)
-                if (isExpanded) return@launch
-                applyCollapsedDimensions()
+                try {
+                    delay(380)
+                } finally {
+                    if (!isExpanded) {
+                        applyCollapsedDimensions()
+                    }
+                }
             }
         }
     }

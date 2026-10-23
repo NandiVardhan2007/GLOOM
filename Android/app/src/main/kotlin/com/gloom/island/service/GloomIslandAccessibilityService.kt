@@ -22,16 +22,13 @@ import android.media.session.MediaSessionManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
-import android.graphics.Region
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
-import android.view.ViewTreeObserver
 import android.view.WindowManager
-import java.lang.reflect.Proxy
 import android.view.accessibility.AccessibilityEvent
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
@@ -488,6 +485,13 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         return ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
     }
 
+    private fun getExpandedWidthPx(): Int {
+        val density = resources.displayMetrics.density
+        val screenWidth = resources.displayMetrics.widthPixels
+        val expandedCardWidthPx = ((GloomIslandSettings.instance.expandedWidth + 48) * density).toInt()
+        return minOf(screenWidth, expandedCardWidthPx)
+    }
+
     private fun getCollapsedHeightPx(): Int {
         val density = resources.displayMetrics.density
         return ((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
@@ -560,7 +564,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
             getCollapsedHeightPx()
         }
         val initialWidth = if (isExpanded) {
-            WindowManager.LayoutParams.MATCH_PARENT
+            getExpandedWidthPx()
         } else {
             getCollapsedWidthPx()
         }
@@ -679,55 +683,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
 
         composeView = view
-        setupTouchableRegion(view)
         addOverlayView()
-    }
-
-    private fun setupTouchableRegion(view: View) {
-        try {
-            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
-            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
-            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
-            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
-            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
-
-            val proxy = Proxy.newProxyInstance(
-                listenerClass.classLoader,
-                arrayOf(listenerClass)
-            ) { _, method, args ->
-                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
-                    val inoutInfo = args[0]
-                    if (!isExpanded) {
-                        val density = resources.displayMetrics.density
-                        val screenWidth = resources.displayMetrics.widthPixels
-                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 24) * density).toInt()
-                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
-                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
-                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
-                        val left = when (GloomIslandSettings.instance.gravity) {
-                            "Left" -> posXOffsetPx
-                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
-                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
-                        }
-                        val right = left + pillWidthPx
-                        val top = posYPx
-                        val bottom = top + pillHeightPx
-
-                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
-                        val region = touchableRegionField.get(inoutInfo) as Region
-                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
-                    } else {
-                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
-                    }
-                }
-                null
-            }
-
-            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
-            addMethod.invoke(view.viewTreeObserver, proxy)
-        } catch (_: Throwable) {
-            // Graceful fallback: window layout bounds themselves constrain touches
-        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -775,7 +731,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         if (isExpanded) {
             layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             layoutParams.x = 0
-            layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
+            layoutParams.width = getExpandedWidthPx()
             layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
             layoutParams.gravity = getOverlayGravity()
@@ -798,7 +754,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         if (!isViewAttached && !view.isAttachedToWindow) return
         layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         layoutParams.x = 0
-        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
+        layoutParams.width = getExpandedWidthPx()
         layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         layoutParams.flags = getOverlayFlags()
         try {
@@ -809,16 +765,20 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     }
 
     private fun collapseIsland(immediate: Boolean = false) {
-        if (!isExpanded && !immediate) return
+        if (!isExpanded && !immediate && windowResizeJob == null) return
         isExpanded = false
         windowResizeJob?.cancel()
         if (immediate) {
             applyCollapsedDimensions()
         } else {
             windowResizeJob = serviceScope.launch {
-                delay(380)
-                if (isExpanded) return@launch
-                applyCollapsedDimensions()
+                try {
+                    delay(380)
+                } finally {
+                    if (!isExpanded) {
+                        applyCollapsedDimensions()
+                    }
+                }
             }
         }
     }
