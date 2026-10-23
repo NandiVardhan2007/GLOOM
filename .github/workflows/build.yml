@@ -225,16 +225,14 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.7.0 — Desktop Living Calendar, Windhawk Genie Tuning, PWA Dock Icons & Mobile Intelligence Overhaul
-            - **Desktop Living Island Calendar**: Interactive month view with breathing pulse ring for today, smooth month navigation & slide transitions, event indicator dots, date hover micro-scaling, and selected day mini agenda.
-            - **Windhawk-Quality Genie Effect & Tuning**: 60-slice cubic-bezier mesh deformation with customizable duration slider (200-800ms) and style selection (Windhawk Mesh Warp vs. Classic Suck) in Settings.
-            - **Web App / PWA Dock Icon Resolution**: Resolved dock and taskbar icons for browser-hosted web apps (e.g. WhatsApp Web) matching Start Menu shortcuts and profiles.
-            - **Edge Controls Precision & Scroll**: Controllable via mouse wheel scroll on hover; narrowed vertical hit-testing with 120ms debounce to eliminate accidental edge triggers.
-            - **Apple Lock/Unlock Animation (Android)**: Fluid spring shackle lift and unlatch rotation animation on lock screen.
-            - **All Installed Apps Notification Access (Android)**: Dynamic enumeration with QUERY_ALL_PACKAGES, real-time search, and per-app toggle controls.
-            - **Dual Neural Voice Models (Android)**: Deep masculine voice and Siri-tuned acoustic model with interactive pitch/rate tuning.
-            - **Live Themes & Customization (Android)**: Full persistence for accent colors, fonts, corner radii, blur/transparency, and AMOLED display modes.
-            - **Hardened Reel Counter (Android)**: Debounced 1200ms dwell verification, scroll jitter rejection, and session deduplication.
+            ### GLOOM 1.8.0 — Expandable Mobile Dynamic Island, Multi-File Sharing, Desktop Theme Engine & Hardened Ecosystem
+            - **Expandable Mobile Dynamic Island & File Sharing**: Fluid expanding Dynamic Island with dedicated "File Sharing" option to pick and beam single or multiple files to the connected PC over pinned TLS.
+            - **System Share-Sheet ("Share to PC")**: Send files, documents, and media to your GLOOM PC from any Android app with automatic retry and toast feedback.
+            - **Glitch-Free Dynamic Island Collapse**: Re-engineered reverse animation anchored top-center with synchronized width/height scaling, eliminating jitter and jump glitches.
+            - **Desktop Appearance Theme Instant Apply**: Resolved theme state synchronization lag; Light, Dark, and System modes now apply immediately across all desktop windows.
+            - **Desktop Auto-Updater Stability**: Fixed update feed URL mapping, release asset budget verification, and background update application.
+            - **Android Security Hardening**: Enforced SHA-256 certificate pinning on all post-pairing LiveBridge endpoints, blocked cleartext, and added collision-avoiding unique filename resolution.
+            - **Zero Lint Errors & Runtime Stability**: Guarded API 26-34 compatibility paths, bounded subnet scanner concurrency with clean cancellation, pruned 89 dead imports, and eliminated 32 lint errors.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk
