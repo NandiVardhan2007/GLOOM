@@ -680,7 +680,11 @@ class GloomIslandOverlayService : Service() {
                         val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
                         val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
                         val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
-                        val left = ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                        val left = when (GloomIslandSettings.instance.gravity) {
+                            "Left" -> posXOffsetPx
+                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
+                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                        }
                         val right = left + pillWidthPx
                         val top = posYPx
                         val bottom = top + pillHeightPx

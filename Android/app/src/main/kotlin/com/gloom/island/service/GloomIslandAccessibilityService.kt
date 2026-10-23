@@ -22,13 +22,16 @@ import android.media.session.MediaSessionManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
+import android.graphics.Region
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
+import java.lang.reflect.Proxy
 import android.view.accessibility.AccessibilityEvent
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
@@ -454,11 +457,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         } else {
             dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
         }
-        val initialWidth = if (isExpanded) {
-            WindowManager.LayoutParams.MATCH_PARENT
-        } else {
-            dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
-        }
+        val initialWidth = WindowManager.LayoutParams.MATCH_PARENT
 
         // TYPE_ACCESSIBILITY_OVERLAY renders above Lock Screen / Keyguard
         layoutParams = WindowManager.LayoutParams(
@@ -562,11 +561,59 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
 
         composeView = view
+        setupTouchableRegion(view)
         try {
             windowManager.addView(composeView, layoutParams)
             updateVisibilityForOrientation()
         } catch (e: Exception) {
             Log.e(TAG, "Error adding accessibility overlay view", e)
+        }
+    }
+
+    private fun setupTouchableRegion(view: View) {
+        try {
+            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
+            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
+
+            val proxy = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass)
+            ) { _, method, args ->
+                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
+                    val inoutInfo = args[0]
+                    if (!isExpanded) {
+                        val density = resources.displayMetrics.density
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 32) * density).toInt()
+                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
+                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
+                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
+                        val left = when (GloomIslandSettings.instance.gravity) {
+                            "Left" -> posXOffsetPx
+                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
+                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                        }
+                        val right = left + pillWidthPx
+                        val top = posYPx
+                        val bottom = top + pillHeightPx
+
+                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
+                        val region = touchableRegionField.get(inoutInfo) as Region
+                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
+                    } else {
+                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
+                    }
+                }
+                null
+            }
+
+            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+            addMethod.invoke(view.viewTreeObserver, proxy)
+        } catch (_: Exception) {
+            // Fallback gracefully on custom ROMs
         }
     }
 
@@ -591,11 +638,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     private fun updateOverlayParameters() {
         updateVisibilityForOrientation()
         layoutParams.flags = getOverlayFlags()
-        layoutParams.width = if (isExpanded) {
-            WindowManager.LayoutParams.MATCH_PARENT
-        } else {
-            dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
-        }
+        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = if (isExpanded) {
             dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
@@ -626,10 +669,10 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         isExpanded = false
         windowResizeJob?.cancel()
         windowResizeJob = serviceScope.launch {
-            delay(450)
+            delay(400)
             if (isExpanded) return@launch
             layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            layoutParams.width = dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
+            layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.height = dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
             layoutParams.flags = getOverlayFlags()
             try {
