@@ -225,10 +225,10 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.8.2 — Zorin OS Magic Lamp (Genie Effect) & Glitch-Free Mobile Dynamic Island Collapse
-            - **Zorin OS / Compiz Magic Lamp (Genie Effect)**: Re-engineered desktop window minimize and restore with a 120-slice cubic Bézier liquid mesh deformation, wave-like lag propagation, authentic waist pinch, and volumetric specular sheen.
-            - **Glitch-Free Mobile Island Collapse**: Anchored the Android overlay to a full-width container with dynamic runtime touchable insets (`TOUCHABLE_INSETS_REGION`), completely eliminating the corner jump/snap glitch on collapse while preserving full touch pass-through to the status bar.
-            - **Ecosystem Hardening & Verification**: Zero TypeScript errors, zero Kotlin compilation warnings, and zero Android lint errors across all mobile and desktop modules.
+            ### GLOOM 1.8.3 — Genie Effect Toggle Fix & Per-App Dynamic Island Notification Styles
+            - **Genie Effect Toggle & Immediate Synchronization**: Resolved boolean type deserialization in settings sync so turning the Zorin OS Magic Lamp (Genie Effect) toggle OFF completely disables thumbnail warps and activates instantaneous native window focus immediately; turning it ON runs the smooth Compiz-style cubic Bézier mesh animation.
+            - **Per-App Notification Styles & Quick Actions (Android Dynamic Island)**: Added the extensible `NotificationStyleRegistry` with dedicated branding, custom accents, and layout treatments for WhatsApp, WhatsApp Business, Instagram, and Snapchat, plus a clean Cupertino fallback.
+            - **Inline Reply & Robust Fallbacks**: Supported inline `RemoteInput` reply with real-time feedback, keyguard lock protection ("Unlock to Reply"), and an "Open App" quick action on every notification with automatic fallback from `contentIntent` to application launch intent.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk
