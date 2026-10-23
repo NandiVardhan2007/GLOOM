@@ -21,6 +21,7 @@ import {
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { DisplayPlacementSection } from "./DisplayPlacementSection";
 import {
 	KNOWN_FOLDER_OPTIONS,
 	driveLetter,
@@ -108,6 +109,8 @@ interface DockTabProps {
 	setDockModeValue: (mode: string) => void;
 	dockEdgeDelay: number;
 	handleDockEdgeDelayChange: (val: number) => void;
+	dockDisplay: string;
+	handleDockDisplayChange: (val: string) => void;
 	dockPreviewEnabled: boolean;
 	toggleDockPreview: () => void;
 	dockIconOnly: boolean;
@@ -144,6 +147,8 @@ export function DockTab({
 	setDockModeValue,
 	dockEdgeDelay,
 	handleDockEdgeDelayChange,
+	dockDisplay,
+	handleDockDisplayChange,
 	dockPreviewEnabled,
 	toggleDockPreview,
 	dockIconOnly,
@@ -211,6 +216,13 @@ export function DockTab({
 								<option value="peek">Peek</option>
 							</select>
 						</SettingRow>
+
+						<DisplayPlacementSection
+							title="Display Placement"
+							description="Choose which monitor the dock appears on"
+							value={dockDisplay}
+							onChange={handleDockDisplayChange}
+						/>
 
 						{dockMode !== "fixed" && (
 							<SettingRow

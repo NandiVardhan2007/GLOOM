@@ -2373,6 +2373,11 @@ pub async fn get_custom_icons(app: AppHandle) -> Result<HashMap<String, String>,
 }
 
 #[tauri::command]
+pub fn get_monitors(app: AppHandle) -> Result<Vec<crate::monitors::MonitorInfo>, String> {
+    Ok(crate::monitors::get_available_monitors(&app))
+}
+
+#[tauri::command]
 pub async fn get_installed_apps() -> Vec<AppInfo> {
     let cache = INSTALLED_APPS_CACHE.get_or_init(|| std::sync::Mutex::new(Vec::new()));
     let is_empty = if let Ok(lock) = cache.lock() {
@@ -3348,6 +3353,8 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
 
     if key == "gloom-scale" {
         re_register_appbars(&app, &settings);
+    } else if key == "gloom-notch-display" || key == "gloom-dock-display" {
+        crate::services::reposition_all_windows(&app);
     }
     Ok(())
 }

@@ -133,6 +133,12 @@ export function useSettings() {
 		const val = localStorage.getItem("gloom-notch-edge-delay");
 		return val !== null ? parseInt(val) : 200;
 	});
+	const [notchDisplay, setNotchDisplay] = useState<string>(
+		() => localStorage.getItem("gloom-notch-display") || "primary"
+	);
+	const [dockDisplay, setDockDisplay] = useState<string>(
+		() => localStorage.getItem("gloom-dock-display") || "primary"
+	);
 	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
 		const val = localStorage.getItem("gloom-island-style");
 		return val === "pill" ? "pill" : "notch";
@@ -240,6 +246,8 @@ export function useSettings() {
 			apply(getVal("gloom-island-style"), setIslandStyle, (v) => (v === "pill" ? "pill" : "notch"));
 			apply(getVal("gloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("gloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
+			apply(getVal("gloom-notch-display"), setNotchDisplay, (v) => v || "primary");
+			apply(getVal("gloom-dock-display"), setDockDisplay, (v) => v || "primary");
 
 			const savedCity = getVal("gloom-weather-city");
 			if (savedCity) setCityName(savedCity);
@@ -760,6 +768,16 @@ export function useSettings() {
 		saveSetting("gloom-notch-edge-delay", val.toString());
 	};
 
+	const handleNotchDisplayChange = (val: string) => {
+		setNotchDisplay(val);
+		saveSetting("gloom-notch-display", val);
+	};
+
+	const handleDockDisplayChange = (val: string) => {
+		setDockDisplay(val);
+		saveSetting("gloom-dock-display", val);
+	};
+
 	const handleIslandStyleChange = (style: "notch" | "pill") => {
 		setIslandStyle(style);
 		saveSetting("gloom-island-style", style);
@@ -964,6 +982,8 @@ export function useSettings() {
 		setNotchModeValue,
 		notchEdgeDelay,
 		handleNotchEdgeDelayChange,
+		notchDisplay,
+		handleNotchDisplayChange,
 		islandStyle,
 		handleIslandStyleChange,
 		calendarEnabled,
@@ -1011,6 +1031,8 @@ export function useSettings() {
 		setDockModeValue,
 		dockEdgeDelay,
 		handleDockEdgeDelayChange,
+		dockDisplay,
+		handleDockDisplayChange,
 		dockPreviewEnabled,
 		toggleDockPreview,
 		dockIconOnly,

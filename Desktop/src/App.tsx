@@ -640,7 +640,7 @@ function App() {
 	const [showUpdatePulse, setShowUpdatePulse] = useState(false);
 
 	useEffect(() => {
-		if (windowLabel !== "main") return;
+		if (!windowLabel.startsWith("main")) return;
 
 		let unlisten: (() => void) | undefined;
 		let disposed = false;
@@ -770,7 +770,7 @@ function App() {
 	}, [isAnyInteraction]);
 
 	useEffect(() => {
-		if (windowLabel === "main") {
+		if (windowLabel.startsWith("main")) {
 			invoke("set_notch_hovered", { hovered: isNotchHovered }).catch(() => {});
 		}
 	}, [isNotchHovered, windowLabel]);
@@ -779,14 +779,14 @@ function App() {
 	// notch (smart/peek mode) stays click-through instead of swallowing clicks
 	// in its footprint.
 	useEffect(() => {
-		if (windowLabel === "main") {
+		if (windowLabel.startsWith("main")) {
 			invoke("set_notch_visible", { visible: isVisible && !isHidden }).catch(() => {});
 		}
 	}, [isVisible, isHidden, windowLabel]);
 
 	useEffect(() => {
 		const updateRect = () => {
-			if (gloomRef.current && windowLabel === "main") {
+			if (gloomRef.current && windowLabel.startsWith("main")) {
 				// Activity bubbles sit beside the pill and must stay clickable too.
 				const rects = [gloomRef.current, musicBubbleRef.current, shelfBubbleRef.current]
 					.filter((el): el is NonNullable<typeof el> => el !== null)
@@ -824,7 +824,7 @@ function App() {
 		if (!windowLabel) return;
 
 		// Only animate the main top-bar
-		if (windowLabel !== "main") {
+		if (!windowLabel.startsWith("main")) {
 			setIsReady(true);
 			setIsImpacted(true);
 			setIsExpanded(true);
@@ -1069,7 +1069,7 @@ function App() {
 			})
 			.catch((error) => {
 				console.error(error);
-				if (!cancelled && windowLabel === "main") setSystemSettingsReady(true);
+				if (!cancelled && windowLabel.startsWith("main")) setSystemSettingsReady(true);
 			});
 		return () => {
 			cancelled = true;
@@ -2850,7 +2850,7 @@ function App() {
 	// these rectangles the window takes no clicks, whatever its click-through
 	// state. Sent after every render, but only when the region changes.
 	useEffect(() => {
-		if (windowLabel === "main") updateNotchRegion();
+		if (windowLabel.startsWith("main")) updateNotchRegion();
 	});
 
 	return (

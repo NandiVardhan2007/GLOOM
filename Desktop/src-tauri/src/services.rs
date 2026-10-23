@@ -2079,6 +2079,52 @@ static MH_RIGHT_ENTRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LAST_MONITOR_UPDATE_MS: AtomicI64 = AtomicI64::new(0);
 static MH_CACHED_MON_POS: Mutex<Option<(i32, i32)>> = Mutex::new(None);
 static MH_CACHED_MON_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MonitorBounds {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub scale: f64,
+}
+
+static NOTCH_MONITOR_BOUNDS: Mutex<Vec<MonitorBounds>> = Mutex::new(Vec::new());
+static DOCK_MONITOR_BOUNDS: Mutex<Vec<MonitorBounds>> = Mutex::new(Vec::new());
+static REGISTERED_APPBAR_HWNDS: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+static REGISTERED_DOCK_APPBAR_HWNDS: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+
+fn is_appbar_registered(hwnd: isize) -> bool {
+    REGISTERED_APPBAR_HWNDS.lock().map(|s| s.contains(&hwnd)).unwrap_or(false)
+}
+
+fn mark_appbar_registered(hwnd: isize, registered: bool) {
+    if let Ok(mut s) = REGISTERED_APPBAR_HWNDS.lock() {
+        if registered {
+            if !s.contains(&hwnd) {
+                s.push(hwnd);
+            }
+        } else {
+            s.retain(|&h| h != hwnd);
+        }
+    }
+}
+
+fn is_dock_appbar_registered(hwnd: isize) -> bool {
+    REGISTERED_DOCK_APPBAR_HWNDS.lock().map(|s| s.contains(&hwnd)).unwrap_or(false)
+}
+
+fn mark_dock_appbar_registered(hwnd: isize, registered: bool) {
+    if let Ok(mut s) = REGISTERED_DOCK_APPBAR_HWNDS.lock() {
+        if registered {
+            if !s.contains(&hwnd) {
+                s.push(hwnd);
+            }
+        } else {
+            s.retain(|&h| h != hwnd);
+        }
+    }
+}
 static CAPTURE_UI_ACTIVE: AtomicBool = AtomicBool::new(false);
 static CAPTURE_RECHECK: AtomicBool = AtomicBool::new(true);
 static CAPTURE_LAST_SCAN_MS: AtomicI64 = AtomicI64::new(0);
@@ -2480,6 +2526,16 @@ fn top_edge_dwell_ms(app_handle: &AppHandle) -> i64 {
 /// True when the cursor sits inside the top-edge hot band on the primary
 /// monitor. Shared by the dwell gate and top-edge hit-testing continuity.
 fn in_top_edge_band(cursor: windows::Win32::Foundation::POINT, scale: f64) -> bool {
+    let bounds = NOTCH_MONITOR_BOUNDS.lock().ok().map(|g| g.clone()).unwrap_or_default();
+    if !bounds.is_empty() {
+        return bounds.iter().any(|b| {
+            cursor.y <= (b.y + (TOP_EDGE_BAND_PX * b.scale) as i32)
+                && cursor.y >= b.y
+                && cursor.x >= b.x
+                && cursor.x <= (b.x + b.width as i32)
+        });
+    }
+
     let (mon_x, mon_y) = MH_CACHED_MON_POS
         .lock()
         .ok()
@@ -2737,12 +2793,17 @@ fn dock_edge_dwell_ms(app_handle: &AppHandle) -> i64 {
 /// The mouse hook only fires on movement, so `setup_dock_edge_watchdog` also
 /// calls this while a dwell is pending so it can complete on a stationary
 /// cursor.
-fn dock_edge_armed_for(
-    app_handle: &AppHandle,
-    cursor: windows::Win32::Foundation::POINT,
-    now: i64,
-    scale: f64,
-) -> bool {
+fn is_cursor_at_bottom_edge(cursor: windows::Win32::Foundation::POINT, scale: f64) -> bool {
+    let bounds = DOCK_MONITOR_BOUNDS.lock().ok().map(|g| g.clone()).unwrap_or_default();
+    if !bounds.is_empty() {
+        return bounds.iter().any(|b| {
+            cursor.y >= (b.y + b.height as i32 - (BOTTOM_EDGE_BAND_PX * b.scale) as i32)
+                && cursor.y <= (b.y + b.height as i32)
+                && cursor.x >= b.x
+                && cursor.x <= (b.x + b.width as i32)
+        });
+    }
+
     let (mon_x, mon_y) = MH_CACHED_MON_POS
         .lock()
         .ok()
@@ -2755,9 +2816,18 @@ fn dock_edge_armed_for(
         .map(|s| (s.0 as i32, s.1 as i32))
         .unwrap_or((1920, 1080));
 
-    let in_band = cursor.y >= (mon_y + mon_h - (BOTTOM_EDGE_BAND_PX * scale) as i32)
+    cursor.y >= (mon_y + mon_h - (BOTTOM_EDGE_BAND_PX * scale) as i32)
         && cursor.x >= mon_x
-        && cursor.x <= (mon_x + mon_w);
+        && cursor.x <= (mon_x + mon_w)
+}
+
+fn dock_edge_armed_for(
+    app_handle: &AppHandle,
+    cursor: windows::Win32::Foundation::POINT,
+    now: i64,
+    scale: f64,
+) -> bool {
+    let in_band = is_cursor_at_bottom_edge(cursor, scale);
 
     if !in_band {
         MH_DOCK_EDGE_ENTER_MS.store(0, Ordering::Relaxed);
@@ -2817,18 +2887,6 @@ fn update_dock_interaction(
     if !dock_win.is_visible().unwrap_or(false) {
         return;
     }
-
-    let (mon_x, mon_y) = MH_CACHED_MON_POS
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .unwrap_or((0, 0));
-    let (mon_w, mon_h) = MH_CACHED_MON_SIZE
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .map(|s| (s.0 as i32, s.1 as i32))
-        .unwrap_or((1920, 1080));
 
     let mut is_click_interactive = false;
     let mut is_hovered = false;
@@ -2900,9 +2958,7 @@ fn update_dock_interaction(
     let in_dock_hover = DOCK_IS_HOVERED.load(Ordering::Relaxed);
     let scale = dock_win.scale_factor().unwrap_or(1.0);
     let edge_armed = dock_edge_armed_for(app_handle, cursor, now, scale);
-    let at_bottom_edge = cursor.y >= (mon_y + mon_h - (BOTTOM_EDGE_BAND_PX * scale) as i32)
-        && cursor.x >= mon_x
-        && cursor.x <= (mon_x + mon_w);
+    let at_bottom_edge = is_cursor_at_bottom_edge(cursor, scale);
 
     if edge_armed || in_dock_hover {
         is_hovered = true;
@@ -3606,119 +3662,116 @@ pub fn sync_overlays(app: &AppHandle) {
     }
 }
 
-pub fn register_appbar(window: tauri::WebviewWindow) {
-    if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
-        let m_size = monitor.size();
-        let m_pos = monitor.position();
-        let hwnd = window.hwnd().unwrap();
-        let scale = monitor.scale_factor();
-        let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
-        let ph = ((420.0 * gloom_scale) * scale) as i32;
-        let pr = ((40.0 * gloom_scale) * scale) as i32; // Scale the reserved top screen space
+pub fn register_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::monitors::MonitorInfo) {
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
+    let ph = ((420.0 * gloom_scale) * mon.scale_factor) as i32;
+    let pr = ((40.0 * gloom_scale) * mon.scale_factor) as i32;
 
-        unsafe {
-            use windows::Win32::Foundation::RECT;
-            use windows::Win32::UI::Shell::{
-                SHAppBarMessage, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA,
-            };
-            use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-                SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
-                WS_EX_TOOLWINDOW,
-            };
+    unsafe {
+        use windows::Win32::Foundation::RECT;
+        use windows::Win32::UI::Shell::{
+            SHAppBarMessage, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
+            WS_EX_TOOLWINDOW,
+        };
 
-            // Set styles first
-            let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-            ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
-            let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
+        let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
+        ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
+        let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
 
-            let mut abd = APPBARDATA {
-                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                hWnd: hwnd,
-                uCallbackMessage: 0x8041, // WM_APP + 0x41, reserved for the notch AppBar
-                ..Default::default()
-            };
+        let mut abd = APPBARDATA {
+            cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+            hWnd: hwnd,
+            uCallbackMessage: 0x8041,
+            ..Default::default()
+        };
 
-            if !MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                let _ = SHAppBarMessage(ABM_REMOVE, &mut abd);
-                let registered = SHAppBarMessage(ABM_NEW, &mut abd);
-                crate::diagnostics::record(
-                    "main_appbar",
-                    &format!("registration_result={registered}"),
-                );
-                if registered == 0 {
-                    eprintln!("Gloom: notch AppBar registration failed");
-                    return;
-                }
+        let hwnd_val = hwnd.0 as isize;
+        if !is_appbar_registered(hwnd_val) {
+            let _ = SHAppBarMessage(ABM_REMOVE, &mut abd);
+            let registered = SHAppBarMessage(ABM_NEW, &mut abd);
+            if registered != 0 {
+                mark_appbar_registered(hwnd_val, true);
                 MAIN_APPBAR_REGISTERED.store(true, Ordering::Relaxed);
             }
+        }
 
-            abd.uEdge = ABE_TOP;
-            abd.rc = RECT {
-                left: m_pos.x,
-                top: m_pos.y,
-                right: m_pos.x + m_size.width as i32,
-                bottom: m_pos.y + pr,
-            };
+        abd.uEdge = ABE_TOP;
+        abd.rc = RECT {
+            left: mon.x,
+            top: mon.y,
+            right: mon.x + mon.width as i32,
+            bottom: mon.y + pr,
+        };
 
-            SHAppBarMessage(ABM_QUERYPOS, &mut abd);
-            SHAppBarMessage(ABM_SETPOS, &mut abd);
+        SHAppBarMessage(ABM_QUERYPOS, &mut abd);
+        SHAppBarMessage(ABM_SETPOS, &mut abd);
 
-            // Force the notch window to the actual top-left of the primary monitor,
-            // ignoring any offset ABM_SETPOS might have returned
-            let final_x = m_pos.x;
-            let final_y = m_pos.y;
-            let final_width = m_size.width as i32;
+        let final_x = mon.x;
+        let final_y = mon.y;
+        let final_width = mon.width as i32;
 
-            let mut current_rect = RECT::default();
-            let mut already_positioned = false;
-            if GetWindowRect(hwnd, &mut current_rect).is_ok() {
-                let current_width = current_rect.right - current_rect.left;
-                let current_height = current_rect.bottom - current_rect.top;
-                if current_rect.left == final_x
-                    && current_rect.top == final_y
-                    && current_width == final_width
-                    && current_height == ph
-                {
-                    already_positioned = true;
-                }
-            }
-
-            if !already_positioned {
-                let _ = SetWindowPos(
-                    hwnd,
-                    None,
-                    final_x,
-                    final_y,
-                    final_width,
-                    ph,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                );
-            }
-
-            // Re-assert topmost after repositioning — use re_assert_topmost instead of
-            // set_always_on_top(true) to include SWP_NOACTIVATE and re-stamp WS_EX_NOACTIVATE.
-            // This prevents WM_ACTIVATE from reaching WebView2, which caused gloom windows
-            // to blank/hide when other windows were minimized or closed.
-            re_assert_topmost(hwnd);
-
-            if !window.is_visible().unwrap_or(false) {
-                let _ = window.show();
+        let mut current_rect = RECT::default();
+        let mut already_positioned = false;
+        if GetWindowRect(hwnd, &mut current_rect).is_ok() {
+            let current_width = current_rect.right - current_rect.left;
+            let current_height = current_rect.bottom - current_rect.top;
+            if current_rect.left == final_x
+                && current_rect.top == final_y
+                && current_width == final_width
+                && current_height == ph
+            {
+                already_positioned = true;
             }
         }
-    } else {
-        let w = window.clone();
-        tauri::async_runtime::spawn(async move {
-            for _ in 0..10 {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                if let Ok(Some(_monitor)) = w.app_handle().primary_monitor() {
-                    // Reconcile rather than register directly: the notch mode
-                    // may have changed while waiting for the monitor.
-                    reconcile_main_appbar(w.app_handle());
-                    break;
-                }
-            }
-        });
+
+        if !already_positioned {
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                final_x,
+                final_y,
+                final_width,
+                ph,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
+        }
+
+        re_assert_topmost(hwnd);
+        if !window.is_visible().unwrap_or(false) {
+            let _ = window.show();
+        }
+    }
+}
+
+pub fn unregister_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::monitors::MonitorInfo) {
+    if let Ok(hwnd) = window.hwnd() {
+        let hwnd_val = hwnd.0 as isize;
+        unregister_appbar_native(hwnd);
+        mark_appbar_registered(hwnd_val, false);
+        let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
+        let ph = ((420.0 * gloom_scale) * mon.scale_factor) as i32;
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
+            };
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                mon.x,
+                mon.y,
+                mon.width as i32,
+                ph,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
+        }
+        re_assert_topmost(hwnd);
     }
 }
 
@@ -3735,35 +3788,16 @@ fn lock_main_appbar() -> std::sync::MutexGuard<'static, ()> {
 /// Apply a reservation decision to the main window. Callers must hold
 /// `MAIN_APPBAR_LOCK`.
 fn set_main_appbar_reservation(main_win: tauri::WebviewWindow, reserve: bool) {
-    if reserve {
-        register_appbar(main_win);
-    } else if let Ok(hwnd) = main_win.hwnd() {
-        // Ask the shell to remove the reservation unconditionally: the flag
-        // may look clean while the shell still holds the strip.
-        unregister_appbar_native(hwnd);
-        MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
-        if let Ok(Some(monitor)) = main_win.primary_monitor() {
-            let m_size = monitor.size();
-            let m_pos = monitor.position();
-            let scale = monitor.scale_factor();
-            let gloom_scale = crate::utils::get_gloom_scale(main_win.app_handle());
-            let ph = ((420.0 * gloom_scale) * scale) as i32;
-            unsafe {
-                use windows::Win32::UI::WindowsAndMessaging::{
-                    SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
-                };
-                let _ = SetWindowPos(
-                    hwnd,
-                    None,
-                    m_pos.x,
-                    m_pos.y,
-                    m_size.width as i32,
-                    ph,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                );
-            }
+    let available = crate::monitors::get_available_monitors(main_win.app_handle());
+    let notch_setting = get_setting_str(main_win.app_handle(), "gloom-notch-display").unwrap_or_else(|| "primary".into());
+    let target_notch_mons = crate::monitors::resolve_monitors_for_setting(&notch_setting, &available);
+    if let Some(mon) = target_notch_mons.first() {
+        if reserve {
+            register_appbar_on_monitor(&main_win, mon);
+        } else {
+            unregister_appbar_on_monitor(&main_win, mon);
+            MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
         }
-        re_assert_topmost(hwnd);
     }
 }
 
@@ -3818,163 +3852,159 @@ pub fn disable_dock_appbar(window: tauri::WebviewWindow) {
     DOCK_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
 }
 
-fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
-    // Registration retries may outlive a settings change that disabled the dock.
+pub fn register_dock_appbar_on_monitor(window: &tauri::WebviewWindow, mon: &crate::monitors::MonitorInfo) {
     if !crate::utils::dock_enabled() {
         return;
     }
-    if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
-        let m_size = monitor.size();
-        let m_pos = monitor.position();
-        let Ok(hwnd) = window.hwnd() else {
-            return;
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
+    let ph = window.outer_size().map(|s| s.height as i32).unwrap_or(0);
+    if ph <= 0 {
+        let w = window.clone();
+        let m = mon.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            register_dock_appbar_on_monitor(&w, &m);
+        });
+        return;
+    }
+
+    let pr = ((56.0 * gloom_scale) * mon.scale_factor) as i32;
+    let _guard = lock_dock_appbar();
+    if !crate::utils::dock_enabled() {
+        return;
+    }
+
+    unsafe {
+        use windows::Win32::Foundation::RECT;
+        use windows::Win32::UI::Shell::{
+            SHAppBarMessage, ABE_BOTTOM, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA,
         };
-        let scale = monitor.scale_factor();
-        let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongPtrW, RegisterWindowMessageW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
+            WS_EX_TOOLWINDOW,
+        };
 
-        // ph = full physical window height. outer_size() can return 0 before the
-        // window has rendered. Never guess a value — bail and let the retry wrapper handle it.
-        let ph = window.outer_size().map(|s| s.height as i32).unwrap_or(0);
-        if ph <= 0 {
-            if attempt < 10 {
-                let w = window.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-                    register_dock_appbar_inner(w, attempt + 1);
-                });
-            }
+        let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
+        ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
+        let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
+
+        let callback_message = RegisterWindowMessageW(windows::core::w!("GloomDockAppBar"));
+        if callback_message == 0 {
             return;
         }
+        let mut abd = APPBARDATA {
+            cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+            hWnd: hwnd,
+            uCallbackMessage: callback_message,
+            ..Default::default()
+        };
 
-        let pr = ((56.0 * gloom_scale) * scale) as i32;
-
-        // Serialize with disable_dock_appbar, then check the setting again.
-        // A pending registration must not outlive a dock-disable request.
-        let _guard = lock_dock_appbar();
-        if !crate::utils::dock_enabled() {
-            return;
-        }
-
-        unsafe {
-            use windows::Win32::Foundation::RECT;
-            use windows::Win32::UI::Shell::{
-                SHAppBarMessage, ABE_BOTTOM, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS,
-                APPBARDATA,
-            };
-            use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, GetWindowRect, RegisterWindowMessageW, SetWindowLongPtrW,
-                SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
-                WS_EX_NOACTIVATE as WS_EX_NA, WS_EX_TOOLWINDOW,
-            };
-
-            // Set extended styles (ToolWindow and NoActivate)
-            let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-            ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
-            let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
-
-            let callback_message = RegisterWindowMessageW(windows::core::w!("GloomDockAppBar"));
-            if callback_message == 0 {
-                return;
-            }
-            let mut abd = APPBARDATA {
-                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                hWnd: hwnd,
-                uCallbackMessage: callback_message,
-                ..Default::default()
-            };
-
-            if !DOCK_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                let _ = SHAppBarMessage(ABM_REMOVE, &mut abd);
-                let registered = SHAppBarMessage(ABM_NEW, &mut abd);
-                crate::diagnostics::record(
-                    "dock_appbar",
-                    &format!("registration_result={registered}"),
-                );
-                if registered == 0 {
-                    eprintln!("Gloom: dock AppBar registration failed");
-                    return;
-                }
+        let hwnd_val = hwnd.0 as isize;
+        if !is_dock_appbar_registered(hwnd_val) {
+            let _ = SHAppBarMessage(ABM_REMOVE, &mut abd);
+            let registered = SHAppBarMessage(ABM_NEW, &mut abd);
+            if registered != 0 {
+                mark_dock_appbar_registered(hwnd_val, true);
                 DOCK_APPBAR_REGISTERED.store(true, Ordering::Relaxed);
             }
+        }
 
-            abd.uEdge = ABE_BOTTOM;
-            abd.rc = RECT {
-                left: m_pos.x,
-                top: m_pos.y + m_size.height as i32 - pr,
-                right: m_pos.x + m_size.width as i32,
-                bottom: m_pos.y + m_size.height as i32,
-            };
+        abd.uEdge = ABE_BOTTOM;
+        abd.rc = RECT {
+            left: mon.x,
+            top: mon.y + mon.height as i32 - pr,
+            right: mon.x + mon.width as i32,
+            bottom: mon.y + mon.height as i32,
+        };
 
-            SHAppBarMessage(ABM_QUERYPOS, &mut abd);
-            SHAppBarMessage(ABM_SETPOS, &mut abd);
+        SHAppBarMessage(ABM_QUERYPOS, &mut abd);
+        SHAppBarMessage(ABM_SETPOS, &mut abd);
 
-            // Critical: Force the window to the actual bottom of the screen,
-            // ignoring what ABM_SETPOS might have tried to "correct" (like stacking on invisible taskbar)
-            let final_x = m_pos.x;
-            let final_y = m_pos.y + m_size.height as i32 - ph;
-            let final_width = m_size.width as i32;
-            if final_width <= 0 {
+        let final_y = mon.y + mon.height as i32 - ph;
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            mon.x,
+            final_y,
+            mon.width as i32,
+            ph,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+
+        re_assert_topmost(hwnd);
+        let _ = window.show();
+        if set_taskbar_visibility(false, false) {
+            NATIVE_TASKBAR_HIDDEN.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+pub fn reposition_autohide_dock_on_monitor(
+    app_handle: &AppHandle,
+    dock_win: &tauri::WebviewWindow,
+    mon: &crate::monitors::MonitorInfo,
+) {
+    let dock_clone = dock_win.clone();
+    let ah = app_handle.clone();
+    let mon_clone = mon.clone();
+    tauri::async_runtime::spawn(async move {
+        for _attempt in 0..5 {
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            if !crate::utils::dock_enabled() {
                 return;
             }
-
-            let mut current_rect = RECT::default();
-            let mut already_positioned = false;
-            if GetWindowRect(hwnd, &mut current_rect).is_ok() {
-                let current_width = current_rect.right - current_rect.left;
-                let current_height = current_rect.bottom - current_rect.top;
-                if current_rect.left == final_x
-                    && current_rect.top == final_y
-                    && current_width == final_width
-                    && current_height == ph
-                {
-                    already_positioned = true;
-                }
+            let hwnd_val = match dock_clone.hwnd() {
+                Ok(h) => h.0 as isize,
+                Err(_) => continue,
+            };
+            let ph = match dock_clone.outer_size() {
+                Ok(s) => s.height as i32,
+                Err(_) => continue,
+            };
+            if ph <= 10 {
+                continue;
             }
-
-            if !already_positioned
-                && SetWindowPos(
-                    hwnd,
+            let final_y = mon_clone.y + mon_clone.height as i32 - ph;
+            unsafe {
+                use windows::Win32::Foundation::HWND;
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
+                };
+                let _ = SetWindowPos(
+                    HWND(hwnd_val as *mut _),
                     None,
-                    final_x,
+                    mon_clone.x,
                     final_y,
-                    final_width,
+                    mon_clone.width as i32,
                     ph,
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                )
-                .is_err()
-            {
-                return;
+                );
             }
-            let mut placed = RECT::default();
-            if GetWindowRect(hwnd, &mut placed).is_err()
-                || placed.left != final_x
-                || placed.top != final_y
-                || placed.right - placed.left != final_width
-                || placed.bottom - placed.top != ph
-            {
-                return;
+            if let Ok(hwnd) = dock_clone.hwnd() {
+                re_assert_topmost(hwnd);
             }
-
-            // Re-assert topmost — same reason as register_appbar.
-            re_assert_topmost(hwnd);
-
-            // Always ensure the window is visible — show() is idempotent
-            let _ = window.show();
-            if set_taskbar_visibility(false, false) {
-                NATIVE_TASKBAR_HIDDEN.store(true, Ordering::Relaxed);
+            if crate::utils::dock_enabled() {
+                let _ = dock_clone.show();
             }
+            break;
         }
-    } else {
-        let w = window.clone();
-        tauri::async_runtime::spawn(async move {
-            for _ in 0..10 {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                if let Ok(Some(_monitor)) = w.app_handle().primary_monitor() {
-                    register_dock_appbar(w);
-                    break;
-                }
-            }
-        });
+        if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) {
+            set_taskbar_visibility(false, false);
+        }
+        sync_overlays(&ah);
+    });
+}
+
+fn register_dock_appbar_inner(window: tauri::WebviewWindow, _attempt: i32) {
+    let available = crate::monitors::get_available_monitors(window.app_handle());
+    let dock_setting = get_setting_str(window.app_handle(), "gloom-dock-display").unwrap_or_else(|| "primary".into());
+    let target_dock_mons = crate::monitors::resolve_monitors_for_setting(&dock_setting, &available);
+    if let Some(mon) = target_dock_mons.first() {
+        register_dock_appbar_on_monitor(&window, mon);
     }
 }
 
@@ -4232,97 +4262,206 @@ pub fn unregister_appbar_native(hwnd: HWND) {
     }
 }
 
-fn reposition_all_windows(app_handle: &AppHandle) {
+pub fn reposition_all_windows(app_handle: &AppHandle) {
     if SHUTTING_DOWN.load(Ordering::Relaxed) {
         return;
     }
-    reconcile_main_appbar(app_handle);
-    // Only reposition the dock if it's enabled in settings.
-    // Without this guard, power events (plug/unplug, wake) would re-show
-    // a dock that the user had previously disabled.
-    if crate::utils::dock_enabled() {
-        if let Some(dock_win) = app_handle.get_webview_window("dock") {
-            if get_setting_str(app_handle, "gloom-dock-mode").as_deref() == Some("fixed") {
-                register_dock_appbar(dock_win);
+
+    let available = crate::monitors::get_available_monitors(app_handle);
+    if available.is_empty() {
+        return;
+    }
+
+    let notch_setting = get_setting_str(app_handle, "gloom-notch-display").unwrap_or_else(|| "primary".into());
+    let target_notch_mons = crate::monitors::resolve_monitors_for_setting(&notch_setting, &available);
+
+    let dock_setting = get_setting_str(app_handle, "gloom-dock-display").unwrap_or_else(|| "primary".into());
+    let target_dock_mons = crate::monitors::resolve_monitors_for_setting(&dock_setting, &available);
+
+    // Update active monitor bounds for hit-testing
+    if let Ok(mut nb) = NOTCH_MONITOR_BOUNDS.lock() {
+        *nb = target_notch_mons
+            .iter()
+            .map(|m| MonitorBounds {
+                x: m.x,
+                y: m.y,
+                width: m.width,
+                height: m.height,
+                scale: m.scale_factor,
+            })
+            .collect();
+    }
+    if let Ok(mut db) = DOCK_MONITOR_BOUNDS.lock() {
+        *db = target_dock_mons
+            .iter()
+            .map(|m| MonitorBounds {
+                x: m.x,
+                y: m.y,
+                width: m.width,
+                height: m.height,
+                scale: m.scale_factor,
+            })
+            .collect();
+    }
+
+    let notch_mode = get_setting_str(app_handle, "gloom-notch-mode");
+    let notch_reserves = notch_mode_reserves_work_area(notch_mode.as_deref());
+
+    // 1. Notch windows
+    for (idx, mon) in target_notch_mons.iter().enumerate() {
+        let win = if idx == 0 {
+            app_handle.get_webview_window("main")
+        } else {
+            let label = format!("main-{}", idx);
+            if let Some(w) = app_handle.get_webview_window(&label) {
+                Some(w)
             } else {
-                // Auto-hide mode: reposition dock at bottom of screen
-                reposition_autohide_dock(app_handle, dock_win);
+                tauri::WebviewWindowBuilder::new(
+                    app_handle,
+                    &label,
+                    tauri::WebviewUrl::App("index.html".into()),
+                )
+                .title("GLOOM")
+                .inner_size(mon.width as f64, 420.0)
+                .position(mon.x as f64, mon.y as f64)
+                .decorations(false)
+                .transparent(true)
+                .resizable(false)
+                .maximizable(false)
+                .minimizable(false)
+                .closable(false)
+                .always_on_top(true)
+                .visible_on_all_workspaces(true)
+                .focused(false)
+                .skip_taskbar(true)
+                .shadow(false)
+                .visible(false)
+                .build()
+                .ok()
+            }
+        };
+
+        if let Some(w) = win {
+            let _ = w.set_ignore_cursor_events(true);
+            if notch_reserves {
+                register_appbar_on_monitor(&w, mon);
+            } else {
+                unregister_appbar_on_monitor(&w, mon);
             }
         }
     }
+
+    // Clean up any extra secondary notch windows
+    let mut extra_notch_idx = target_notch_mons.len();
+    loop {
+        let label = format!("main-{}", extra_notch_idx);
+        if let Some(w) = app_handle.get_webview_window(&label) {
+            if let Ok(hwnd) = w.hwnd() {
+                unregister_appbar_native(hwnd);
+                mark_appbar_registered(hwnd.0 as isize, false);
+            }
+            let _ = w.destroy();
+            extra_notch_idx += 1;
+        } else {
+            break;
+        }
+    }
+
+    // 2. Dock windows
+    if crate::utils::dock_enabled() {
+        let dock_mode = get_setting_str(app_handle, "gloom-dock-mode");
+        let dock_is_fixed = dock_mode.as_deref() == Some("fixed");
+
+        for (idx, mon) in target_dock_mons.iter().enumerate() {
+            let win = if idx == 0 {
+                app_handle.get_webview_window("dock")
+            } else {
+                let label = format!("dock-{}", idx);
+                if let Some(w) = app_handle.get_webview_window(&label) {
+                    Some(w)
+                } else {
+                    tauri::WebviewWindowBuilder::new(
+                        app_handle,
+                        &label,
+                        tauri::WebviewUrl::App("dock.html".into()),
+                    )
+                    .title("GLOOM Dock")
+                    .inner_size(mon.width as f64, 600.0)
+                    .position(mon.x as f64, (mon.y + mon.height as i32 - 600) as f64)
+                    .decorations(false)
+                    .transparent(true)
+                    .resizable(false)
+                    .maximizable(false)
+                    .minimizable(false)
+                    .closable(false)
+                    .always_on_top(true)
+                    .visible_on_all_workspaces(true)
+                    .focused(false)
+                    .skip_taskbar(true)
+                    .shadow(false)
+                    .visible(false)
+                    .build()
+                    .ok()
+                }
+            };
+
+            if let Some(w) = win {
+                let _ = w.set_ignore_cursor_events(true);
+                if dock_is_fixed {
+                    register_dock_appbar_on_monitor(&w, mon);
+                } else {
+                    reposition_autohide_dock_on_monitor(app_handle, &w, mon);
+                }
+            }
+        }
+
+        // Clean up any extra secondary dock windows
+        let mut extra_dock_idx = target_dock_mons.len();
+        loop {
+            let label = format!("dock-{}", extra_dock_idx);
+            if let Some(w) = app_handle.get_webview_window(&label) {
+                if let Ok(hwnd) = w.hwnd() {
+                    unregister_appbar_native(hwnd);
+                    mark_dock_appbar_registered(hwnd.0 as isize, false);
+                }
+                let _ = w.destroy();
+                extra_dock_idx += 1;
+            } else {
+                break;
+            }
+        }
+    } else {
+        if let Some(w) = app_handle.get_webview_window("dock") {
+            disable_dock_appbar(w);
+        }
+        let mut extra_dock_idx = 1;
+        loop {
+            let label = format!("dock-{}", extra_dock_idx);
+            if let Some(w) = app_handle.get_webview_window(&label) {
+                if let Ok(hwnd) = w.hwnd() {
+                    unregister_appbar_native(hwnd);
+                    mark_dock_appbar_registered(hwnd.0 as isize, false);
+                }
+                let _ = w.destroy();
+                extra_dock_idx += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
     if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) {
         set_taskbar_visibility(false, false);
     }
     sync_overlays(app_handle);
-    // Re-assert topmost on all windows after repositioning to recover from any z-order loss
-    if let Some(main_win) = app_handle.get_webview_window("main") {
-        if let Ok(hwnd) = main_win.hwnd() {
-            re_assert_topmost(hwnd);
-        }
-    }
-    if let Some(dock_win) = app_handle.get_webview_window("dock") {
-        if let Ok(hwnd) = dock_win.hwnd() {
-            re_assert_topmost(hwnd);
-        }
-    }
-}
 
-fn reposition_autohide_dock(app_handle: &AppHandle, dock_win: tauri::WebviewWindow) {
-    let dock_clone = dock_win.clone();
-    let ah = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        for _attempt in 0..5 {
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            if !crate::utils::dock_enabled() {
-                return;
-            }
-            let hwnd_val = match dock_clone.hwnd() {
-                Ok(h) => h.0 as isize,
-                Err(_) => continue,
-            };
-            let ph = match dock_clone.outer_size() {
-                Ok(s) => s.height as i32,
-                Err(_) => continue,
-            };
-            if ph <= 10 {
-                continue;
-            }
-            let monitor_info = dock_clone.primary_monitor().ok().flatten().map(|m| {
-                let s = m.size();
-                let p = m.position();
-                (s.width as i32, s.height as i32, p.x, p.y)
-            });
-            if let Some((m_w, m_h, m_x, m_y)) = monitor_info {
-                let final_y = m_y + m_h - ph;
-                unsafe {
-                    use windows::Win32::Foundation::HWND;
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
-                    };
-                    let _ = SetWindowPos(
-                        HWND(hwnd_val as *mut _),
-                        None,
-                        m_x,
-                        final_y,
-                        m_w,
-                        ph,
-                        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                    );
-                }
-                if let Ok(hwnd) = dock_clone.hwnd() {
-                    re_assert_topmost(hwnd);
-                }
-                if crate::utils::dock_enabled() {
-                    let _ = dock_clone.show();
-                }
-                break;
+    for (label, win) in app_handle.webview_windows() {
+        if label.starts_with("main") || label.starts_with("dock") {
+            if let Ok(hwnd) = win.hwnd() {
+                re_assert_topmost(hwnd);
             }
         }
-        if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) {
-            set_taskbar_visibility(false, false);
-        }
-        sync_overlays(&ah);
-    });
+    }
 }
 
 static TASKBAR_CREATED_MESSAGE: AtomicU32 = AtomicU32::new(0);
@@ -4426,6 +4565,7 @@ unsafe extern "system" fn display_monitor_proc(
                 LAST_DISPLAY_CHANGE_MS.store(now, Ordering::Relaxed);
                 if let Some(app_handle) = DISPLAY_MONITOR_HANDLE.get() {
                     let ah = app_handle.clone();
+                    let _ = ah.emit("gloom-displays-changed", ());
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                         reposition_all_windows(&ah);
