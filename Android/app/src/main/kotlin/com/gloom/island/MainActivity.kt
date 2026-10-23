@@ -173,19 +173,36 @@ class MainActivity : ComponentActivity() {
                     color = Color(0xFF07070A)
                 ) {
                     val beamFilePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
-                    ) { uri: android.net.Uri? ->
-                        if (uri != null) {
+                        contract = androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+                    ) { uris: List<android.net.Uri> ->
+                        if (uris.isNotEmpty()) {
                             val desktopIp = bridgeClient.desktopIp
                             if (!desktopIp.isNullOrBlank() && bridgeClient.isConnected) {
-                                bridgeClient.beamUriToDesktop(
-                                    uri = uri,
-                                    onProgress = { },
-                                    onComplete = { success ->
-                                        val msg = if (success) "File beamed to desktop!" else "Failed to beam file to desktop"
+                                kotlin.concurrent.thread(isDaemon = true, name = "Gloom-MultiBeam-Thread") {
+                                    var allSuccess = true
+                                    uris.forEach { uri ->
+                                        val latch = java.util.concurrent.CountDownLatch(1)
+                                        bridgeClient.beamUriToDesktop(
+                                            uri = uri,
+                                            onProgress = { },
+                                            onComplete = { success ->
+                                                if (!success) allSuccess = false
+                                                latch.countDown()
+                                            }
+                                        )
+                                        try {
+                                            latch.await(5, java.util.concurrent.TimeUnit.MINUTES)
+                                        } catch (_: Exception) {}
+                                    }
+                                    val msg = if (allSuccess) {
+                                        if (uris.size == 1) "File beamed to desktop!" else "${uris.size} files beamed to desktop!"
+                                    } else {
+                                        "Some files failed to beam to desktop"
+                                    }
+                                    runOnUiThread {
                                         android.widget.Toast.makeText(this@MainActivity, msg, android.widget.Toast.LENGTH_SHORT).show()
                                     }
-                                )
+                                }
                             } else {
                                 android.widget.Toast.makeText(this@MainActivity, "Desktop bridge not connected. Ensure desktop is active on same Wi-Fi.", android.widget.Toast.LENGTH_LONG).show()
                             }
@@ -701,22 +718,29 @@ fun HomeScreen(
         ) {
             AppleRow(
                 title = if (bridgeConnected) "GLOOM Desktop" else "Pair with PC",
-                subtitle = if (bridgeConnected) (desktopAddress ?: "Connected") else "Find and pair your desktop",
+                subtitle = if (bridgeConnected) (desktopAddress ?: "Connected") else "Auto-connects on same Wi-Fi",
                 icon = GloomIcons.Laptop,
                 iconTint = Apple.systemBlue,
                 trailingIcon = if (bridgeConnected) GloomIcons.CheckCircleFill else GloomIcons.ChevronRight,
                 trailingTint = if (bridgeConnected) Apple.systemGreen else Apple.tertiaryLabel,
                 onClick = {
-                    pinInput = ""
-                    pairingChallengeId = null
-                    pairStatus = "Waiting for the desktop to show a PIN."
-                    showPairDialog = true
-                    GloomLiveBridgeClient.activeClient?.requestPairing { id ->
-                        pairingChallengeId = id
-                        if (id == null) {
-                            pairStatus = "No desktop found. Keep both devices on the same Wi-Fi with the desktop app open."
+                    if (bridgeConnected) {
+                        pairStatus = "Connected to ${desktopAddress ?: "PC"}."
+                    } else {
+                        pairStatus = "Connecting on same Wi-Fi..."
+                        val client = GloomLiveBridgeClient.activeClient
+                        val ip = client?.desktopIp
+                        val port = client?.desktopPort ?: 53391
+                        if (ip != null) {
+                            client.autoPairWithDesktop(ip, port) { paired ->
+                                pairStatus = if (paired) "Connected." else "Connection declined on PC."
+                            }
+                        } else {
+                            client?.startDiscovery { _, _ -> }
+                            pairStatus = "Searching for PC on same Wi-Fi... Make sure GLOOM is open on your PC."
                         }
                     }
+                    showPairDialog = true
                 }
             )
             AppleDivider()
@@ -795,7 +819,7 @@ fun HomeScreen(
             titleContentColor = Apple.label,
             textContentColor = Apple.secondaryLabel,
             title = {
-                Text("Pair with GLOOM Desktop", style = AppleType.headline, color = Apple.label)
+                Text(if (bridgeConnected) "GLOOM Desktop Connected" else "Connect to GLOOM Desktop", style = AppleType.headline, color = Apple.label)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -807,12 +831,13 @@ fun HomeScreen(
                             color = Apple.secondaryLabel
                         )
                     }
-                    OutlinedTextField(
-                        value = pinInput,
-                        onValueChange = { pinInput = it.filter(Char::isDigit).take(6) },
-                        label = { Text("6-digit PIN") },
-                        singleLine = true
-                    )
+                    if (!bridgeConnected) {
+                        Text(
+                            "When connecting for the first time, click 'Allow' on your PC's desktop prompt to authorize this phone.",
+                            style = AppleType.caption1,
+                            color = Apple.secondaryLabel
+                        )
+                    }
                     TextButton(
                         onClick = {
                             GloomLiveBridgeClient.activeClient?.forgetDesktop()
@@ -820,33 +845,42 @@ fun HomeScreen(
                                     BridgeTls.clearDesktopPin(context)
                                     FileBeamReceiver.clearPairedToken(context)
                                 }
-                            pairingChallengeId = null
-                            pairStatus = "Desktop forgotten. Searching for a new beacon..."
+                            pairStatus = "Desktop forgotten. Searching for a new connection..."
                         }
                     ) {
-                        Text("Forget desktop and re-pin", fontSize = 12.sp)
+                        Text("Forget desktop and re-pair", fontSize = 12.sp)
                     }
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = pinInput.length == 6 && pairingChallengeId != null,
-                    onClick = {
-                        val challenge = pairingChallengeId ?: return@TextButton
-                        pairStatus = "Verifying PIN..."
-                        GloomLiveBridgeClient.activeClient?.confirmPairing(challenge, pinInput) { paired ->
-                            if (paired) {
-                                pairStatus = "Paired."
-                                showPairDialog = false
+                if (!bridgeConnected) {
+                    TextButton(
+                        onClick = {
+                            val client = GloomLiveBridgeClient.activeClient
+                            val ip = client?.desktopIp
+                            val port = client?.desktopPort ?: 53391
+                            if (ip != null) {
+                                pairStatus = "Authorizing with PC..."
+                                client.autoPairWithDesktop(ip, port) { paired ->
+                                    if (paired) {
+                                        pairStatus = "Connected."
+                                        showPairDialog = false
+                                    } else {
+                                        pairStatus = "Connection rejected or timed out. Click 'Allow' on your PC."
+                                    }
+                                }
                             } else {
-                                pairStatus = "Incorrect or expired PIN. Start pairing again."
+                                client?.startDiscovery { _, _ -> }
+                                pairStatus = "Searching for PC on same Wi-Fi..."
                             }
                         }
-                    }
-                ) { Text("Pair") }
+                    ) { Text("Retry") }
+                } else {
+                    TextButton(onClick = { showPairDialog = false }) { Text("Done") }
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showPairDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showPairDialog = false }) { Text("Close") }
             }
         )
     }

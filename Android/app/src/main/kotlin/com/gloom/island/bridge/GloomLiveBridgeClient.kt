@@ -86,6 +86,7 @@ class GloomLiveBridgeClient(context: Context) {
             isDiscoveringGlobally = true
         }
 
+        isConnectedState.set(false)
         activeClient = this
         FileBeamReceiver.getOrInitAuthToken(context)
         acquireMulticastLock()
@@ -537,19 +538,27 @@ class GloomLiveBridgeClient(context: Context) {
     }
 
     /**
-     * Drops the pinned desktop identity and the paired token, then restarts
-     * discovery so a rotated desktop certificate can be re-pinned.
+     * Cleanly stops discovery and active subnet probes, resetting connection state.
      */
-    fun forgetDesktop() {
+    fun disconnect() {
         isConnectedState.set(false)
         subnetScanExecutor?.shutdownNow()
         subnetScanExecutor = null
         desktopIp = null
-        FileBeamReceiver.clearPairedToken(context)
-        BridgeTls.clearDesktopPin(context)
+        releaseMulticastLock()
         synchronized(GloomLiveBridgeClient::class.java) {
             isDiscoveringGlobally = false
         }
+    }
+
+    /**
+     * Drops the pinned desktop identity and the paired token, then restarts
+     * discovery so a rotated desktop certificate can be re-pinned.
+     */
+    fun forgetDesktop() {
+        disconnect()
+        FileBeamReceiver.clearPairedToken(context)
+        BridgeTls.clearDesktopPin(context)
         startDiscovery { _, _ -> }
     }
 

@@ -1,6 +1,7 @@
 package com.gloom.island.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -70,6 +72,7 @@ fun GloomIslandApp(
     reelCount: Int = 0,
     isInstagramForeground: Boolean = false,
     showReelCounterUntil: Long = 0L,
+    lockEvent: LockIslandEvent? = null,
     onSwipeDown: () -> Unit = {},
     settings: GloomIslandSettings = GloomIslandSettings.instance
 ) {
@@ -113,6 +116,7 @@ fun GloomIslandApp(
         label = "islandTop"
     )
 
+    val isLockActive = lockEvent != null && (System.currentTimeMillis() - lockEvent.timestampMs < 2500L)
     val isMediaActive = mediaTrack.isPlaying || mediaTrack.title.isNotBlank()
     val isNotificationActive = activeNotification != null
     val isTransferActive = activeTransfer.isActive
@@ -120,6 +124,7 @@ fun GloomIslandApp(
         (isInstagramForeground || System.currentTimeMillis() < showReelCounterUntil)
 
     val compactKind = when {
+        isLockActive -> IslandCompactKind.LOCK
         isNotificationActive -> IslandCompactKind.NOTIFICATION
         isTransferActive -> IslandCompactKind.TRANSFER
         isReelCounterActive -> IslandCompactKind.REEL_COUNTER
@@ -206,13 +211,27 @@ fun GloomIslandApp(
     }
 
     val contentTransition = if (isExpanded) {
-        (fadeIn(animationSpec = tween(durationMillis = 140, delayMillis = 60)) +
-            scaleIn(initialScale = 0.96f, animationSpec = spring(1f, 340f)))
-            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 60)))
+        ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 140, delayMillis = 60)) +
+                scaleIn(
+                    initialScale = 0.96f,
+                    transformOrigin = TransformOrigin(0.5f, 0f),
+                    animationSpec = spring(1f, 340f)
+                ),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 60)),
+            sizeTransform = null
+        )
     } else {
-        (fadeIn(animationSpec = tween(durationMillis = 120, delayMillis = 80)) +
-            scaleIn(initialScale = 0.98f, animationSpec = spring(1f, 340f)))
-            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 60)))
+        ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 120, delayMillis = 80)) +
+                scaleIn(
+                    initialScale = 0.98f,
+                    transformOrigin = TransformOrigin(0.5f, 0f),
+                    animationSpec = spring(1f, 340f)
+                ),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 60)),
+            sizeTransform = null
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = boxAlignment) {
@@ -280,41 +299,34 @@ fun GloomIslandApp(
                     }
                     .pointerInput(isExpanded) {
                         if (!isExpanded) {
-                            detectVerticalDragGestures { _, dragAmount ->
-                                if (dragAmount > 14f) {
+                            detectTapGestures(
+                                onTap = {
                                     if (settings.hapticFeedback) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
-                                    onSwipeDown()
+                                    onToggleExpand()
+                                },
+                                onLongPress = {
+                                    if (settings.hapticFeedback) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                    if (settings.longPressToExpand) onLongPressExpand()
                                 }
-                            }
+                            )
                         }
                     }
-                    .combinedClickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            if (settings.hapticFeedback) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                            if (!isExpanded) onToggleExpand()
-                        },
-                        onLongClick = {
-                            if (settings.hapticFeedback) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                            if (!isExpanded && settings.longPressToExpand) onLongPressExpand()
-                        }
-                    )
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = flareWidth)
+                        .padding(horizontal = flareWidth),
+                    contentAlignment = Alignment.TopCenter
                 ) {
                     AnimatedContent(
                         targetState = contentKey,
                         transitionSpec = { contentTransition },
+                        contentAlignment = Alignment.TopCenter,
+                        modifier = Modifier.fillMaxSize(),
                         label = "islandContentMorph"
                     ) { key ->
                     when (key) {
@@ -364,7 +376,11 @@ fun GloomIslandApp(
                             wingWidth = wingWidth,
                             cameraGap = cameraGap,
                             inset = compactInset,
-                            reelCount = reelCount
+                            reelCount = reelCount,
+                            lockEvent = lockEvent,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(settings.pillHeight.dp)
                         )
                     }
                 }

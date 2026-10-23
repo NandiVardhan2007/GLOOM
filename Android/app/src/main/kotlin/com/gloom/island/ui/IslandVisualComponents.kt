@@ -116,7 +116,7 @@ object IslandThemePalettes {
 }
 
 enum class IslandCompactKind {
-    MEDIA, TIMER, TRANSFER, NOTIFICATION, CHARGING, DROP, REEL_COUNTER, IDLE
+    MEDIA, TIMER, TRANSFER, NOTIFICATION, CHARGING, DROP, REEL_COUNTER, LOCK, IDLE
 }
 
 /** Small 4-bar equalizer in the SF Symbols waveform spirit. */
@@ -210,6 +210,7 @@ fun AppleCompactContent(
     cameraGap: Dp,
     inset: Dp,
     reelCount: Int = 0,
+    lockEvent: LockIslandEvent? = null,
     modifier: Modifier = Modifier
 ) {
     val contentTransition = (
@@ -279,6 +280,14 @@ fun AppleCompactContent(
                             tint = Color.White,
                             background = Color(0xFFE1306C)
                         )
+                        IslandCompactKind.LOCK -> {
+                            val unlocked = lockEvent?.isUnlocked == true
+                            AppleAnimatedLockIcon(
+                                isUnlocked = unlocked,
+                                size = 18.dp,
+                                tint = if (unlocked) Apple.systemGreen else Color.White
+                            )
+                        }
                         IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
                     }
                 }
@@ -342,6 +351,15 @@ fun AppleCompactContent(
                             color = Color.White,
                             maxLines = 1
                         )
+                        IslandCompactKind.LOCK -> {
+                            val unlocked = lockEvent?.isUnlocked == true
+                            Text(
+                                text = if (unlocked) "Unlocked" else "Locked",
+                                style = IslandType.compactNumber.copy(fontSize = 11.sp),
+                                color = if (unlocked) Apple.systemGreen else Apple.secondaryLabel,
+                                maxLines = 1
+                            )
+                        }
                         IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
                     }
                 }
@@ -509,6 +527,7 @@ fun AppleTransferActivity(
     modifier: Modifier = Modifier
 ) {
     val done = transfer.progress >= 1f || transfer.speedMbps.equals("Completed", ignoreCase = true)
+    val failed = transfer.speedMbps.startsWith("Failed", ignoreCase = true)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -529,15 +548,17 @@ fun AppleTransferActivity(
                     .size(AppleIslandSpec.artwork)
                     .clip(RoundedCornerShape(10.dp))
                     .background(
-                        if (done) Apple.systemGreen.copy(alpha = 0.18f)
+                        if (failed) Apple.systemRed.copy(alpha = 0.18f)
+                        else if (done) Apple.systemGreen.copy(alpha = 0.18f)
                         else Apple.systemBlue.copy(alpha = 0.18f)
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 GloomIcon(
-                    icon = if (done) GloomIcons.CheckCircleFill
+                    icon = if (failed) GloomIcons.XCircleFill
+                    else if (done) GloomIcons.CheckCircleFill
                     else if (transfer.isUpload) GloomIcons.Beam else GloomIcons.DownloadDoc,
-                    tint = if (done) Apple.systemGreen else Apple.systemBlue,
+                    tint = if (failed) Apple.systemRed else if (done) Apple.systemGreen else Apple.systemBlue,
                     size = 22.dp
                 )
             }
@@ -551,18 +572,19 @@ fun AppleTransferActivity(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (done) "Transfer complete"
+                    text = if (failed) "Transfer failed"
+                    else if (done) "Transfer complete"
                     else if (transfer.isUpload) "Sending to GLOOM PC" else "Receiving from GLOOM PC",
                     style = IslandType.subtitle,
-                    color = Apple.secondaryLabel,
+                    color = if (failed) Apple.systemRed else Apple.secondaryLabel,
                     maxLines = 1
                 )
             }
 
             Text(
-                text = if (done) "Complete" else transfer.speedMbps,
+                text = if (failed) "Failed" else if (done) "Complete" else transfer.speedMbps,
                 style = IslandType.time,
-                color = if (done) Apple.systemGreen else Apple.secondaryLabel,
+                color = if (failed) Apple.systemRed else if (done) Apple.systemGreen else Apple.secondaryLabel,
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0x1FFFFFFF))
@@ -585,7 +607,7 @@ fun AppleTransferActivity(
                     .fillMaxWidth(transfer.progress.coerceIn(0.02f, 1f))
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(if (done) Apple.systemGreen else accentColor)
+                    .background(if (failed) Apple.systemRed else if (done) Apple.systemGreen else accentColor)
             )
         }
 
@@ -963,7 +985,7 @@ fun AppleContinuityActivity(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ContinuityButton(
                 icon = GloomIcons.Beam,
-                label = "Beam",
+                label = "File Sharing",
                 modifier = Modifier.weight(1f),
                 onClick = onBeamFile
             )

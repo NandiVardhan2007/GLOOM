@@ -83,3 +83,8 @@ data class SystemToastEvent(
     val iconName: String = "",
     val timestampMs: Long = System.currentTimeMillis()
 )
+
+data class LockIslandEvent(
+    val isUnlocked: Boolean = false,
+    val timestampMs: Long = System.currentTimeMillis()
+)

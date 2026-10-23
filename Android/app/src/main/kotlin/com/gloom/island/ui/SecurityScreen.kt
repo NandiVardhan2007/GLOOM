@@ -54,9 +54,14 @@ fun AppleAnimatedLockIcon(
     size: Dp = 48.dp,
     tint: Color = Color.White
 ) {
+    var animated by remember { mutableStateOf(!isUnlocked) }
+    LaunchedEffect(isUnlocked) {
+        animated = isUnlocked
+    }
+
     // Smooth, subtle 380ms spring transition matching iOS lock screen lock/unlock icon
     val progress by animateFloatAsState(
-        targetValue = if (isUnlocked) 1f else 0f,
+        targetValue = if (animated) 1f else 0f,
         animationSpec = spring(
             dampingRatio = 0.68f,
             stiffness = Spring.StiffnessMediumLow
