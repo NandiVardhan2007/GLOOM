@@ -17,7 +17,6 @@ mod wifi;
 mod window_region;
 mod bridge_tls;
 mod livebridge;
-mod monitors;
 
 use std::sync::atomic::Ordering;
 use tauri::Manager;
@@ -165,7 +164,6 @@ fn main() {
             set_custom_icon,
             remove_custom_icon,
             get_custom_icons,
-            get_monitors,
             set_menu_open,
             focus_window,
             get_window_geometry,

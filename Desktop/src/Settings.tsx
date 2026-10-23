@@ -169,8 +169,6 @@ function SettingsApp() {
 							setNotchModeValue={settings.setNotchModeValue}
 							notchEdgeDelay={settings.notchEdgeDelay}
 							handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
-							notchDisplay={settings.notchDisplay}
-							handleNotchDisplayChange={settings.handleNotchDisplayChange}
 							calendarEnabled={settings.calendarEnabled}
 							toggleCalendar={settings.toggleCalendar}
 							notchRememberPanel={settings.notchRememberPanel}
@@ -214,8 +212,6 @@ function SettingsApp() {
 							setDockModeValue={settings.setDockModeValue}
 							dockEdgeDelay={settings.dockEdgeDelay}
 							handleDockEdgeDelayChange={settings.handleDockEdgeDelayChange}
-							dockDisplay={settings.dockDisplay}
-							handleDockDisplayChange={settings.handleDockDisplayChange}
 							dockPreviewEnabled={settings.dockPreviewEnabled}
 							toggleDockPreview={settings.toggleDockPreview}
 							dockIconOnly={settings.dockIconOnly}

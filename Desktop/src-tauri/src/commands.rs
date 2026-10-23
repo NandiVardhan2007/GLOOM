@@ -159,7 +159,7 @@ pub async fn update_notch_rect(rect: IntRect) {
 pub fn set_window_height(window: Window, height: f64) {
     if let Ok(scale_factor) = window.scale_factor() {
         if let Ok(physical_size) = window.inner_size() {
-            let logical_width = crate::monitors::physical_to_logical(physical_size.width as f64, scale_factor);
+            let logical_width = physical_size.width as f64 / scale_factor;
             let _ = window.set_size(tauri::LogicalSize::new(logical_width, height));
         }
     }
@@ -2373,11 +2373,6 @@ pub async fn get_custom_icons(app: AppHandle) -> Result<HashMap<String, String>,
 }
 
 #[tauri::command]
-pub fn get_monitors(app: AppHandle) -> Result<Vec<crate::monitors::MonitorInfo>, String> {
-    Ok(crate::monitors::get_available_monitors(&app))
-}
-
-#[tauri::command]
 pub async fn get_installed_apps() -> Vec<AppInfo> {
     let cache = INSTALLED_APPS_CACHE.get_or_init(|| std::sync::Mutex::new(Vec::new()));
     let is_empty = if let Ok(lock) = cache.lock() {
@@ -3249,11 +3244,14 @@ pub fn clear_volume_mixer_rect() {
 
 /// Unregisters the notch and dock AppBars so Windows gives their work area back.
 pub fn release_appbars(handle: &AppHandle) {
-    for (label, w) in handle.webview_windows() {
-        if label.starts_with("main") || label.starts_with("dock") {
-            if let Ok(hwnd) = w.hwnd() {
-                unregister_appbar_native(hwnd);
-            }
+    if let Some(w) = handle.get_webview_window("main") {
+        if let Ok(hwnd) = w.hwnd() {
+            unregister_appbar_native(hwnd);
+        }
+    }
+    if let Some(w) = handle.get_webview_window("dock") {
+        if let Ok(hwnd) = w.hwnd() {
+            unregister_appbar_native(hwnd);
         }
     }
     MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
@@ -3350,8 +3348,6 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
 
     if key == "gloom-scale" {
         re_register_appbars(&app, &settings);
-    } else if key == "gloom-notch-display" || key == "gloom-dock-display" {
-        crate::services::reposition_all_windows(&app);
     }
     Ok(())
 }

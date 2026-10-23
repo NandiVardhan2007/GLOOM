@@ -13,7 +13,6 @@ import {
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
-import { DisplayPlacementSection } from "./DisplayPlacementSection";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 
@@ -24,8 +23,6 @@ interface NotchTabProps {
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
-	notchDisplay: string;
-	handleNotchDisplayChange: (val: string) => void;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
 	notchRememberPanel: boolean;
@@ -73,8 +70,6 @@ export function NotchTab({
 	setNotchModeValue,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
-	notchDisplay,
-	handleNotchDisplayChange,
 	calendarEnabled,
 	toggleCalendar,
 	notchRememberPanel,
@@ -123,12 +118,6 @@ export function NotchTab({
 						<option value="pill">Pill (Floating)</option>
 					</select>
 				</SettingRow>
-				<DisplayPlacementSection
-					title="Display Placement"
-					description="Choose which monitor the notch appears on"
-					value={notchDisplay}
-					onChange={handleNotchDisplayChange}
-				/>
 				<SettingRow icon={PanelTop} label="Notch Behavior" desc="Choose how the notch appears">
 					<select
 						className="settings-select"
