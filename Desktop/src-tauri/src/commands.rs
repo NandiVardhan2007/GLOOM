@@ -306,10 +306,7 @@ fn disable_dock(app: &AppHandle) {
     // Clear this before showing the native taskbar: the WinEvent hook can run
     // during ShowWindow and would otherwise immediately hide it again.
     NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);
-    // Keep Gloom's dock available if Explorer has not made its taskbar visible.
-    if !set_taskbar_visibility(true, true) {
-        return;
-    }
+    let _ = set_taskbar_visibility(true, true);
     if let Some(dock_win) = app.get_webview_window("dock") {
         disable_dock_appbar(dock_win);
     }
@@ -3348,6 +3345,18 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
 
     if key == "gloom-scale" {
         re_register_appbars(&app, &settings);
+    } else if key == "gloom-dock-enabled" {
+        let enabled = crate::utils::dock_setting_enabled(settings.get("gloom-dock-enabled"));
+        if enabled {
+            let saved_mode = crate::utils::get_setting_str(&app, "gloom-dock-mode")
+                .unwrap_or_else(|| "smart".to_string());
+            let app_clone = app.clone();
+            tauri::async_runtime::spawn(async move {
+                init_dock(app_clone, saved_mode).await;
+            });
+        } else {
+            disable_dock(&app);
+        }
     }
     Ok(())
 }

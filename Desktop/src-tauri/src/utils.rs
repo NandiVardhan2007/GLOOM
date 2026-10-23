@@ -58,6 +58,7 @@ static ORIGINAL_SEC_TRAY_RECTS: std::sync::Mutex<
     Option<std::collections::HashMap<isize, windows::Win32::Foundation::RECT>>,
 > = std::sync::Mutex::new(None);
 static ORIGINAL_TASKBAR_STATE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+static ORIGINAL_TASKBAR_AUTOHIDE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
 static TASKBAR_OWNER_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 static TASKBAR_OWNER_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
@@ -235,6 +236,10 @@ pub fn restore_taskbar_after_crash() {
     if let Some(contents) = saved {
         if let Some(state) = parse_marker_state(&contents) {
             ORIGINAL_TASKBAR_STATE.store(state, std::sync::atomic::Ordering::Relaxed);
+            ORIGINAL_TASKBAR_AUTOHIDE.store(
+                if (state & 1) != 0 { 1 } else { 0 },
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
         // An unplaced rectangle would park the taskbar in the screen's corner.
         if let Some(rect) = parse_marker_rect(&contents, "primary=").filter(is_placed_rect) {
@@ -345,6 +350,83 @@ fn is_placed_rect(rect: &windows::Win32::Foundation::RECT) -> bool {
     rect.right > rect.left && rect.bottom > rect.top && rect.left > -9000 && rect.top > -9000
 }
 
+/// Reads whether Windows taskbar auto-hide is enabled in the StuckRects3 registry key.
+pub fn get_taskbar_autohide_registry() -> Option<bool> {
+    unsafe {
+        use windows::Win32::System::Registry::{
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ,
+            REG_BINARY,
+        };
+        let subkey = windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StuckRects3");
+        let mut hkey = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey, Some(0), KEY_READ, &mut hkey).is_ok() {
+            let mut value_type = REG_BINARY;
+            let mut settings = [0u8; 64];
+            let mut value_size = settings.len() as u32;
+            let val_name = windows::core::w!("Settings");
+            let res = RegQueryValueExW(
+                hkey,
+                val_name,
+                None,
+                Some(&mut value_type),
+                Some(settings.as_mut_ptr()),
+                Some(&mut value_size),
+            );
+            let _ = RegCloseKey(hkey);
+            if res.is_ok() && value_size > 8 {
+                return Some((settings[8] & 0x01) != 0);
+            }
+        }
+        None
+    }
+}
+
+/// Sets Windows taskbar auto-hide bit in the StuckRects3 registry key.
+pub fn set_taskbar_autohide_registry(enable_autohide: bool) -> bool {
+    unsafe {
+        use windows::Win32::System::Registry::{
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
+            KEY_READ, KEY_WRITE, REG_BINARY,
+        };
+        let subkey = windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StuckRects3");
+        let mut hkey = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey, Some(0), KEY_READ | KEY_WRITE, &mut hkey).is_ok() {
+            let mut value_type = REG_BINARY;
+            let mut settings = [0u8; 64];
+            let mut value_size = settings.len() as u32;
+            let val_name = windows::core::w!("Settings");
+            if RegQueryValueExW(
+                hkey,
+                val_name,
+                None,
+                Some(&mut value_type),
+                Some(settings.as_mut_ptr()),
+                Some(&mut value_size),
+            )
+            .is_ok()
+                && value_size > 8
+            {
+                if enable_autohide {
+                    settings[8] |= 0x01;
+                } else {
+                    settings[8] &= !0x01;
+                }
+                let write_res = RegSetValueExW(
+                    hkey,
+                    val_name,
+                    Some(0),
+                    REG_BINARY,
+                    Some(&settings[..value_size as usize]),
+                );
+                let _ = RegCloseKey(hkey);
+                return write_res.is_ok();
+            }
+            let _ = RegCloseKey(hkey);
+        }
+        false
+    }
+}
+
 pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
     // Delayed AppBar and tray callbacks cannot hide Windows' taskbar after the
     // dock has been disabled or while its tray is in use.
@@ -423,6 +505,13 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
             ORIGINAL_TASKBAR_STATE
                 .store(original_state as i32, std::sync::atomic::Ordering::Relaxed);
         }
+        if ORIGINAL_TASKBAR_AUTOHIDE.load(std::sync::atomic::Ordering::Relaxed) == -1 {
+            let reg_autohide = get_taskbar_autohide_registry().unwrap_or(false);
+            ORIGINAL_TASKBAR_AUTOHIDE.store(
+                if reg_autohide { 1 } else { 0 },
+                std::sync::atomic::Ordering::Relaxed,
+            );
+        }
 
         // Persist the original state and placement before hiding. The watchdog
         // restores it if this process is force-killed, and startup is a fallback.
@@ -463,19 +552,50 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
             }
         }
 
+        // Synchronize Windows taskbar auto-hide setting in registry and notify shell
+        if !visible {
+            let _ = set_taskbar_autohide_registry(true);
+        } else {
+            let orig_autohide =
+                ORIGINAL_TASKBAR_AUTOHIDE.load(std::sync::atomic::Ordering::Relaxed);
+            if orig_autohide != -1 {
+                let _ = set_taskbar_autohide_registry(orig_autohide == 1);
+            }
+        }
+        {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+            };
+            let tray_settings = windows::core::w!("TraySettings");
+            let mut msg_res = 0usize;
+            let _ = SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                windows::Win32::Foundation::WPARAM(0),
+                windows::Win32::Foundation::LPARAM(tray_settings.as_ptr() as isize),
+                SMTO_ABORTIFHUNG,
+                500,
+                Some(&mut msg_res),
+            );
+        }
+
         let state_val = if visible {
-            let orig = ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed);
-            if orig != -1 {
-                orig as isize
+            let orig_autohide =
+                ORIGINAL_TASKBAR_AUTOHIDE.load(std::sync::atomic::Ordering::Relaxed);
+            if orig_autohide == 1 {
+                1
             } else {
-                if always_on_top {
+                let orig = ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed);
+                if orig != -1 && (orig & 1) == 0 {
+                    orig as isize
+                } else if always_on_top {
                     2
                 } else {
-                    1
+                    0
                 }
             }
         } else {
-            1 // Force Auto-hide when hiding
+            1 // Force Auto-hide when dock is enabled
         };
 
         // 1. Set the taskbar state (Auto-hide or Always-on-top)
@@ -510,18 +630,29 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
                     );
                 }
                 if let Ok(guard) = ORIGINAL_TRAY_RECT.lock() {
-                    if let Some(rect) = *guard {
-                        primary_positioned = SetWindowPos(
-                            tray_hwnd,
-                            None,
-                            rect.left,
-                            rect.top,
-                            0,
-                            0,
-                            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                        )
-                        .is_ok();
-                    }
+                    let target = guard.as_ref().copied().filter(is_placed_rect).unwrap_or_else(|| {
+                        use windows::Win32::UI::WindowsAndMessaging::{
+                            GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
+                        };
+                        let sw = GetSystemMetrics(SM_CXSCREEN);
+                        let sh = GetSystemMetrics(SM_CYSCREEN);
+                        windows::Win32::Foundation::RECT {
+                            left: 0,
+                            top: sh - 48,
+                            right: sw,
+                            bottom: sh,
+                        }
+                    });
+                    primary_positioned = SetWindowPos(
+                        tray_hwnd,
+                        None,
+                        target.left,
+                        target.top,
+                        0,
+                        0,
+                        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                    .is_ok();
                 }
                 let _ = ShowWindow(tray_hwnd, SW_SHOW);
             } else {
@@ -1137,7 +1268,7 @@ pub fn get_setting_str(_app: &tauri::AppHandle, key: &str) -> Option<String> {
     guard.get(key)?.as_str().map(|s| s.to_string())
 }
 
-fn dock_setting_enabled(value: Option<&serde_json::Value>) -> bool {
+pub fn dock_setting_enabled(value: Option<&serde_json::Value>) -> bool {
     value.is_none_or(|value| value.as_str() == Some("true"))
 }
 
@@ -1604,5 +1735,19 @@ mod tests {
         assert!(!dock_setting_enabled(Some(&serde_json::json!("false"))));
         assert!(!dock_setting_enabled(Some(&serde_json::json!("invalid"))));
         assert!(!dock_setting_enabled(Some(&serde_json::json!(true))));
+    }
+
+    #[test]
+    fn taskbar_autohide_registry_reads_and_restores() {
+        if let Some(initial) = super::get_taskbar_autohide_registry() {
+            let toggled = !initial;
+            let ok = super::set_taskbar_autohide_registry(toggled);
+            assert!(ok, "failed to write autohide registry");
+            assert_eq!(super::get_taskbar_autohide_registry(), Some(toggled));
+
+            let restored = super::set_taskbar_autohide_registry(initial);
+            assert!(restored, "failed to restore autohide registry");
+            assert_eq!(super::get_taskbar_autohide_registry(), Some(initial));
+        }
     }
 }
