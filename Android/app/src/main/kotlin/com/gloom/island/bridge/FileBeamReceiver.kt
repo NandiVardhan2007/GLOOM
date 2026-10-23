@@ -518,8 +518,12 @@ class FileBeamReceiver(private val context: Context) {
         fun sanitizeFileName(raw: String): String {
             val normalized = raw.replace('\\', '/')
             val base = File(normalized).name
-            val safe = base.filter { it.isLetterOrDigit() || " ._-()[]".contains(it) }.trim()
-            return if (safe.isEmpty() || safe.startsWith(".")) "Received_File.bin" else safe
+            // Preserve all Unicode letters, digits, and combining marks while blocking control characters and illegal separators
+            val filtered = base.filterNot { ch ->
+                ch.isISOControl() || ch in "/\\:*?\"<>|"
+            }.trim()
+            val safe = filtered.trimStart('.').trim()
+            return if (safe.isEmpty()) "Received_File.bin" else safe
         }
 
         fun resolveUniqueDestinationFile(directory: File, fileName: String): File {
