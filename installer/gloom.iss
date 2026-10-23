@@ -4,7 +4,7 @@
 ; ==============================================================================
 
 #define MyAppName "GLOOM Dynamic Island"
-#define MyAppVersion "1.8.3"
+#define MyAppVersion "1.8.4"
 #define MyAppPublisher "GLOOM Team"
 #define MyAppURL "https://github.com/NandiVardhan2007/GLOOM"
 #define MyAppExeName "gloom.exe"
