@@ -13,6 +13,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.Region
+import android.view.View
+import android.view.ViewTreeObserver
+import java.lang.reflect.Proxy
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -631,6 +636,7 @@ class GloomIslandOverlayService : Service() {
         }
 
         composeView = view
+        setupTouchableRegion(view)
         try {
             windowManager.addView(composeView, params)
             updateVisibilityForOrientation()
@@ -657,14 +663,52 @@ class GloomIslandOverlayService : Service() {
         }
     }
 
-    private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
-        val initialWidth = if (isExpanded) {
-            WindowManager.LayoutParams.MATCH_PARENT
-        } else {
-            dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
+    private fun setupTouchableRegion(view: View) {
+        try {
+            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
+            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
+
+            val proxy = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass)
+            ) { _, method, args ->
+                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
+                    val inoutInfo = args[0]
+                    if (!isExpanded) {
+                        val density = resources.displayMetrics.density
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 32) * density).toInt()
+                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
+                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
+                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
+                        val left = ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                        val right = left + pillWidthPx
+                        val top = posYPx
+                        val bottom = top + pillHeightPx
+
+                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
+                        val region = touchableRegionField.get(inoutInfo) as Region
+                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
+                    } else {
+                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
+                    }
+                }
+                null
+            }
+
+            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+            addMethod.invoke(view.viewTreeObserver, proxy)
+        } catch (_: Exception) {
+            // Fallback gracefully on custom ROMs
         }
+    }
+
+    private fun buildLayoutParams(height: Int): WindowManager.LayoutParams {
         return WindowManager.LayoutParams(
-            initialWidth,
+            WindowManager.LayoutParams.MATCH_PARENT,
             height,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -685,11 +729,7 @@ class GloomIslandOverlayService : Service() {
     private fun updateOverlayParameters() {
         val params = layoutParams ?: return
         params.flags = getOverlayFlags()
-        params.width = if (isExpanded) {
-            WindowManager.LayoutParams.MATCH_PARENT
-        } else {
-            dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
-        }
+        params.width = WindowManager.LayoutParams.MATCH_PARENT
         params.height = if (isExpanded) {
             dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
@@ -720,14 +760,14 @@ class GloomIslandOverlayService : Service() {
     private fun collapseIsland() {
         isExpanded = false
         windowResizeJob?.cancel()
-        // Let the Compose collapse spring finish before shrinking the window,
-        // otherwise the card is clipped mid-animation.
+        // Let the Compose collapse spring finish before shrinking window height,
+        // maintaining the full width anchor so the notch stays perfectly centered with zero jumps.
         windowResizeJob = serviceScope.launch {
-            delay(450)
+            delay(400)
             if (isExpanded) return@launch
             val params = layoutParams ?: return@launch
             params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            params.width = dpToPx((GloomIslandSettings.instance.pillWidth + 40).toFloat())
+            params.width = WindowManager.LayoutParams.MATCH_PARENT
             params.height = dpToPx((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 20).toFloat())
             params.flags = getOverlayFlags()
             try {

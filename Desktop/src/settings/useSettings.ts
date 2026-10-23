@@ -88,9 +88,9 @@ export function useSettings() {
 		const val = localStorage.getItem("gloom-dock-genie-duration");
 		return val !== null ? parseInt(val) : 380;
 	});
-	const [dockGenieStyle, setDockGenieStyleState] = useState<"windhawk" | "suck">(() => {
+	const [dockGenieStyle, setDockGenieStyleState] = useState<"zorin" | "windhawk" | "suck">(() => {
 		const val = localStorage.getItem("gloom-dock-genie-style");
-		return val === "suck" ? "suck" : "windhawk";
+		return val === "suck" ? "suck" : val === "windhawk" ? "windhawk" : "zorin";
 	});
 	const [dockIconOnly, setDockIconOnly] = useState(
 		() => localStorage.getItem("gloom-dock-icon-only") === "true"
@@ -228,7 +228,7 @@ export function useSettings() {
 			apply(getVal("gloom-dock-preview-enabled"), setDockPreviewEnabled, readBool);
 			apply(getVal("gloom-dock-genie-effect"), setDockGenieEnabled, readBool);
 			apply(getVal("gloom-dock-genie-duration"), setDockGenieDurationState, parseInt);
-			apply(getVal("gloom-dock-genie-style"), setDockGenieStyleState, (v) => (v === "suck" ? "suck" : "windhawk"));
+			apply(getVal("gloom-dock-genie-style"), setDockGenieStyleState, (v) => (v === "suck" ? "suck" : v === "windhawk" ? "windhawk" : "zorin"));
 			apply(getVal("gloom-dock-icon-only"), setDockIconOnly, readBool);
 			apply(getVal("gloom-dock-separator-enabled"), setDockSeparatorEnabled, readBool);
 			apply(getVal("gloom-start-icon"), setStartIcon, (v) => v);
@@ -667,7 +667,7 @@ export function useSettings() {
 		saveSetting("gloom-dock-genie-duration", String(val));
 	};
 
-	const setDockGenieStyle = (val: "windhawk" | "suck") => {
+	const setDockGenieStyle = (val: "zorin" | "windhawk" | "suck") => {
 		setDockGenieStyleState(val);
 		saveSetting("gloom-dock-genie-style", val);
 	};

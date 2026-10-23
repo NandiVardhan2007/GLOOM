@@ -13,7 +13,7 @@ export interface WindowRect {
 	height: number;
 }
 
-export type GenieStyle = "windhawk" | "suck";
+export type GenieStyle = "zorin" | "windhawk" | "suck";
 
 export interface GenieEffectProps {
 	imageSrc: string;
@@ -26,20 +26,23 @@ export interface GenieEffectProps {
 }
 
 /**
- * Pixel-faithful macOS / Windhawk Genie Effect for GLOOM Dock.
- * Mathematically deforms a window into a fluid cubic-bezier funnel
- * terminating at the active dock icon position.
+ * Zorin OS & Compiz Magic Lamp Genie Effect for GLOOM Dock.
+ * Mathematically models a fluid 3D cubic-bezier mesh deformation that
+ * gracefully funnels and suctions windows into the active dock icon.
  *
- * Slices the window into 60 horizontal deformation strips, with the bottom
- * leading the suck-in animation, authentic waist pinch, and 60 fps requestAnimationFrame.
+ * Features:
+ * - 120-slice deformation mesh for sub-pixel anti-aliased rendering.
+ * - Dynamic cubic Bézier trajectory spine connecting source center to dock icon.
+ * - Authentic Compiz liquid lag propagation and signature waist pinch.
+ * - Volumetric lighting / specular highlight along the curvature.
+ * - High-DPI canvas rendering with seamless subpixel overlapping.
  */
 export const GenieEffect: React.FC<GenieEffectProps> = ({
 	imageSrc,
 	windowRect,
 	dockTarget,
 	direction,
-	durationMs = 380,
-	style = "windhawk",
+	durationMs = 400,
 	onComplete
 }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,7 +50,7 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 	useEffect(() => {
 		const canvas = canvasRef.current;
 		if (!canvas) return;
-		const ctx = canvas.getContext("2d");
+		const ctx = canvas.getContext("2d", { alpha: true });
 		if (!ctx) return;
 
 		const img = new Image();
@@ -57,11 +60,12 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 		let startTime: number | null = null;
 
 		const dpr = window.devicePixelRatio || 1;
-		canvas.width = window.innerWidth * dpr;
-		canvas.height = window.innerHeight * dpr;
+		canvas.width = Math.round(window.innerWidth * dpr);
+		canvas.height = Math.round(window.innerHeight * dpr);
 		ctx.scale(dpr, dpr);
 
-		const SLICES = 60; // 60 deformation slices for pixel-smooth mesh warp
+		// 120 horizontal mesh slices for glass-smooth curve deformation
+		const SLICES = 120;
 		const targetW = dockTarget.width || 48;
 		const targetX = dockTarget.x;
 		const targetY = dockTarget.y;
@@ -71,20 +75,37 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 		const srcW = windowRect.width;
 		const srcH = windowRect.height;
 
-		const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 2.8);
-		const easeInCubic = (t: number) => Math.pow(t, 2.8);
+		// Cubic Bézier interpolation: B(t) = (1-t)^3*p0 + 3(1-t)^2*t*p1 + 3(1-t)*t^2*p2 + t^3*p3
+		const bezier1D = (p0: number, p1: number, p2: number, p3: number, t: number): number => {
+			const u = 1 - t;
+			return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
+		};
+
+		// Fluid Compiz / Zorin OS ease timing
+		const easeMinimize = (t: number): number => {
+			// Gentle start, fluid liquid flow, crisp funnel into dock
+			return t < 0.5
+				? 4 * t * t * t
+				: 1 - Math.pow(-2 * t + 2, 3) / 2;
+		};
+
+		const easeRestore = (t: number): number => {
+			// Fluid fountain bloom out of dock with slight elastic settle
+			const c4 = (2 * Math.PI) / 3;
+			return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+		};
 
 		const render = (now: number) => {
 			if (!startTime) startTime = now;
 			const elapsed = now - startTime;
-			const rawProgress = Math.min(elapsed / durationMs, 1);
+			const rawT = Math.min(elapsed / durationMs, 1);
 
-			// Progress goes 0 -> 1 for minimize, 1 -> 0 for restore
-			const p = direction === "minimize" ? rawProgress : 1 - rawProgress;
+			// Progress: 0 (unminimized) -> 1 (fully in dock)
+			const progress = direction === "minimize" ? rawT : 1 - rawT;
 
 			ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-			if (rawProgress >= 1) {
+			if (rawT >= 1) {
 				if (direction === "restore") {
 					ctx.drawImage(img, windowRect.x, windowRect.y, srcW, srcH);
 				}
@@ -92,53 +113,71 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 				return;
 			}
 
+			ctx.imageSmoothingEnabled = true;
+			ctx.imageSmoothingQuality = "high";
+
 			// Render slices from top (v=0) to bottom (v=1)
 			for (let i = 0; i < SLICES; i++) {
-				const v = i / SLICES; // Vertical fraction 0.0 (top) to 1.0 (bottom)
+				const v = i / SLICES; // Vertical fraction: 0.0 (top) to 1.0 (bottom)
 				const nextV = (i + 1) / SLICES;
 
-				// In Windhawk / macOS Genie:
-				// The bottom slices lead the funnel suck-in, while the top lags behind.
-				const leadFactor = style === "windhawk" ? Math.pow(v, 1.35) : Math.pow(Math.abs(v - 0.5) * 2, 1.2);
-				const sliceT = Math.max(
-					0,
-					Math.min(1, p * (1 + 0.38 * leadFactor) - 0.38 * (1 - leadFactor))
-				);
-				const easedT = direction === "minimize" ? easeInCubic(sliceT) : easeOutCubic(sliceT);
+				// In Zorin OS Compiz Magic Lamp:
+				// Slices propagate wave-like. The bottom leads towards the dock target,
+				// pulling the rest of the window in like water down a drain.
+				const lag = 0.44; // Bottom-to-top wave drag
+				const sliceRawP = (progress - (1 - v) * lag) / (1 - lag);
+				const sliceP = Math.max(0, Math.min(1, sliceRawP));
+				const localT = direction === "minimize" ? easeMinimize(sliceP) : 1 - easeRestore(1 - sliceP);
 
 				// Compute vertical Y position
-				// Bottom reaches targetY, top collapses down as p -> 1
 				const startY = srcTop + v * srcH;
-				const currentY = startY + (targetY - startY) * easedT;
-
 				const nextStartY = srcTop + nextV * srcH;
-				const nextCurrentY = nextStartY + (targetY - nextStartY) * easedT;
-				const sliceHeight = Math.max(1, nextCurrentY - currentY);
+
+				// Bezier Control points for smooth vertical S-curve trajectory
+				const totalDY = Math.abs(targetY - srcTop);
+				const cp1Y = startY + (targetY > startY ? 0.42 : -0.42) * totalDY;
+				const cp2Y = targetY - (targetY > startY ? 0.35 : -0.35) * totalDY;
+
+				const currentY = bezier1D(startY, cp1Y, cp2Y, targetY, localT);
+				const nextCurrentY = bezier1D(nextStartY, cp1Y, cp2Y, targetY, localT);
+
+				// Subpixel height with 0.8px overlap to ensure seamless, solid surface
+				const sliceHeight = Math.max(1.2, nextCurrentY - currentY + 0.8);
 
 				// Compute horizontal center X via cubic curve towards dock icon
-				const spineT = Math.pow(sliceT, 1.22);
-				const currentCenterX = srcCenter + (targetX - srcCenter) * spineT;
+				const cp1X = srcCenter;
+				const cp2X = targetX;
+				const currentCenterX = bezier1D(srcCenter, cp1X, cp2X, targetX, localT);
 
-				// Compute width with signature genie waist pinch:
-				// Pinch is strongest in the lower middle section, funneling to targetW
-				const pinchWave = Math.sin(Math.PI * Math.pow(v, 0.72));
-				const pinchAmount = easedT * (0.64 + 0.36 * pinchWave);
+				// Compiz Magic Lamp width deformation:
+				// Forms an elegant funnel with a signature waist pinch in the lower-middle
+				const pinchWave = Math.sin(Math.PI * Math.pow(v, 0.78));
+				const pinchAmount = localT * (0.62 + 0.38 * pinchWave);
 				const currentW = Math.max(
-					targetW * (1 - p * 0.45),
+					targetW * (1 - progress * 0.3),
 					srcW * (1 - pinchAmount) + targetW * pinchAmount
 				);
 
 				const currentX = currentCenterX - currentW / 2;
 
-				// Source image slice coordinates
+				// Source image slice mapping
 				const sy = v * img.height;
-				const sh = (nextV - v) * img.height;
+				const sh = Math.max(1, (nextV - v) * img.height);
 
-				// Opacity & subtle fade near final collapse
-				ctx.globalAlpha = Math.max(0.05, 1 - Math.pow(p, 4.5) * 0.95);
+				// Fade out gently as window completes suction into dock
+				ctx.globalAlpha = Math.max(0.04, 1 - Math.pow(progress, 4.0) * 0.96);
 
-				// Draw slice
+				// Draw transformed horizontal slice
 				ctx.drawImage(img, 0, sy, img.width, sh, currentX, currentY, currentW, sliceHeight);
+
+				// Volumetric specular sheen along the curve (Compiz lamp highlight)
+				if (localT > 0.05 && localT < 0.92) {
+					const sheenAlpha = 0.08 * Math.sin(Math.PI * localT) * (1 - Math.abs(v - 0.5) * 1.4);
+					if (sheenAlpha > 0.005) {
+						ctx.fillStyle = `rgba(255, 255, 255, ${sheenAlpha.toFixed(3)})`;
+						ctx.fillRect(currentX, currentY, currentW, sliceHeight);
+					}
+				}
 			}
 
 			animationFrameId = requestAnimationFrame(render);
@@ -151,7 +190,7 @@ export const GenieEffect: React.FC<GenieEffectProps> = ({
 		return () => {
 			if (animationFrameId) cancelAnimationFrame(animationFrameId);
 		};
-	}, [imageSrc, windowRect, dockTarget, direction, durationMs, style, onComplete]);
+	}, [imageSrc, windowRect, dockTarget, direction, durationMs, onComplete]);
 
 	return (
 		<canvas

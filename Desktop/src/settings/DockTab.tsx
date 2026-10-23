@@ -114,8 +114,8 @@ interface DockTabProps {
 	toggleDockGenie: () => void;
 	dockGenieDuration: number;
 	setDockGenieDuration: (val: number) => void;
-	dockGenieStyle: "windhawk" | "suck";
-	setDockGenieStyle: (val: "windhawk" | "suck") => void;
+	dockGenieStyle: "zorin" | "windhawk" | "suck";
+	setDockGenieStyle: (val: "zorin" | "windhawk" | "suck") => void;
 	dockIconOnly: boolean;
 	toggleDockIconOnly: () => void;
 	dockSeparatorEnabled: boolean;
@@ -255,7 +255,7 @@ export function DockTab({
 
 						<SettingRow
 							icon={Sparkles}
-							label="macOS Genie Effect"
+							label="Zorin OS Magic Lamp (Genie Effect)"
 							desc="Fluid funnel animation when minimizing or restoring windows"
 						>
 							<label className="toggle-switch">
@@ -278,8 +278,9 @@ export function DockTab({
 									<select
 										className="settings-select"
 										value={dockGenieStyle}
-										onChange={(e) => setDockGenieStyle(e.target.value as "windhawk" | "suck")}
+										onChange={(e) => setDockGenieStyle(e.target.value as "zorin" | "windhawk" | "suck")}
 									>
+										<option value="zorin">Zorin OS Magic Lamp (Fluid Cubic Bezier)</option>
 										<option value="windhawk">Windhawk Mesh Warp</option>
 										<option value="suck">Classic Suck</option>
 									</select>

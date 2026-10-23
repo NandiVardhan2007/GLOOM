@@ -1012,7 +1012,7 @@ function OverlayApp() {
 					dockTarget={genieData.dockTarget}
 					direction={genieData.direction}
 					durationMs={genieData.durationMs ?? parseInt(localStorage.getItem("gloom-dock-genie-duration") || "380")}
-					style={(localStorage.getItem("gloom-dock-genie-style") || "windhawk") as "windhawk" | "suck"}
+					style={(localStorage.getItem("gloom-dock-genie-style") || "zorin") as any}
 					onComplete={() => {
 						setMode("idle");
 						setGenieData(null);

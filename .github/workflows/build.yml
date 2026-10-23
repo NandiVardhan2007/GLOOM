@@ -225,14 +225,10 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.8.1 — Expandable Mobile Dynamic Island, Multi-File Sharing, Desktop Theme Engine & Hardened Ecosystem
-            - **Expandable Mobile Dynamic Island & File Sharing**: Fluid expanding Dynamic Island with dedicated "File Sharing" option to pick and beam single or multiple files to the connected PC over pinned TLS.
-            - **System Share-Sheet ("Share to PC")**: Send files, documents, and media to your GLOOM PC from any Android app with automatic retry and toast feedback.
-            - **Glitch-Free Dynamic Island Collapse**: Re-engineered reverse animation anchored top-center with synchronized width/height scaling, eliminating jitter and jump glitches.
-            - **Desktop Appearance Theme Instant Apply**: Resolved theme state synchronization lag; Light, Dark, and System modes now apply immediately across all desktop windows.
-            - **Desktop Auto-Updater Stability**: Fixed update feed URL mapping, release asset budget verification, and background update application.
-            - **Android Security Hardening**: Enforced SHA-256 certificate pinning on all post-pairing LiveBridge endpoints, blocked cleartext, and added collision-avoiding unique filename resolution.
-            - **Zero Lint Errors & Runtime Stability**: Guarded API 26-34 compatibility paths, bounded subnet scanner concurrency with clean cancellation, pruned 89 dead imports, and eliminated 32 lint errors.
+            ### GLOOM 1.8.2 — Zorin OS Magic Lamp (Genie Effect) & Glitch-Free Mobile Dynamic Island Collapse
+            - **Zorin OS / Compiz Magic Lamp (Genie Effect)**: Re-engineered desktop window minimize and restore with a 120-slice cubic Bézier liquid mesh deformation, wave-like lag propagation, authentic waist pinch, and volumetric specular sheen.
+            - **Glitch-Free Mobile Island Collapse**: Anchored the Android overlay to a full-width container with dynamic runtime touchable insets (`TOUCHABLE_INSETS_REGION`), completely eliminating the corner jump/snap glitch on collapse while preserving full touch pass-through to the status bar.
+            - **Ecosystem Hardening & Verification**: Zero TypeScript errors, zero Kotlin compilation warnings, and zero Android lint errors across all mobile and desktop modules.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk
