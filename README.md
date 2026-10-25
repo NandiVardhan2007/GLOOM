@@ -48,7 +48,7 @@ Whether on your dual-monitor Windows workstation or your Android smartphone, GLO
     <td width="50%">
       <h3 align="center">🖥️ Windows Desktop Suite</h3>
       <ul>
-        <li><b>Apple-Style Magnifying Dock</b>: True macOS measured metrics ($B=66\text{px}$, $M=116\text{px}$, $g=18\text{px}$, $R=3$) with fluid spring magnification, launch bounce ($0 \to -28 \to 0 \to -10 \to 0$), anchored tooltips, and two-layer zero-jitter architecture.</li>
+        <li><b>Apple-Style Magnifying Dock</b>: True macOS-measured magnification ($B=42\text{px}$, $M=72\text{px}$, $g=12\text{px}$, $R=3$, scaled accurately to 100% UI scale) with fluid spring physics, launch bounce ($0 \to -28 \to 0 \to -10 \to 0$), anchored tooltips, high-res $256\times 256$ crisp icon extraction, and two-layer zero-jitter architecture.</li>
         <li><b>Keyboard & Accessibility First</b>: Focusable hit slots with <kbd>Tab</kbd> navigation, <kbd>Enter</kbd>/<kbd>Space</kbd> launch, and automatic <code>prefers-reduced-motion</code> adaptation.</li>
         <li><b>High-Density Performance</b>: Seamless scale + x-offset GPU transforms for large docks ($N > 15$) eliminating layout reflows.</li>
         <li><b>Notch & Pill Topologies</b>: Switch between a classic floating squircle pill and a MacBook-style flush bezel notch with concave shoulder curves.</li>

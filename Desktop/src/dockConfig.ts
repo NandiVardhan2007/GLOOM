@@ -4,17 +4,17 @@
  */
 
 export const DOCK_CONFIG = {
-	// Resting icon size in pixels
-	BASE: 66,
-	// Maximum magnified icon size on hover in pixels (~1.75x)
-	MAX: 116,
+	// Resting icon size in pixels (calibrated to GLOOM's native dock size at 100% scale)
+	BASE: 42,
+	// Maximum magnified icon size on hover in pixels (~1.71x)
+	MAX: 72,
 	// Falloff radius in icons
 	FALLOFF: 3,
-	// Gap between icons at rest
-	GAP: 18,
+	// Gap between icons at rest (12px matches classic GLOOM dock gap)
+	GAP: 12,
 	// Hit slot size (icon base + gap share)
 	get SLOT() {
-		return this.BASE + this.GAP; // 84
+		return this.BASE + this.GAP; // 54
 	},
 	// Spring physics for icon magnification (Apple HIG: responsive, slight overshoot, no linear tweens)
 	SPRING: {

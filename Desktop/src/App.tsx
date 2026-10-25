@@ -2816,7 +2816,8 @@ function App() {
 	// window region below is cut from it, so the region is already at the
 	// final size while the pill animates.
 	const isPill = islandStyle === "pill";
-	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : (isPill ? 10 : 0)) : -150;
+	// In fixed mode or notch mode, the notch/pill must be anchored flush to the screen's top edge (y = 0) with zero gap.
+	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : 0) : -150;
 	const pillTargetWidth = !isReady
 		? 34
 		: isExpanded && isVisible && !isHidden
@@ -2879,8 +2880,8 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: isPill ? (isCalendarMode ? 28 : 18) : (isImpacted ? 0 : 18),
-						borderTopRightRadius: isPill ? (isCalendarMode ? 28 : 18) : (isImpacted ? 0 : 18),
+						borderTopLeftRadius: isPill && notchMode !== "fixed" ? (isCalendarMode ? 28 : 18) : (isImpacted || notchMode === "fixed" ? 0 : 18),
+						borderTopRightRadius: isPill && notchMode !== "fixed" ? (isCalendarMode ? 28 : 18) : (isImpacted || notchMode === "fixed" ? 0 : 18),
 						borderBottomLeftRadius: isCalendarMode ? 28 : 18,
 						borderBottomRightRadius: isCalendarMode ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
@@ -2910,7 +2911,7 @@ function App() {
 						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
 					}}
 				>
-					<EdgeSurface edge="top" flares={isPill ? false : isImpacted} />
+					<EdgeSurface edge="top" flares={!isPill || notchMode === "fixed" ? (isImpacted || notchMode === "fixed") : false} />
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div

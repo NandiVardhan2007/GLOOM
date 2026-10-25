@@ -1848,7 +1848,7 @@ pub fn schedule_icon_cache_save(app: AppHandle) {
         let last = LAST_ICON_SAVE_REQUEST.load(Ordering::Relaxed);
         if now == last || crate::utils::get_now_ms() - last >= 950 {
             if let Ok(dir) = app.path().app_config_dir() {
-                let cache_path = dir.join("icons_cache.json");
+                let cache_path = dir.join("icons_cache_v2.json");
                 if let Some(c) = crate::state::ICON_CACHE.get() {
                     let snapshot = if let Ok(lock) = c.lock() {
                         serde_json::to_string(&*lock).unwrap_or_default()
@@ -1875,7 +1875,7 @@ pub async fn get_app_icon(
     hwnd: Option<isize>,
 ) -> Result<Option<String>, String> {
     let cache_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let cache_path = cache_dir.join("icons_cache.json");
+    let cache_path = cache_dir.join("icons_cache_v2.json");
     let cache_key = get_cache_key(&path, name.as_deref());
 
     // Strategy 0: Check for custom icon first
@@ -1960,7 +1960,114 @@ pub async fn get_app_icon(
         }
     }
 
-    // Strategy 3: Extract icon from live window HWND
+    // Strategy 3: Extract high-resolution icon from file path / shortcut using IShellItemImageFactory (256x256)
+    let path_clone = path.clone();
+    let ck_clone = cache_key.clone();
+    let file_icon = tauri::async_runtime::spawn_blocking(move || unsafe {
+        use windows::Win32::Foundation::SIZE;
+        use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
+        use windows::Win32::UI::Shell::{
+            IShellItemImageFactory, SHCreateItemFromParsingName, SHGetFileInfoW, SHFILEINFOW,
+            SHGFI_ICON, SHGFI_LARGEICON, SIIGBF, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
+
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let result = {
+            let ((actual_path, args), is_lnk) = if path_clone.to_lowercase().ends_with(".lnk") {
+                (
+                    resolve_shortcut(&path_clone).unwrap_or((path_clone.clone(), String::new())),
+                    true,
+                )
+            } else {
+                ((path_clone.clone(), String::new()), false)
+            };
+
+            // A shortcut can carry its own icon file (Firefox web apps, user edits).
+            let mut icon_data = if is_lnk {
+                get_shortcut_icon_location(&path_clone).and_then(|p| image_file_to_base64(&p))
+            } else {
+                None
+            };
+
+            // Chrome/Edge/Brave installed web apps keep the site icon in the browser profile.
+            if icon_data.is_none() {
+                if let Some(pwa_icon_path) = find_browser_pwa_icon(&actual_path, &args) {
+                    icon_data = image_file_to_base64(&pwa_icon_path);
+                }
+            }
+
+            // UWP shortcuts launch `explorer.exe shell:AppsFolder\<AUMID>`.
+            if icon_data.is_none() {
+                if let Some(aumid) = extract_arg(&args, "shell:AppsFolder\\") {
+                    icon_data = icon_from_aumid(&aumid);
+                }
+            }
+
+            // High-resolution extraction via IShellItemImageFactory (requests full 256x256 icon from PE resources)
+            if icon_data.is_none() {
+                let target_for_shell = if is_lnk { &path_clone } else { &actual_path };
+                let wide: Vec<u16> = target_for_shell
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+
+                let factory_res: windows_core::Result<IShellItemImageFactory> =
+                    SHCreateItemFromParsingName(windows::core::PCWSTR(wide.as_ptr()), None);
+                if let Ok(factory) = factory_res {
+                    let size = SIZE { cx: 256, cy: 256 };
+                    if let Ok(hbitmap) = factory
+                        .GetImage(size, SIIGBF(SIIGBF_ICONONLY.0 | SIIGBF_BIGGERSIZEOK.0))
+                        .or_else(|_| factory.GetImage(size, SIIGBF_BIGGERSIZEOK))
+                    {
+                        if !hbitmap.0.is_null() {
+                            icon_data = crate::utils::hbitmap_to_base64(hbitmap);
+                            let _ = windows::Win32::Graphics::Gdi::DeleteObject(hbitmap.into());
+                        }
+                    }
+                }
+            }
+
+            // Fallback to SHGetFileInfoW
+            if icon_data.is_none() {
+                let mut shfi: SHFILEINFOW = std::mem::zeroed();
+                let path_u16: Vec<u16> = actual_path
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let res = SHGetFileInfoW(
+                    windows::core::PCWSTR(path_u16.as_ptr()),
+                    Default::default(),
+                    Some(&mut shfi),
+                    std::mem::size_of::<SHFILEINFOW>() as u32,
+                    SHGFI_ICON | SHGFI_LARGEICON,
+                );
+
+                if res != 0 && !shfi.hIcon.is_invalid() {
+                    icon_data = icon_to_base64(shfi.hIcon);
+                    let _ = DestroyIcon(shfi.hIcon);
+                }
+            }
+
+            if let Some(ref base64) = icon_data {
+                if let Ok(mut lock) = ICON_CACHE.get().unwrap().lock() {
+                    lock.insert(ck_clone, base64.clone());
+                }
+            }
+            icon_data
+        };
+        CoUninitialize();
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if let Some(ref base64) = file_icon {
+        schedule_icon_cache_save(app);
+        return Ok(Some(base64.clone()));
+    }
+
+    // Strategy 4: Fallback to live window HWND if file extraction yielded nothing
     if let Some(h) = hwnd {
         let path_owned = path.clone();
         let result = tauri::async_runtime::spawn_blocking(move || unsafe {
@@ -1974,9 +2081,6 @@ pub async fn get_app_icon(
 
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
 
-            // Browser-hosted PWAs (Store apps, installed web apps) only expose the
-            // browser icon on the window itself; resolve the app identity from the
-            // window's AppUserModelID (or the process command line as fallback).
             if is_browser_host_process(&path_owned) {
                 if let Some(icon) = pwa_icon_for_window(HWND(h as *mut _), &path_owned) {
                     CoUninitialize();
@@ -2035,83 +2139,7 @@ pub async fn get_app_icon(
         }
     }
 
-    // Strategy 4: Extract icon from file path
-    let path_clone = path.clone();
-    let ck_clone = cache_key.clone();
-    let file_icon = tauri::async_runtime::spawn_blocking(move || unsafe {
-        use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
-        use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
-        use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
-
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let result = {
-            let ((actual_path, args), is_lnk) = if path_clone.to_lowercase().ends_with(".lnk") {
-                (
-                    resolve_shortcut(&path_clone).unwrap_or((path_clone.clone(), String::new())),
-                    true,
-                )
-            } else {
-                ((path_clone.clone(), String::new()), false)
-            };
-
-            // A shortcut can carry its own icon file (Firefox web apps, user edits).
-            let mut icon_data = if is_lnk {
-                get_shortcut_icon_location(&path_clone).and_then(|p| image_file_to_base64(&p))
-            } else {
-                None
-            };
-
-            // Chrome/Edge/Brave installed web apps keep the site icon in the browser profile.
-            if icon_data.is_none() {
-                if let Some(pwa_icon_path) = find_browser_pwa_icon(&actual_path, &args) {
-                    icon_data = image_file_to_base64(&pwa_icon_path);
-                }
-            }
-
-            // UWP shortcuts launch `explorer.exe shell:AppsFolder\<AUMID>`.
-            if icon_data.is_none() {
-                if let Some(aumid) = extract_arg(&args, "shell:AppsFolder\\") {
-                    icon_data = icon_from_aumid(&aumid);
-                }
-            }
-
-            if icon_data.is_none() {
-                let mut shfi: SHFILEINFOW = std::mem::zeroed();
-                let path_u16: Vec<u16> = actual_path
-                    .encode_utf16()
-                    .chain(std::iter::once(0))
-                    .collect();
-                let res = SHGetFileInfoW(
-                    windows::core::PCWSTR(path_u16.as_ptr()),
-                    Default::default(),
-                    Some(&mut shfi),
-                    std::mem::size_of::<SHFILEINFOW>() as u32,
-                    SHGFI_ICON | SHGFI_LARGEICON,
-                );
-
-                if res != 0 && !shfi.hIcon.is_invalid() {
-                    icon_data = icon_to_base64(shfi.hIcon);
-                    let _ = DestroyIcon(shfi.hIcon);
-                }
-            }
-
-            if let Some(ref base64) = icon_data {
-                if let Ok(mut lock) = ICON_CACHE.get().unwrap().lock() {
-                    lock.insert(ck_clone, base64.clone());
-                }
-            }
-            icon_data
-        };
-        CoUninitialize();
-        result
-    })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    if file_icon.is_some() {
-        schedule_icon_cache_save(app);
-    }
-    Ok(file_icon)
+    Ok(None)
 }
 
 #[tauri::command]
@@ -2213,7 +2241,7 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
 #[tauri::command]
 pub async fn clear_icon_cache(app: AppHandle) -> Result<(), String> {
     let cache_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let cache_path = cache_dir.join("icons_cache.json");
+    let cache_path = cache_dir.join("icons_cache_v2.json");
     let _ = std::fs::remove_file(&cache_path);
     if let Some(c) = ICON_CACHE.get() {
         if let Ok(mut lock) = c.lock() {

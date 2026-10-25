@@ -842,7 +842,7 @@ const Dock = memo(function Dock() {
 		if (bar && isExpanded && !isHidden && isVisible) {
 			dockBandHeightRef.current = Math.max(dockBandHeightRef.current, bar.height);
 		}
-		const band = Math.max((dockBandHeightRef.current || 82 * scale) + 160 * scale, 260 * scale);
+		const band = Math.max((dockBandHeightRef.current || 56 * scale) + 120 * scale, 180 * scale);
 		const wanted: RegionRect[] = [
 			{ x: 0, y: window.innerHeight - band, width: window.innerWidth, height: band }
 		];
@@ -1307,7 +1307,7 @@ const Dock = memo(function Dock() {
 							isExpanded && !isHidden && isVisible
 								? (isAdaptive ? adaptiveWidth : Math.max(34, dockRowWidth + 32))
 								: 34,
-						height: isExpanded && !isHidden && isVisible ? 82 : 34,
+						height: isExpanded && !isHidden && isVisible ? 56 : 34,
 						borderTopLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 20 : 17,
 						borderTopRightRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 20 : 17,
 						borderBottomLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 0 : 17,

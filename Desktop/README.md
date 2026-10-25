@@ -77,8 +77,9 @@ An authentic Apple-style magnifying dock that replaces your native Windows taskb
 
 It sits anchored at the bottom edge of your screen, always there when you need it.
 
-- **Fluid Magnification**: Hovering over icons expands them upward with spring physics ($B=66\text{px} \to M=116\text{px}$) with natural falloff across adjacent neighbors.
-- **Two-Layer Architecture**: Visual layer renders freely with `pointer-events: none` while an invisible hit layer of fixed-width slots ($84\text{px}$) eliminates hover jitter.
+- **Fluid Magnification**: Hovering over icons expands them upward with spring physics ($B=42\text{px} \to M=72\text{px}$) with natural falloff across adjacent neighbors, perfectly calibrated to 100% desktop scale.
+- **Two-Layer Architecture**: Visual layer renders freely with `pointer-events: none` while an invisible hit layer of fixed-width slots ($54\text{px}$) eliminates hover jitter.
+- **High-Clarity Icons**: Windows app icons extracted at $256\times 256$ via `IShellItemImageFactory` with hardware-accelerated contrast rendering, staying crisp and blur-free at any magnification.
 - **Launch Bounce**: Clicking an icon triggers an iconic launch bounce (`0 → -28 → 0 → -10 → 0` over ~0.6s) that replays on repeated clicks.
 - **Anchored Tooltips**: Labels stay anchored 8px above the icon's top edge, following its vertical growth smoothly.
 - **Full Keyboard Navigation**: Focusable hit slots with <kbd>Tab</kbd> navigation and <kbd>Enter</kbd>/<kbd>Space</kbd> activation.

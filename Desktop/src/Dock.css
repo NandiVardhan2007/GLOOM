@@ -223,7 +223,7 @@ body {
 /* Apple-Style Magnifying Dock Layout */
 .magnifying-dock {
 	position: relative;
-	height: 140px;
+	height: 96px;
 	display: flex;
 	justify-content: center;
 	align-items: flex-end;
@@ -238,7 +238,7 @@ body {
 	display: flex;
 	justify-content: center;
 	align-items: flex-end;
-	gap: 18px;
+	gap: 12px;
 	height: 100%;
 	pointer-events: none;
 	overflow: visible;
@@ -329,6 +329,10 @@ body {
 	pointer-events: none;
 	-webkit-user-drag: none;
 	user-select: none;
+	image-rendering: -webkit-optimize-contrast;
+	image-rendering: crisp-edges;
+	backface-visibility: hidden;
+	transform: translateZ(0);
 }
 
 .dock-icon svg {
