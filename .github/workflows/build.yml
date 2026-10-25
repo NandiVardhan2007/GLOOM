@@ -37,7 +37,7 @@ jobs:
           else
             VERSION="1.0.${GITHUB_RUN_NUMBER}"
           fi
-          python scripts/stamp_version.py "$VERSION" "${GITHUB_RUN_NUMBER}"
+          python scripts/stamp_version.py "$VERSION"
 
       - name: Set up Java JDK 17
         uses: actions/setup-java@v4
@@ -137,7 +137,7 @@ jobs:
           } else {
             $version = "1.0.$env:GITHUB_RUN_NUMBER"
           }
-          python scripts/stamp_version.py $version $env:GITHUB_RUN_NUMBER
+          python scripts/stamp_version.py $version
 
       - name: Build Desktop Frontend (Vite)
         working-directory: Desktop
@@ -225,10 +225,10 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.9.1 — Dynamic Island & Desktop Polish
-            - **Genie Effect Removal**: Completely excised the legacy Genie effect across Desktop and Android in favor of smooth native animations, ensuring zero layout glitches and graceful migration for existing user settings.
-            - **Android Island Lock/Unlock Stability**: Eliminated card width distortion during lock/unlock animations, normalized lock label font sizing across system font scales (1.0x, 1.3x, 2.0x), and bounded expanded window width to prevent touch traps.
-            - **Clean Architectural Modernization**: Removed deprecated private insets reflection, preserved robust single-display primary window architecture for Desktop Dock and Notch, and eliminated touch interception traps.
+            ### GLOOM 1.9.5 — Apple-Style Magnifying Dock & Android Polish
+            - **Apple-Style Magnifying Dock**: Implemented smooth upward magnification ($B=66\text{px}$, $M=116\text{px}$, $g=18\text{px}$, $R=3$) with physics-based spring animation, launch bounce, dynamic tooltips, and two-layer jitter-free hit testing.
+            - **Desktop Stability Fixes**: Eliminated login autostart registry residue, taskbar z-order and screen competition, mouse hook latencies, and removed curved display features cleanly.
+            - **Android Island & Assistant**: Dynamic input focus management preventing early collapse during typing, live hardware controls, Wi-Fi status queries, and volume commands.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk

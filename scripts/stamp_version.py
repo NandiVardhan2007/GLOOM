@@ -34,10 +34,32 @@ def stamp_json(relative: str, version: str) -> None:
     path = ROOT / relative
     data = json.loads(path.read_text(encoding="utf-8"))
     data["version"] = version
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def stamp_android(version: str, version_code: str) -> None:
+def compute_version_code(version: str, explicit_code: str | None = None) -> int:
+    path = ROOT / "Android/app/build.gradle.kts"
+    current_code = 0
+    if path.exists():
+        match = re.search(r"(?m)^\s*versionCode\s*=\s*(\d+)", path.read_text(encoding="utf-8"))
+        if match:
+            current_code = int(match.group(1))
+
+    parts = [int(p) for p in version.split(".")]
+    # Standard GLOOM semantic versionCode: major * 100 + minor * 10 + patch (e.g. 1.9.5 -> 195)
+    semver_code = parts[0] * 100 + parts[1] * 10 + parts[2]
+
+    candidates = [current_code, semver_code]
+    if explicit_code and explicit_code.isdigit():
+        val = int(explicit_code)
+        # Avoid low runner build counters overriding higher semver codes
+        if val >= semver_code:
+            candidates.append(val)
+
+    return max(candidates)
+
+
+def stamp_android(version: str, version_code: int) -> None:
     path = ROOT / "Android/app/build.gradle.kts"
     text = path.read_text(encoding="utf-8")
     text, code_count = re.subn(r"(?m)^(\s*versionCode\s*=\s*)\d+", rf"\g<1>{version_code}", text, count=1)
@@ -66,10 +88,8 @@ def main() -> int:
         print(f"Invalid semantic version: {version}", file=sys.stderr)
         return 2
 
-    version_code = sys.argv[2] if len(sys.argv) > 2 else version.split(".")[2]
-    if not version_code.isdigit():
-        print(f"Invalid versionCode: {version_code}", file=sys.stderr)
-        return 2
+    explicit_code = sys.argv[2] if len(sys.argv) > 2 else None
+    version_code = compute_version_code(version, explicit_code)
 
     stamp_cargo(version)
     stamp_json("Desktop/src-tauri/tauri.conf.json", version)
