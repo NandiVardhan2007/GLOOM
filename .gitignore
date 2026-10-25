@@ -87,6 +87,7 @@ DESIGN.md
 docs/
 research/
 build-artifacts/
+.releases/
 
 
 brag-output/
