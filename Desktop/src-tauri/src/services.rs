@@ -2542,9 +2542,9 @@ fn update_main_interaction(
     // dwell-gated, and fixed mode (always visible) skips it entirely. This is
     // about showing the notch — the hit-testing continuity below is separate
     // and must stay immediate.
-    let edge_armed = if notch_mode_reserves_work_area(
-        get_setting_str(app_handle, "gloom-notch-mode").as_deref(),
-    ) {
+    let mode_setting = get_setting_str(app_handle, "gloom-notch-mode");
+    let is_fixed_mode = mode_setting.as_deref() == Some("fixed") || mode_setting.is_none();
+    let edge_armed = if is_fixed_mode {
         MH_TOP_EDGE_ENTER_MS.store(0, Ordering::Relaxed);
         MH_TOP_EDGE_ARMED.store(false, Ordering::Relaxed);
         false
@@ -3752,11 +3752,14 @@ fn set_main_appbar_reservation(main_win: tauri::WebviewWindow, reserve: bool) {
     }
 }
 
-/// Whether the notch's 40px top strip should currently be reserved as an AppBar.
-/// Only fixed mode reserves screen space; smart and peek hide the notch freely.
-/// An unset mode defaults to fixed, matching SETTINGS.md and `re_register_appbars`.
-fn notch_mode_reserves_work_area(mode: Option<&str>) -> bool {
-    mode.map(|m| m == "fixed").unwrap_or(true)
+/// The notch is an overlay island, not an edge-to-edge system taskbar. Reserving screen space via
+/// Windows AppBar (SHAppBarMessage) forces the OS to shrink the entire desktop work area across the
+/// full width of the monitor, leaving empty unused screen space on the left and right sides of the
+/// centered notch for all maximized windows.
+/// The notch stays permanently visible in fixed mode as a topmost transparent overlay, but never
+/// shrinks the desktop work area.
+fn notch_mode_reserves_work_area(_mode: Option<&str>) -> bool {
+    false
 }
 
 /// Bring the main AppBar registration in line with the configured notch mode.
@@ -4596,14 +4599,13 @@ mod tests {
     }
 
     #[test]
-    fn only_fixed_notch_mode_reserves_the_work_area() {
-        assert!(notch_mode_reserves_work_area(Some("fixed")));
+    fn notch_never_reserves_full_width_work_area() {
+        assert!(!notch_mode_reserves_work_area(Some("fixed")));
         assert!(!notch_mode_reserves_work_area(Some("smart")));
         assert!(!notch_mode_reserves_work_area(Some("peek")));
         // Legacy alias for smart
         assert!(!notch_mode_reserves_work_area(Some("auto-hide")));
-        // Unset defaults to fixed, matching SETTINGS.md
-        assert!(notch_mode_reserves_work_area(None));
+        assert!(!notch_mode_reserves_work_area(None));
     }
 
     #[test]
