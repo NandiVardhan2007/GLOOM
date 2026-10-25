@@ -186,6 +186,9 @@ object CommandRouter {
         "unlock", "unlock phone", "unlock my phone", "unlock mobile", "unlock my mobile",
         "unlock device", "draw pattern", "replay pattern", "test unlock"
     )
+    private val lockCommands = setOf(
+        "lock phone", "lock screen", "lock device", "screen off", "lock"
+    )
 
     fun cleanSpeech(raw: String): String {
         var s = raw.trim().trim('.', '!', '?', ',', ';')
@@ -248,31 +251,6 @@ object CommandRouter {
             lower.contains("get") || lower.contains("what") || lower.contains("tell")
     }
 
-    fun isRootCommand(lower: String): Boolean {
-        if (lower in setOf(
-                "reboot", "reboot phone", "restart phone", "restart",
-                "soft reboot", "quick restart", "restart zygote",
-                "power off", "shut down", "shutdown",
-                "lock phone", "lock screen", "lock device", "screen off",
-                "clean ram", "clear ram", "clear cache", "drop cache", "drop caches", "boost memory"
-            )
-        ) return true
-        if (lower.startsWith("turn on airplane") || lower.startsWith("turn off airplane") ||
-            lower.startsWith("enable airplane") || lower.startsWith("disable airplane")
-        ) return true
-        if (lower.startsWith("turn on mobile data") || lower.startsWith("turn off mobile data") ||
-            lower.startsWith("enable mobile data") || lower.startsWith("disable mobile data") ||
-            lower.startsWith("turn on cellular") || lower.startsWith("turn off cellular")
-        ) return true
-        if (lower.startsWith("turn on bluetooth") || lower.startsWith("turn off bluetooth") ||
-            lower.startsWith("enable bluetooth") || lower.startsWith("disable bluetooth")
-        ) return true
-        if (lower.startsWith("force stop ") || lower.startsWith("kill app ") ||
-            lower.startsWith("kill ") || lower.startsWith("close app ")
-        ) return true
-        return false
-    }
-
     /**
      * True when [text] is a command this router will execute. The voice panel
      * uses this to decide whether to get out of the way before acting.
@@ -285,11 +263,10 @@ object CommandRouter {
         if (isVolumeCommand(lower)) return true
         if (isWifiQuery(lower)) return true
         if (isPdfQuery(lower)) return true
-        if (isRootCommand(lower)) return true
         if (lower in keyboardCommands || lower in navigationCommands ||
             lower in notificationCommands || lower in quickSettingsCommands ||
             lower in clearCommands || lower in cameraCommands || lower in reelShortcuts ||
-            lower in unlockCommands
+            lower in unlockCommands || lower in lockCommands
         ) {
             return true
         }
@@ -470,63 +447,6 @@ object CommandRouter {
             val suffix = if (count > 5) "\n...and ${count - 5} more." else ""
             val msg = "Found $count PDF ${if (count == 1) "file" else "files"}:\n$fileList$suffix"
             return Outcome(true, true, msg)
-        }
-
-        // ── Privileged System Actions (KernelSU / Root) ──
-        if (com.gloom.island.root.RootBridge.isRootAvailable()) {
-            if (lower == "soft reboot" || lower == "quick restart" || lower == "restart zygote") {
-                com.gloom.island.root.RootBridge.reboot("soft")
-                return Outcome(true, true, "Performing soft reboot...")
-            }
-            if (lower == "reboot" || lower == "reboot phone" || lower == "restart" || lower == "restart phone") {
-                com.gloom.island.root.RootBridge.reboot("")
-                return Outcome(true, true, "Rebooting phone...")
-            }
-            if (lower == "power off" || lower == "shut down" || lower == "shutdown") {
-                com.gloom.island.root.RootBridge.reboot("poweroff")
-                return Outcome(true, true, "Shutting down device...")
-            }
-            if (lower == "lock phone" || lower == "lock screen" || lower == "lock device" || lower == "screen off") {
-                com.gloom.island.root.RootBridge.lockScreen()
-                return Outcome(true, true, "Device locked.")
-            }
-            if (lower == "clean ram" || lower == "clear ram" || lower == "clear cache" || lower == "drop cache" || lower == "drop caches" || lower == "boost memory") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.cleanRam() }
-                return Outcome(true, ok, if (ok) "RAM caches cleared." else "Could not clear RAM.")
-            }
-            if (lower == "turn on airplane mode" || lower == "enable airplane mode") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setAirplaneMode(true) }
-                return Outcome(true, ok, if (ok) "Airplane mode enabled." else "Failed to toggle airplane mode.")
-            }
-            if (lower == "turn off airplane mode" || lower == "disable airplane mode") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setAirplaneMode(false) }
-                return Outcome(true, ok, if (ok) "Airplane mode disabled." else "Failed to toggle airplane mode.")
-            }
-            if (lower == "turn on mobile data" || lower == "enable mobile data" || lower == "turn on cellular data" || lower == "turn on cellular") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setMobileData(true) }
-                return Outcome(true, ok, if (ok) "Mobile data enabled." else "Failed to toggle mobile data.")
-            }
-            if (lower == "turn off mobile data" || lower == "disable mobile data" || lower == "turn off cellular data" || lower == "turn off cellular") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setMobileData(false) }
-                return Outcome(true, ok, if (ok) "Mobile data disabled." else "Failed to toggle mobile data.")
-            }
-            if (lower == "turn on bluetooth" || lower == "enable bluetooth") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setBluetooth(true) }
-                return Outcome(true, ok, if (ok) "Bluetooth enabled." else "Failed to toggle bluetooth.")
-            }
-            if (lower == "turn off bluetooth" || lower == "disable bluetooth") {
-                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setBluetooth(false) }
-                return Outcome(true, ok, if (ok) "Bluetooth disabled." else "Failed to toggle bluetooth.")
-            }
-            if (lower.startsWith("force stop ") || lower.startsWith("kill app ") || lower.startsWith("kill ") || lower.startsWith("close app ")) {
-                val appName = lower.removePrefix("force stop ").removePrefix("kill app ").removePrefix("kill ").removePrefix("close app ").trim()
-                val resolved = com.gloom.island.voice.AppLauncher.resolvePackage(context, appName)
-                if (resolved != null) {
-                    val (pkg, label) = resolved
-                    val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.forceStopPackage(pkg) }
-                    return Outcome(true, ok, if (ok) "Force-stopped $label." else "Could not stop $label.")
-                }
-            }
         }
 
         // ── Notebook ──
@@ -804,6 +724,11 @@ object CommandRouter {
             if (!accessibilityReady()) return accessibilityRequired()
             val result = ScreenAutomation.typeText("")
             return Outcome(true, result.success, if (result.success) "Cleared." else result.detail)
+        }
+        if (lower in lockCommands) {
+            if (!accessibilityReady()) return accessibilityRequired()
+            val ok = ScreenAutomation.global("lock")
+            return Outcome(true, ok, if (ok) "Screen locked." else "I couldn't lock the screen.")
         }
 
         typePattern.matchEntire(command)?.let { match ->

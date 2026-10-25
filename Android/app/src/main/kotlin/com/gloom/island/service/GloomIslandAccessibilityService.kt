@@ -575,20 +575,11 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                     )
                 }
                 Intent.ACTION_POWER_CONNECTED -> {
-                    val metrics = if (GloomIslandSettings.instance.rootTurboPowerHud) {
-                        com.gloom.island.root.RootBridge.getLiveChargingMetrics()
-                    } else null
-
-                    val subtitle = if (metrics != null && metrics.watts >= 1.0f) {
-                        if (metrics.isTurboPower) String.format(Locale.US, "TurboPower %.0fW", metrics.watts)
-                        else String.format(Locale.US, "Charging %.1fW", metrics.watts)
-                    } else "Charging"
-
                     showSystemAlert(
                         SystemAlertIslandEvent(
                             type = SystemAlertIslandEvent.AlertType.CHARGING,
                             level = batteryLevel,
-                            subtitle = subtitle
+                            subtitle = "Charging"
                         )
                     )
                 }
@@ -688,12 +679,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
 
         serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             com.gloom.island.ai.NeedleBridge.initialize(this@GloomIslandAccessibilityService)
-        }
-
-        if (GloomIslandSettings.instance.suppressNativeHeadsUp) {
-            serviceScope.launch {
-                com.gloom.island.root.RootBridge.setNativeHeadsUpSuppressed(true)
-            }
         }
 
         setupComposeOverlay()
@@ -963,10 +948,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                     Log.e(TAG, "TelecomManager acceptRingingCall failed", e)
                 }
             }
-            if (!answered) {
-                com.gloom.island.root.RootBridge.runRootCommand("input keyevent 5")
-            }
-
             if (speaker) {
                 delay(350)
                 try {
@@ -975,7 +956,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                         it.mode = AudioManager.MODE_IN_COMMUNICATION
                         it.isSpeakerphoneOn = true
                     }
-                    com.gloom.island.root.RootBridge.runRootCommand("cmd audio set-speakerphone-on true")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to switch to speaker", e)
                 }
@@ -1013,10 +993,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                 } catch (e: Exception) {
                     Log.e(TAG, "TelecomManager endCall failed", e)
                 }
-            }
-            if (!declined) {
-                com.gloom.island.root.RootBridge.runRootCommand("input keyevent 6")
-                com.gloom.island.root.RootBridge.runRootCommand("cmd telecom end-call")
             }
 
             val notifKey = event?.id
@@ -1420,11 +1396,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         notificationJob?.cancel()
         windowResizeJob?.cancel()
 
-        if (GloomIslandSettings.instance.rootStatusBarImmersion) {
-            serviceScope.launch {
-                com.gloom.island.root.RootBridge.setStatusBarIconsHidden(true)
-            }
-        }
         val view = composeView ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
         layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -1449,11 +1420,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
         windowResizeJob?.cancel()
 
-        if (GloomIslandSettings.instance.rootStatusBarImmersion) {
-            serviceScope.launch {
-                com.gloom.island.root.RootBridge.setStatusBarIconsHidden(false)
-            }
-        }
         if (immediate) {
             applyCollapsedDimensions()
         } else {
@@ -2073,13 +2039,6 @@ class GloomIslandAccessibilityService : AccessibilityService() {
             unregisterReceiver(internalLockReceiver)
             unregisterReceiver(hardwareAlertReceiver)
         } catch (e: Exception) {}
-        try {
-            if (GloomIslandSettings.instance.rootStatusBarImmersion) {
-                serviceScope.launch {
-                    com.gloom.island.root.RootBridge.setStatusBarIconsHidden(false)
-                }
-            }
-        } catch (_: Exception) {}
         removeOverlaySafely()
     }
 }

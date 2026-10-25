@@ -140,13 +140,6 @@ class GloomNotificationListener : NotificationListenerService() {
         // it must load the persisted filters itself.
         GloomIslandSettings.instance.load(this)
         Log.i(TAG, "Notification listener connected!")
-        if (GloomIslandSettings.instance.suppressNativeHeadsUp) {
-            kotlin.concurrent.thread {
-                kotlinx.coroutines.runBlocking {
-                    com.gloom.island.root.RootBridge.setNativeHeadsUpSuppressed(true)
-                }
-            }
-        }
         startProgressTicker()
         checkActiveMedia()
         onMediaChanged?.invoke()

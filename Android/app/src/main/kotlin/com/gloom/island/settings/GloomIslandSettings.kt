@@ -77,11 +77,6 @@ class GloomIslandSettings {
         const val DEFAULT_PATTERN_GRID_WIDTH = 0.80f
         const val DEFAULT_PATTERN_CENTER_Y = 0.67f
 
-        // KernelSU Privileged Features
-        const val DEFAULT_ROOT_IMMORTAL_PROCESS = true
-        const val DEFAULT_ROOT_STATUS_BAR_IMMERSION = true
-        const val DEFAULT_ROOT_TURBO_POWER_HUD = true
-        const val DEFAULT_SUPPRESS_NATIVE_HEADS_UP = true
         const val DEFAULT_SHOW_IDLE_STATUS = true
 
         // Apple Fluid & Hardware Enhancements
@@ -108,12 +103,6 @@ class GloomIslandSettings {
     var reelMinDwellMs by mutableIntStateOf(DEFAULT_REEL_MIN_DWELL_MS)
     var blockedPackages by mutableStateOf<Set<String>>(emptySet())
     var showIdleStatus by mutableStateOf(DEFAULT_SHOW_IDLE_STATUS)
-
-    // ── 0c. Privileged Root Features (KernelSU) ──
-    var rootImmortalProcess by mutableStateOf(DEFAULT_ROOT_IMMORTAL_PROCESS)
-    var rootStatusBarImmersion by mutableStateOf(DEFAULT_ROOT_STATUS_BAR_IMMERSION)
-    var rootTurboPowerHud by mutableStateOf(DEFAULT_ROOT_TURBO_POWER_HUD)
-    var suppressNativeHeadsUp by mutableStateOf(DEFAULT_SUPPRESS_NATIVE_HEADS_UP)
     var cameraHaloEnabled by mutableStateOf(DEFAULT_CAMERA_HALO)
     var dualLiveActivitiesEnabled by mutableStateOf(DEFAULT_DUAL_LIVE_ACTIVITIES)
     var notificationSwipeDismissEnabled by mutableStateOf(DEFAULT_NOTIFICATION_SWIPE_DISMISS)
@@ -228,10 +217,6 @@ class GloomIslandSettings {
         reducedMotion = prefs.getBoolean("reduced_motion", DEFAULT_REDUCED_MOTION)
         highContrast = prefs.getBoolean("high_contrast", DEFAULT_HIGH_CONTRAST)
 
-        rootImmortalProcess = prefs.getBoolean("root_immortal_process", DEFAULT_ROOT_IMMORTAL_PROCESS)
-        rootStatusBarImmersion = prefs.getBoolean("root_status_bar_immersion", DEFAULT_ROOT_STATUS_BAR_IMMERSION)
-        rootTurboPowerHud = prefs.getBoolean("root_turbo_power_hud", DEFAULT_ROOT_TURBO_POWER_HUD)
-        suppressNativeHeadsUp = prefs.getBoolean("suppress_native_heads_up", DEFAULT_SUPPRESS_NATIVE_HEADS_UP)
         showIdleStatus = prefs.getBoolean("show_idle_status", DEFAULT_SHOW_IDLE_STATUS)
         cameraHaloEnabled = prefs.getBoolean("camera_halo_enabled", DEFAULT_CAMERA_HALO)
         dualLiveActivitiesEnabled = prefs.getBoolean("dual_live_activities_enabled", DEFAULT_DUAL_LIVE_ACTIVITIES)
@@ -340,10 +325,6 @@ class GloomIslandSettings {
             .putBoolean("long_press_expand", longPressToExpand)
             .putBoolean("reduced_motion", reducedMotion)
             .putBoolean("high_contrast", highContrast)
-            .putBoolean("root_immortal_process", rootImmortalProcess)
-            .putBoolean("root_status_bar_immersion", rootStatusBarImmersion)
-            .putBoolean("root_turbo_power_hud", rootTurboPowerHud)
-            .putBoolean("suppress_native_heads_up", suppressNativeHeadsUp)
             .putBoolean("show_idle_status", showIdleStatus)
             .putBoolean("camera_halo_enabled", cameraHaloEnabled)
             .putBoolean("dual_live_activities_enabled", dualLiveActivitiesEnabled)

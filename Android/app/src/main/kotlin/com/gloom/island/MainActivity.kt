@@ -464,9 +464,6 @@ fun GloomMasterApp(
                     screen == "settings" && subPage == "logs" -> {
                         ExecutionLogsScreen(onBack = { settingsSubPage = null })
                     }
-                    screen == "settings" && subPage == "kernelsu" -> {
-                        com.gloom.island.ui.KernelSuSettingsScreen(onBack = { settingsSubPage = null })
-                    }
                     screen == "settings" && subPage == "memories" -> {
                         MemoryHubScreen(onBack = { settingsSubPage = null })
                     }
@@ -595,37 +592,6 @@ fun HomeScreen(
             }
             Spacer(Modifier.height(14.dp))
             AppleButton(text = "Preview Island", onClick = onToggleExpand)
-        }
-
-        if (com.gloom.island.root.RootBridge.isRootAvailable() && (!hasOverlayPermission || !hasNotificationAccess || !hasAccessibilityPermission)) {
-            val scope = androidx.compose.runtime.rememberCoroutineScope()
-            var isGranting by remember { mutableStateOf(false) }
-            AppleSection(header = "KernelSU Supercharge") {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "KernelSU elevated permissions are active. Tap below to automatically grant Overlay, Notifications, Accessibility, and set OOM priority to -1000 without navigating Android settings.",
-                        style = AppleType.caption1,
-                        color = Apple.secondaryLabel
-                    )
-                    AppleButton(
-                        text = if (isGranting) "Granting Privileges..." else "⚡ Auto-Grant All Permissions",
-                        onClick = {
-                            if (!isGranting) {
-                                isGranting = true
-                                scope.launch {
-                                    val (ok, msg) = com.gloom.island.root.RootBridge.autoGrantAllPermissions()
-                                    isGranting = false
-                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-                                    onRestartService()
-                                }
-                            }
-                        }
-                    )
-                }
-            }
         }
 
         AppleSection(header = "Permissions") {
@@ -1191,17 +1157,7 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
             )
         }
 
-        AppleSection(header = "Privileged Engine (KernelSU)") {
-            AppleRow(
-                title = "KernelSU Engine",
-                subtitle = "Immortal background daemon, status bar immersion & TurboPower HUD",
-                icon = GloomIcons.BoltFill,
-                iconTint = if (com.gloom.island.root.RootBridge.isRootAvailable()) Apple.systemGreen else Apple.systemOrange,
-                value = if (com.gloom.island.root.RootBridge.isRootAvailable()) "Active" else "Available",
-                showChevron = true,
-                onClick = { onNavigateSubPage("kernelsu") }
-            )
-            AppleDivider()
+        AppleSection(header = "Background Daemons & Health") {
             AppleRow(
                 title = "Background Daemons & Health",
                 subtitle = "Live status, hardware telemetry & process controllers",

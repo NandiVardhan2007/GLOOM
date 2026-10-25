@@ -58,13 +58,13 @@ object DeviceTools {
 
     fun email(context: Context, address: String, subject: String, body: String): Result {
         val target = if (address.contains('@')) address.trim()
-        else com.gloom.island.ai.AiMemory.resolveEntity(address)?.takeIf { it.contains('@') }
-            ?: "kovvurinandivardhanreddy2007@gmail.com"
-        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${Uri.encode(target)}")).apply {
+        else com.gloom.island.ai.AiMemory.resolveEntity(address)?.takeIf { it.contains('@') } ?: address.trim()
+        val mailUri = if (target.isNotBlank()) "mailto:${Uri.encode(target)}" else "mailto:"
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse(mailUri)).apply {
             putExtra(Intent.EXTRA_SUBJECT, subject)
             putExtra(Intent.EXTRA_TEXT, body)
         }
-        return launch(context, intent, "Ready to email $target.")
+        return launch(context, intent, if (target.isNotBlank()) "Ready to email $target." else "Opening email client.")
     }
 
     fun openCamera(context: Context): Result {
@@ -124,18 +124,10 @@ object DeviceTools {
         val candidates = mutableListOf<String>()
         candidates.add(trimmed)
 
-        // Relationship alias from AiMemory (e.g. "mom" -> "Amma")
+        // Relationship alias from AiMemory (e.g. user taught "mom is Jane")
         val alias = com.gloom.island.ai.AiMemory.resolveEntity(trimmed)
         if (alias != null && !alias.equals(trimmed, ignoreCase = true) && !alias.any { it.isDigit() }) {
             candidates.add(alias)
-        }
-
-        // Common family/relationship synonyms
-        val lower = trimmed.lowercase()
-        if (lower in listOf("mom", "mother", "mummy", "amma")) {
-            candidates.addAll(listOf("Amma", "Mom", "Mother", "Mummy"))
-        } else if (lower in listOf("dad", "father", "daddy", "nanna", "appa")) {
-            candidates.addAll(listOf("Nanna", "Dad", "Father", "Daddy", "Appa"))
         }
 
         // 1. PRIMARY SOURCE OF TRUTH: Query Android Device Contacts directly
@@ -163,7 +155,7 @@ object DeviceTools {
                 } catch (_: Exception) {}
             }
 
-            // 1b. Prefix or word-boundary match (e.g. "Amma Jio", "Amma New", "Amma Airtel")
+            // 1b. Prefix or word-boundary match (e.g. "Jane Work", "Jane Mobile")
             for (cand in candidates.distinct()) {
                 try {
                     context.contentResolver.query(
@@ -215,7 +207,7 @@ object DeviceTools {
         val memResolved = com.gloom.island.ai.AiMemory.resolveEntity("$trimmed number")
             ?: com.gloom.island.ai.AiMemory.resolveEntity("$trimmed phone")
             ?: com.gloom.island.ai.AiMemory.resolveEntity(trimmed)?.filter { it.isDigit() || it == '+' }?.takeIf { it.length >= 7 }
-        if (memResolved != null && memResolved != "950864289") return memResolved
+        if (memResolved != null) return memResolved
 
         return null
     }
@@ -223,13 +215,11 @@ object DeviceTools {
     fun takeScreenshot(context: Context): Result {
         val a11ySuccess = com.gloom.island.service.GloomIslandAccessibilityService.instance
             ?.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT) == true
-        if (a11ySuccess) {
-            return Result(true, "Screenshot captured.")
+        return if (a11ySuccess) {
+            Result(true, "Screenshot captured.")
+        } else {
+            Result(false, "Accessibility service required to capture screenshot.")
         }
-        val fileName = "Screenshot_${System.currentTimeMillis()}.png"
-        val filePath = "/sdcard/Pictures/Screenshots/$fileName"
-        com.gloom.island.root.RootBridge.runRootCommand("mkdir -p /sdcard/Pictures/Screenshots && screencap -p $filePath")
-        return Result(true, "Screenshot captured to Pictures.")
     }
 
     fun playMedia(context: Context, query: String, platform: String? = null): Result {
@@ -332,11 +322,6 @@ object DeviceTools {
             if (results.size >= 5) break
         }
         if (results.isEmpty()) {
-            val rootOut = com.gloom.island.root.RootBridge.runRootCommand("find /sdcard/Download /sdcard/Documents -iname '*$clean*' 2>/dev/null | head -n 3")
-            if (rootOut.isNotBlank()) {
-                val names = rootOut.lines().filter { it.isNotBlank() }.map { it.substringAfterLast('/') }
-                return Result(true, "Found files: " + names.joinToString(", "))
-            }
             return Result(false, "No files found matching \"$clean\".")
         }
         val names = results.joinToString(", ") { it.name }

@@ -98,19 +98,6 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
             footer = "Silent channels and promotional alerts are kept in the shade. One-time codes are always shown and can be copied from the island."
         ) {
             AppleSwitchRow(
-                title = "Exclusive Island Notifications",
-                description = "Suppresses Android's background heads-up popups so alerts appear ONLY in the Dynamic Island.",
-                checked = settings.suppressNativeHeadsUp,
-                onCheckedChange = {
-                    settings.suppressNativeHeadsUp = it
-                    settings.save(context)
-                    scope.launch {
-                        com.gloom.island.root.RootBridge.setNativeHeadsUpSuppressed(it)
-                    }
-                }
-            )
-            AppleDivider()
-            AppleSwitchRow(
                 title = "Filter silent alerts",
                 description = "Quiet channel updates stay in the shade.",
                 checked = settings.filterSilentNotifications,

@@ -230,11 +230,10 @@ object SystemTools {
             val resolvedEmail = if (recipient.contains("@")) {
                 recipient.trim()
             } else {
-                AiMemory.resolveEntity(recipient)?.takeIf { it.contains("@") }
-                    ?: "kovvurinandivardhanreddy2007@gmail.com"
+                AiMemory.resolveEntity(recipient)?.takeIf { it.contains("@") } ?: recipient.trim()
             }
 
-            val mailUri = Uri.parse("mailto:$resolvedEmail")
+            val mailUri = if (resolvedEmail.isNotBlank()) Uri.parse("mailto:${Uri.encode(resolvedEmail)}") else Uri.parse("mailto:")
             val intent = Intent(Intent.ACTION_SENDTO, mailUri).apply {
                 if (subject.isNotBlank()) putExtra(Intent.EXTRA_SUBJECT, subject)
                 if (body.isNotBlank()) putExtra(Intent.EXTRA_TEXT, body)

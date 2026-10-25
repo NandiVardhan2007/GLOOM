@@ -1002,10 +1002,6 @@ class GloomIslandOverlayService : Service() {
                     Log.e(TAG, "TelecomManager acceptRingingCall failed", e)
                 }
             }
-            if (!answered) {
-                com.gloom.island.root.RootBridge.runRootCommand("input keyevent 5")
-            }
-
             if (speaker) {
                 delay(350)
                 try {
@@ -1014,7 +1010,6 @@ class GloomIslandOverlayService : Service() {
                         it.mode = AudioManager.MODE_IN_COMMUNICATION
                         it.isSpeakerphoneOn = true
                     }
-                    com.gloom.island.root.RootBridge.runRootCommand("cmd audio set-speakerphone-on true")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to switch to speaker", e)
                 }
@@ -1052,10 +1047,6 @@ class GloomIslandOverlayService : Service() {
                 } catch (e: Exception) {
                     Log.e(TAG, "TelecomManager endCall failed", e)
                 }
-            }
-            if (!declined) {
-                com.gloom.island.root.RootBridge.runRootCommand("input keyevent 6")
-                com.gloom.island.root.RootBridge.runRootCommand("cmd telecom end-call")
             }
 
             val notifKey = event?.id
@@ -1507,12 +1498,6 @@ class GloomIslandOverlayService : Service() {
         notificationJob?.cancel()
         windowResizeJob?.cancel()
 
-        if (GloomIslandSettings.instance.rootStatusBarImmersion) {
-            serviceScope.launch {
-                com.gloom.island.root.RootBridge.setStatusBarIconsHidden(true)
-            }
-        }
-
         val view = composeView ?: return
         val params = layoutParams ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
@@ -1533,12 +1518,6 @@ class GloomIslandOverlayService : Service() {
     private fun collapseIsland(immediate: Boolean = false) {
         if (!isExpanded && !immediate && windowResizeJob == null) return
         isExpanded = false
-
-        if (GloomIslandSettings.instance.rootStatusBarImmersion) {
-            serviceScope.launch {
-                com.gloom.island.root.RootBridge.setStatusBarIconsHidden(false)
-            }
-        }
 
         if (isInputFocusEnabled) {
             setInputFocusEnabled(false)

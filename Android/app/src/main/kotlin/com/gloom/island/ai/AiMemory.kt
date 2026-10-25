@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
  * with a Self-Improving Feedback Loop.
  *
  * MAG (Memory-Augmented Generation):
- * - Entity Graph: Remembers user relationships, contact aliases (e.g. "Amma" -> "Saraswathi"),
+ * - Entity Graph: Remembers user relationships, contact aliases (e.g. "mom" -> "Jane"),
  *   preferred apps, and personal facts.
  * - Procedural Knowledge: Remembers learned multi-step UI recipes for common tasks.
  * - Negative Guidance: Remembers UI paths or selectors that previously failed to prevent loops.
@@ -154,10 +154,6 @@ object AiMemory {
                     }
                 }
 
-                // Cleanse any legacy mock number entries so phone's live contacts take priority
-                val legacyMockKeys = entities.filter { it.value.value == "950864289" }.keys
-                legacyMockKeys.forEach { entities.remove(it) }
-
                 initDefaults()
                 isLoaded = true
                 Log.i(TAG, "Loaded memory: ${entities.size} entities, ${recipes.size} recipes, ${corrections.size} corrections")
@@ -184,24 +180,6 @@ object AiMemory {
         }
         if (!entities.containsKey("messaging")) {
             entities["messaging"] = Entity("messaging", "WhatsApp", "app_default")
-        }
-        if (!entities.containsKey("amma")) {
-            entities["amma"] = Entity("amma", "Amma", "contact")
-        }
-        if (!entities.containsKey("mom")) {
-            entities["mom"] = Entity("mom", "Amma", "contact")
-        }
-        if (!entities.containsKey("mother")) {
-            entities["mother"] = Entity("mother", "Amma", "contact")
-        }
-        if (!entities.containsKey("email")) {
-            entities["email"] = Entity("email", "kovvurinandivardhanreddy2007@gmail.com", "personal")
-        }
-        if (!entities.containsKey("my email")) {
-            entities["my email"] = Entity("my email", "kovvurinandivardhanreddy2007@gmail.com", "personal")
-        }
-        if (!entities.containsKey("gmail")) {
-            entities["gmail"] = Entity("gmail", "kovvurinandivardhanreddy2007@gmail.com", "personal")
         }
     }
 
@@ -292,14 +270,13 @@ object AiMemory {
     )
 
     /**
-     * Resolves a spoken or typed name (e.g. "Amma", "Mom", "Bro") against known entities.
+     * Resolves a spoken or typed name against known entities.
      */
     fun resolveEntity(query: String): String? {
         val q = query.trim().lowercase().replace("’s", "").replace("'s", "").trim()
-        if (q == "amma" || q == "mom" || q == "mother") return "Amma"
-        if (q in listOf("my email", "email", "gmail", "test email", "test gmail")) return "kovvurinandivardhanreddy2007@gmail.com"
-        if (q in listOf("music", "music app", "songs", "song app", "my music app", "song player", "player")) return entities["music"]?.value ?: "Harmonix"
-        if (q.contains("email") || q.contains("gmail")) return "kovvurinandivardhanreddy2007@gmail.com"
+        if (q in listOf("music", "music app", "songs", "song app", "my music app", "song player", "player")) {
+            return entities["music"]?.value ?: "Harmonix"
+        }
         entities[q]?.let { return it.value }
 
         // Synonym expansion
@@ -493,8 +470,8 @@ object AiMemory {
 
     /**
      * Learns user relations or facts from natural phrases:
-     * - "remember that amma is Saraswathi"
-     * - "my mom is Lakshmi"
+     * - "remember that mom is Jane"
+     * - "my sister is Emily"
      * - "remember that my car number is 1234"
      */
     fun learnFromUser(context: Context, speech: String): String? {

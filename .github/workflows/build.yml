@@ -225,12 +225,12 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.1.5 — KernelSU Root Engine, Incoming Call Island, AI Memories Hub & Live Contacts
+            ### GLOOM 2.1.6 — Incoming Call Island, AI Memories Hub & Live Contacts
+            - **Clean Standard Architecture**: Fully unrooted Android sandbox operation with zero elevated dependencies or root binaries.
+            - **Privacy & Memory Sanitization**: Excised all hardcoded contact aliases and test records; relies purely on real-time device `ContactsContract` and user-taught memories.
             - **Live Contacts Primary Ground Truth**: Real-time 3-tier lookup directly against device `ContactsContract` for voice calling, eliminating stale mock numbers.
-            - **KernelSU Privileged Elevation**: Zero-touch auto-grant permissions, persistent boot watchdog daemon (`-1000` OOM score priority), live Snapdragon 7 Gen 3 SoC telemetry, and privileged hardware voice controls.
-            - **Exclusive Dynamic Island Heads-Up**: Suppresses intrusive native pop-down notification banners and routes all alerts exclusively through the Island with bidirectional shade sync.
             - **Incoming Call Island**: Auto-expands for phone/WhatsApp/Telegram calls with Apple 3-button controls (Decline, Speaker, Answer) and call lifecycle state listeners.
-            - **Background Daemons & Health Dashboard**: Real-time SoC/battery gauges, RAM drop-caches action, and service status toggles.
+            - **Background Daemons & Health Dashboard**: Real-time battery/sensor telemetry, memory optimization, and service status toggles.
             - **AI Memories Hub**: Apple-style CRUD interface for managing assistant entities, app defaults, and autonomous recipes.
             - **Harmonix Music Integration**: Native media playback routing and voice assistant query resolution for Harmonix.
           generate_release_notes: true

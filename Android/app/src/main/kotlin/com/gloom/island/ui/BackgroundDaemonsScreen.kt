@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import com.gloom.island.BuildConfig
 import com.gloom.island.automation.ScreenTimeTracker
 import com.gloom.island.bridge.FileBeamReceiver
-import com.gloom.island.root.RootBridge
 import com.gloom.island.settings.GloomIslandSettings
 import com.gloom.island.updater.GloomAppUpdater
 import com.gloom.island.updater.UpdateState
@@ -72,15 +71,31 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
     val settings = remember { GloomIslandSettings.instance }
 
     // Live Telemetry states
-    var socTemp by remember { mutableFloatStateOf(0f) }
-    var chargingMetrics by remember { mutableStateOf<RootBridge.ChargingMetrics?>(null) }
-    var isRootAvailable by remember { mutableStateOf(false) }
-    var isWatchdogInstalled by remember { mutableStateOf(false) }
-    var isHeadsUpSuppressed by remember { mutableStateOf(false) }
+    var batteryTemp by remember { mutableFloatStateOf(36.5f) }
+    var batteryStatusText by remember { mutableStateOf("Battery") }
+    var isBatteryCharging by remember { mutableStateOf(false) }
     var isWakeWordRunning by remember { mutableStateOf(false) }
     var reelCounterEnabled by remember { mutableStateOf(settings.reelCounterEnabled) }
     var todayScreenTimeMins by remember { mutableStateOf(0L) }
     var refreshTick by remember { mutableIntStateOf(0) }
+
+    fun updateHardwareVitals() {
+        try {
+            val ifilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            val bStatus = context.registerReceiver(null, ifilter)
+            val temp = (bStatus?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 365) ?: 365) / 10f
+            val status = bStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                    status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            val level = bStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            batteryTemp = temp
+            isBatteryCharging = isCharging
+            batteryStatusText = if (isCharging) "$level% • Charging" else "$level% • Discharging"
+        } catch (_: Exception) {
+            batteryTemp = 36.5f
+            batteryStatusText = "Normal"
+        }
+    }
 
     // Updater instance
     val updater = remember { GloomAppUpdater(context) }
@@ -88,11 +103,7 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
 
     // Periodically poll hardware vitals
     LaunchedEffect(refreshTick) {
-        isRootAvailable = RootBridge.isRootAvailable()
-        socTemp = RootBridge.getLiveSocTemp() ?: 36.5f
-        chargingMetrics = RootBridge.getLiveChargingMetrics()
-        isWatchdogInstalled = RootBridge.isWatchdogInstalled()
-        isHeadsUpSuppressed = RootBridge.isNativeHeadsUpSuppressed()
+        updateHardwareVitals()
         isWakeWordRunning = VoicePrefs.isWakeWordEnabled(context)
         todayScreenTimeMins = ScreenTimeTracker.getTodayTotalMinutes(context)
     }
@@ -100,8 +111,7 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         while (true) {
             delay(3000)
-            socTemp = RootBridge.getLiveSocTemp() ?: socTemp
-            chargingMetrics = RootBridge.getLiveChargingMetrics()
+            updateHardwareVitals()
             todayScreenTimeMins = ScreenTimeTracker.getTodayTotalMinutes(context)
         }
     }
@@ -213,12 +223,12 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (isRootAvailable) Apple.systemGreen.copy(alpha = 0.15f) else Color(0xFF2C2C2E))
+                            .background(Apple.systemGreen.copy(alpha = 0.15f))
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = if (isRootAvailable) "KernelSU uid=0" else "Standard Privileges",
-                            color = if (isRootAvailable) Apple.systemGreen else Color(0xFF8E8E93),
+                            text = "Standard Sandbox",
+                            color = Apple.systemGreen,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -229,15 +239,15 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // CPU SoC Temp Metric
+                    // Thermal Metric
                     MetricTile(
                         modifier = Modifier.weight(1f),
-                        title = "SoC Temp",
-                        value = if (socTemp > 0f) "%.1f°C".format(socTemp) else "36.2°C",
-                        subtitle = "Snapdragon 7 Gen 3",
+                        title = "Battery Temp",
+                        value = "%.1f°C".format(batteryTemp),
+                        subtitle = "Hardware Sensor",
                         accentColor = when {
-                            socTemp > 45f -> Apple.systemRed
-                            socTemp > 40f -> Apple.systemOrange
+                            batteryTemp > 45f -> Apple.systemRed
+                            batteryTemp > 40f -> Apple.systemOrange
                             else -> Apple.systemGreen
                         }
                     )
@@ -245,14 +255,10 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
                     // Battery Telemetry Metric
                     MetricTile(
                         modifier = Modifier.weight(1f),
-                        title = "Charging Power",
-                        value = chargingMetrics?.let {
-                            if (it.watts > 0.5f) "%.1f W".format(it.watts) else "Idle"
-                        } ?: "Battery",
-                        subtitle = chargingMetrics?.let {
-                            if (it.isTurboPower) "TurboPower Active" else "%.2f V".format(it.volts)
-                        } ?: "Normal discharge",
-                        accentColor = if (chargingMetrics?.isTurboPower == true) Color(0xFF00E5FF) else Apple.systemTeal
+                        title = "Power State",
+                        value = batteryStatusText,
+                        subtitle = if (isBatteryCharging) "Connected to charger" else "Battery supply",
+                        accentColor = if (isBatteryCharging) Apple.systemGreen else Apple.systemTeal
                     )
                 }
 
@@ -263,15 +269,10 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
                         .clip(RoundedCornerShape(10.dp))
                         .background(Color(0xFF2C2C2E))
                         .clickable {
-                            scope.launch {
-                                val ok = RootBridge.cleanRam()
-                                if (ok) {
-                                    Toast.makeText(context, "RAM cache and drop_caches cleared!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "RAM cleared via garbage collection", Toast.LENGTH_SHORT).show()
-                                }
-                                refreshTick++
-                            }
+                            System.gc()
+                            Runtime.getRuntime().runFinalization()
+                            Toast.makeText(context, "Memory trimmed and garbage collected", Toast.LENGTH_SHORT).show()
+                            refreshTick++
                         }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,7 +349,7 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
                     icon = GloomIcons.Bell,
                     iconTint = Apple.systemRed,
                     isRunning = true,
-                    statusText = if (isHeadsUpSuppressed) "Exclusive Island Mode" else "Listening (Dual Banner)",
+                    statusText = "Active & Filtering",
                     actionText = "Settings",
                     onAction = {
                         val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -378,32 +379,6 @@ fun BackgroundDaemonsScreen(onBack: () -> Unit) {
                             WakeWordService.start(context)
                             isWakeWordRunning = true
                             Toast.makeText(context, "Wake word daemon started", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-
-                AppleDivider()
-
-                // 4. KernelSU Watchdog Daemon
-                DaemonRow(
-                    title = "KernelSU Boot Watchdog",
-                    description = "Script at /data/adb/service.d/ that keeps GLOOM immortal at -1000 OOM.",
-                    icon = GloomIcons.BoltFill,
-                    iconTint = Apple.systemOrange,
-                    isRunning = isWatchdogInstalled,
-                    statusText = if (isWatchdogInstalled) "Installed & Active" else "Not Installed",
-                    actionText = if (isWatchdogInstalled) "Re-OOM" else "Install",
-                    onAction = {
-                        scope.launch {
-                            if (isWatchdogInstalled) {
-                                RootBridge.applyImmortalOomPriority()
-                                Toast.makeText(context, "OOM priority set to -1000!", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val ok = RootBridge.installBootWatchdog(true)
-                                isWatchdogInstalled = ok
-                                Toast.makeText(context, if (ok) "Watchdog daemon installed!" else "Failed installing watchdog", Toast.LENGTH_SHORT).show()
-                            }
-                            refreshTick++
                         }
                     }
                 )
