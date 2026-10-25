@@ -1,11 +1,12 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-10-25 10:45 IST  
+> **Last Updated**: 2026-10-25 10:58 IST  
 > **Release Version**: 1.9.5 (versionCode 195)  
 > **Target Device**: Motorola Edge 50 Pro (`ZD222NB59D`)  
 > **Workspace Root**: `D:\Coding\GLOOM`  
 > **Android Root**: `D:\Coding\GLOOM\Android`
 > **Desktop Root**: `D:\Coding\GLOOM\Desktop`
+> **Release Status**: Pushed to remote (`origin main` & `origin v1.9.5`); GitHub Actions CI/CD release build in progress (Run #40165506503).
 
 ---
 
