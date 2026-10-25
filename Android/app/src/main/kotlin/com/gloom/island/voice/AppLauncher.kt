@@ -37,6 +37,9 @@ object AppLauncher {
         "spotify" to "com.spotify.music",
         "spodify" to "com.spotify.music",
         "spotfy" to "com.spotify.music",
+        "harmonix" to "com.aniruddh.harmonix",
+        "harmonix music" to "com.aniruddh.harmonix",
+        "harminix" to "com.aniruddh.harmonix",
         "chrome" to "com.android.chrome",
         "crome" to "com.android.chrome",
         "google crome" to "com.android.chrome",
@@ -109,6 +112,28 @@ object AppLauncher {
             }
         }
         return null
+    }
+
+    /**
+     * Resolves an app query to (packageName, displayLabel), or null if not found.
+     */
+    fun resolvePackage(context: Context, rawQuery: String): Pair<String, String>? {
+        val query = rawQuery.lowercase().trim()
+        if (query.isEmpty()) return null
+        val aliasPackage = PACKAGE_ALIASES[query]
+        if (aliasPackage != null) {
+            val label = appLabel(context.packageManager, aliasPackage)
+            return Pair(aliasPackage, label)
+        }
+        val apps = launchableApps(context.packageManager)
+        val normQuery = phoneticNormalize(query)
+        val match = apps.firstOrNull { it.label.equals(query, ignoreCase = true) }
+            ?: apps.firstOrNull { it.label.lowercase().startsWith(query) }
+            ?: apps.firstOrNull { it.label.lowercase().contains(query) }
+            ?: apps.firstOrNull { it.packageName.lowercase().contains(query) }
+            ?: apps.firstOrNull { phoneticNormalize(it.label) == normQuery }
+            ?: apps.firstOrNull { phoneticNormalize(it.label).contains(normQuery) || normQuery.contains(phoneticNormalize(it.label)) }
+        return match?.let { Pair(it.packageName, it.label) }
     }
 
     /**

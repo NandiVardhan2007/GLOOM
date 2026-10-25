@@ -154,6 +154,10 @@ object AiMemory {
                     }
                 }
 
+                // Cleanse any legacy mock number entries so phone's live contacts take priority
+                val legacyMockKeys = entities.filter { it.value.value == "950864289" }.keys
+                legacyMockKeys.forEach { entities.remove(it) }
+
                 initDefaults()
                 isLoaded = true
                 Log.i(TAG, "Loaded memory: ${entities.size} entities, ${recipes.size} recipes, ${corrections.size} corrections")
@@ -166,8 +170,14 @@ object AiMemory {
     }
 
     private fun initDefaults() {
-        if (!entities.containsKey("music")) {
-            entities["music"] = Entity("music", "Spotify", "app_default")
+        if (!entities.containsKey("music") || entities["music"]?.value.equals("Spotify", ignoreCase = true)) {
+            entities["music"] = Entity("music", "Harmonix", "app_default")
+        }
+        if (!entities.containsKey("music app")) {
+            entities["music app"] = Entity("music app", "Harmonix", "app_default")
+        }
+        if (!entities.containsKey("player")) {
+            entities["player"] = Entity("player", "Harmonix", "app_default")
         }
         if (!entities.containsKey("browser")) {
             entities["browser"] = Entity("browser", "Chrome", "app_default")
@@ -184,38 +194,11 @@ object AiMemory {
         if (!entities.containsKey("mother")) {
             entities["mother"] = Entity("mother", "Amma", "contact")
         }
-        if (!entities.containsKey("amma number")) {
-            entities["amma number"] = Entity("amma number", "950864289", "contact")
-        }
-        if (!entities.containsKey("amma phone")) {
-            entities["amma phone"] = Entity("amma phone", "950864289", "contact")
-        }
-        if (!entities.containsKey("amma's number")) {
-            entities["amma's number"] = Entity("amma's number", "950864289", "contact")
-        }
-        if (!entities.containsKey("amma's phone")) {
-            entities["amma's phone"] = Entity("amma's phone", "950864289", "contact")
-        }
-        if (!entities.containsKey("amma phone number")) {
-            entities["amma phone number"] = Entity("amma phone number", "950864289", "contact")
-        }
-        if (!entities.containsKey("test phone")) {
-            entities["test phone"] = Entity("test phone", "950864289", "contact")
-        }
-        if (!entities.containsKey("test number")) {
-            entities["test number"] = Entity("test number", "950864289", "contact")
-        }
         if (!entities.containsKey("email")) {
             entities["email"] = Entity("email", "kovvurinandivardhanreddy2007@gmail.com", "personal")
         }
         if (!entities.containsKey("my email")) {
             entities["my email"] = Entity("my email", "kovvurinandivardhanreddy2007@gmail.com", "personal")
-        }
-        if (!entities.containsKey("test email")) {
-            entities["test email"] = Entity("test email", "kovvurinandivardhanreddy2007@gmail.com", "personal")
-        }
-        if (!entities.containsKey("test gmail")) {
-            entities["test gmail"] = Entity("test gmail", "kovvurinandivardhanreddy2007@gmail.com", "personal")
         }
         if (!entities.containsKey("gmail")) {
             entities["gmail"] = Entity("gmail", "kovvurinandivardhanreddy2007@gmail.com", "personal")
@@ -314,9 +297,8 @@ object AiMemory {
     fun resolveEntity(query: String): String? {
         val q = query.trim().lowercase().replace("’s", "").replace("'s", "").trim()
         if (q == "amma" || q == "mom" || q == "mother") return "Amma"
-        if (q in listOf("amma number", "amma phone", "amma phone number", "mom number", "mom phone", "test phone", "test number")) return "950864289"
         if (q in listOf("my email", "email", "gmail", "test email", "test gmail")) return "kovvurinandivardhanreddy2007@gmail.com"
-        if (q.contains("amma") && (q.contains("number") || q.contains("phone"))) return "950864289"
+        if (q in listOf("music", "music app", "songs", "song app", "my music app", "song player", "player")) return entities["music"]?.value ?: "Harmonix"
         if (q.contains("email") || q.contains("gmail")) return "kovvurinandivardhanreddy2007@gmail.com"
         entities[q]?.let { return it.value }
 
@@ -651,5 +633,84 @@ object AiMemory {
         initDefaults()
         save(context)
         Log.i(TAG, "AI Memory cleared to defaults.")
+    }
+
+    // ── Public CRUD Operations for Memory Hub UI ──
+
+    fun getAllEntities(context: Context): List<Entity> {
+        load(context)
+        return entities.values.toList().sortedWith(compareBy({ it.category }, { it.key }))
+    }
+
+    fun addEntity(context: Context, key: String, value: String, category: String = "general"): Boolean {
+        load(context)
+        val k = key.lowercase().trim()
+        val v = value.trim()
+        if (k.isEmpty() || v.isEmpty()) return false
+        entities[k] = Entity(k, v, category.lowercase().trim(), 1.0f, 1)
+        save(context)
+        Log.i(TAG, "Added entity: $k -> $v ($category)")
+        return true
+    }
+
+    fun updateEntity(context: Context, oldKey: String, newKey: String, newValue: String, category: String): Boolean {
+        load(context)
+        val oldK = oldKey.lowercase().trim()
+        val newK = newKey.lowercase().trim()
+        val v = newValue.trim()
+        if (oldK.isEmpty() || newK.isEmpty() || v.isEmpty()) return false
+        val existing = entities.remove(oldK)
+        val confidence = existing?.confidence ?: 1.0f
+        val usage = existing?.usageCount ?: 1
+        entities[newK] = Entity(newK, v, category.lowercase().trim(), confidence, usage)
+        save(context)
+        Log.i(TAG, "Updated entity $oldK to $newK -> $v ($category)")
+        return true
+    }
+
+    fun deleteEntity(context: Context, key: String): Boolean {
+        load(context)
+        val k = key.lowercase().trim()
+        val removed = entities.remove(k) != null
+        if (removed) {
+            save(context)
+            Log.i(TAG, "Deleted entity: $k")
+        }
+        return removed
+    }
+
+    fun getAllRecipes(context: Context): List<LearnedRecipe> {
+        load(context)
+        return recipes.values.toList().sortedByDescending { it.successCount }
+    }
+
+    fun deleteRecipe(context: Context, pattern: String): Boolean {
+        load(context)
+        val p = pattern.lowercase().trim()
+        val removed = recipes.remove(p) != null
+        if (removed) {
+            save(context)
+            Log.i(TAG, "Deleted recipe for pattern: $p")
+        }
+        return removed
+    }
+
+    fun getAllCorrections(context: Context): List<ActionCorrection> {
+        load(context)
+        synchronized(corrections) {
+            return corrections.toList().reversed()
+        }
+    }
+
+    fun deleteCorrection(context: Context, timestamp: Long): Boolean {
+        load(context)
+        synchronized(corrections) {
+            val removed = corrections.removeAll { it.timestamp == timestamp }
+            if (removed) {
+                save(context)
+                Log.i(TAG, "Deleted correction timestamp: $timestamp")
+            }
+            return removed
+        }
     }
 }

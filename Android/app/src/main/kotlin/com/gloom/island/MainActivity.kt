@@ -103,6 +103,8 @@ import com.gloom.island.ui.CloudAiScreen
 import com.gloom.island.ui.ExecutionLogsScreen
 import com.gloom.island.ui.VaultScreen
 import com.gloom.island.ui.NotificationSettingsScreen
+import com.gloom.island.ui.MemoryHubScreen
+import com.gloom.island.ui.BackgroundDaemonsScreen
 import com.gloom.island.ui.ReelWeekChart
 import com.gloom.island.security.GloomSecurity
 import com.gloom.island.service.GloomIslandAccessibilityService
@@ -462,6 +464,15 @@ fun GloomMasterApp(
                     screen == "settings" && subPage == "logs" -> {
                         ExecutionLogsScreen(onBack = { settingsSubPage = null })
                     }
+                    screen == "settings" && subPage == "kernelsu" -> {
+                        com.gloom.island.ui.KernelSuSettingsScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "memories" -> {
+                        MemoryHubScreen(onBack = { settingsSubPage = null })
+                    }
+                    screen == "settings" && subPage == "daemons" -> {
+                        BackgroundDaemonsScreen(onBack = { settingsSubPage = null })
+                    }
                     screen == "about" -> {
                         AboutScreen(onNavigateSubPage = { settingsSubPage = it })
                     }
@@ -584,6 +595,37 @@ fun HomeScreen(
             }
             Spacer(Modifier.height(14.dp))
             AppleButton(text = "Preview Island", onClick = onToggleExpand)
+        }
+
+        if (com.gloom.island.root.RootBridge.isRootAvailable() && (!hasOverlayPermission || !hasNotificationAccess || !hasAccessibilityPermission)) {
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            var isGranting by remember { mutableStateOf(false) }
+            AppleSection(header = "KernelSU Supercharge") {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "KernelSU elevated permissions are active. Tap below to automatically grant Overlay, Notifications, Accessibility, and set OOM priority to -1000 without navigating Android settings.",
+                        style = AppleType.caption1,
+                        color = Apple.secondaryLabel
+                    )
+                    AppleButton(
+                        text = if (isGranting) "Granting Privileges..." else "⚡ Auto-Grant All Permissions",
+                        onClick = {
+                            if (!isGranting) {
+                                isGranting = true
+                                scope.launch {
+                                    val (ok, msg) = com.gloom.island.root.RootBridge.autoGrantAllPermissions()
+                                    isGranting = false
+                                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                                    onRestartService()
+                                }
+                            }
+                        }
+                    )
+                }
+            }
         }
 
         AppleSection(header = "Permissions") {
@@ -1149,6 +1191,27 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
             )
         }
 
+        AppleSection(header = "Privileged Engine (KernelSU)") {
+            AppleRow(
+                title = "KernelSU Engine",
+                subtitle = "Immortal background daemon, status bar immersion & TurboPower HUD",
+                icon = GloomIcons.BoltFill,
+                iconTint = if (com.gloom.island.root.RootBridge.isRootAvailable()) Apple.systemGreen else Apple.systemOrange,
+                value = if (com.gloom.island.root.RootBridge.isRootAvailable()) "Active" else "Available",
+                showChevron = true,
+                onClick = { onNavigateSubPage("kernelsu") }
+            )
+            AppleDivider()
+            AppleRow(
+                title = "Background Daemons & Health",
+                subtitle = "Live status, hardware telemetry & process controllers",
+                icon = GloomIcons.Cpu,
+                iconTint = Apple.systemTeal,
+                showChevron = true,
+                onClick = { onNavigateSubPage("daemons") }
+            )
+        }
+
         AppleSection(header = "Voice") {
             AppleRow(
                 title = "Hey GLOOM & Wake Word",
@@ -1162,6 +1225,15 @@ fun SettingsHubScreen(onNavigateSubPage: (String) -> Unit) {
         }
 
         AppleSection(header = "Intelligence") {
+            AppleRow(
+                title = "AI Memories & Personal Facts",
+                subtitle = "Relations, contact aliases, Harmonix defaults & recipes",
+                icon = GloomIcons.Sparkles,
+                iconTint = Apple.systemPink,
+                showChevron = true,
+                onClick = { onNavigateSubPage("memories") }
+            )
+            AppleDivider()
             AppleRow(
                 title = "Cloud API Keys",
                 subtitle = "Gemini, Groq, and OpenRouter directly from phone",
@@ -2111,6 +2183,26 @@ fun BehaviorSettingsScreen(onBack: () -> Unit) {
                     onCheckedChange = {
                         autoExpandOnTransfer = it
                         settings.autoExpandOnTransfer = it
+                        settings.save(context)
+                    }
+                )
+
+                SettingsSwitch(
+                    title = "Apple Dual Live Activities",
+                    description = "Splits into Primary Pill + Secondary Bubble when two activities (e.g. Timer + Music) run concurrently.",
+                    checked = settings.dualLiveActivitiesEnabled,
+                    onCheckedChange = {
+                        settings.dualLiveActivitiesEnabled = it
+                        settings.save(context)
+                    }
+                )
+
+                SettingsSwitch(
+                    title = "Swipe-to-Dismiss Notification Cards",
+                    description = "Fling expanded notification cards horizontally to dismiss and sync with system shade.",
+                    checked = settings.notificationSwipeDismissEnabled,
+                    onCheckedChange = {
+                        settings.notificationSwipeDismissEnabled = it
                         settings.save(context)
                     }
                 )

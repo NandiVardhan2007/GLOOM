@@ -443,4 +443,58 @@ object GloomIcons {
             line("M12 3.5c-3 0-5.5 2.5-5.5 5.5 0 1.2.3 2.1.2 2.8-.2.8-1.7 1.2-1.7 1.8 0 .5.7.8 1.4.8.5 0 1.1-.3 1.6-.3.6 0 1.2.4 1.8.8.8.6 1.4 1.1 2.2 1.1s1.4-.5 2.2-1.1c.6-.4 1.2-.8 1.8-.8.5 0 1.1.3 1.6.3.7 0 1.4-.3 1.4-.8 0-.6-1.5-1-1.7-1.8-.1-.7.2-1.6.2-2.8 0-3-2.5-5.5-5.5-5.5z")
         }
     }
+
+    val Phone: ImageVector by lazy {
+        build("phone") {
+            line("M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z")
+        }
+    }
+
+    val PhoneDown: ImageVector by lazy {
+        build("phone_down") {
+            line("M1 12.5a16 16 0 0 0 22 0l-3.5-3.5a2 2 0 0 0-2.8 0L14.5 11a12 12 0 0 1-5 0L7.3 9a2 2 0 0 0-2.8 0z")
+        }
+    }
+
+    val Search: ImageVector by lazy {
+        build("magnifyingglass") {
+            line("M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12z")
+            line("M15 15l4.5 4.5")
+        }
+    }
+
+    val Pencil: ImageVector by lazy {
+        build("pencil") {
+            line("M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z")
+        }
+    }
+
+    val Cpu: ImageVector by lazy {
+        build("cpu") {
+            line("M6 6h12v12H6z")
+            line("M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4")
+        }
+    }
+
+    val SquareStack: ImageVector by lazy {
+        build("square.stack") {
+            line("M4 8h16v12H4z")
+            line("M8 4h12v4")
+        }
+    }
+
+    val ArrowPath: ImageVector by lazy {
+        build("arrow.triangle.2.circlepath") {
+            line("M4 12a8 8 0 0 1 13.6-5.6L20 9")
+            line("M20 3v6h-6")
+            line("M20 12a8 8 0 0 1-13.6 5.6L4 15")
+            line("M4 21v-6h6")
+        }
+    }
+
+    val ArrowDown: ImageVector by lazy {
+        build("arrow.down") {
+            line("M12 4v16M19 13l-7 7-7-7")
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.gloom.island.service
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
@@ -139,6 +140,13 @@ class GloomNotificationListener : NotificationListenerService() {
         // it must load the persisted filters itself.
         GloomIslandSettings.instance.load(this)
         Log.i(TAG, "Notification listener connected!")
+        if (GloomIslandSettings.instance.suppressNativeHeadsUp) {
+            kotlin.concurrent.thread {
+                kotlinx.coroutines.runBlocking {
+                    com.gloom.island.root.RootBridge.setNativeHeadsUpSuppressed(true)
+                }
+            }
+        }
         startProgressTicker()
         checkActiveMedia()
         onMediaChanged?.invoke()
@@ -337,11 +345,36 @@ class GloomNotificationListener : NotificationListenerService() {
         }
 
         var replyAction: com.gloom.island.ui.NotificationReplyAction? = null
+        var answerPendingIntent: PendingIntent? = null
+        var declinePendingIntent: PendingIntent? = null
+
+        // Android 12+ CallStyle extras
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try {
+                answerPendingIntent = sbn.notification.extras.getParcelable(
+                    Notification.EXTRA_ANSWER_INTENT,
+                    PendingIntent::class.java
+                )
+                declinePendingIntent = sbn.notification.extras.getParcelable(
+                    Notification.EXTRA_DECLINE_INTENT,
+                    PendingIntent::class.java
+                )
+            } catch (_: Exception) {}
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            @Suppress("DEPRECATION")
+            try {
+                answerPendingIntent = sbn.notification.extras.getParcelable(Notification.EXTRA_ANSWER_INTENT)
+                declinePendingIntent = sbn.notification.extras.getParcelable(Notification.EXTRA_DECLINE_INTENT)
+            } catch (_: Exception) {}
+        }
+
         val notifActions = sbn.notification.actions
         if (notifActions != null) {
             for (action in notifActions) {
                 val remoteInputs = action.remoteInputs
                 val pIntent = action.actionIntent
+                val label = action.title?.toString()?.lowercase() ?: ""
+
                 if (remoteInputs != null && remoteInputs.isNotEmpty() && pIntent != null) {
                     val input = remoteInputs.first()
                     replyAction = com.gloom.island.ui.NotificationReplyAction(
@@ -351,10 +384,22 @@ class GloomNotificationListener : NotificationListenerService() {
                         resultKey = input.resultKey,
                         notificationKey = sbn.key
                     )
-                    break
+                }
+
+                if (answerPendingIntent == null && pIntent != null &&
+                    (label.contains("answer") || label.contains("accept") || label.contains("pick"))
+                ) {
+                    answerPendingIntent = pIntent
+                } else if (declinePendingIntent == null && pIntent != null &&
+                    (label.contains("decline") || label.contains("reject") || label.contains("dismiss") ||
+                     label.contains("hang") || label.contains("end"))
+                ) {
+                    declinePendingIntent = pIntent
                 }
             }
         }
+
+        val isCallNotification = isCall || answerPendingIntent != null || declinePendingIntent != null
 
         val event = com.gloom.island.ui.NotificationIslandEvent(
             id = sbn.key ?: sbn.id.toString(),
@@ -371,13 +416,16 @@ class GloomNotificationListener : NotificationListenerService() {
             postTimeMs = sbn.postTime,
             otpCode = otpCode,
             replyAction = replyAction,
+            isCall = isCallNotification,
+            answerAction = answerPendingIntent,
+            declineAction = declinePendingIntent
         )
 
         // Dismiss the status-bar copy as early as possible so the alert is
         // delivered once, by the island. Never touch non-clearable notifications,
         // and do not cancel clearable notifications immediately if they hold an
-        // active replyAction, which would invalidate the PendingIntent on apps like WhatsApp/Telegram.
-        if (sbn.isClearable && replyAction == null) {
+        // active replyAction or call action, which would invalidate the PendingIntent.
+        if (sbn.isClearable && replyAction == null && !isCallNotification) {
             try {
                 if (selfCancelled.size > 200) selfCancelled.clear()
                 sbn.key?.let { selfCancelled.add(it) }

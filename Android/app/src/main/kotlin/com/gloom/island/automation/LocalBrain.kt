@@ -38,6 +38,7 @@ object LocalBrain {
         when {
             isTimeQuestion(lower) -> return reply(timeOfDay())
             isDateQuestion(lower) -> return reply(date())
+            isTechNewsQuery(lower) -> return reply(kotlinx.coroutines.runBlocking { DeviceTools.fetchTechNews() })
             lower.startsWith("what day") -> return reply(dayOfWeek())
             isWifiQuery(lower) -> return reply(SystemTools.getWifiStatus(context))
             isPdfQuery(lower) -> return reply(listPdfs(context, lower))
@@ -79,6 +80,11 @@ object LocalBrain {
     private fun isDateQuestion(lower: String): Boolean =
         lower.contains("date") || lower.startsWith("what's today") || lower.startsWith("what is today") ||
         lower == "today" || (lower.contains("day") && (lower.contains("what") || lower.contains("today")))
+
+    private fun isTechNewsQuery(lower: String): Boolean =
+        lower.contains("tech news") ||
+        lower.contains("technology news") ||
+        (lower.contains("news") && (lower.contains("tech") || lower.contains("gadget") || lower.contains("ai")))
 
     private fun isWifiQuery(lower: String): Boolean =
         (lower.contains("wifi") || lower.contains("wi-fi") || lower.contains("network")) &&

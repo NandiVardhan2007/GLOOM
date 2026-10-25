@@ -29,13 +29,21 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- On-device tools: calls and texts resolve contact names -->
+    <!-- On-device tools: calls, contacts, and in-call management -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CALL" />
+            <data android:scheme="tel" />
         </intent>
         <intent>
             <action android:name="android.intent.action.DIAL" />

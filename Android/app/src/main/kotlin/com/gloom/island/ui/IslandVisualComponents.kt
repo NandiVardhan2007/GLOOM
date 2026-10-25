@@ -862,6 +862,15 @@ fun AppleCompactContent(
         fadeIn(tween(160)) + scaleIn(initialScale = 0.94f, animationSpec = spring(1f, 320f))
         ).togetherWith(fadeOut(tween(100)))
 
+    val timeText = remember { mutableStateOf("") }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val fmt = java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault())
+        while (true) {
+            timeText.value = fmt.format(java.util.Date())
+            delay(10000)
+        }
+    }
+
     Row(
         modifier = modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.Center,
@@ -893,53 +902,61 @@ fun AppleCompactContent(
                             background = Apple.systemBlue.copy(alpha = 0.18f)
                         )
                         IslandCompactKind.NOTIFICATION -> {
-                            val notifStyle = NotificationStyleRegistry.getStyleForPackage(notification?.packageName)
-                            val notifAccent = notifStyle.accentColor
-                            val context = LocalContext.current
-                            val officialAppIcon = notification?.appIcon ?: remember(notification?.packageName) {
-                                if (!notification?.packageName.isNullOrBlank()) {
-                                    try {
-                                        val d = context.packageManager.getApplicationIcon(notification!!.packageName)
-                                        if (d is BitmapDrawable && d.bitmap != null) d.bitmap
-                                        else {
-                                            val w = d.intrinsicWidth.takeIf { it > 0 } ?: 48
-                                            val h = d.intrinsicHeight.takeIf { it > 0 } ?: 48
-                                            val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                                            val c = android.graphics.Canvas(b)
-                                            d.setBounds(0, 0, c.width, c.height)
-                                            d.draw(c)
-                                            b
-                                        }
-                                    } catch (_: Exception) { null }
-                                } else null
-                            }
-
-                            if (officialAppIcon != null) {
-                                Image(
-                                    bitmap = officialAppIcon.asImageBitmap(),
-                                    contentDescription = "Official App Icon",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(AppleIslandSpec.compactArtwork)
-                                        .clip(CircleShape)
-                                        .border(0.5.dp, notifAccent.copy(alpha = 0.5f), CircleShape)
-                                )
-                            } else if (notification?.largeIcon != null) {
-                                Image(
-                                    bitmap = notification.largeIcon.asImageBitmap(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(AppleIslandSpec.compactArtwork)
-                                        .clip(CircleShape)
-                                        .border(0.5.dp, notifAccent.copy(alpha = 0.5f), CircleShape)
+                            if (notification?.isCall == true) {
+                                CompactGlyphCircle(
+                                    icon = GloomIcons.Phone,
+                                    tint = Apple.systemGreen,
+                                    background = Apple.systemGreen.copy(alpha = 0.25f)
                                 )
                             } else {
-                                CompactGlyphCircle(
-                                    icon = GloomIcons.Bell,
-                                    tint = notifAccent,
-                                    background = notifAccent.copy(alpha = 0.18f)
-                                )
+                                val notifStyle = NotificationStyleRegistry.getStyleForPackage(notification?.packageName)
+                                val notifAccent = notifStyle.accentColor
+                                val context = LocalContext.current
+                                val officialAppIcon = notification?.appIcon ?: remember(notification?.packageName) {
+                                    if (!notification?.packageName.isNullOrBlank()) {
+                                        try {
+                                            val d = context.packageManager.getApplicationIcon(notification!!.packageName)
+                                            if (d is BitmapDrawable && d.bitmap != null) d.bitmap
+                                            else {
+                                                val w = d.intrinsicWidth.takeIf { it > 0 } ?: 48
+                                                val h = d.intrinsicHeight.takeIf { it > 0 } ?: 48
+                                                val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                                                val c = android.graphics.Canvas(b)
+                                                d.setBounds(0, 0, c.width, c.height)
+                                                d.draw(c)
+                                                b
+                                            }
+                                        } catch (_: Exception) { null }
+                                    } else null
+                                }
+
+                                if (officialAppIcon != null) {
+                                    Image(
+                                        bitmap = officialAppIcon.asImageBitmap(),
+                                        contentDescription = "Official App Icon",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(AppleIslandSpec.compactArtwork)
+                                            .clip(CircleShape)
+                                            .border(0.5.dp, notifAccent.copy(alpha = 0.5f), CircleShape)
+                                    )
+                                } else if (notification?.largeIcon != null) {
+                                    Image(
+                                        bitmap = notification.largeIcon.asImageBitmap(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(AppleIslandSpec.compactArtwork)
+                                            .clip(CircleShape)
+                                            .border(0.5.dp, notifAccent.copy(alpha = 0.5f), CircleShape)
+                                    )
+                                } else {
+                                    CompactGlyphCircle(
+                                        icon = GloomIcons.Bell,
+                                        tint = notifAccent,
+                                        background = notifAccent.copy(alpha = 0.18f)
+                                    )
+                                }
                             }
                         }
                         IslandCompactKind.CHARGING -> GloomIcon(
@@ -970,7 +987,18 @@ fun AppleCompactContent(
                             tint = Apple.systemPurple,
                             background = Apple.systemPurple.copy(alpha = 0.18f)
                         )
-                        IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
+                        IslandCompactKind.IDLE -> {
+                            if (com.gloom.island.settings.GloomIslandSettings.instance.showIdleStatus && timeText.value.isNotEmpty()) {
+                                Text(
+                                    text = timeText.value,
+                                    style = IslandType.compactNumber.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                                    color = Color.White.copy(alpha = 0.92f),
+                                    maxLines = 1
+                                )
+                            } else {
+                                Spacer(Modifier.size(0.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -1012,12 +1040,28 @@ fun AppleCompactContent(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        IslandCompactKind.NOTIFICATION -> Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Apple.systemBlue)
-                        )
+                        IslandCompactKind.NOTIFICATION -> {
+                            if (notification?.isCall == true) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    GloomIcon(GloomIcons.Phone, Apple.systemGreen, 13.dp)
+                                    Text(
+                                        "Call",
+                                        style = IslandType.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                                        color = Apple.systemGreen
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Apple.systemBlue)
+                                )
+                            }
+                        }
                         IslandCompactKind.CHARGING -> Text(
                             text = "$batteryLevel%",
                             style = IslandType.compactNumber,
@@ -1064,7 +1108,18 @@ fun AppleCompactContent(
                             color = Apple.systemPurple,
                             height = 13.dp
                         )
-                        IslandCompactKind.IDLE -> Spacer(Modifier.size(0.dp))
+                        IslandCompactKind.IDLE -> {
+                            if (com.gloom.island.settings.GloomIslandSettings.instance.showIdleStatus) {
+                                Text(
+                                    text = "$batteryLevel%",
+                                    style = IslandType.compactNumber.copy(fontSize = 11.sp),
+                                    color = if (isCharging) Apple.systemGreen else Apple.secondaryLabel,
+                                    maxLines = 1
+                                )
+                            } else {
+                                Spacer(Modifier.size(0.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -1350,6 +1405,8 @@ fun AppleNotificationActivity(
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
     onInputFocusChanged: (Boolean) -> Unit = {},
+    onAnswerCall: (Boolean) -> Unit = {},
+    onDeclineCall: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1619,7 +1676,93 @@ fun AppleNotificationActivity(
         Spacer(Modifier.height(8.dp))
 
         // Direct Inline Reply / Actions section
-        if (replySent) {
+        if (event.isCall) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 1. Decline (Red)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Apple.systemRed)
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onInputFocusChanged(false)
+                            onDeclineCall()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        GloomIcon(GloomIcons.PhoneDown, Color.White, 16.dp)
+                        Text(
+                            text = "Decline",
+                            style = IslandType.caption.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White
+                        )
+                    }
+                }
+
+                // 2. Speaker (Blue)
+                Box(
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Apple.systemBlue)
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onInputFocusChanged(false)
+                            onAnswerCall(true)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        GloomIcon(GloomIcons.Speaker, Color.White, 16.dp)
+                        Text(
+                            text = "Speaker",
+                            style = IslandType.caption.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White
+                        )
+                    }
+                }
+
+                // 3. Answer (Green)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Apple.systemGreen)
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onInputFocusChanged(false)
+                            onAnswerCall(false)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        GloomIcon(GloomIcons.Phone, Color.White, 16.dp)
+                        Text(
+                            text = "Answer",
+                            style = IslandType.caption.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        } else if (replySent) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1847,7 +1990,9 @@ fun AppleSystemAlertActivity(
     val haptic = LocalHapticFeedback.current
 
     androidx.compose.runtime.LaunchedEffect(event.timestampMs) {
-        val duration = if (event.type == SystemAlertIslandEvent.AlertType.CHARGING) 3000L else 2500L
+        val duration = if (event.type == SystemAlertIslandEvent.AlertType.CHARGING) 3000L
+        else if (event.type == SystemAlertIslandEvent.AlertType.VOLUME) 2000L
+        else 2500L
         delay(duration)
         onDismiss()
     }
@@ -1933,11 +2078,21 @@ fun AppleSystemAlertActivity(
                                     }
                                 )
                             }
-                            Text(
-                                text = "${event.level}%",
-                                style = IslandType.compactNumber.copy(fontSize = 13.sp),
-                                color = Apple.systemGreen
-                            )
+                            Column(verticalArrangement = Arrangement.Center) {
+                                Text(
+                                    text = "${event.level}%",
+                                    style = IslandType.compactNumber.copy(fontSize = 13.sp),
+                                    color = Apple.systemGreen
+                                )
+                                if (event.subtitle.isNotEmpty() && event.subtitle != "Charging" && event.subtitle != "Unplugged") {
+                                    Text(
+                                        text = event.subtitle,
+                                        style = IslandType.caption.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
+                                        color = Apple.systemGreen.copy(alpha = 0.85f),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -1952,6 +2107,23 @@ fun AppleSystemAlertActivity(
                             GloomIcon(
                                 GloomIcons.Headphones,
                                 Apple.systemCyan,
+                                16.dp
+                            )
+                        }
+                    }
+
+                    SystemAlertIslandEvent.AlertType.VOLUME -> {
+                        val isMuted = event.isSilent || event.level == 0
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(if (isMuted) Color(0x33FF453A) else Color(0x330A84FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            GloomIcon(
+                                GloomIcons.Speaker,
+                                if (isMuted) Apple.systemRed else Apple.systemBlue,
                                 16.dp
                             )
                         }
@@ -2036,6 +2208,47 @@ fun AppleSystemAlertActivity(
                                 color = if (event.isConnected) Apple.systemCyan else Apple.secondaryLabel,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    SystemAlertIslandEvent.AlertType.VOLUME -> {
+                        val fillRatio = (event.level / 100f).coerceIn(0f, 1f)
+                        val animatedFill by animateFloatAsState(
+                            targetValue = fillRatio,
+                            animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
+                            label = "volumeFill"
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(52.dp)
+                                    .height(14.dp)
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .background(Color(0x28FFFFFF))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(animatedFill)
+                                        .clip(RoundedCornerShape(7.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Apple.systemBlue,
+                                                    Color(0xFF64D2FF)
+                                                )
+                                            )
+                                        )
+                                )
+                            }
+                            Text(
+                                text = "${event.level}%",
+                                style = IslandType.caption.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                color = Color.White
                             )
                         }
                     }

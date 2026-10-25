@@ -28,6 +28,8 @@ import android.view.View
 import android.view.ViewTreeObserver
 import java.lang.reflect.Proxy
 import android.media.AudioManager
+import android.telecom.TelecomManager
+import android.telephony.TelephonyManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -76,6 +78,7 @@ import kotlinx.coroutines.launch
 class GloomIslandOverlayService : Service() {
 
     companion object {
+        private const val TAG = "GloomIslandOverlay"
         var instance: GloomIslandOverlayService? = null
             private set
     }
@@ -144,7 +147,9 @@ class GloomIslandOverlayService : Service() {
             activeSystemAlert = alert
             updateOverlayDimensions(isExpanded = false)
             systemAlertJob = launch {
-                val duration = if (alert.type == SystemAlertIslandEvent.AlertType.CHARGING) 3000L else 2500L
+                val duration = if (alert.type == SystemAlertIslandEvent.AlertType.CHARGING) 3000L
+                else if (alert.type == SystemAlertIslandEvent.AlertType.VOLUME) 2000L
+                else 2500L
                 delay(duration)
                 if (activeSystemAlert?.timestampMs == alert.timestampMs) {
                     activeSystemAlert = null
@@ -509,6 +514,22 @@ class GloomIslandOverlayService : Service() {
     private val hardwareAlertReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                "android.media.VOLUME_CHANGED_ACTION" -> {
+                    val streamType = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+                    if (streamType == AudioManager.STREAM_MUSIC || streamType == AudioManager.STREAM_RING) {
+                        val current = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
+                        val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                        val max = am?.getStreamMaxVolume(streamType) ?: 15
+                        val percent = if (max > 0 && current >= 0) (current * 100 / max) else 50
+                        showSystemAlert(
+                            SystemAlertIslandEvent(
+                                type = SystemAlertIslandEvent.AlertType.VOLUME,
+                                level = percent,
+                                isSilent = percent == 0
+                            )
+                        )
+                    }
+                }
                 AudioManager.RINGER_MODE_CHANGED_ACTION -> {
                     val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                     val mode = intent.getIntExtra(
@@ -573,6 +594,19 @@ class GloomIslandOverlayService : Service() {
                             isConnected = false
                         )
                     )
+                }
+                TelephonyManager.ACTION_PHONE_STATE_CHANGED -> {
+                    val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+                    if (state == TelephonyManager.EXTRA_STATE_IDLE) {
+                        if (activeNotification?.isCall == true) {
+                            val notifKey = activeNotification?.id
+                            if (notifKey != null) {
+                                GloomNotificationListener.instance?.cancelNotificationSafe(notifKey)
+                            }
+                            activeNotification = null
+                            collapseIsland()
+                        }
+                    }
                 }
             }
         }
@@ -743,10 +777,12 @@ class GloomIslandOverlayService : Service() {
         // Hardware & System Alert HUD Broadcasts (Ringer, Charging, Bluetooth)
         val hardwareFilter = IntentFilter().apply {
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+            addAction("android.media.VOLUME_CHANGED_ACTION")
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
         }
         registerReceiver(hardwareAlertReceiver, hardwareFilter)
 
@@ -764,24 +800,29 @@ class GloomIslandOverlayService : Service() {
                 }
                 demoMediaActive = false
                 mediaTrack = liveTrack
+                composeView?.post { composeView?.requestLayout() }
             }
         }
         GloomNotificationListener.onNotificationEvent = { event ->
             if (GloomIslandSettings.instance.pluginNotifications) {
                 serviceScope.launch {
                     activeNotification = event
-                    if (GloomIslandSettings.instance.autoExpandOnNotification && !isExpanded) {
+                    if (event.isCall) {
+                        expandIsland()
+                    } else if (GloomIslandSettings.instance.autoExpandOnNotification && !isExpanded) {
                         expandIsland()
                     }
                     notificationJob?.cancel()
-                    notificationJob = launch {
-                        val delayMs = (GloomIslandSettings.instance.autoCollapseDelaySec * 1000).toLong().coerceAtLeast(3500L)
-                        delay(delayMs)
-                        if (!isInputFocusEnabled) {
-                            if (isExpanded) {
-                                collapseIsland()
+                    if (!event.isCall) {
+                        notificationJob = launch {
+                            val delayMs = (GloomIslandSettings.instance.autoCollapseDelaySec * 1000).toLong().coerceAtLeast(3500L)
+                            delay(delayMs)
+                            if (!isInputFocusEnabled) {
+                                if (isExpanded) {
+                                    collapseIsland()
+                                }
+                                activeNotification = null
                             }
-                            activeNotification = null
                         }
                     }
                 }
@@ -935,6 +976,95 @@ class GloomIslandOverlayService : Service() {
 
     private fun skipToPrevMedia() {
         GloomNotificationListener.skipPrevious()
+    }
+
+    private fun answerCall(speaker: Boolean) {
+        serviceScope.launch {
+            val event = activeNotification
+            val ansAction = event?.answerAction
+            var answered = false
+            if (ansAction != null) {
+                try {
+                    ansAction.send()
+                    answered = true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending answerAction PendingIntent", e)
+                }
+            }
+            if (!answered) {
+                try {
+                    val tm = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                    if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                        tm?.acceptRingingCall()
+                        answered = true
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "TelecomManager acceptRingingCall failed", e)
+                }
+            }
+            if (!answered) {
+                com.gloom.island.root.RootBridge.runRootCommand("input keyevent 5")
+            }
+
+            if (speaker) {
+                delay(350)
+                try {
+                    val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    am?.let {
+                        it.mode = AudioManager.MODE_IN_COMMUNICATION
+                        it.isSpeakerphoneOn = true
+                    }
+                    com.gloom.island.root.RootBridge.runRootCommand("cmd audio set-speakerphone-on true")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to switch to speaker", e)
+                }
+            }
+
+            val notifKey = event?.id
+            if (notifKey != null) {
+                GloomNotificationListener.instance?.cancelNotificationSafe(notifKey)
+            }
+            activeNotification = null
+            collapseIsland()
+        }
+    }
+
+    private fun declineCall() {
+        serviceScope.launch {
+            val event = activeNotification
+            val decAction = event?.declineAction
+            var declined = false
+            if (decAction != null) {
+                try {
+                    decAction.send()
+                    declined = true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending declineAction PendingIntent", e)
+                }
+            }
+            if (!declined) {
+                try {
+                    val tm = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                    if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                        tm?.endCall()
+                        declined = true
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "TelecomManager endCall failed", e)
+                }
+            }
+            if (!declined) {
+                com.gloom.island.root.RootBridge.runRootCommand("input keyevent 6")
+                com.gloom.island.root.RootBridge.runRootCommand("cmd telecom end-call")
+            }
+
+            val notifKey = event?.id
+            if (notifKey != null) {
+                GloomNotificationListener.instance?.cancelNotificationSafe(notifKey)
+            }
+            activeNotification = null
+            collapseIsland()
+        }
     }
 
     private fun startForegroundServiceNotification() {
@@ -1100,11 +1230,19 @@ class GloomIslandOverlayService : Service() {
                     mediaTrack = mediaTrack,
                     activeNotification = activeNotification,
                     onNotificationClick = {
+                        val notifKey = activeNotification?.id
                         activeNotification?.openApp(applicationContext)
+                        if (notifKey != null) {
+                            GloomNotificationListener.instance?.cancelNotificationSafe(notifKey)
+                        }
                         activeNotification = null
                         collapseIsland()
                     },
                     onNotificationDismiss = {
+                        val notifKey = activeNotification?.id
+                        if (notifKey != null) {
+                            GloomNotificationListener.instance?.cancelNotificationSafe(notifKey)
+                        }
                         activeNotification = null
                         collapseIsland()
                     },
@@ -1131,17 +1269,17 @@ class GloomIslandOverlayService : Service() {
                         activeSystemAlert = null
                         updateOverlayDimensions(isExpanded = false)
                     },
-                    onSwipeDown = { isRightSide ->
-                        try {
-                            val sbservice = getSystemService("statusbar")
-                            val statusbarManager = Class.forName("android.app.StatusBarManager")
-                            val methodName = if (isRightSide) "expandSettingsPanel" else "expandNotificationsPanel"
-                            val method = statusbarManager.getMethod(methodName)
-                            method.invoke(sbservice)
-                        } catch (_: Exception) {}
+                    onSwipeDown = { _ ->
+                        expandIsland()
                     },
                     onInputFocusChanged = { enabled ->
                         setInputFocusEnabled(enabled)
+                    },
+                    onAnswerCall = { speaker ->
+                        answerCall(speaker)
+                    },
+                    onDeclineCall = {
+                        declineCall()
                     },
                     settings = GloomIslandSettings.instance
                 )
@@ -1205,13 +1343,25 @@ class GloomIslandOverlayService : Service() {
                                 "Right" -> screenWidth - pillWidthPx + posXOffsetPx
                                 else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
                             }
-                            val right = left + pillWidthPx
-                            val top = posYPx.coerceAtLeast(0)
-                            val bottom = posYPx + pillHeightPx
+
+                            val hasSecondary = !isExpanded &&
+                                (activeSystemAlert == null || activeSystemAlert?.type == SystemAlertIslandEvent.AlertType.NONE) &&
+                                GloomIslandSettings.instance.dualLiveActivitiesEnabled &&
+                                (((mediaTrack.isPlaying || mediaTrack.title.isNotBlank()) &&
+                                  (activeTimer?.isActive == true || activeNotification != null || activeTransfer.isActive)) ||
+                                 (activeTimer?.isActive == true && activeNotification != null))
+
+                            val extraRightPx = if (hasSecondary && GloomIslandSettings.instance.gravity != "Right") (48 * density).toInt() else 0
+                            val extraLeftPx = if (hasSecondary && GloomIslandSettings.instance.gravity == "Right") (48 * density).toInt() else 0
+
+                            val right = left + pillWidthPx + extraRightPx
+                            val effectiveLeft = (left - extraLeftPx).coerceAtLeast(0)
+                            val top = 0
+                            val bottom = posYPx + pillHeightPx + (14 * density).toInt()
 
                             setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
                             val region = touchableRegionField.get(inoutInfo) as Region
-                            regionSetMethod.invoke(region, Rect(left, top, right, bottom))
+                            regionSetMethod.invoke(region, Rect(effectiveLeft, top, right, bottom))
                         } else {
                             setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
                         }
@@ -1356,6 +1506,13 @@ class GloomIslandOverlayService : Service() {
         isExpanded = true
         notificationJob?.cancel()
         windowResizeJob?.cancel()
+
+        if (GloomIslandSettings.instance.rootStatusBarImmersion) {
+            serviceScope.launch {
+                com.gloom.island.root.RootBridge.setStatusBarIconsHidden(true)
+            }
+        }
+
         val view = composeView ?: return
         val params = layoutParams ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
@@ -1376,6 +1533,13 @@ class GloomIslandOverlayService : Service() {
     private fun collapseIsland(immediate: Boolean = false) {
         if (!isExpanded && !immediate && windowResizeJob == null) return
         isExpanded = false
+
+        if (GloomIslandSettings.instance.rootStatusBarImmersion) {
+            serviceScope.launch {
+                com.gloom.island.root.RootBridge.setStatusBarIconsHidden(false)
+            }
+        }
+
         if (isInputFocusEnabled) {
             setInputFocusEnabled(false)
         }

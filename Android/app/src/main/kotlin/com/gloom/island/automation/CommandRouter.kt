@@ -92,7 +92,35 @@ object CommandRouter {
         """^(?:open\s+(?:the\s+)?whatsapp\s+(?:to|with|for)\s+(.+)|send\s+(?:a\s+)?(?:whatsapp\s+)?(?:message\s+)?to\s+(.+)|message\s+(.+)\s+on\s+whatsapp)$""",
         RegexOption.IGNORE_CASE
     )
-    private val callPattern = Regex("""^(?:call|dial|phone)\s+(.+)$""", RegexOption.IGNORE_CASE)
+    private val callPattern = Regex("""^(?:call|dial|phone|make a call to|place a call to)\s+(.+)$""", RegexOption.IGNORE_CASE)
+    private val screenshotPattern = Regex(
+        """^(?:take (?:a )?screenshot|take screenshot|capture (?:the )?screen|capture display|screenshot|screen shot)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val playPattern = Regex(
+        """^(?:play|listen to)\s+(.+?)(?:\s+(?:on|in)\s+(youtube|spotify|music|harmonix))?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val searchFilesPattern = Regex(
+        """^(?:search|find)\s+(?:for\s+)?files?\s+(?:called\s+|named\s+|for\s+)?(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val openFilePattern = Regex(
+        """^(?:open|view)\s+file\s+(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val openFileManagerPattern = Regex(
+        """^(?:open\s+(?:the\s+)?files|open\s+(?:the\s+)?file manager|open\s+(?:the\s+)?downloads)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val generalBrowsePattern = Regex(
+        """^(?:browse|open browser|go to)\s*(.*)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val techNewsPattern = Regex(
+        """^(?:what(?:'s| is) (?:the )?latest tech news|tell me (?:the )?latest tech news|tell me tech news|tech news|read tech news|latest tech news)$""",
+        RegexOption.IGNORE_CASE
+    )
     private val alarmPattern = Regex(
         """^(?:set (?:an )?alarm|wake me(?: up)?)\s+(?:for\s+)?(.+)$""",
         RegexOption.IGNORE_CASE
@@ -220,6 +248,31 @@ object CommandRouter {
             lower.contains("get") || lower.contains("what") || lower.contains("tell")
     }
 
+    fun isRootCommand(lower: String): Boolean {
+        if (lower in setOf(
+                "reboot", "reboot phone", "restart phone", "restart",
+                "soft reboot", "quick restart", "restart zygote",
+                "power off", "shut down", "shutdown",
+                "lock phone", "lock screen", "lock device", "screen off",
+                "clean ram", "clear ram", "clear cache", "drop cache", "drop caches", "boost memory"
+            )
+        ) return true
+        if (lower.startsWith("turn on airplane") || lower.startsWith("turn off airplane") ||
+            lower.startsWith("enable airplane") || lower.startsWith("disable airplane")
+        ) return true
+        if (lower.startsWith("turn on mobile data") || lower.startsWith("turn off mobile data") ||
+            lower.startsWith("enable mobile data") || lower.startsWith("disable mobile data") ||
+            lower.startsWith("turn on cellular") || lower.startsWith("turn off cellular")
+        ) return true
+        if (lower.startsWith("turn on bluetooth") || lower.startsWith("turn off bluetooth") ||
+            lower.startsWith("enable bluetooth") || lower.startsWith("disable bluetooth")
+        ) return true
+        if (lower.startsWith("force stop ") || lower.startsWith("kill app ") ||
+            lower.startsWith("kill ") || lower.startsWith("close app ")
+        ) return true
+        return false
+    }
+
     /**
      * True when [text] is a command this router will execute. The voice panel
      * uses this to decide whether to get out of the way before acting.
@@ -232,6 +285,7 @@ object CommandRouter {
         if (isVolumeCommand(lower)) return true
         if (isWifiQuery(lower)) return true
         if (isPdfQuery(lower)) return true
+        if (isRootCommand(lower)) return true
         if (lower in keyboardCommands || lower in navigationCommands ||
             lower in notificationCommands || lower in quickSettingsCommands ||
             lower in clearCommands || lower in cameraCommands || lower in reelShortcuts ||
@@ -240,6 +294,13 @@ object CommandRouter {
             return true
         }
         if (lower.startsWith("like ")) return true
+        if (screenshotPattern.matches(command) || lower in setOf("take a screenshot", "take screenshot", "capture screen", "screenshot", "screen shot")) return true
+        if (playPattern.matches(command)) return true
+        if (searchFilesPattern.matches(command)) return true
+        if (openFilePattern.matches(command)) return true
+        if (openFileManagerPattern.matches(command)) return true
+        if (generalBrowsePattern.matches(command)) return true
+        if (techNewsPattern.matches(command) || isTechNewsQuery(lower)) return true
         return typePattern.matches(command) ||
             enterTextPattern.matches(command) ||
             scrollPattern.matches(command) ||
@@ -265,6 +326,11 @@ object CommandRouter {
             calendarPattern.matches(command) ||
             emailPattern.matches(command)
     }
+
+    fun isTechNewsQuery(lower: String): Boolean =
+        lower.contains("tech news") ||
+        lower.contains("technology news") ||
+        (lower.contains("news") && (lower.contains("tech") || lower.contains("gadget") || lower.contains("ai")))
 
     private fun isReelQuery(lower: String): Boolean {
         val mentionsReels = lower.contains("reel")
@@ -406,6 +472,63 @@ object CommandRouter {
             return Outcome(true, true, msg)
         }
 
+        // ── Privileged System Actions (KernelSU / Root) ──
+        if (com.gloom.island.root.RootBridge.isRootAvailable()) {
+            if (lower == "soft reboot" || lower == "quick restart" || lower == "restart zygote") {
+                com.gloom.island.root.RootBridge.reboot("soft")
+                return Outcome(true, true, "Performing soft reboot...")
+            }
+            if (lower == "reboot" || lower == "reboot phone" || lower == "restart" || lower == "restart phone") {
+                com.gloom.island.root.RootBridge.reboot("")
+                return Outcome(true, true, "Rebooting phone...")
+            }
+            if (lower == "power off" || lower == "shut down" || lower == "shutdown") {
+                com.gloom.island.root.RootBridge.reboot("poweroff")
+                return Outcome(true, true, "Shutting down device...")
+            }
+            if (lower == "lock phone" || lower == "lock screen" || lower == "lock device" || lower == "screen off") {
+                com.gloom.island.root.RootBridge.lockScreen()
+                return Outcome(true, true, "Device locked.")
+            }
+            if (lower == "clean ram" || lower == "clear ram" || lower == "clear cache" || lower == "drop cache" || lower == "drop caches" || lower == "boost memory") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.cleanRam() }
+                return Outcome(true, ok, if (ok) "RAM caches cleared." else "Could not clear RAM.")
+            }
+            if (lower == "turn on airplane mode" || lower == "enable airplane mode") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setAirplaneMode(true) }
+                return Outcome(true, ok, if (ok) "Airplane mode enabled." else "Failed to toggle airplane mode.")
+            }
+            if (lower == "turn off airplane mode" || lower == "disable airplane mode") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setAirplaneMode(false) }
+                return Outcome(true, ok, if (ok) "Airplane mode disabled." else "Failed to toggle airplane mode.")
+            }
+            if (lower == "turn on mobile data" || lower == "enable mobile data" || lower == "turn on cellular data" || lower == "turn on cellular") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setMobileData(true) }
+                return Outcome(true, ok, if (ok) "Mobile data enabled." else "Failed to toggle mobile data.")
+            }
+            if (lower == "turn off mobile data" || lower == "disable mobile data" || lower == "turn off cellular data" || lower == "turn off cellular") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setMobileData(false) }
+                return Outcome(true, ok, if (ok) "Mobile data disabled." else "Failed to toggle mobile data.")
+            }
+            if (lower == "turn on bluetooth" || lower == "enable bluetooth") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setBluetooth(true) }
+                return Outcome(true, ok, if (ok) "Bluetooth enabled." else "Failed to toggle bluetooth.")
+            }
+            if (lower == "turn off bluetooth" || lower == "disable bluetooth") {
+                val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.setBluetooth(false) }
+                return Outcome(true, ok, if (ok) "Bluetooth disabled." else "Failed to toggle bluetooth.")
+            }
+            if (lower.startsWith("force stop ") || lower.startsWith("kill app ") || lower.startsWith("kill ") || lower.startsWith("close app ")) {
+                val appName = lower.removePrefix("force stop ").removePrefix("kill app ").removePrefix("kill ").removePrefix("close app ").trim()
+                val resolved = com.gloom.island.voice.AppLauncher.resolvePackage(context, appName)
+                if (resolved != null) {
+                    val (pkg, label) = resolved
+                    val ok = kotlinx.coroutines.runBlocking { com.gloom.island.root.RootBridge.forceStopPackage(pkg) }
+                    return Outcome(true, ok, if (ok) "Force-stopped $label." else "Could not stop $label.")
+                }
+            }
+        }
+
         // ── Notebook ──
         reminderPattern.matchEntire(command)?.let { match ->
             val body = unquote(match.groupValues[1])
@@ -473,6 +596,32 @@ object CommandRouter {
         }
 
         // ── Calls, texts, alarms, calendar, camera ──
+        if (screenshotPattern.matches(command) || lower in setOf("take a screenshot", "take screenshot", "capture screen", "screenshot", "screen shot")) {
+            val result = DeviceTools.takeScreenshot(context)
+            return Outcome(true, result.success, result.message)
+        }
+        if (techNewsPattern.matches(command) || isTechNewsQuery(lower)) {
+            val news = kotlinx.coroutines.runBlocking { DeviceTools.fetchTechNews() }
+            return Outcome(true, true, news)
+        }
+        playPattern.matchEntire(command)?.let { match ->
+            val target = match.groupValues[1].trim()
+            val platform = match.groupValues.getOrNull(2)?.trim()
+            val result = DeviceTools.playMedia(context, target, platform)
+            return Outcome(true, result.success, result.message)
+        }
+        if (openFileManagerPattern.matches(command)) {
+            val result = DeviceTools.openFileManager(context)
+            return Outcome(true, result.success, result.message)
+        }
+        openFilePattern.matchEntire(command)?.let { match ->
+            val result = DeviceTools.openFile(context, match.groupValues[1].trim())
+            return Outcome(true, result.success, result.message)
+        }
+        searchFilesPattern.matchEntire(command)?.let { match ->
+            val result = DeviceTools.searchFiles(context, match.groupValues[1].trim())
+            return Outcome(true, result.success, result.message)
+        }
         if (lower in cameraCommands) {
             val result = DeviceTools.openCamera(context)
             return Outcome(true, result.success, result.message)
@@ -516,6 +665,17 @@ object CommandRouter {
         }
 
         // ── Chrome Browsing & Form Autofill ──
+        if (lower == "open browser" || lower == "open chrome" || lower == "browse") {
+            val result = DeviceTools.openBrowser(context, null)
+            return Outcome(true, result.success, result.message)
+        }
+        generalBrowsePattern.matchEntire(command)?.let { match ->
+            val urlOrQuery = match.groupValues[1].trim()
+            if (urlOrQuery.isNotBlank() && !urlOrQuery.startsWith("to ")) {
+                val result = DeviceTools.openBrowser(context, urlOrQuery)
+                return Outcome(true, result.success, result.message)
+            }
+        }
         val browsePattern = Regex("""^(?:browse|open|go)\s+to\s+(https?://\S+|\S+\.[a-zA-Z]{2,}\S*)$""", RegexOption.IGNORE_CASE)
         browsePattern.matchEntire(command)?.let { match ->
             var url = match.groupValues[1].trim()

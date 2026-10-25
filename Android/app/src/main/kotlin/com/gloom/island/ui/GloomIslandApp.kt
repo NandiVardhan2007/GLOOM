@@ -1,6 +1,7 @@
 package com.gloom.island.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -16,8 +17,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -36,33 +40,45 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gloom.island.settings.GloomIslandSettings
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -98,6 +114,8 @@ fun GloomIslandApp(
     onSystemAlertDismiss: () -> Unit = {},
     onSwipeDown: (Boolean) -> Unit = {},
     onInputFocusChanged: (Boolean) -> Unit = {},
+    onAnswerCall: (Boolean) -> Unit = {},
+    onDeclineCall: () -> Unit = {},
     settings: GloomIslandSettings = GloomIslandSettings.instance
 ) {
     if (!settings.isIslandEnabled) return
@@ -266,9 +284,40 @@ fun GloomIslandApp(
         else -> Alignment.TopCenter
     }
 
+    val coroutineScope = rememberCoroutineScope()
+    var isInputFocusedLocally by remember { mutableStateOf(false) }
+    var notificationSwipeOffset by remember { mutableFloatStateOf(0f) }
+    val animatedSwipeOffset by animateFloatAsState(
+        targetValue = notificationSwipeOffset,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
+        label = "notificationSwipeOffset"
+    )
+
+    var expandedActivityOverride by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded) {
+            expandedActivityOverride = null
+            notificationSwipeOffset = 0f
+        }
+    }
+
+    // Feature 2: Dual Live Activities
+    val hasSecondaryActivity = !isExpanded && !isSystemAlertActive && !isVoiceActive &&
+        settings.dualLiveActivitiesEnabled &&
+        ((isMediaActive && (isTimerActive || isNotificationActive || isTransferActive)) ||
+         (isTimerActive && isNotificationActive))
+
+    val secondaryKind = when {
+        isMediaActive && (isTimerActive || isNotificationActive || isTransferActive) -> "media"
+        isTimerActive && isNotificationActive -> "timer"
+        else -> null
+    }
+
     val contentKey = when {
         isVoiceActive -> "voice_assistant"
         isSystemAlertActive -> "system_alert"
+        isExpanded && expandedActivityOverride == "media" && isMediaActive -> "media"
+        isExpanded && expandedActivityOverride == "timer" && isTimerActive -> "timer"
         isExpanded && isTimerActive -> "timer"
         isExpanded && isNotificationActive -> "notification"
         isExpanded && isTransferActive -> "transfer"
@@ -333,9 +382,18 @@ fun GloomIslandApp(
                 modifier = Modifier
                     .width(totalWidth)
                     .height(targetHeight + (if (isNotchStyle) 2.dp else 0.dp))
+                    .offset {
+                        IntOffset(
+                            x = if (isExpanded && isNotificationActive) animatedSwipeOffset.roundToInt() else 0,
+                            y = 0
+                        )
+                    }
                     .graphicsLayer {
                         scaleX = islandScale
                         scaleY = islandScale
+                        if (isExpanded && isNotificationActive && animatedSwipeOffset != 0f) {
+                            alpha = (1f - (kotlin.math.abs(animatedSwipeOffset) / 800f)).coerceIn(0.15f, 1f)
+                        }
                     }
                     .shadow(
                         elevation = targetElevation,
@@ -348,6 +406,7 @@ fun GloomIslandApp(
                     .background(islandBrush)
                     .drawWithContent {
                         drawContent()
+
                         if (palette.borderWidthDp > 0f) {
                             val strokeColor = palette.borderColor
                             val hairlinePath = shape.createHairlineBorderPath(size, this)
@@ -392,41 +451,83 @@ fun GloomIslandApp(
                         }
                     }
                     .pointerInput(isExpanded) {
-                        if (!isExpanded) {
-                            var totalDragY = 0f
-                            detectVerticalDragGestures(
-                                onDragStart = { totalDragY = 0f },
-                                onDragEnd = { totalDragY = 0f },
-                                onDragCancel = { totalDragY = 0f },
-                                onVerticalDrag = { change, dragAmount ->
-                                    totalDragY += dragAmount
-                                    if (totalDragY > 20f) {
-                                        change.consume()
-                                        totalDragY = -1000f
-                                        val isRight = change.position.x > (totalWidth.toPx() / 2f)
-                                        if (settings.hapticFeedback) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                        onSwipeDown(isRight)
-                                    }
+                        detectTapGestures(
+                            onTap = {
+                                if (settings.hapticFeedback) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-                            )
-                        }
+                                expandedActivityOverride = null
+                                onToggleExpand()
+                            },
+                            onLongPress = {
+                                if (settings.hapticFeedback) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                                expandedActivityOverride = null
+                                if (!isExpanded) {
+                                    onLongPressExpand()
+                                } else {
+                                    onToggleExpand()
+                                }
+                            }
+                        )
                     }
                     .pointerInput(isExpanded) {
-                        if (!isExpanded) {
-                            detectTapGestures(
-                                onTap = {
+                        var totalDragY = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { totalDragY = 0f },
+                            onDragEnd = { totalDragY = 0f },
+                            onDragCancel = { totalDragY = 0f },
+                            onVerticalDrag = { change, dragAmount ->
+                                totalDragY += dragAmount
+                                if (!isExpanded && totalDragY > 32f) {
+                                    change.consume()
+                                    totalDragY = -1000f
                                     if (settings.hapticFeedback) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
                                     onToggleExpand()
-                                },
-                                onLongPress = {
+                                } else if (isExpanded && totalDragY < -32f) {
+                                    change.consume()
+                                    totalDragY = 1000f
                                     if (settings.hapticFeedback) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
-                                    if (settings.longPressToExpand) onLongPressExpand()
+                                    onToggleExpand()
+                                }
+                            }
+                        )
+                    }
+                    .pointerInput(isExpanded, isNotificationActive, isInputFocusedLocally) {
+                        if (isExpanded && isNotificationActive && settings.notificationSwipeDismissEnabled && !isInputFocusedLocally) {
+                            var dragAccumulator = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { dragAccumulator = 0f },
+                                onDragEnd = {
+                                    if (kotlin.math.abs(dragAccumulator) > 130f) {
+                                        coroutineScope.launch {
+                                            if (settings.hapticFeedback) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                            val dismissTarget = if (dragAccumulator > 0) 1200f else -1200f
+                                            notificationSwipeOffset = dismissTarget
+                                            delay(160)
+                                            onNotificationDismiss()
+                                            notificationSwipeOffset = 0f
+                                        }
+                                    } else {
+                                        notificationSwipeOffset = 0f
+                                    }
+                                    dragAccumulator = 0f
+                                },
+                                onDragCancel = {
+                                    notificationSwipeOffset = 0f
+                                    dragAccumulator = 0f
+                                },
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragAccumulator += dragAmount
+                                    notificationSwipeOffset += dragAmount
                                 }
                             )
                         }
@@ -472,7 +573,12 @@ fun GloomIslandApp(
                                 onInputFocusChanged(false)
                                 onNotificationDismiss()
                             },
-                            onInputFocusChanged = onInputFocusChanged
+                            onInputFocusChanged = { focused ->
+                                isInputFocusedLocally = focused
+                                onInputFocusChanged(focused)
+                            },
+                            onAnswerCall = onAnswerCall,
+                            onDeclineCall = onDeclineCall
                         )
                         "transfer" -> AppleTransferActivity(
                             transfer = activeTransfer,
@@ -518,6 +624,107 @@ fun GloomIslandApp(
                                 .fillMaxWidth()
                                 .height(settings.pillHeight.dp)
                         )
+                    }
+                }
+            }
+
+            // Feature 2: Secondary Detached Bubble (Apple Dual Live Activities)
+            val bubbleOffset = if (settings.gravity == "Right") -(targetHeight + 8.dp) else (totalWidth + 8.dp)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = hasSecondaryActivity,
+                enter = scaleIn(
+                    initialScale = 0.4f,
+                    transformOrigin = TransformOrigin(0f, 0.5f),
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f)
+                ) + fadeIn(tween(140)),
+                exit = scaleOut(
+                    targetScale = 0.4f,
+                    transformOrigin = TransformOrigin(0f, 0.5f),
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f)
+                ) + fadeOut(tween(100)),
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = bubbleOffset)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(targetHeight)
+                        .shadow(
+                            elevation = 4.dp,
+                            shape = CircleShape,
+                            clip = false,
+                            ambientColor = Color.Black,
+                            spotColor = Color.Black
+                        )
+                        .clip(CircleShape)
+                        .background(islandBrush)
+                        .drawWithContent {
+                            drawContent()
+                            if (palette.borderWidthDp > 0f) {
+                                drawCircle(
+                                    color = palette.borderColor,
+                                    radius = size.minDimension / 2f,
+                                    style = Stroke(width = palette.borderWidthDp.dp.toPx())
+                                )
+                            } else if (settings.showBorders) {
+                                drawCircle(
+                                    color = Color(0x24FFFFFF),
+                                    radius = size.minDimension / 2f,
+                                    style = Stroke(width = 1f)
+                                )
+                            }
+                        }
+                        .pointerInput(secondaryKind) {
+                            detectTapGestures(
+                                onTap = {
+                                    if (settings.hapticFeedback) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    expandedActivityOverride = secondaryKind
+                                    if (!isExpanded) {
+                                        onToggleExpand()
+                                    }
+                                },
+                                onLongPress = {
+                                    if (settings.hapticFeedback) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                    expandedActivityOverride = secondaryKind
+                                    if (!isExpanded) {
+                                        onLongPressExpand()
+                                    }
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    when (secondaryKind) {
+                        "media" -> {
+                            if (mediaTrack.albumArt != null) {
+                                Image(
+                                    bitmap = mediaTrack.albumArt.asImageBitmap(),
+                                    contentDescription = "Media Artwork",
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                AppleEqualizer(
+                                    isPlaying = mediaTrack.isPlaying,
+                                    color = Apple.systemGreen,
+                                    height = 14.dp
+                                )
+                            }
+                        }
+                        "timer" -> {
+                            GloomIcon(
+                                icon = GloomIcons.Timer,
+                                tint = Apple.systemOrange,
+                                size = 16.dp
+                            )
+                        }
+                        else -> Spacer(Modifier.size(0.dp))
                     }
                 }
             }

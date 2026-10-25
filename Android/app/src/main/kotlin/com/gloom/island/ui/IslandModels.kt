@@ -85,7 +85,10 @@ data class NotificationIslandEvent(
     val contentIntent: PendingIntent? = null,
     val postTimeMs: Long = System.currentTimeMillis(),
     val otpCode: String? = null,
-    val replyAction: NotificationReplyAction? = null
+    val replyAction: NotificationReplyAction? = null,
+    val isCall: Boolean = false,
+    val answerAction: PendingIntent? = null,
+    val declineAction: PendingIntent? = null
 ) {
     fun openApp(context: Context): Boolean {
         if (contentIntent != null) {
@@ -130,7 +133,8 @@ data class SystemAlertIslandEvent(
         NONE,
         RINGER,
         CHARGING,
-        BLUETOOTH
+        BLUETOOTH,
+        VOLUME
     }
 }
 

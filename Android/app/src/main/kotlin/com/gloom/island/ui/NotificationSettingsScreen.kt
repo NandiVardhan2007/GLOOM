@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gloom.island.settings.GloomIslandSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.absoluteValue
 
@@ -52,6 +53,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val settings = remember { GloomIslandSettings.instance }
     val scrollState = rememberScrollState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val blocked = settings.blockedPackages
 
     var query by remember { mutableStateOf("") }
@@ -96,6 +98,19 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
             footer = "Silent channels and promotional alerts are kept in the shade. One-time codes are always shown and can be copied from the island."
         ) {
             AppleSwitchRow(
+                title = "Exclusive Island Notifications",
+                description = "Suppresses Android's background heads-up popups so alerts appear ONLY in the Dynamic Island.",
+                checked = settings.suppressNativeHeadsUp,
+                onCheckedChange = {
+                    settings.suppressNativeHeadsUp = it
+                    settings.save(context)
+                    scope.launch {
+                        com.gloom.island.root.RootBridge.setNativeHeadsUpSuppressed(it)
+                    }
+                }
+            )
+            AppleDivider()
+            AppleSwitchRow(
                 title = "Filter silent alerts",
                 description = "Quiet channel updates stay in the shade.",
                 checked = settings.filterSilentNotifications,
@@ -121,6 +136,16 @@ fun NotificationSettingsScreen(onBack: () -> Unit) {
                 checked = settings.otpCopyEnabled,
                 onCheckedChange = {
                     settings.otpCopyEnabled = it
+                    settings.save(context)
+                }
+            )
+            AppleDivider()
+            AppleSwitchRow(
+                title = "Swipe-to-Dismiss Cards",
+                description = "Fling expanded notification cards horizontally to dismiss and sync with system shade.",
+                checked = settings.notificationSwipeDismissEnabled,
+                onCheckedChange = {
+                    settings.notificationSwipeDismissEnabled = it
                     settings.save(context)
                 }
             )

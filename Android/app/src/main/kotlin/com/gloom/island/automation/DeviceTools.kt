@@ -10,6 +10,8 @@ import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.MediaStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The phone's own tools, reached through public Android intents.
@@ -24,10 +26,21 @@ object DeviceTools {
     data class Result(val success: Boolean, val message: String)
 
     fun call(context: Context, query: String): Result {
-        val number = resolveNumber(context, query)
-            ?: return Result(false, missingNumberMessage(context, query))
-        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(number)}"))
-        return launch(context, intent, "Opening $query in the dialer.")
+        val cleanQuery = query.trim()
+            .removePrefix("to ")
+            .removePrefix("the ")
+            .removePrefix("my ")
+            .removePrefix("contact ")
+            .trim()
+        val number = resolveNumber(context, cleanQuery)
+            ?: return Result(false, missingNumberMessage(context, cleanQuery))
+        if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            val callIntent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(number)}"))
+            val res = launch(context, callIntent, "Calling $cleanQuery...")
+            if (res.success) return res
+        }
+        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(number)}"))
+        return launch(context, dialIntent, "Calling $cleanQuery...")
     }
 
     fun text(context: Context, query: String, message: String): Result {
@@ -98,34 +111,335 @@ object DeviceTools {
 
     fun resolveNumber(context: Context, query: String): String? {
         val trimmed = query.trim()
+            .removePrefix("to ")
+            .removePrefix("the ")
+            .removePrefix("my ")
+            .removePrefix("contact ")
+            .trim()
         if (trimmed.isEmpty()) return null
         val digits = trimmed.filter { it.isDigit() || it == '+' }
-        if (digits.count { it.isDigit() } >= 3) return digits
+        if (digits.count { it.isDigit() } >= 7) return digits
 
-        // Check AiMemory for contact alias or phone number first
+        // Candidate names to look up in device contacts
+        val candidates = mutableListOf<String>()
+        candidates.add(trimmed)
+
+        // Relationship alias from AiMemory (e.g. "mom" -> "Amma")
+        val alias = com.gloom.island.ai.AiMemory.resolveEntity(trimmed)
+        if (alias != null && !alias.equals(trimmed, ignoreCase = true) && !alias.any { it.isDigit() }) {
+            candidates.add(alias)
+        }
+
+        // Common family/relationship synonyms
+        val lower = trimmed.lowercase()
+        if (lower in listOf("mom", "mother", "mummy", "amma")) {
+            candidates.addAll(listOf("Amma", "Mom", "Mother", "Mummy"))
+        } else if (lower in listOf("dad", "father", "daddy", "nanna", "appa")) {
+            candidates.addAll(listOf("Nanna", "Dad", "Father", "Daddy", "Appa"))
+        }
+
+        // 1. PRIMARY SOURCE OF TRUTH: Query Android Device Contacts directly
+        if (hasContactsPermission(context)) {
+            val projection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+            )
+
+            // 1a. Exact case-insensitive match on candidate names
+            for (cand in candidates.distinct()) {
+                try {
+                    context.contentResolver.query(
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        projection,
+                        "LOWER(${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME}) = ?",
+                        arrayOf(cand.lowercase().trim()),
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val num = cursor.getString(0)?.trim()
+                            if (!num.isNullOrBlank()) return num
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 1b. Prefix or word-boundary match (e.g. "Amma Jio", "Amma New", "Amma Airtel")
+            for (cand in candidates.distinct()) {
+                try {
+                    context.contentResolver.query(
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        projection,
+                        "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ? OR ${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
+                        arrayOf("$cand%", "% $cand%"),
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val num = cursor.getString(0)?.trim()
+                            if (!num.isNullOrBlank()) return num
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 1c. Full-scan across all device contacts for substring matching
+            try {
+                context.contentResolver.query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    projection,
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    val numIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                    while (cursor.moveToNext()) {
+                        val name = cursor.getString(nameIdx) ?: continue
+                        val nameLower = name.lowercase().trim()
+                        for (cand in candidates) {
+                            val candLower = cand.lowercase().trim()
+                            if (nameLower == candLower ||
+                                nameLower.startsWith(candLower) ||
+                                nameLower.contains(candLower) ||
+                                candLower.contains(nameLower)
+                            ) {
+                                val num = cursor.getString(numIdx)?.trim()
+                                if (!num.isNullOrBlank()) return num
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. FALLBACK ONLY: Check AiMemory only if the contact is NOT in device contacts
         val memResolved = com.gloom.island.ai.AiMemory.resolveEntity("$trimmed number")
             ?: com.gloom.island.ai.AiMemory.resolveEntity("$trimmed phone")
-            ?: com.gloom.island.ai.AiMemory.resolveEntity(trimmed)?.filter { it.isDigit() || it == '+' }?.takeIf { it.length >= 3 }
-        if (memResolved != null) return memResolved
+            ?: com.gloom.island.ai.AiMemory.resolveEntity(trimmed)?.filter { it.isDigit() || it == '+' }?.takeIf { it.length >= 7 }
+        if (memResolved != null && memResolved != "950864289") return memResolved
 
-        if (!hasContactsPermission(context)) return null
-        val projection = arrayOf(
-            ContactsContract.CommonDataKinds.Phone.NUMBER,
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+        return null
+    }
+
+    fun takeScreenshot(context: Context): Result {
+        val a11ySuccess = com.gloom.island.service.GloomIslandAccessibilityService.instance
+            ?.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT) == true
+        if (a11ySuccess) {
+            return Result(true, "Screenshot captured.")
+        }
+        val fileName = "Screenshot_${System.currentTimeMillis()}.png"
+        val filePath = "/sdcard/Pictures/Screenshots/$fileName"
+        com.gloom.island.root.RootBridge.runRootCommand("mkdir -p /sdcard/Pictures/Screenshots && screencap -p $filePath")
+        return Result(true, "Screenshot captured to Pictures.")
+    }
+
+    fun playMedia(context: Context, query: String, platform: String? = null): Result {
+        val cleanQuery = query.trim()
+        val defaultMusicApp = com.gloom.island.ai.AiMemory.resolveEntity("music")?.lowercase()?.trim() ?: "harmonix"
+        val plat = platform?.lowercase()?.trim() ?: when {
+            cleanQuery.contains("harmonix", ignoreCase = true) -> "harmonix"
+            cleanQuery.contains("youtube", ignoreCase = true) -> "youtube"
+            cleanQuery.contains("spotify", ignoreCase = true) -> "spotify"
+            else -> defaultMusicApp
+        }
+        val target = cleanQuery
+            .replace("(?i)on harmonix".toRegex(), "")
+            .replace("(?i)in harmonix".toRegex(), "")
+            .replace("(?i)on youtube".toRegex(), "")
+            .replace("(?i)on spotify".toRegex(), "")
+            .replace("(?i)in youtube".toRegex(), "")
+            .replace("(?i)in spotify".toRegex(), "")
+            .replace("(?i)on music".toRegex(), "")
+            .replace("(?i)in music".toRegex(), "")
+            .replace("(?i)^play\\s+".toRegex(), "")
+            .trim()
+
+        if (plat == "harmonix" || plat == "music") {
+            val harmonixPkg = com.gloom.island.voice.AppLauncher.resolvePackage(context, "harmonix")?.first
+                ?: "com.aniruddh.harmonix"
+            val hxIntent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+                setPackage(harmonixPkg)
+                putExtra(android.app.SearchManager.QUERY, target)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (tryStart(context, hxIntent)) {
+                return Result(true, "Playing \"$target\" on Harmonix.")
+            }
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(harmonixPkg)?.apply {
+                putExtra("query", target)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (launchIntent != null && tryStart(context, launchIntent)) {
+                return Result(true, "Opening Harmonix to play \"$target\".")
+            }
+            if (platform != null && platform.equals("harmonix", ignoreCase = true)) {
+                return Result(false, "Harmonix music player is not installed or could not be launched.")
+            }
+        }
+
+        if (plat == "youtube" || (plat != "spotify" && plat != "harmonix")) {
+            val ytIntent = Intent(Intent.ACTION_SEARCH).apply {
+                setPackage("com.google.android.youtube")
+                putExtra("query", target)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (tryStart(context, ytIntent)) {
+                return Result(true, "Playing \"$target\" on YouTube.")
+            }
+            val webYt = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(target)}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (tryStart(context, webYt)) {
+                return Result(true, "Searching \"$target\" on YouTube.")
+            }
+        }
+        if (plat == "spotify") {
+            val spotIntent = Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:${Uri.encode(target)}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (tryStart(context, spotIntent)) {
+                return Result(true, "Playing \"$target\" on Spotify.")
+            }
+        }
+
+        val mediaIntent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+            putExtra(android.app.SearchManager.QUERY, target)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return launch(context, mediaIntent, "Playing \"$target\".")
+    }
+
+    fun searchFiles(context: Context, query: String): Result {
+        val clean = query.trim().removePrefix("for ").removePrefix("file ").trim()
+        if (clean.isBlank()) {
+            return openFileManager(context)
+        }
+        val results = mutableListOf<java.io.File>()
+        val searchDirs = listOf(
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS),
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES),
+            android.os.Environment.getExternalStorageDirectory()
         )
-        val cursor = try {
-            context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                projection,
-                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
-                arrayOf("%$trimmed%"),
-                null
+        for (dir in searchDirs) {
+            if (dir.exists() && dir.canRead()) {
+                dir.listFiles()?.forEach { f ->
+                    if (f.name.contains(clean, ignoreCase = true)) {
+                        results.add(f)
+                        if (results.size >= 5) return@forEach
+                    }
+                }
+            }
+            if (results.size >= 5) break
+        }
+        if (results.isEmpty()) {
+            val rootOut = com.gloom.island.root.RootBridge.runRootCommand("find /sdcard/Download /sdcard/Documents -iname '*$clean*' 2>/dev/null | head -n 3")
+            if (rootOut.isNotBlank()) {
+                val names = rootOut.lines().filter { it.isNotBlank() }.map { it.substringAfterLast('/') }
+                return Result(true, "Found files: " + names.joinToString(", "))
+            }
+            return Result(false, "No files found matching \"$clean\".")
+        }
+        val names = results.joinToString(", ") { it.name }
+        return Result(true, "Found ${results.size} file(s): $names")
+    }
+
+    fun openFileManager(context: Context): Result {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(Uri.parse("content://com.android.externalstorage.documents/root/primary"), "resource/folder")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (tryStart(context, intent)) return Result(true, "Opening Files.")
+        val fallback = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return launch(context, fallback, "Opening Downloads.")
+    }
+
+    fun openFile(context: Context, fileName: String): Result {
+        val clean = fileName.trim()
+        val searchDirs = listOf(
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS),
+            android.os.Environment.getExternalStorageDirectory()
+        )
+        var match: java.io.File? = null
+        for (dir in searchDirs) {
+            if (dir.exists()) {
+                val found = dir.listFiles()?.firstOrNull { it.name.contains(clean, ignoreCase = true) }
+                if (found != null) {
+                    match = found
+                    break
+                }
+            }
+        }
+        if (match != null) {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                match
             )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, context.contentResolver.getType(uri) ?: "*/*")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            return launch(context, intent, "Opening ${match.name}.")
+        }
+        return Result(false, "Could not find file \"$clean\" to open.")
+    }
+
+    fun openBrowser(context: Context, urlOrQuery: String? = null): Result {
+        val target = urlOrQuery?.trim()
+        val uri = when {
+            target.isNullOrBlank() -> Uri.parse("https://www.google.com")
+            target.startsWith("http://") || target.startsWith("https://") -> Uri.parse(target)
+            target.contains(".") && !target.contains(" ") -> Uri.parse("https://$target")
+            else -> Uri.parse("https://www.google.com/search?q=${Uri.encode(target)}")
+        }
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return launch(context, intent, if (target.isNullOrBlank()) "Opening browser." else "Searching for \"$target\".")
+    }
+
+    suspend fun fetchTechNews(): String = withContext(Dispatchers.IO) {
+        try {
+            val url = java.net.URL("https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-IN&gl=IN&ceid=IN:en")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+            val xml = conn.inputStream.bufferedReader().use { it.readText() }
+            val titles = mutableListOf<String>()
+            val itemRegex = Regex("""<item>(.*?)</item>""", RegexOption.DOT_MATCHES_ALL)
+            val titleRegex = Regex("""<title>(.*?)</title>""")
+            for (itemMatch in itemRegex.findAll(xml)) {
+                val titleMatch = titleRegex.find(itemMatch.groupValues[1])
+                if (titleMatch != null) {
+                    var title = titleMatch.groupValues[1]
+                        .replace("&amp;", "&")
+                        .replace("&quot;", "\"")
+                        .replace("&#39;", "'")
+                        .replace("&lt;", "<")
+                        .replace("&gt;", ">")
+                        .trim()
+                    val dashIdx = title.lastIndexOf(" - ")
+                    if (dashIdx > 0) {
+                        title = title.substring(0, dashIdx).trim()
+                    }
+                    if (title.isNotBlank()) {
+                        titles.add(title)
+                    }
+                }
+                if (titles.size >= 3) break
+            }
+            if (titles.isNotEmpty()) {
+                val formatted = titles.mapIndexed { idx, t -> "${idx + 1}. $t" }.joinToString(". ")
+                "Here is the latest tech news: $formatted."
+            } else {
+                "I couldn't load the tech headlines right now."
+            }
         } catch (e: Exception) {
-            null
-        } ?: return null
-        return cursor.use {
-            if (it.moveToFirst()) it.getString(0) else null
+            "Failed to fetch tech news: ${e.localizedMessage ?: "Network error"}"
         }
     }
 

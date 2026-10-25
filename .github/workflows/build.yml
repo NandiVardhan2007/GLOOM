@@ -225,10 +225,14 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 1.9.5 — Apple-Style Magnifying Dock & Android Polish
-            - **Apple-Style Magnifying Dock**: Implemented smooth upward magnification ($B=66\text{px}$, $M=116\text{px}$, $g=18\text{px}$, $R=3$) with physics-based spring animation, launch bounce, dynamic tooltips, and two-layer jitter-free hit testing.
-            - **Desktop Stability Fixes**: Eliminated login autostart registry residue, taskbar z-order and screen competition, mouse hook latencies, and removed curved display features cleanly.
-            - **Android Island & Assistant**: Dynamic input focus management preventing early collapse during typing, live hardware controls, Wi-Fi status queries, and volume commands.
+            ### GLOOM 2.1.5 — KernelSU Root Engine, Incoming Call Island, AI Memories Hub & Live Contacts
+            - **Live Contacts Primary Ground Truth**: Real-time 3-tier lookup directly against device `ContactsContract` for voice calling, eliminating stale mock numbers.
+            - **KernelSU Privileged Elevation**: Zero-touch auto-grant permissions, persistent boot watchdog daemon (`-1000` OOM score priority), live Snapdragon 7 Gen 3 SoC telemetry, and privileged hardware voice controls.
+            - **Exclusive Dynamic Island Heads-Up**: Suppresses intrusive native pop-down notification banners and routes all alerts exclusively through the Island with bidirectional shade sync.
+            - **Incoming Call Island**: Auto-expands for phone/WhatsApp/Telegram calls with Apple 3-button controls (Decline, Speaker, Answer) and call lifecycle state listeners.
+            - **Background Daemons & Health Dashboard**: Real-time SoC/battery gauges, RAM drop-caches action, and service status toggles.
+            - **AI Memories Hub**: Apple-style CRUD interface for managing assistant entities, app defaults, and autonomous recipes.
+            - **Harmonix Music Integration**: Native media playback routing and voice assistant query resolution for Harmonix.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk
