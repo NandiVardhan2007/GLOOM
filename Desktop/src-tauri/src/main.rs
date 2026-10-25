@@ -17,6 +17,7 @@ mod wifi;
 mod window_region;
 mod bridge_tls;
 mod livebridge;
+mod autostart;
 
 use std::sync::atomic::Ordering;
 use tauri::Manager;
@@ -113,6 +114,8 @@ fn main() {
         ))
         .invoke_handler(tauri::generate_handler![
             hide_native_osd,
+            get_autostart_status,
+            set_autostart_status,
             open_settings_window,
             open_wifi_settings,
             open_sound_settings,
@@ -229,6 +232,11 @@ fn main() {
             // invoke save_setting as soon as it loads, which happens before the
             // rest of this hook runs.
             crate::utils::init_settings_cache(app.handle());
+            // Autostart integrity check: if autostart was disabled in settings, guarantee all startup mechanisms remain purged.
+            let autostart_setting = crate::utils::get_setting_str(app.handle(), "gloom-autostart");
+            if autostart_setting.as_deref() == Some("false") {
+                crate::autostart::disable_all_autostart(app.handle());
+            }
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
             // (init_dock fires after a delay), so the flag must be removed first.

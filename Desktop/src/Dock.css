@@ -199,11 +199,10 @@ body {
 .dock {
 	display: flex;
 	flex-direction: row;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: center;
-	gap: 12px;
-	padding: 8px 8px;
-	border-radius: 18px 18px 0 0;
+	padding: 0 16px 8px 16px;
+	border-radius: 20px 20px 0 0;
 	/* Painted by the .edge-surface child (see components/EdgeSurface.css). */
 	--surface-bg: var(--gloom-bg, rgba(0, 0, 0, 0.8));
 	isolation: isolate;
@@ -215,73 +214,127 @@ body {
 	pointer-events: auto;
 	transition: padding 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 	overflow: visible;
-	/* Re-enable pointer events for the dock itself */
 }
 
 .dock.dock-impacted {
-	padding: 8px 14px;
+	padding: 0 18px 8px 18px;
 }
 
-.dock-reorder-container {
+/* Apple-Style Magnifying Dock Layout */
+.magnifying-dock {
+	position: relative;
+	height: 140px;
 	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 12px;
+	justify-content: center;
+	align-items: flex-end;
 	overflow: visible;
+	pointer-events: none;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
-.dock-reorder-group {
+/* 1. VISUAL LAYER: bottom-aligned, spring animated size & position, pointer-events: none */
+.dock-visual {
 	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 12px;
+	justify-content: center;
+	align-items: flex-end;
+	gap: 18px;
+	height: 100%;
+	pointer-events: none;
+	overflow: visible;
+	position: relative;
+	z-index: 1;
 }
 
-.dock-app-divider {
-	width: 1px;
-	height: 26px;
+/* 2. HIT LAYER: fixed slots that never move or resize, pointer-events: auto on slots */
+.dock-hit {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	justify-content: center;
+	align-items: flex-end;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.dock-hit-slot {
+	height: 100%;
+	pointer-events: auto;
+	cursor: pointer;
+	outline: none;
+	background: transparent;
+	border: none;
+	padding: 0;
+	margin: 0;
+	-webkit-app-region: no-drag;
+	user-select: none;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+}
+
+.dock-hit-slot:focus-visible {
+	outline: 2px solid rgba(255, 255, 255, 0.5);
+	outline-offset: -4px;
+	border-radius: 16px;
+}
+
+.dock-hit-separator {
+	height: 100%;
+	pointer-events: none;
 	flex: none;
-	margin: 0 2px;
-	border-radius: 1px;
-	background: color-mix(in srgb, var(--gloom-text, white) 24%, transparent);
+}
+
+/* Icon & Bounce Wrappers */
+.dock-icon-bounce-wrapper {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
 	pointer-events: none;
 }
 
-.dock-icon-wrapper {
+.dock-icon {
 	position: relative;
+	border-radius: 22%;
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	cursor: pointer;
-	-webkit-app-region: no-drag;
+	background: linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 100%);
+	color: var(--gloom-text, white);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+	user-select: none;
+	pointer-events: none;
+	transform-origin: bottom center;
 }
 
-.dock-icon {
-	width: 36px;
-	height: 36px;
+.dock-icon-inner {
+	width: 100%;
+	height: 100%;
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	border-radius: 12px;
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%);
-	color: var(--gloom-text, white);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-	transition: opacity 0.2s ease;
+	border-radius: inherit;
+	padding: 10%;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .dock-icon img {
-	width: 28px;
-	height: 28px;
+	width: 100%;
+	height: 100%;
 	object-fit: contain;
+	border-radius: inherit;
 	pointer-events: none;
 	-webkit-user-drag: none;
 	user-select: none;
 }
 
 .dock-icon svg {
-	width: 24px;
-	height: 24px;
-	stroke: rgba(255, 255, 255, 0.9);
+	width: 68%;
+	height: 68%;
+	stroke: rgba(255, 255, 255, 0.95);
 }
 
 .dock-icon-only .dock-icon {
@@ -290,13 +343,69 @@ body {
 	box-shadow: none;
 }
 
-.dock-icon-only .dock-icon img {
-	width: 32px;
-	height: 32px;
+.dock-icon-only .dock-icon-inner {
+	padding: 0;
 }
 
-.dock-icon-only .fallback-icon {
-	font-size: 16px;
+.dock-app-divider {
+	width: 1px;
+	height: 38px;
+	flex: none;
+	margin: 0 8px;
+	border-radius: 1px;
+	background: color-mix(in srgb, var(--gloom-text, white) 24%, transparent);
+	pointer-events: none;
+	align-self: flex-end;
+	margin-bottom: 14px;
+}
+
+/* Tooltip Anchored to Top Edge of Icon */
+.dock-tip {
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 4px 10px;
+	font-size: 12px;
+	font-weight: 500;
+	font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	background: rgba(30, 30, 30, 0.85);
+	color: #ffffff;
+	border-radius: 6px;
+	white-space: nowrap;
+	pointer-events: none;
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	z-index: 100;
+	letter-spacing: -0.01em;
+	animation: dockTipFadeIn 0.12s ease-out;
+}
+
+@keyframes dockTipFadeIn {
+	from {
+		opacity: 0;
+		transform: translate(-50%, 4px) scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, 0) scale(1);
+	}
+}
+
+.light-mode .dock-tip {
+	background: rgba(255, 255, 255, 0.9);
+	color: #1a1a1a;
+	border-color: rgba(0, 0, 0, 0.08);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.fallback-icon {
+	font-size: 24px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.85);
+	text-transform: uppercase;
 }
 
 /* Active application indicator */
@@ -315,6 +424,16 @@ body {
 	bottom: -4px;
 	display: flex;
 	gap: 3px;
+}
+
+.dock-icon-bounce-wrapper .window-dots {
+	position: absolute;
+	bottom: -8px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 3px;
+	pointer-events: none;
 }
 
 .window-dots .active-indicator {

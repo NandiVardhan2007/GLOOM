@@ -1,4 +1,4 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Square, Maximize2 } from "lucide-react";
+import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 
 interface AppearanceTabProps {
@@ -12,8 +12,6 @@ interface AppearanceTabProps {
 	handleSaturationChange: (val: number) => void;
 	themeBrightness: number;
 	handleBrightnessChange: (val: number) => void;
-	cornersEnabled: boolean;
-	toggleCorners: () => void;
 	scale: number;
 	handleScaleChange: (val: number) => void;
 }
@@ -29,8 +27,6 @@ export function AppearanceTab({
 	handleSaturationChange,
 	themeBrightness,
 	handleBrightnessChange,
-	cornersEnabled,
-	toggleCorners,
 	scale,
 	handleScaleChange
 }: AppearanceTabProps) {
@@ -130,12 +126,6 @@ export function AppearanceTab({
 
 			<div className="setting-group-label">Display</div>
 			<div className="setting-group">
-				<SettingRow icon={Square} label="Screen Corners" desc="Rounded top edges">
-					<label className="toggle-switch">
-						<input type="checkbox" checked={cornersEnabled} onChange={toggleCorners} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
 
 				<SettingRow
 					icon={Maximize2}

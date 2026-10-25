@@ -289,10 +289,20 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 iconTint = Apple.systemPurple,
                 showChevron = true,
                 onClick = {
-                    context.startActivity(
-                        Intent(context, VoiceUnlockActivity::class.java)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
+                    val a11y = com.gloom.island.service.GloomIslandAccessibilityService.instance
+                    if (a11y != null) {
+                        a11y.startVoiceAssistant()
+                    } else {
+                        val overlay = com.gloom.island.service.GloomIslandOverlayService.instance
+                        if (overlay != null) {
+                            overlay.startVoiceAssistant()
+                        } else {
+                            context.startActivity(
+                                Intent(context, VoiceUnlockActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    }
                 }
             )
         }

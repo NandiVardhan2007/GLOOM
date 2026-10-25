@@ -139,6 +139,16 @@ class WakeWordService : Service() {
     }
 
     private fun openAssistant() {
+        val a11y = com.gloom.island.service.GloomIslandAccessibilityService.instance
+        if (a11y != null) {
+            a11y.startVoiceAssistant()
+            return
+        }
+        val overlay = com.gloom.island.service.GloomIslandOverlayService.instance
+        if (overlay != null) {
+            overlay.startVoiceAssistant()
+            return
+        }
         try {
             startActivity(
                 Intent(this, VoiceUnlockActivity::class.java)

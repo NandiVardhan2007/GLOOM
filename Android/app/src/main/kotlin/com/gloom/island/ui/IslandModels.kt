@@ -12,7 +12,8 @@ data class NotificationReplyAction(
     val label: String = "Reply",
     val pendingIntent: PendingIntent,
     val remoteInput: RemoteInput,
-    val resultKey: String
+    val resultKey: String,
+    val notificationKey: String? = null
 ) {
     fun send(context: Context, replyText: String): Boolean {
         return try {
@@ -24,8 +25,12 @@ data class NotificationReplyAction(
                 RemoteInput.setResultsSource(intent, RemoteInput.SOURCE_FREE_FORM_INPUT)
             }
             pendingIntent.send(context, 0, intent)
+            if (!notificationKey.isNullOrBlank()) {
+                com.gloom.island.service.GloomNotificationListener.instance?.cancelNotificationSafe(notificationKey)
+            }
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("NotificationReply", "Failed sending inline reply: ${e.message}", e)
             false
         }
     }
@@ -76,6 +81,7 @@ data class NotificationIslandEvent(
     val conversationTitle: String = "",
     val isGroup: Boolean = false,
     val largeIcon: Bitmap? = null,
+    val appIcon: Bitmap? = null,
     val contentIntent: PendingIntent? = null,
     val postTimeMs: Long = System.currentTimeMillis(),
     val otpCode: String? = null,
@@ -111,7 +117,54 @@ data class SystemToastEvent(
     val timestampMs: Long = System.currentTimeMillis()
 )
 
+data class SystemAlertIslandEvent(
+    val type: AlertType = AlertType.NONE,
+    val title: String = "",
+    val subtitle: String = "",
+    val level: Int = 100,
+    val isSilent: Boolean = false,
+    val isConnected: Boolean = true,
+    val timestampMs: Long = System.currentTimeMillis()
+) {
+    enum class AlertType {
+        NONE,
+        RINGER,
+        CHARGING,
+        BLUETOOTH
+    }
+}
+
 data class LockIslandEvent(
     val isUnlocked: Boolean = false,
     val timestampMs: Long = System.currentTimeMillis()
 )
+
+data class VoiceAssistantIslandEvent(
+    val isActive: Boolean = false,
+    val status: String = "Listening…",
+    val transcript: String = "",
+    val reply: String? = null,
+    val isThinking: Boolean = false,
+    val isSuccess: Boolean = false,
+    val isFailed: Boolean = false
+)
+
+data class TimerIslandEvent(
+    val isActive: Boolean = false,
+    val title: String = "Timer",
+    val remainingSeconds: Long = 0L,
+    val totalSeconds: Long = 0L,
+    val isPaused: Boolean = false,
+    val isCompleted: Boolean = false,
+    val timestampMs: Long = System.currentTimeMillis()
+) {
+    val progress: Float
+        get() = if (totalSeconds > 0) (remainingSeconds.toFloat() / totalSeconds).coerceIn(0f, 1f) else 0f
+
+    val formattedTime: String
+        get() {
+            val m = remainingSeconds / 60
+            val s = remainingSeconds % 60
+            return "%02d:%02d".format(m, s)
+        }
+}

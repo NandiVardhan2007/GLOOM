@@ -48,7 +48,9 @@ Whether on your dual-monitor Windows workstation or your Android smartphone, GLO
     <td width="50%">
       <h3 align="center">🖥️ Windows Desktop Suite</h3>
       <ul>
-        <li><b>Fluid Desktop Dock</b>: Seamless dock replacement featuring running app indicators, live hover previews, drag-and-drop reordering, and instant native window toggling.</li>
+        <li><b>Apple-Style Magnifying Dock</b>: True macOS measured metrics ($B=66\text{px}$, $M=116\text{px}$, $g=18\text{px}$, $R=3$) with fluid spring magnification, launch bounce ($0 \to -28 \to 0 \to -10 \to 0$), anchored tooltips, and two-layer zero-jitter architecture.</li>
+        <li><b>Keyboard & Accessibility First</b>: Focusable hit slots with <kbd>Tab</kbd> navigation, <kbd>Enter</kbd>/<kbd>Space</kbd> launch, and automatic <code>prefers-reduced-motion</code> adaptation.</li>
+        <li><b>High-Density Performance</b>: Seamless scale + x-offset GPU transforms for large docks ($N > 15$) eliminating layout reflows.</li>
         <li><b>Notch & Pill Topologies</b>: Switch between a classic floating squircle pill and a MacBook-style flush bezel notch with concave shoulder curves.</li>
         <li><b>Layered Pass-Through Architecture</b>: Transparent topmost overlay (<code>WS_EX_LAYERED</code>) with pixel-accurate click-through detection.</li>
         <li><b>Fullscreen Intelligence</b>: Auto-suppresses when full-screen 3D games, presentations, or video players gain focus.</li>

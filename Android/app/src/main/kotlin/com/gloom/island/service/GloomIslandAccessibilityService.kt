@@ -32,6 +32,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import java.lang.reflect.Proxy
 import android.view.accessibility.AccessibilityEvent
 import androidx.compose.runtime.Recomposer
@@ -58,8 +59,16 @@ import com.gloom.island.ui.ActiveTransferInfo
 import com.gloom.island.ui.BridgeDeviceInfo
 import com.gloom.island.ui.GloomIslandApp
 import com.gloom.island.ui.MediaTrackInfo
+import android.Manifest
+import android.content.pm.PackageManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import com.gloom.island.ui.VoiceAssistantIslandEvent
 import com.gloom.island.ui.LockIslandEvent
 import com.gloom.island.ui.NotificationIslandEvent
+import com.gloom.island.ui.SystemAlertIslandEvent
+import android.bluetooth.BluetoothDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -147,6 +156,295 @@ class GloomIslandAccessibilityService : AccessibilityService() {
 
     private var activeLockEvent by mutableStateOf<LockIslandEvent?>(null)
     private var lockEventJob: Job? = null
+    private var voiceAssistantEvent by mutableStateOf<VoiceAssistantIslandEvent?>(null)
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var voiceCollapseJob: Job? = null
+
+    private var activeSystemAlert by mutableStateOf<SystemAlertIslandEvent?>(null)
+    private var systemAlertJob: Job? = null
+
+    private var activeTimer by mutableStateOf<com.gloom.island.ui.TimerIslandEvent?>(null)
+    private var timerTickerJob: Job? = null
+
+    fun showSystemAlert(alert: SystemAlertIslandEvent) {
+        serviceScope.launch {
+            systemAlertJob?.cancel()
+            activeSystemAlert = alert
+            updateOverlayDimensions(isExpanded = false)
+            systemAlertJob = launch {
+                val duration = if (alert.type == SystemAlertIslandEvent.AlertType.CHARGING) 3000L else 2500L
+                delay(duration)
+                if (activeSystemAlert?.timestampMs == alert.timestampMs) {
+                    activeSystemAlert = null
+                    updateOverlayDimensions(isExpanded = false)
+                }
+            }
+        }
+    }
+
+    fun startVoiceAssistant() {
+        mainHandler.post {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                voiceAssistantEvent = VoiceAssistantIslandEvent(
+                    isActive = true,
+                    status = "Microphone access required",
+                    isFailed = true
+                )
+                expandIsland()
+                speak("Microphone access is required.")
+                return@post
+            }
+
+            voiceAssistantEvent = VoiceAssistantIslandEvent(
+                isActive = true,
+                status = "Listening…",
+                transcript = "",
+                reply = null,
+                isThinking = false
+            )
+            expandIsland()
+
+            try {
+                speechRecognizer?.destroy()
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                    setRecognitionListener(object : RecognitionListener {
+                        override fun onReadyForSpeech(params: android.os.Bundle?) {
+                            voiceAssistantEvent = voiceAssistantEvent?.copy(status = "Listening…")
+                        }
+                        override fun onBeginningOfSpeech() {
+                            voiceAssistantEvent = voiceAssistantEvent?.copy(status = "Listening…")
+                        }
+                        override fun onRmsChanged(rmsdB: Float) = Unit
+                        override fun onBufferReceived(buffer: ByteArray?) = Unit
+                        override fun onEndOfSpeech() {
+                            voiceAssistantEvent = voiceAssistantEvent?.copy(status = "Thinking…", isThinking = true)
+                        }
+                        override fun onError(error: Int) {
+                            val msg = when (error) {
+                                SpeechRecognizer.ERROR_NO_MATCH -> "I didn't catch that"
+                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
+                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone access required"
+                                else -> "Voice unavailable right now"
+                            }
+                            voiceAssistantEvent = voiceAssistantEvent?.copy(
+                                status = msg,
+                                isThinking = false,
+                                isFailed = true
+                            )
+                        }
+                        override fun onResults(results: android.os.Bundle?) {
+                            val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                ?.firstOrNull().orEmpty()
+                            handleVoiceAssistantTranscript(text)
+                        }
+                        override fun onPartialResults(partialResults: android.os.Bundle?) {
+                            val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                ?.firstOrNull().orEmpty()
+                            if (text.isNotBlank()) {
+                                voiceAssistantEvent = voiceAssistantEvent?.copy(transcript = text)
+                            }
+                        }
+                        override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
+                    })
+                }
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+                }
+                speechRecognizer?.startListening(intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "SpeechRecognizer start error", e)
+                voiceAssistantEvent = voiceAssistantEvent?.copy(
+                    status = "Speech recognition unavailable",
+                    isFailed = true
+                )
+            }
+        }
+    }
+
+    private fun handleVoiceAssistantTranscript(text: String) {
+        if (text.isBlank()) {
+            voiceAssistantEvent = voiceAssistantEvent?.copy(
+                status = "I didn't catch that",
+                isThinking = false,
+                isFailed = true
+            )
+            return
+        }
+        voiceAssistantEvent = voiceAssistantEvent?.copy(transcript = text, status = "Thinking…", isThinking = true)
+
+        val lower = text.lowercase()
+        val isUnlock = lower.contains("unlock") || lower.contains("open my phone") || lower.contains("open the phone")
+        if (isUnlock) {
+            val keyguard = getSystemService(KeyguardManager::class.java)
+            if (keyguard?.isKeyguardLocked != true) {
+                voiceAssistantEvent = voiceAssistantEvent?.copy(
+                    status = "Already unlocked",
+                    reply = "Your phone is already unlocked.",
+                    isThinking = false,
+                    isSuccess = true
+                )
+                speak("Your phone is already unlocked.")
+                scheduleVoiceAssistantCollapse(2500)
+                return
+            }
+            val pattern = GloomSecurity.loadPattern(this)
+            if (pattern.isNotEmpty()) {
+                voiceAssistantEvent = voiceAssistantEvent?.copy(
+                    status = "Unlocking…",
+                    isThinking = false,
+                    isSuccess = true
+                )
+                collapseIsland(immediate = true)
+                performUnlockPattern(pattern)
+                return
+            } else {
+                voiceAssistantEvent = voiceAssistantEvent?.copy(
+                    status = "Unlocking…",
+                    isThinking = false,
+                    isSuccess = true
+                )
+                collapseIsland(immediate = true)
+                try {
+                    startActivity(
+                        Intent(this, VoiceUnlockActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .putExtra("prompt_only", true)
+                    )
+                } catch (_: Exception) {}
+                return
+            }
+        }
+
+        // Action routing
+        val cleaned = com.gloom.island.automation.CommandRouter.cleanSpeech(text)
+        val isAction = com.gloom.island.automation.CommandRouter.isCommand(cleaned) ||
+            com.gloom.island.automation.AiPlanner.looksLikeAction(cleaned)
+
+        if (isAction) {
+            Thread {
+                var outcome = com.gloom.island.automation.CommandRouter.handle(applicationContext, cleaned)
+                if (!outcome.handled) {
+                    outcome = com.gloom.island.automation.LocalBrain.answer(applicationContext, cleaned)
+                }
+                if (!outcome.handled) {
+                    outcome = com.gloom.island.automation.AiPlanner.run(applicationContext, cleaned)
+                }
+                val msg = outcome.message.ifBlank { if (outcome.success) "Done." else "I couldn't do that." }
+                mainHandler.post {
+                    voiceAssistantEvent = voiceAssistantEvent?.copy(
+                        status = if (outcome.success) "Done" else "Failed",
+                        reply = msg,
+                        isThinking = false,
+                        isSuccess = outcome.success,
+                        isFailed = !outcome.success
+                    )
+                    speak(msg)
+                    scheduleVoiceAssistantCollapse(4000)
+                }
+            }.start()
+            return
+        }
+
+        // Question routing
+        val local = com.gloom.island.automation.LocalBrain.answer(applicationContext, text)
+        if (local.handled) {
+            voiceAssistantEvent = voiceAssistantEvent?.copy(
+                status = "GLOOM",
+                reply = local.message,
+                isThinking = false,
+                isSuccess = true
+            )
+            speak(local.message)
+            scheduleVoiceAssistantCollapse(5000)
+            return
+        }
+
+        if (GloomIslandSettings.instance.aiBrain == "local") {
+            val msg = "That needs the desktop model, and the on-device brain is selected."
+            voiceAssistantEvent = voiceAssistantEvent?.copy(
+                status = "On-device brain",
+                reply = msg,
+                isThinking = false,
+                isFailed = true
+            )
+            speak(msg)
+            return
+        }
+
+        if (!com.gloom.island.ai.AiRouter.canReachModel(applicationContext)) {
+            val msg = "Add a cloud key in Settings > AI & Brain, or pair with desktop."
+            voiceAssistantEvent = voiceAssistantEvent?.copy(
+                status = "AI Model unreachable",
+                reply = msg,
+                isThinking = false,
+                isFailed = true
+            )
+            speak(msg)
+            return
+        }
+
+        val timeContext = com.gloom.island.automation.LocalBrain.liveTimeAndDate()
+        val batteryContext = com.gloom.island.automation.LocalBrain.battery(applicationContext)
+        val wifiContext = com.gloom.island.automation.SystemTools.getWifiStatus(applicationContext)
+        val volContext = com.gloom.island.automation.SystemTools.getVolumeStatus(applicationContext)
+        val systemPrompt = "You are GLOOM, the personal AI assistant living inside the Dynamic Island of this Android phone. " +
+            "Keep answers concise, natural, and under two sentences. " +
+            "Current live phone status: $timeContext, $batteryContext, $wifiContext, $volContext."
+
+        com.gloom.island.ai.AiRouter.request(
+            applicationContext,
+            listOf(
+                "system" to systemPrompt,
+                "user" to text
+            )
+        ) { answer, error, _ ->
+            mainHandler.post {
+                if (answer != null) {
+                    voiceAssistantEvent = voiceAssistantEvent?.copy(
+                        status = "GLOOM",
+                        reply = answer,
+                        isThinking = false,
+                        isSuccess = true
+                    )
+                    speak(answer)
+                    scheduleVoiceAssistantCollapse(7000)
+                } else {
+                    val errMsg = error ?: "I couldn't reach the assistant"
+                    voiceAssistantEvent = voiceAssistantEvent?.copy(
+                        status = errMsg,
+                        reply = errMsg,
+                        isThinking = false,
+                        isFailed = true
+                    )
+                    speak(errMsg)
+                }
+            }
+        }
+    }
+
+    fun closeVoiceAssistant() {
+        speechRecognizer?.stopListening()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        voiceAssistantEvent = null
+        collapseIsland()
+    }
+
+    private fun scheduleVoiceAssistantCollapse(delayMs: Long) {
+        voiceCollapseJob?.cancel()
+        voiceCollapseJob = serviceScope.launch {
+            delay(delayMs)
+            if (voiceAssistantEvent?.isThinking != true) {
+                closeVoiceAssistant()
+            }
+        }
+    }
 
     fun triggerLockEvent(isUnlocked: Boolean) {
         serviceScope.launch {
@@ -213,6 +511,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
             composeView?.visibility = View.VISIBLE
         }
         triggerLockEvent(isUnlocked = true)
+        composeView?.requestLayout()
     }
 
     private val internalLockReceiver = object : BroadcastReceiver() {
@@ -233,6 +532,78 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                 isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                         status == BatteryManager.BATTERY_STATUS_FULL
                 batteryLevel = if (level >= 0 && scale > 0) (level * 100) / scale else 100
+            }
+        }
+    }
+
+    private val hardwareAlertReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                AudioManager.RINGER_MODE_CHANGED_ACTION -> {
+                    val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    val mode = intent.getIntExtra(
+                        AudioManager.EXTRA_RINGER_MODE,
+                        am?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
+                    )
+                    val isSilent = (mode == AudioManager.RINGER_MODE_SILENT || mode == AudioManager.RINGER_MODE_VIBRATE)
+                    showSystemAlert(
+                        SystemAlertIslandEvent(
+                            type = SystemAlertIslandEvent.AlertType.RINGER,
+                            isSilent = isSilent,
+                            title = if (isSilent) "Silent" else "Ring"
+                        )
+                    )
+                }
+                Intent.ACTION_POWER_CONNECTED -> {
+                    showSystemAlert(
+                        SystemAlertIslandEvent(
+                            type = SystemAlertIslandEvent.AlertType.CHARGING,
+                            level = batteryLevel,
+                            subtitle = "Charging"
+                        )
+                    )
+                }
+                Intent.ACTION_POWER_DISCONNECTED -> {
+                    showSystemAlert(
+                        SystemAlertIslandEvent(
+                            type = SystemAlertIslandEvent.AlertType.CHARGING,
+                            level = batteryLevel,
+                            subtitle = "Unplugged"
+                        )
+                    )
+                }
+                BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                    val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    }
+                    val name = try { device?.name } catch (_: SecurityException) { null } ?: "Headphones"
+                    showSystemAlert(
+                        SystemAlertIslandEvent(
+                            type = SystemAlertIslandEvent.AlertType.BLUETOOTH,
+                            title = name,
+                            isConnected = true
+                        )
+                    )
+                }
+                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                    val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    }
+                    val name = try { device?.name } catch (_: SecurityException) { null } ?: "Headphones"
+                    showSystemAlert(
+                        SystemAlertIslandEvent(
+                            type = SystemAlertIslandEvent.AlertType.BLUETOOTH,
+                            title = name,
+                            isConnected = false
+                        )
+                    )
+                }
             }
         }
     }
@@ -421,6 +792,16 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
         registerReceiver(lockReceiver, lockFilter)
 
+        // Hardware & System Alert HUD Broadcasts (Ringer, Charging, Bluetooth)
+        val hardwareFilter = IntentFilter().apply {
+            addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        registerReceiver(hardwareAlertReceiver, hardwareFilter)
+
         // Internal app lock event broadcast (not exported to external apps)
         val internalLockFilter = IntentFilter("com.gloom.island.ACTION_LOCK_EVENT")
         ContextCompat.registerReceiver(this, internalLockReceiver, internalLockFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -441,10 +822,13 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                     }
                     notificationJob?.cancel()
                     notificationJob = launch {
-                        delay((GloomIslandSettings.instance.autoCollapseDelaySec * 1000).toLong())
-                        activeNotification = null
-                        if (isExpanded) {
-                            collapseIsland()
+                        val delayMs = (GloomIslandSettings.instance.autoCollapseDelaySec * 1000).toLong().coerceAtLeast(3500L)
+                        delay(delayMs)
+                        if (!isInputFocusEnabled) {
+                            if (isExpanded) {
+                                collapseIsland()
+                            }
+                            activeNotification = null
                         }
                     }
                 }
@@ -454,6 +838,30 @@ class GloomIslandAccessibilityService : AccessibilityService() {
             serviceScope.launch {
                 if (activeNotification?.id == key) {
                     activeNotification = null
+                }
+            }
+        }
+        GloomNotificationListener.onTimerUpdate = { timer ->
+            serviceScope.launch {
+                timerTickerJob?.cancel()
+                activeTimer = timer
+                if (timer != null && timer.remainingSeconds > 0) {
+                    timerTickerJob = launch {
+                        while (activeTimer?.isActive == true && (activeTimer?.remainingSeconds ?: 0) > 0) {
+                            delay(1000)
+                            if (activeTimer?.isPaused == false) {
+                                val rem = (activeTimer?.remainingSeconds ?: 1) - 1
+                                if (rem <= 0) {
+                                    activeTimer = activeTimer?.copy(remainingSeconds = 0, isCompleted = true)
+                                    delay(4000)
+                                    activeTimer = null
+                                    break
+                                } else {
+                                    activeTimer = activeTimer?.copy(remainingSeconds = rem)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -486,7 +894,12 @@ class GloomIslandAccessibilityService : AccessibilityService() {
 
     private fun getCollapsedHeightPx(): Int {
         val density = resources.displayMetrics.density
-        return ((GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16) * density).toInt()
+        val heightDp = if (activeSystemAlert != null && activeSystemAlert?.type != SystemAlertIslandEvent.AlertType.NONE) {
+            GloomIslandSettings.instance.positionY + 48 + 16
+        } else {
+            GloomIslandSettings.instance.positionY + GloomIslandSettings.instance.pillHeight + 16
+        }
+        return (heightDp * density).toInt()
     }
 
 
@@ -541,20 +954,37 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         val initialHeight = if (isExpanded) {
             dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         } else {
-            getCollapsedHeightPx()
+            dpToPx((GloomIslandSettings.instance.pillHeight + 12).toFloat())
+        }
+        val initialWidth = if (isExpanded) {
+            WindowManager.LayoutParams.MATCH_PARENT
+        } else {
+            dpToPx((GloomIslandSettings.instance.pillWidth + 12).toFloat())
+        }
+        val density = resources.displayMetrics.density
+        val initialX = if (isExpanded) 0 else (GloomIslandSettings.instance.positionX * density).toInt()
+        val initialY = if (isExpanded) 0 else (GloomIslandSettings.instance.positionY * density).toInt()
+        val initialGravity = if (isExpanded) {
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        } else {
+            when (GloomIslandSettings.instance.gravity) {
+                "Left" -> Gravity.TOP or Gravity.START
+                "Right" -> Gravity.TOP or Gravity.END
+                else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            }
         }
 
         // TYPE_ACCESSIBILITY_OVERLAY renders above Lock Screen / Keyguard
-        // Anchored permanently to MATCH_PARENT full width to eliminate horizontal buffer resize artifacts
         layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            initialWidth,
             initialHeight,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             getOverlayFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = 0
+            gravity = initialGravity
+            x = initialX
+            y = initialY
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -595,16 +1025,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                 GloomIslandApp(
                     isExpanded = isExpanded,
                     onToggleExpand = { toggleIslandExpansion() },
-                                        onLongPressExpand = {
-                        try {
-                            startActivity(
-                                Intent(this@GloomIslandAccessibilityService, VoiceUnlockActivity::class.java)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        } catch (_: Exception) {
-                            expandIsland()
-                        }
-                    },
+                    onLongPressExpand = { startVoiceAssistant() },
                     onBeamSampleFile = {
                         val itn = Intent(this@GloomIslandAccessibilityService, com.gloom.island.bridge.ShareToPcActivity::class.java).apply {
                             action = "com.gloom.island.ACTION_PICK_AND_SHARE"
@@ -639,8 +1060,31 @@ class GloomIslandAccessibilityService : AccessibilityService() {
                     isInstagramForeground = isInstagramForeground,
                     showReelCounterUntil = showReelCounterUntil,
                     lockEvent = activeLockEvent,
-                    onSwipeDown = {
-                        performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    activeTimer = activeTimer,
+                    onTimerPauseResume = {
+                        activeTimer = activeTimer?.copy(isPaused = !(activeTimer?.isPaused ?: false))
+                    },
+                    onTimerCancel = {
+                        timerTickerJob?.cancel()
+                        activeTimer = null
+                    },
+                    voiceAssistant = voiceAssistantEvent,
+                    onVoiceAssistantAskAgain = { startVoiceAssistant() },
+                    onVoiceAssistantClose = { closeVoiceAssistant() },
+                    systemAlert = activeSystemAlert,
+                    onSystemAlertDismiss = {
+                        activeSystemAlert = null
+                        updateOverlayDimensions(isExpanded = false)
+                    },
+                    onSwipeDown = { isRightSide ->
+                        if (isRightSide) {
+                            performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+                        } else {
+                            performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                        }
+                    },
+                    onInputFocusChanged = { enabled ->
+                        setInputFocusEnabled(enabled)
                     },
                     settings = GloomIslandSettings.instance
                 )
@@ -649,6 +1093,9 @@ class GloomIslandAccessibilityService : AccessibilityService() {
 
         view.setOnTouchListener { _, event ->
             if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
+                if (isInputFocusEnabled) {
+                    setInputFocusEnabled(false)
+                }
                 if (isExpanded) {
                     collapseIsland()
                 }
@@ -665,49 +1112,76 @@ class GloomIslandAccessibilityService : AccessibilityService() {
 
     @SuppressLint("PrivateApi")
     private fun setupTouchableRegion(view: View) {
-        try {
-            val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
-            val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
-            val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
-            val touchableRegionField = insetsInfoClass.getField("touchableRegion")
-            val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
+        val register = { targetView: View ->
+            try {
+                val listenerClass = Class.forName("android.view.ViewTreeObserver\$OnComputeInternalInsetsListener")
+                val insetsInfoClass = Class.forName("android.view.ViewTreeObserver\$InternalInsetsInfo")
+                val setTouchableInsetsMethod = insetsInfoClass.getMethod("setTouchableInsets", Int::class.javaPrimitiveType)
+                val touchableRegionField = insetsInfoClass.getField("touchableRegion")
+                val regionSetMethod = Region::class.java.getMethod("set", Rect::class.java)
 
-            val proxy = Proxy.newProxyInstance(
-                listenerClass.classLoader,
-                arrayOf(listenerClass)
-            ) { _, method, args ->
-                if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
-                    val inoutInfo = args[0]
-                    if (!isExpanded) {
-                        val density = resources.displayMetrics.density
-                        val screenWidth = resources.displayMetrics.widthPixels
-                        val pillWidthPx = ((GloomIslandSettings.instance.pillWidth + 32) * density).toInt()
-                        val pillHeightPx = ((GloomIslandSettings.instance.pillHeight + 20) * density).toInt()
-                        val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
-                        val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
-                        val left = when (GloomIslandSettings.instance.gravity) {
-                            "Left" -> posXOffsetPx
-                            "Right" -> screenWidth - pillWidthPx + posXOffsetPx
-                            else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                val proxy = Proxy.newProxyInstance(
+                    listenerClass.classLoader,
+                    arrayOf(listenerClass)
+                ) { _, method, args ->
+                    if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
+                        val inoutInfo = args[0]
+                        if (!isExpanded) {
+                            val density = resources.displayMetrics.density
+                            val screenWidth = resources.displayMetrics.widthPixels
+                            val currentPillWidth = if (activeSystemAlert != null && activeSystemAlert?.type != SystemAlertIslandEvent.AlertType.NONE) {
+                                232 + 16
+                            } else {
+                                GloomIslandSettings.instance.pillWidth + 16
+                            }
+                            val currentPillHeight = if (activeSystemAlert != null && activeSystemAlert?.type != SystemAlertIslandEvent.AlertType.NONE) {
+                                48 + 12
+                            } else {
+                                GloomIslandSettings.instance.pillHeight + 12
+                            }
+                            val pillWidthPx = (currentPillWidth * density).toInt()
+                            val pillHeightPx = (currentPillHeight * density).toInt()
+                            val posYPx = (GloomIslandSettings.instance.positionY * density).toInt()
+                            val posXOffsetPx = (GloomIslandSettings.instance.positionX * density).toInt()
+                            val left = when (GloomIslandSettings.instance.gravity) {
+                                "Left" -> posXOffsetPx
+                                "Right" -> screenWidth - pillWidthPx + posXOffsetPx
+                                else -> ((screenWidth - pillWidthPx) / 2) + posXOffsetPx
+                            }
+                            val right = left + pillWidthPx
+                            val top = posYPx.coerceAtLeast(0)
+                            val bottom = posYPx + pillHeightPx
+
+                            setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
+                            val region = touchableRegionField.get(inoutInfo) as Region
+                            regionSetMethod.invoke(region, Rect(left, top, right, bottom))
+                        } else {
+                            setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
                         }
-                        val right = left + pillWidthPx
-                        val top = 0
-                        val bottom = posYPx + pillHeightPx
-
-                        setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
-                        val region = touchableRegionField.get(inoutInfo) as Region
-                        regionSetMethod.invoke(region, Rect(left, top, right, bottom))
-                    } else {
-                        setTouchableInsetsMethod.invoke(inoutInfo, 0) // TOUCHABLE_INSETS_FRAME
                     }
+                    null
                 }
-                null
-            }
 
-            val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
-            addMethod.invoke(view.viewTreeObserver, proxy)
-        } catch (_: Exception) {
-            // Fallback gracefully on custom ROMs
+                val observer = targetView.viewTreeObserver
+                if (observer.isAlive) {
+                    val addMethod = ViewTreeObserver::class.java.getMethod("addOnComputeInternalInsetsListener", listenerClass)
+                    addMethod.invoke(observer, proxy)
+                    Log.i(TAG, "OnComputeInternalInsetsListener registered on active ViewTreeObserver")
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "Could not register OnComputeInternalInsetsListener: ${e.message}", e)
+            }
+        }
+
+        if (view.isAttachedToWindow) {
+            register(view)
+        } else {
+            view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    register(v)
+                }
+                override fun onViewDetachedFromWindow(v: View) {}
+            })
         }
     }
 
@@ -737,6 +1211,10 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun updateOverlayDimensions(isExpanded: Boolean = this.isExpanded) {
+        updateOverlayParameters()
+    }
+
     private fun updateOverlayParameters() {
         val view = composeView ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
@@ -755,6 +1233,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         layoutParams.flags = getOverlayFlags()
         layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         layoutParams.x = 0
+        layoutParams.y = 0
         layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = if (isExpanded) {
             dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
@@ -763,6 +1242,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
         try {
             windowManager.updateViewLayout(view, layoutParams)
+            view.requestLayout()
         } catch (e: Exception) {
             Log.w(TAG, "Error updating overlay layout", e)
         }
@@ -771,16 +1251,19 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     private fun expandIsland() {
         if (!GloomIslandSettings.instance.isIslandEnabled) return
         isExpanded = true
+        notificationJob?.cancel()
         windowResizeJob?.cancel()
         val view = composeView ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
         layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         layoutParams.x = 0
+        layoutParams.y = 0
         layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
         layoutParams.flags = getOverlayFlags()
         try {
             windowManager.updateViewLayout(view, layoutParams)
+            view.requestLayout()
         } catch (e: Exception) {
             Log.w(TAG, "Error expanding overlay view", e)
         }
@@ -789,6 +1272,9 @@ class GloomIslandAccessibilityService : AccessibilityService() {
     private fun collapseIsland(immediate: Boolean = false) {
         if (!isExpanded && !immediate && windowResizeJob == null) return
         isExpanded = false
+        if (isInputFocusEnabled) {
+            setInputFocusEnabled(false)
+        }
         windowResizeJob?.cancel()
         if (immediate) {
             applyCollapsedDimensions()
@@ -805,16 +1291,60 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
     }
 
+    private var isInputFocusEnabled = false
+
+    private fun setInputFocusEnabled(enabled: Boolean) {
+        if (isInputFocusEnabled == enabled) return
+        isInputFocusEnabled = enabled
+        val view = composeView ?: return
+        if (!isViewAttached && !view.isAttachedToWindow) return
+
+        if (enabled) {
+            notificationJob?.cancel()
+            layoutParams.flags = layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
+            try {
+                windowManager.updateViewLayout(view, layoutParams)
+                view.isFocusable = true
+                view.isFocusableInTouchMode = true
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error enabling input focus", e)
+            }
+        } else {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(view.windowToken, 0)
+            layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED
+            if (isExpanded) {
+                layoutParams.height = dpToPx((GloomIslandSettings.instance.expandedHeight + GloomIslandSettings.instance.positionY + 44).toFloat())
+            } else {
+                layoutParams.height = dpToPx((GloomIslandSettings.instance.pillHeight + GloomIslandSettings.instance.positionY + 8).toFloat())
+            }
+            try {
+                windowManager.updateViewLayout(view, layoutParams)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error disabling input focus", e)
+            }
+        }
+    }
+
     private fun applyCollapsedDimensions() {
         val view = composeView ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
+
         layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         layoutParams.x = 0
+        layoutParams.y = 0
         layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
         layoutParams.height = getCollapsedHeightPx()
         layoutParams.flags = getOverlayFlags()
         try {
             windowManager.updateViewLayout(view, layoutParams)
+            view.requestLayout()
         } catch (e: Exception) {
             Log.w(TAG, "Error applying collapsed dimensions", e)
         }
@@ -1346,6 +1876,8 @@ class GloomIslandAccessibilityService : AccessibilityService() {
         }
         instance = null
         isRunning = false
+        speechRecognizer?.destroy()
+        speechRecognizer = null
         tts?.stop()
         tts?.shutdown()
         tts = null
@@ -1361,6 +1893,7 @@ class GloomIslandAccessibilityService : AccessibilityService() {
             unregisterReceiver(batteryReceiver)
             unregisterReceiver(lockReceiver)
             unregisterReceiver(internalLockReceiver)
+            unregisterReceiver(hardwareAlertReceiver)
         } catch (e: Exception) {}
         removeOverlaySafely()
     }

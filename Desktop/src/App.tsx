@@ -739,8 +739,7 @@ function App() {
 		wanted.push(
 			...measureElements([
 				[".activity-bubble", 16],
-				[".status-tooltip", 28],
-				[".screen-corner", 0]
+				[".status-tooltip", 28]
 			])
 		);
 		sendNotchRegion(wanted);
@@ -962,9 +961,6 @@ function App() {
 	const [settingsCompactGlowEnabled, setSettingsCompactGlowEnabled] = useState(
 		() => localStorage.getItem("gloom-media-compact-glow-enabled") !== "false"
 	);
-	const [settingsCornersEnabled, setSettingsCornersEnabled] = useState(
-		() => localStorage.getItem("gloom-corners-enabled") === "true"
-	);
 	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
 		() => (localStorage.getItem("gloom-media-layout") as "classic" | "compact") || "classic"
 	);
@@ -1014,7 +1010,6 @@ function App() {
 				setSettingsCompactGlowEnabled(
 					getVal("gloom-media-compact-glow-enabled", "true") !== "false"
 				);
-				setSettingsCornersEnabled(getVal("gloom-corners-enabled", "false") === "true");
 				setTimeFormat24h(getVal("gloom-time-format-24h") === "true");
 
 				const thresholdStr = getVal("gloom-low-battery-threshold", "20");
@@ -1029,11 +1024,6 @@ function App() {
 				if (windowLabel === "main") {
 					const firstRun = localStorage.getItem("gloom-first-run") === null;
 					if (firstRun) {
-						import("@tauri-apps/plugin-autostart").then(({ enable, isEnabled }) => {
-							isEnabled().then((enabled) => {
-								if (!enabled) enable().catch(() => {});
-							});
-						});
 						localStorage.setItem("gloom-first-run", "done");
 					}
 					const rawDockMode = getVal("gloom-dock-mode", "smart") as string;
@@ -1141,7 +1131,6 @@ function App() {
 			"gloom-media-ambience-enabled": setSettingsAmbienceEnabled,
 			"gloom-media-compact-glow-enabled": setSettingsCompactGlowEnabled,
 			"gloom-media-layout": setMediaLayout,
-			"gloom-corners-enabled": setSettingsCornersEnabled,
 			"gloom-scale": setScale,
 			"gloom-low-battery-threshold": setLowBatteryThreshold,
 			"gloom-dock-enabled": setDockEnabled,
@@ -2851,29 +2840,10 @@ function App() {
 	// state. Sent after every render, but only when the region changes.
 	useEffect(() => {
 		if (windowLabel === "main") updateNotchRegion();
-	});
+	}, [pillTargetWidth, pillTargetHeight, isExpanded, isOpen, isHidden, isVisible, interactionState, musicActivity, shelfItems.length, statusWidget]);
 
 	return (
 		<div className="screen" style={{ overflow: "hidden" }}>
-			{/* Screen Corners (Top) */}
-			<AnimatePresence>
-				{isVisible && settingsCornersEnabled && (
-					<>
-						<motion.div
-							className="screen-corner top-left"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1, filter: "blur(0px)" }}
-							exit={{ opacity: 0, filter: "blur(10px)" }}
-						/>
-						<motion.div
-							className="screen-corner top-right"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1, filter: "blur(0px)" }}
-							exit={{ opacity: 0, filter: "blur(10px)" }}
-						/>
-					</>
-				)}
-			</AnimatePresence>
 
 			<div
 				style={{

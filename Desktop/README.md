@@ -73,14 +73,17 @@ It feels mechanical. In a good way.
   <img width="576" height="102" alt="Gloom Dock" src="https://github.com/user-attachments/assets/96229f0e-1246-4baf-b8ad-3e8f77142a12" />
 </p>
 
-A taskbar that actually moves.
+An authentic Apple-style magnifying dock that replaces your native Windows taskbar.
 
-Gloom replaces your native Windows taskbar.
-It sits at the bottom of your screen, always there when you need it.
+It sits anchored at the bottom edge of your screen, always there when you need it.
 
-Drag to reorder.
-Hover for window previews.
-Right-click for context menus.
+- **Fluid Magnification**: Hovering over icons expands them upward with spring physics ($B=66\text{px} \to M=116\text{px}$) with natural falloff across adjacent neighbors.
+- **Two-Layer Architecture**: Visual layer renders freely with `pointer-events: none` while an invisible hit layer of fixed-width slots ($84\text{px}$) eliminates hover jitter.
+- **Launch Bounce**: Clicking an icon triggers an iconic launch bounce (`0 → -28 → 0 → -10 → 0` over ~0.6s) that replays on repeated clicks.
+- **Anchored Tooltips**: Labels stay anchored 8px above the icon's top edge, following its vertical growth smoothly.
+- **Full Keyboard Navigation**: Focusable hit slots with <kbd>Tab</kbd> navigation and <kbd>Enter</kbd>/<kbd>Space</kbd> activation.
+- **High-Density Scaling**: Above 15 icons, switches seamlessly to scale and X-offset GPU transforms to eliminate reflow overhead.
+- **Live Window Previews & Context Menus**: Hover running apps for rich thumbnail previews or right-click for quick actions.
 
 It's not an overlay.
 It _is_ your taskbar.

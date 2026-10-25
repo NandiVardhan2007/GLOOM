@@ -649,8 +649,8 @@ unsafe extern "system" fn taskbar_event_proc(
         let class_str = std::str::from_utf8(&class_name[..len as usize]).unwrap_or("");
 
         if class_str == "Shell_TrayWnd" || class_str == "Shell_SecondaryTrayWnd" {
-            // Taskbar is trying to show or move: slap it back down.
-            set_taskbar_visibility(false, false);
+            // Taskbar is trying to show or move: quiet slap-down without broadcast.
+            crate::utils::enforce_taskbar_hidden();
         }
     }
 }
@@ -937,12 +937,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
     let (tx, rx) = channel::<SystemCommand>();
     let handle_system = app_handle.clone();
     std::thread::spawn(move || {
-        use base64::{engine::general_purpose, Engine as _};
-        use windows::Media::Control::{
-            GlobalSystemMediaTransportControlsSessionManager,
-            GlobalSystemMediaTransportControlsSessionPlaybackStatus,
-        };
-        use windows::Storage::Streams::DataReader;
+        use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
         use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
         use windows::Win32::Media::Audio::{eConsole, eRender, IMMDeviceEnumerator};
         use windows::Win32::System::Com::{
@@ -977,18 +972,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
             let mut manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
                 .and_then(|op| op.get())
                 .ok();
-            let mut last_processed_media = std::time::Instant::now();
             let mut last_device_check = std::time::Instant::now();
-            #[allow(clippy::type_complexity)]
-            let mut last_emitted_info: Option<(
-                String,
-                String,
-                bool,
-                bool,
-                Option<String>,
-                i64,
-                i64,
-            )> = None;
             let mut last_volume: f32 = -1.0;
             let mut last_muted: bool = false;
 
@@ -1081,13 +1065,6 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                         }
                         (SystemCommand::ToggleVisibility(visible), _) => {
                             let _ = handle_system.emit("visibility-change", visible);
-                            if let Some(w) = handle_system.get_webview_window("bottom-corners") {
-                                if visible {
-                                    let _ = w.show();
-                                } else {
-                                    let _ = w.hide();
-                                }
-                            }
                         }
                     }
                 }
@@ -1111,181 +1088,153 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                         }
                     }
                 }
-                if last_processed_media.elapsed().as_millis() >= 2000 {
-                    last_processed_media = std::time::Instant::now();
-                    let mut best_info: Option<MediaInfo> = None;
-                    if let Some(ref mgr) = manager {
-                        if let Ok(sessions) = mgr.GetSessions() {
-                            for i in 0..sessions.Size().unwrap_or(0) {
-                                if let Ok(session) = sessions.GetAt(i) {
-                                    let is_playing = session
-										.GetPlaybackInfo()
-										.ok()
-										.and_then(|p| p.PlaybackStatus().ok())
-										== Some(GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
-                                    if let Ok(props) =
-                                        session.TryGetMediaPropertiesAsync().and_then(|op| op.get())
-                                    {
-                                        let title = props.Title().unwrap_or_default().to_string();
-                                        if !title.is_empty() {
-                                            let artist =
-                                                props.Artist().unwrap_or_default().to_string();
-                                            let mut artwork = None;
-                                            let mut got_art_from_cache = false;
-                                            if let Some((
-                                                ref last_title,
-                                                ref last_artist,
-                                                _,
-                                                _,
-                                                ref last_art,
-                                                _,
-                                                _,
-                                            )) = last_emitted_info
-                                            {
-                                                if last_title == &title && last_artist == &artist {
-                                                    artwork = last_art
-                                                        .as_ref()
-                                                        .map(|art| vec![art.clone()]);
-                                                    got_art_from_cache = true;
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+    });
+
+    let handle_media = app_handle.clone();
+    std::thread::spawn(move || {
+        use base64::{engine::general_purpose, Engine as _};
+        use windows::Media::Control::{
+            GlobalSystemMediaTransportControlsSessionManager,
+            GlobalSystemMediaTransportControlsSessionPlaybackStatus,
+        };
+        use windows::Storage::Streams::DataReader;
+        use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let mut manager: Option<GlobalSystemMediaTransportControlsSessionManager> = None;
+            let mut last_emitted_info: Option<(String, String, bool, bool, Option<String>, i64, i64)> = None;
+
+            loop {
+                if SHUTTING_DOWN.load(Ordering::Relaxed) {
+                    break;
+                }
+                if manager.is_none() {
+                    manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+                        .and_then(|op| op.get())
+                        .ok();
+                }
+                let mut best_info: Option<MediaInfo> = None;
+                if let Some(ref mgr) = manager {
+                    if let Ok(sessions) = mgr.GetSessions() {
+                        for i in 0..sessions.Size().unwrap_or(0) {
+                            if let Ok(session) = sessions.GetAt(i) {
+                                let is_playing = session
+                                    .GetPlaybackInfo()
+                                    .ok()
+                                    .and_then(|p| p.PlaybackStatus().ok())
+                                    == Some(GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
+                                if let Ok(props) =
+                                    session.TryGetMediaPropertiesAsync().and_then(|op| op.get())
+                                {
+                                    let title = props.Title().unwrap_or_default().to_string();
+                                    if !title.is_empty() {
+                                        let artist = props.Artist().unwrap_or_default().to_string();
+                                        let mut artwork = None;
+                                        let mut got_art_from_cache = false;
+                                        if let Some((
+                                            ref last_title,
+                                            ref last_artist,
+                                            _,
+                                            _,
+                                            ref last_art,
+                                            _,
+                                            _,
+                                        )) = last_emitted_info
+                                        {
+                                            if last_title == &title && last_artist == &artist {
+                                                artwork = last_art.as_ref().map(|art| vec![art.clone()]);
+                                                got_art_from_cache = true;
+                                            }
+                                        }
+
+                                        if !got_art_from_cache {
+                                            artwork = (|| -> Option<Vec<String>> {
+                                                let stream = props.Thumbnail().ok()?.OpenReadAsync().ok()?.get().ok()?;
+                                                let content_type = stream.ContentType().ok()?.to_string().split(',').next().unwrap_or("image/jpeg").trim().to_string();
+                                                let reader = DataReader::CreateDataReader(&stream).ok()?;
+                                                let mut all_bytes = Vec::new();
+                                                let chunk_size = 65536u32;
+                                                loop {
+                                                    let loaded = reader.LoadAsync(chunk_size).ok()?.get().ok()?;
+                                                    if loaded == 0 {
+                                                        break;
+                                                    }
+                                                    let mut chunk = vec![0u8; loaded as usize];
+                                                    reader.ReadBytes(&mut chunk).ok()?;
+                                                    all_bytes.extend_from_slice(&chunk);
                                                 }
-                                            }
-
-                                            if !got_art_from_cache {
-                                                artwork = (|| -> Option<Vec<String>> {
-                                                    let stream = props
-                                                        .Thumbnail()
-                                                        .ok()?
-                                                        .OpenReadAsync()
-                                                        .ok()?
-                                                        .get()
-                                                        .ok()?;
-                                                    let content_type = stream
-                                                        .ContentType()
-                                                        .ok()?
-                                                        .to_string()
-                                                        .split(',')
-                                                        .next()
-                                                        .unwrap_or("image/jpeg")
-                                                        .trim()
-                                                        .to_string();
-                                                    let reader =
-                                                        DataReader::CreateDataReader(&stream)
-                                                            .ok()?;
-                                                    let mut all_bytes = Vec::new();
-                                                    let chunk_size = 65536u32;
-                                                    loop {
-                                                        let loaded = reader
-                                                            .LoadAsync(chunk_size)
-                                                            .ok()?
-                                                            .get()
-                                                            .ok()?;
-                                                        if loaded == 0 {
-                                                            break;
-                                                        }
-                                                        let mut chunk = vec![0u8; loaded as usize];
-                                                        reader.ReadBytes(&mut chunk).ok()?;
-                                                        all_bytes.extend_from_slice(&chunk);
-                                                    }
-                                                    if all_bytes.is_empty() {
-                                                        return None;
-                                                    }
-                                                    Some(vec![format!(
-                                                        "data:{};base64,{}",
-                                                        content_type,
-                                                        general_purpose::STANDARD.encode(all_bytes)
-                                                    )])
-                                                })(
-                                                );
-                                            }
-
-                                            // Extract timeline properties for progress bar
-                                            let (position_ms, duration_ms, seek_enabled) = {
-                                                let defaults = (0i64, 0i64, false);
-                                                match session.GetTimelineProperties() {
-                                                    Ok(timeline) => {
-                                                        let start = timeline
-                                                            .StartTime()
-                                                            .map(|t| t.Duration / 10_000)
-                                                            .unwrap_or(0);
-                                                        let end = timeline
-                                                            .EndTime()
-                                                            .map(|t| t.Duration / 10_000)
-                                                            .unwrap_or(0);
-                                                        let pos = timeline
-                                                            .Position()
-                                                            .map(|t| t.Duration / 10_000)
-                                                            .unwrap_or(0);
-                                                        let dur = (end - start).max(0);
-                                                        // If duration is 0 but position > 0, some players don't report start/end
-                                                        // but still track position — use position as fallback duration indicator
-                                                        let effective_dur =
-                                                            if dur > 0 { dur } else { 0 };
-                                                        // Check if seeking is supported
-                                                        let seek = session
-                                                            .GetPlaybackInfo()
-                                                            .ok()
-                                                            .and_then(|pi| pi.Controls().ok())
-                                                            .map(|c| {
-                                                                c.IsPlaybackPositionEnabled()
-                                                                    .unwrap_or(false)
-                                                            })
-                                                            .unwrap_or(false);
-                                                        (pos, effective_dur, seek)
-                                                    }
-                                                    Err(_) => defaults,
+                                                if all_bytes.is_empty() {
+                                                    return None;
                                                 }
-                                            };
+                                                Some(vec![format!("data:{};base64,{}", content_type, general_purpose::STANDARD.encode(all_bytes))])
+                                            })();
+                                        }
 
-                                            let now_ms = std::time::SystemTime::now()
-                                                .duration_since(std::time::UNIX_EPOCH)
-                                                .map(|d| d.as_millis() as u64)
-                                                .unwrap_or(0);
-                                            let info = MediaInfo {
-                                                title,
-                                                artist,
-                                                is_playing,
-                                                has_media: true,
-                                                artwork,
-                                                position_ms,
-                                                duration_ms,
-                                                seek_enabled,
-                                                position_updated_at: now_ms,
-                                            };
-                                            if is_playing {
-                                                best_info = Some(info);
-                                                break;
-                                            } else if best_info.is_none() {
-                                                best_info = Some(info);
+                                        let (position_ms, duration_ms, seek_enabled) = {
+                                            let defaults = (0i64, 0i64, false);
+                                            match session.GetTimelineProperties() {
+                                                Ok(timeline) => {
+                                                    let start = timeline.StartTime().map(|t| t.Duration / 10_000).unwrap_or(0);
+                                                    let end = timeline.EndTime().map(|t| t.Duration / 10_000).unwrap_or(0);
+                                                    let pos = timeline.Position().map(|t| t.Duration / 10_000).unwrap_or(0);
+                                                    let dur = (end - start).max(0);
+                                                    let effective_dur = if dur > 0 { dur } else { 0 };
+                                                    let seek = session.GetPlaybackInfo().ok().and_then(|pi| pi.Controls().ok()).map(|c| c.IsPlaybackPositionEnabled().unwrap_or(false)).unwrap_or(false);
+                                                    (pos, effective_dur, seek)
+                                                }
+                                                Err(_) => defaults,
                                             }
+                                        };
+
+                                        let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                                        let info = MediaInfo {
+                                            title,
+                                            artist,
+                                            is_playing,
+                                            has_media: true,
+                                            artwork,
+                                            position_ms,
+                                            duration_ms,
+                                            seek_enabled,
+                                            position_updated_at: now_ms,
+                                        };
+                                        if is_playing {
+                                            best_info = Some(info);
+                                            break;
+                                        } else if best_info.is_none() {
+                                            best_info = Some(info);
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    let current = best_info.unwrap_or(MediaInfo {
-                        title: "".into(),
-                        artist: "".into(),
-                        is_playing: false,
-                        has_media: false,
-                        artwork: None,
-                        position_ms: 0,
-                        duration_ms: 0,
-                        seek_enabled: false,
-                        position_updated_at: 0,
-                    });
-                    let art_str = current.artwork.as_ref().and_then(|a| a.first()).cloned();
-                    if last_emitted_info.as_ref().is_none_or(|(t, a, p, h, art, pos, _dur)| {
-                        t != &current.title || a != &current.artist || p != &current.is_playing || h != &current.has_media || art != &art_str ||
-                        // For position: emit if >1s difference (avoid spamming on every poll)
-                        (*pos - current.position_ms).abs() > 1000
-                    }) {
-                        let _ = handle_system.emit("media-update", current.clone());
-                        ANY_MEDIA_PLAYING.store(current.is_playing, Ordering::Relaxed);
-                        last_emitted_info = Some((current.title, current.artist, current.is_playing, current.has_media, art_str, current.position_ms, current.duration_ms));
-                    }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(64));
+                let current = best_info.unwrap_or(MediaInfo {
+                    title: "".into(),
+                    artist: "".into(),
+                    is_playing: false,
+                    has_media: false,
+                    artwork: None,
+                    position_ms: 0,
+                    duration_ms: 0,
+                    seek_enabled: false,
+                    position_updated_at: 0,
+                });
+                let art_str = current.artwork.as_ref().and_then(|a| a.first()).cloned();
+                if last_emitted_info.as_ref().is_none_or(|(t, a, p, h, art, pos, _dur)| {
+                    t != &current.title || a != &current.artist || p != &current.is_playing || h != &current.has_media || art != &art_str ||
+                    (*pos - current.position_ms).abs() > 1000
+                }) {
+                    let _ = handle_media.emit("media-update", current.clone());
+                    ANY_MEDIA_PLAYING.store(current.is_playing, Ordering::Relaxed);
+                    last_emitted_info = Some((current.title, current.artist, current.is_playing, current.has_media, art_str, current.position_ms, current.duration_ms));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(2000));
             }
         }
     });
@@ -1717,7 +1666,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                     && (refresh_taskbar_owner() || any_native_taskbar_visible())
                 {
-                    set_taskbar_visibility(false, false);
+                    crate::utils::enforce_taskbar_hidden();
                 }
             }
 
@@ -2413,7 +2362,8 @@ fn run_mouse_hook_thread() {
             eprintln!("Gloom mouse hook: timer creation failed; retrying");
             return;
         }
-        let mut hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0).ok();
+        let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).ok().map(|h| windows::Win32::Foundation::HINSTANCE(h.0));
+        let mut hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), hinstance, 0).ok();
         crate::diagnostics::record(
             "mouse_hook",
             if hook.is_some() {
@@ -2427,20 +2377,30 @@ fn run_mouse_hook_thread() {
             queue_cursor(point);
             MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
         }
+        let mut consecutive_unhooked_moves: u32 = 0;
         while GetMessageW(&mut message, None, 0, 0).0 > 0 {
             if message.message == WM_TIMER && message.wParam.0 == timer {
                 if SHUTTING_DOWN.load(Ordering::Relaxed) {
                     break;
                 }
                 let mut current = windows::Win32::Foundation::POINT::default();
-                let cursor_moved_without_hook = GetCursorPos(&mut current).is_ok()
-                    && pack_cursor(current) != MOUSE_HOOK_CURSOR.load(Ordering::Relaxed)
-                    && hook_tick_ms() - MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed) > 750;
-                if hook.is_none() || cursor_moved_without_hook {
+                if GetCursorPos(&mut current).is_ok() {
+                    let is_diff = pack_cursor(current) != MOUSE_HOOK_CURSOR.load(Ordering::Relaxed);
+                    let idle_ms = hook_tick_ms() - MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed);
+                    if is_diff && idle_ms > 2000 {
+                        consecutive_unhooked_moves += 1;
+                    } else if !is_diff {
+                        consecutive_unhooked_moves = 0;
+                    }
+                }
+                let hook_dropped = consecutive_unhooked_moves >= 3;
+                if hook.is_none() || hook_dropped {
+                    consecutive_unhooked_moves = 0;
                     if let Some(old) = hook.take() {
                         let _ = UnhookWindowsHookEx(old);
                     }
-                    hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0).ok();
+                    let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).ok().map(|h| windows::Win32::Foundation::HINSTANCE(h.0));
+                    hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), hinstance, 0).ok();
                     crate::diagnostics::record(
                         "mouse_hook",
                         if hook.is_some() {
@@ -2980,8 +2940,33 @@ unsafe extern "system" fn mouse_hook_proc(
     // Start button included, before that click reaches Gloom. The hook sees
     // the press first, so it records whether Start was open for the click to
     // use. A cheap foreground check, and only on presses.
+fn is_start_foreground_fast() -> bool {
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
+        let fg = GetForegroundWindow();
+        if fg.0.is_null() {
+            return false;
+        }
+        let mut class_buf = [0u16; 64];
+        let len = GetClassNameW(fg, &mut class_buf);
+        if len > 0 {
+            let class_name = String::from_utf16_lossy(&class_buf[..len as usize]);
+            if class_name == "Windows.UI.Core.CoreWindow"
+                || class_name == "Shell_StartMenu"
+                || class_name == "DV2ControlHost"
+            {
+                return true;
+            }
+        }
+        false
+    }
+}
+
     if code >= 0 && wparam.0 == WM_LBUTTONDOWN as usize {
-        START_OPEN_AT_PRESS.store(crate::commands::is_start_menu_open(), Ordering::Relaxed);
+        let point = (*(lparam.0 as *const MSLLHOOKSTRUCT)).pt;
+        if dock_takes_press(point) {
+            START_OPEN_AT_PRESS.store(is_start_foreground_fast(), Ordering::Relaxed);
+        }
     }
     // A dock menu or the Add App popup closes when you press outside it. The
     // dock window's region keeps it from catching that press, so the dock

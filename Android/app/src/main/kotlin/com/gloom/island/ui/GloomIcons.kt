@@ -395,4 +395,52 @@ object GloomIcons {
             solid("M17.5 6.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z")
         }
     }
+
+    val BellSlash: ImageVector by lazy {
+        build("bell.slash") {
+            line("M12 3.8a5.2 5.2 0 0 0-5.2 5.2v3.3L4.6 15.4h14.8l-2.2-3.1V9A5.2 5.2 0 0 0 12 3.8z")
+            line("M10 18.4a2.1 2.1 0 0 0 4 0")
+            line("M3.5 3.5l17 17", 2f)
+        }
+    }
+
+    val Headphones: ImageVector by lazy {
+        build("headphones") {
+            line("M3.5 13a8.5 8.5 0 0 1 17 0")
+            line("M3.5 13v5a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2h-3z")
+            line("M15.5 11h3a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z")
+        }
+    }
+
+    val Mail: ImageVector by lazy {
+        build("envelope") {
+            line("M3.5 6.5h17a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5h-17a1.5 1.5 0 0 1-1.5-1.5V8a1.5 1.5 0 0 1 1.5-1.5z")
+            line("M3.5 8l8.5 6 8.5-6")
+        }
+    }
+
+    val PaperPlane: ImageVector by lazy {
+        build("paperplane") {
+            line("M21.5 2.5 10 14M21.5 2.5 15 21.5 10 14 2.5 9z")
+        }
+    }
+
+    val MessageBubble: ImageVector by lazy {
+        build("message.bubble") {
+            line("M20.5 12a8 8 0 0 1-12.7 6.4L3.5 19.5l1.4-4.1A8 8 0 1 1 20.5 12z")
+        }
+    }
+
+    val WhatsApp: ImageVector by lazy {
+        build("whatsapp") {
+            line("M20 11.5a8 8 0 0 1-12.3 6.8L3.5 19.5l1.3-4.1A8 8 0 1 1 20 11.5z", 1.8f)
+            line("M8.5 8.5c0 3.5 3.5 7 7 7l1.5-1.5-2.2-2.2-1.3.8c-.8-.5-1.8-1.5-2.3-2.3l.8-1.3-2.2-2.2L8.5 8.5z", 1.2f)
+        }
+    }
+
+    val Snapchat: ImageVector by lazy {
+        build("snapchat") {
+            line("M12 3.5c-3 0-5.5 2.5-5.5 5.5 0 1.2.3 2.1.2 2.8-.2.8-1.7 1.2-1.7 1.8 0 .5.7.8 1.4.8.5 0 1.1-.3 1.6-.3.6 0 1.2.4 1.8.8.8.6 1.4 1.1 2.2 1.1s1.4-.5 2.2-1.1c.6-.4 1.2-.8 1.8-.8.5 0 1.1.3 1.6.3.7 0 1.4-.3 1.4-.8 0-.6-1.5-1-1.7-1.8-.1-.7.2-1.6.2-2.8 0-3-2.5-5.5-5.5-5.5z")
+        }
+    }
 }

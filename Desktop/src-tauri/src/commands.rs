@@ -3381,6 +3381,23 @@ pub fn settings_file_readable(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
+pub fn get_autostart_status(app: AppHandle) -> bool {
+    crate::autostart::is_autostart_enabled(&app)
+}
+
+#[tauri::command]
+pub fn set_autostart_status(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if enabled {
+        crate::autostart::enable_autostart(&app)?;
+        save_setting(app, "gloom-autostart".to_string(), serde_json::Value::Bool(true))?;
+    } else {
+        crate::autostart::disable_all_autostart(&app);
+        save_setting(app, "gloom-autostart".to_string(), serde_json::Value::Bool(false))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn capture_window_thumbnail(
     hwnd: isize,
     max_width: u32,

@@ -2,8 +2,14 @@ package com.gloom.island.automation
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Environment
+import android.provider.MediaStore
+import android.provider.Settings
 import android.util.Log
 import com.gloom.island.ai.AiMemory
 import com.gloom.island.bridge.GloomLiveBridgeClient
@@ -15,7 +21,9 @@ import java.security.MessageDigest
 /**
  * System and Productivity Automation Tools:
  * - Drafting personalized emails
- * - Regex-based file search
+ * - Fast MediaStore and directory file/PDF search
+ * - Direct device volume adjustments and query
+ * - Live Wi-Fi & network status resolution
  * - Universal data & clipboard synchronization with desktop
  * - System optimization (cache cleanup & duplicate file removal)
  */
@@ -42,6 +50,171 @@ object SystemTools {
         val success: Boolean,
         val message: String
     )
+
+    /**
+     * Lists all PDF files found on the device via MediaStore and document/download folders.
+     */
+    fun listPdfFiles(context: Context, query: String = ""): List<FileMatch> {
+        val results = mutableListOf<FileMatch>()
+        val seenPaths = mutableSetOf<String>()
+
+        try {
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_MODIFIED
+            )
+            val selection = if (query.isNotBlank()) {
+                "(${MediaStore.Files.FileColumns.MIME_TYPE} = ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.pdf') AND ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
+            } else {
+                "${MediaStore.Files.FileColumns.MIME_TYPE} = ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE '%.pdf'"
+            }
+            val selectionArgs = if (query.isNotBlank()) {
+                arrayOf("application/pdf", "%$query%")
+            } else {
+                arrayOf("application/pdf")
+            }
+
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                selection,
+                selectionArgs,
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val pathIdx = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA)
+                val sizeIdx = cursor.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
+                val modIdx = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
+
+                while (cursor.moveToNext() && results.size < 25) {
+                    val name = if (nameIdx >= 0) cursor.getString(nameIdx) else "document.pdf"
+                    val path = if (pathIdx >= 0) cursor.getString(pathIdx).orEmpty() else ""
+                    val size = if (sizeIdx >= 0) cursor.getLong(sizeIdx) / 1024L else 0L
+                    val mod = if (modIdx >= 0) cursor.getLong(modIdx) * 1000L else 0L
+                    if (path.isNotBlank() && seenPaths.add(path)) {
+                        results.add(FileMatch(name, path, size, mod))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "MediaStore PDF query error: ${e.message}")
+        }
+
+        // Fallback directory scan in Downloads and Documents
+        if (results.isEmpty()) {
+            val dirs = listOfNotNull(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            )
+            for (dir in dirs) {
+                if (dir.exists() && dir.canRead()) {
+                    dir.walkTopDown().maxDepth(3).filter { it.isFile && it.name.endsWith(".pdf", ignoreCase = true) }.forEach { f ->
+                        if (seenPaths.add(f.absolutePath) && (query.isBlank() || f.name.contains(query, ignoreCase = true))) {
+                            results.add(FileMatch(f.name, f.absolutePath, f.length() / 1024L, f.lastModified()))
+                        }
+                    }
+                }
+            }
+        }
+
+        return results.sortedByDescending { it.lastModified }
+    }
+
+    /**
+     * Controls device volume by percentage (0..100) or direction.
+     */
+    fun setVolumePercent(context: Context, percent: Int, streamType: Int = AudioManager.STREAM_MUSIC): String {
+        return try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val max = am.getStreamMaxVolume(streamType)
+            val target = ((percent.coerceIn(0, 100) / 100f) * max).toInt().coerceIn(0, max)
+            am.setStreamVolume(streamType, target, AudioManager.FLAG_SHOW_UI)
+            val actualPercent = ((target.toFloat() / max.toFloat()) * 100).toInt()
+            "Media volume set to $actualPercent%."
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed setting volume: ${e.message}")
+            "Could not set volume: ${e.message}"
+        }
+    }
+
+    fun adjustVolume(context: Context, direction: Int, streamType: Int = AudioManager.STREAM_MUSIC): String {
+        return try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            am.adjustStreamVolume(streamType, direction, AudioManager.FLAG_SHOW_UI)
+            val current = am.getStreamVolume(streamType)
+            val max = am.getStreamMaxVolume(streamType)
+            val pct = ((current.toFloat() / max.toFloat()) * 100).toInt()
+            val dirWord = if (direction > 0) "increased" else "decreased"
+            "Volume $dirWord to $pct%."
+        } catch (e: Exception) {
+            "Could not adjust volume: ${e.message}"
+        }
+    }
+
+    fun muteVolume(context: Context, mute: Boolean, streamType: Int = AudioManager.STREAM_MUSIC): String {
+        return try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val dir = if (mute) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
+            am.adjustStreamVolume(streamType, dir, AudioManager.FLAG_SHOW_UI)
+            if (mute) "Volume muted." else "Volume unmuted."
+        } catch (e: Exception) {
+            "Could not mute volume."
+        }
+    }
+
+    fun getVolumeStatus(context: Context, streamType: Int = AudioManager.STREAM_MUSIC): String {
+        return try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val current = am.getStreamVolume(streamType)
+            val max = am.getStreamMaxVolume(streamType)
+            val pct = ((current.toFloat() / max.toFloat()) * 100).toInt()
+            "Media volume is at $pct%"
+        } catch (_: Exception) {
+            "Volume level unavailable"
+        }
+    }
+
+    /**
+     * Resolves currently connected Wi-Fi SSID and connectivity status.
+     */
+    fun getWifiStatus(context: Context): String {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val net = cm.activeNetwork
+            val caps = cm.getNetworkCapabilities(net)
+            val isWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+
+            if (isWifi) {
+                val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                val info = wm.connectionInfo
+                var ssid = info?.ssid?.removeSurrounding("\"").orEmpty()
+                if (ssid.isBlank() || ssid == "<unknown ssid>") {
+                    ssid = "Wi-Fi"
+                }
+                "Connected to Wi-Fi: $ssid."
+            } else {
+                val isCellular = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+                if (isCellular) "Not connected to Wi-Fi. You are using Mobile Data."
+                else "Wi-Fi is not connected."
+            }
+        } catch (e: Exception) {
+            "Could not determine Wi-Fi status."
+        }
+    }
+
+    fun openWifiSettings(context: Context): Boolean {
+        return try {
+            val intent = Intent(Settings.ACTION_WIFI_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     /**
      * Drafts a personalized email opening the default mail client (Gmail, Outlook, etc.).

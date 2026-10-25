@@ -47,6 +47,7 @@ class GloomNotificationListener : NotificationListenerService() {
         var onMediaChanged: (() -> Unit)? = null
         var onNotificationEvent: ((com.gloom.island.ui.NotificationIslandEvent) -> Unit)? = null
         var onNotificationDismissed: ((String) -> Unit)? = null
+        var onTimerUpdate: ((com.gloom.island.ui.TimerIslandEvent?) -> Unit)? = null
 
         fun play() {
             try {
@@ -151,6 +152,16 @@ class GloomNotificationListener : NotificationListenerService() {
         activeController = null
     }
 
+    fun cancelNotificationSafe(key: String) {
+        try {
+            if (selfCancelled.size > 200) selfCancelled.clear()
+            selfCancelled.add(key)
+            cancelNotification(key)
+        } catch (e: Exception) {
+            Log.w(TAG, "cancelNotificationSafe failed for $key: ${e.message}")
+        }
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
         Log.d(
@@ -190,6 +201,33 @@ class GloomNotificationListener : NotificationListenerService() {
         if (category == Notification.CATEGORY_TRANSPORT || sbn.notification.isMediaNotification()) {
             checkActiveMedia()
             return
+        }
+
+        // Check for active Clock timer or countdown notifications (Category B Live Activities)
+        val isClockApp = sbn.packageName.contains("deskclock") || sbn.packageName.contains("clock")
+        val isChronometer = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
+        val isCountdown = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN, false)
+        } else false
+
+        if (isClockApp && (isChronometer || isCountdown || sbn.notification.category == Notification.CATEGORY_STOPWATCH || sbn.notification.category == Notification.CATEGORY_ALARM)) {
+            val `when` = sbn.notification.`when`
+            val now = System.currentTimeMillis()
+            val remainingSec = if (`when` > now) ((`when` - now) / 1000).coerceAtLeast(0) else 0L
+            if (remainingSec in 1..86400) {
+                mainHandler.post {
+                    onTimerUpdate?.invoke(
+                        com.gloom.island.ui.TimerIslandEvent(
+                            isActive = true,
+                            title = title.ifBlank { "Timer" },
+                            remainingSeconds = remainingSec,
+                            totalSeconds = remainingSec,
+                            isPaused = false
+                        )
+                    )
+                }
+                return
+            }
         }
 
         // 4. Regular App Heads-up Notification (WhatsApp, Telegram, Messages, Phone, etc.)
@@ -281,18 +319,37 @@ class GloomNotificationListener : NotificationListenerService() {
             null
         }
 
+        val officialAppIconBitmap = try {
+            val drawable = packageManager.getApplicationIcon(sbn.packageName)
+            if (drawable is BitmapDrawable && drawable.bitmap != null) {
+                drawable.bitmap
+            } else {
+                val w = drawable.intrinsicWidth.takeIf { it > 0 } ?: 96
+                val h = drawable.intrinsicHeight.takeIf { it > 0 } ?: 96
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bmp)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                bmp
+            }
+        } catch (e: Exception) {
+            null
+        }
+
         var replyAction: com.gloom.island.ui.NotificationReplyAction? = null
         val notifActions = sbn.notification.actions
         if (notifActions != null) {
             for (action in notifActions) {
                 val remoteInputs = action.remoteInputs
-                if (remoteInputs != null && remoteInputs.isNotEmpty()) {
+                val pIntent = action.actionIntent
+                if (remoteInputs != null && remoteInputs.isNotEmpty() && pIntent != null) {
                     val input = remoteInputs.first()
                     replyAction = com.gloom.island.ui.NotificationReplyAction(
                         label = action.title?.toString() ?: "Reply",
-                        pendingIntent = action.actionIntent,
+                        pendingIntent = pIntent,
                         remoteInput = input,
-                        resultKey = input.resultKey
+                        resultKey = input.resultKey,
+                        notificationKey = sbn.key
                     )
                     break
                 }
@@ -309,6 +366,7 @@ class GloomNotificationListener : NotificationListenerService() {
             conversationTitle = conversationTitle,
             isGroup = isGroup,
             largeIcon = largeIconBitmap,
+            appIcon = officialAppIconBitmap,
             contentIntent = sbn.notification.contentIntent,
             postTimeMs = sbn.postTime,
             otpCode = otpCode,
@@ -316,10 +374,10 @@ class GloomNotificationListener : NotificationListenerService() {
         )
 
         // Dismiss the status-bar copy as early as possible so the alert is
-        // delivered once, by the island. This is best-effort: Android shows
-        // the heads-up before the listener callback arrives, and OEMs may
-        // refuse the cancel. Never touch non-clearable notifications.
-        if (sbn.isClearable) {
+        // delivered once, by the island. Never touch non-clearable notifications,
+        // and do not cancel clearable notifications immediately if they hold an
+        // active replyAction, which would invalidate the PendingIntent on apps like WhatsApp/Telegram.
+        if (sbn.isClearable && replyAction == null) {
             try {
                 if (selfCancelled.size > 200) selfCancelled.clear()
                 sbn.key?.let { selfCancelled.add(it) }
@@ -409,6 +467,9 @@ class GloomNotificationListener : NotificationListenerService() {
         checkActiveMedia()
         onMediaChanged?.invoke()
         if (sbn != null) {
+            if (sbn.packageName.contains("deskclock") || sbn.packageName.contains("clock")) {
+                mainHandler.post { onTimerUpdate?.invoke(null) }
+            }
             val key = sbn.key ?: sbn.id.toString()
             // A dismissal lets the same alert show again if the app reposts it.
             lastRenderedAt.remove(key)

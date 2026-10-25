@@ -61,6 +61,7 @@ object Apple {
     val systemOrange = Color(0xFFFF9F0A)
     val systemYellow = Color(0xFFFFD60A)
     val systemTeal = Color(0xFF64D2FF)
+    val systemCyan = Color(0xFF32ADE6)
     val systemIndigo = Color(0xFF5E5CE6)
     val systemPink = Color(0xFFFF375F)
     val systemPurple = Color(0xFFBF5AF2)
@@ -176,12 +177,12 @@ fun AppleIconTile(
 }
 
 @Composable
-fun GloomIcon(icon: ImageVector, tint: Color, size: Dp) {
+fun GloomIcon(icon: ImageVector, tint: Color, size: Dp, modifier: Modifier = Modifier) {
     androidx.compose.material3.Icon(
         imageVector = icon,
         contentDescription = null,
         tint = tint,
-        modifier = Modifier.size(size)
+        modifier = modifier.size(size)
     )
 }
 

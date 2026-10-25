@@ -39,6 +39,9 @@ object LocalBrain {
             isTimeQuestion(lower) -> return reply(timeOfDay())
             isDateQuestion(lower) -> return reply(date())
             lower.startsWith("what day") -> return reply(dayOfWeek())
+            isWifiQuery(lower) -> return reply(SystemTools.getWifiStatus(context))
+            isPdfQuery(lower) -> return reply(listPdfs(context, lower))
+            isVolumeQuery(lower) -> return reply(SystemTools.getVolumeStatus(context))
             lower.contains("battery") && (lower.contains("level") || lower.contains("charge") || lower.startsWith("how much")) ->
                 return reply(battery(context))
             lower == "what can you do" || lower == "help" || lower == "what are your commands" ->
@@ -68,20 +71,49 @@ object LocalBrain {
     }
 
     private fun isTimeQuestion(lower: String): Boolean =
-        lower == "what time is it" ||
-            lower == "what's the time" ||
-            lower == "the time" ||
-            lower == "time" ||
-            lower == "tell me the time" ||
-            lower == "current time"
+        (lower.contains("time") && (
+            lower.contains("what") || lower.contains("tell") || lower.contains("current") ||
+            lower.contains("now") || lower.contains("is it") || lower == "time" || lower.startsWith("time")
+        )) || lower.startsWith("what time") || lower.endsWith("the time") || lower == "clock"
 
     private fun isDateQuestion(lower: String): Boolean =
-        lower == "what's the date" ||
-            lower == "what is the date" ||
-            lower == "today's date" ||
-            lower == "date" ||
-            lower == "what's today" ||
-            lower == "what is today"
+        lower.contains("date") || lower.startsWith("what's today") || lower.startsWith("what is today") ||
+        lower == "today" || (lower.contains("day") && (lower.contains("what") || lower.contains("today")))
+
+    private fun isWifiQuery(lower: String): Boolean =
+        (lower.contains("wifi") || lower.contains("wi-fi") || lower.contains("network")) &&
+        (lower.contains("which") || lower.contains("what") || lower.contains("status") ||
+         lower.contains("connect") || lower.contains("name") || lower.contains("am i"))
+
+    private fun isPdfQuery(lower: String): Boolean =
+        (lower.contains("pdf") || lower.contains("pdfs")) &&
+        (lower.contains("list") || lower.contains("all") || lower.contains("available") ||
+         lower.contains("show") || lower.contains("find") || lower.contains("search") || lower.contains("what"))
+
+    private fun isVolumeQuery(lower: String): Boolean =
+        lower.contains("volume") && (lower.contains("what") || lower.contains("status") || lower.contains("level") || lower.contains("check"))
+
+    private fun listPdfs(context: Context, lower: String): String {
+        val query = if (lower.contains("named ")) {
+            lower.substringAfter("named ").trim()
+        } else if (lower.contains("for ")) {
+            lower.substringAfter("for ").trim()
+        } else if (lower.contains("about ")) {
+            lower.substringAfter("about ").trim()
+        } else ""
+        val files = SystemTools.listPdfFiles(context, query)
+        if (files.isEmpty()) {
+            return if (query.isNotBlank()) "No PDF files matching \"$query\" found." else "No PDF files found on your device."
+        }
+        val count = files.size
+        val fileList = files.take(5).joinToString("\n") { "• ${it.name} (${it.sizeKb} KB)" }
+        val suffix = if (count > 5) "\n...and ${count - 5} more." else ""
+        return "Found $count PDF ${if (count == 1) "file" else "files"}:\n$fileList$suffix"
+    }
+
+    fun liveTimeAndDate(): String {
+        return "${timeOfDay()} Today is ${date()}."
+    }
 
     private fun timeOfDay(): String {
         val now = Instant.now().atZone(ZoneId.systemDefault())
@@ -106,7 +138,7 @@ object LocalBrain {
         return "It's ${now.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }}."
     }
 
-    private fun battery(context: Context): String {
+    fun battery(context: Context): String {
         val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             ?: return "I can't read the battery right now."
         val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)

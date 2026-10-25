@@ -8,7 +8,8 @@ import androidx.compose.ui.graphics.Color
 enum class NotificationLayoutKind {
     STANDARD,
     MESSAGING,
-    SOCIAL
+    SOCIAL,
+    EMAIL
 }
 
 /**
@@ -114,6 +115,138 @@ object NotificationStyleRegistry {
                 brandName = "Snapchat",
                 layoutKind = NotificationLayoutKind.SOCIAL,
                 openActionLabel = "Open Snapchat",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+
+        // Gmail
+        register(
+            NotificationAppStyle(
+                packageName = "com.google.android.gm",
+                accentColorHex = 0xFFEA4335,
+                badgeColorHex = 0xFFC5221F,
+                brandName = "Gmail",
+                layoutKind = NotificationLayoutKind.EMAIL,
+                openActionLabel = "Open Gmail",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+
+        // Telegram
+        register(
+            NotificationAppStyle(
+                packageName = "org.telegram.messenger",
+                accentColorHex = 0xFF2AABEE,
+                badgeColorHex = 0xFF229ED9,
+                brandName = "Telegram",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Telegram",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+        register(
+            NotificationAppStyle(
+                packageName = "org.thunderdog.challegram",
+                accentColorHex = 0xFF2AABEE,
+                badgeColorHex = 0xFF229ED9,
+                brandName = "Telegram X",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Telegram",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+        register(
+            NotificationAppStyle(
+                packageName = "org.telegram.plus",
+                accentColorHex = 0xFF2AABEE,
+                badgeColorHex = 0xFF229ED9,
+                brandName = "Telegram Plus",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Telegram",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+
+        // SMS / MMS (Google Messages, Samsung, AOSP)
+        register(
+            NotificationAppStyle(
+                packageName = "com.google.android.apps.messaging",
+                accentColorHex = 0xFF1A73E8,
+                badgeColorHex = 0xFF1557B0,
+                brandName = "Messages",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Messages",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+        register(
+            NotificationAppStyle(
+                packageName = "com.samsung.android.messaging",
+                accentColorHex = 0xFF1A73E8,
+                badgeColorHex = 0xFF1557B0,
+                brandName = "Messages",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Messages",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+        register(
+            NotificationAppStyle(
+                packageName = "com.android.mms",
+                accentColorHex = 0xFF1A73E8,
+                badgeColorHex = 0xFF1557B0,
+                brandName = "Messages",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Messages",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+
+        // Microsoft Outlook
+        register(
+            NotificationAppStyle(
+                packageName = "com.microsoft.office.outlook",
+                accentColorHex = 0xFF0078D4,
+                badgeColorHex = 0xFF005A9E,
+                brandName = "Outlook",
+                layoutKind = NotificationLayoutKind.EMAIL,
+                openActionLabel = "Open Outlook",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+
+        // Discord
+        register(
+            NotificationAppStyle(
+                packageName = "com.discord",
+                accentColorHex = 0xFF5865F2,
+                badgeColorHex = 0xFF4752C4,
+                brandName = "Discord",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Discord",
+                replyActionLabel = "Reply",
+                supportsInlineReply = true
+            )
+        )
+
+        // Slack
+        register(
+            NotificationAppStyle(
+                packageName = "com.Slack",
+                accentColorHex = 0xFFE01E5A,
+                badgeColorHex = 0xFF4A154B,
+                brandName = "Slack",
+                layoutKind = NotificationLayoutKind.MESSAGING,
+                openActionLabel = "Open Slack",
                 replyActionLabel = "Reply",
                 supportsInlineReply = true
             )

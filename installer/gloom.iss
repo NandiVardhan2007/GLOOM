@@ -4,7 +4,7 @@
 ; ==============================================================================
 
 #define MyAppName "GLOOM Dynamic Island"
-#define MyAppVersion "1.9.1"
+#define MyAppVersion "1.9.5"
 #define MyAppPublisher "GLOOM Team"
 #define MyAppURL "https://github.com/NandiVardhan2007/GLOOM"
 #define MyAppExeName "gloom.exe"
@@ -42,7 +42,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "startupicon"; Description: "Launch GLOOM automatically on Windows startup"; GroupDescription: "System Integration:"
+Name: "startupicon"; Description: "Launch GLOOM automatically on Windows startup"; GroupDescription: "System Integration:"; Flags: unchecked
 
 [Files]
 Source: "..\Desktop\src-tauri\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion

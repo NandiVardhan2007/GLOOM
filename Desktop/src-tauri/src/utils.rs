@@ -290,10 +290,49 @@ pub fn any_native_taskbar_visible() -> bool {
     unsafe {
         let primary = windows::core::PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
         FindWindowA(primary, windows::core::PCSTR::null())
-            .is_ok_and(|hwnd| IsWindowVisible(hwnd).as_bool())
+            .is_ok_and(|hwnd| IsWindowVisible(hwnd).as_bool() && placed_taskbar_rect(hwnd).is_some())
             || secondary_taskbar_windows()
                 .into_iter()
-                .any(|hwnd| IsWindowVisible(hwnd).as_bool())
+                .any(|hwnd| IsWindowVisible(hwnd).as_bool() && placed_taskbar_rect(hwnd).is_some())
+    }
+}
+
+/// Quietly enforces that the native taskbar is hidden and positioned offscreen
+/// without broadcasting WM_SETTINGCHANGE or rewriting registry keys.
+pub fn enforce_taskbar_hidden() {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowA, SetWindowPos, ShowWindow, SW_HIDE, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+    };
+    unsafe {
+        let tray_class = windows::core::PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
+        if let Ok(tray_hwnd) = FindWindowA(tray_class, windows::core::PCSTR::null()) {
+            if placed_taskbar_rect(tray_hwnd).is_some() {
+                let _ = ShowWindow(tray_hwnd, SW_HIDE);
+                let _ = SetWindowPos(
+                    tray_hwnd,
+                    None,
+                    -10000,
+                    -10000,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
+        }
+        for secondary_tray_hwnd in secondary_taskbar_windows() {
+            if placed_taskbar_rect(secondary_tray_hwnd).is_some() {
+                let _ = ShowWindow(secondary_tray_hwnd, SW_HIDE);
+                let _ = SetWindowPos(
+                    secondary_tray_hwnd,
+                    None,
+                    -10000,
+                    -10000,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
+        }
     }
 }
 
@@ -427,6 +466,9 @@ pub fn set_taskbar_autohide_registry(enable_autohide: bool) -> bool {
     }
 }
 
+static LAST_APPLIED_TASKBAR_VISIBILITY: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(-1);
+
 pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
     // Delayed AppBar and tray callbacks cannot hide Windows' taskbar after the
     // dock has been disabled or while its tray is in use.
@@ -435,6 +477,14 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
             || crate::state::TRAY_INTERACTION_ACTIVE.load(std::sync::atomic::Ordering::Relaxed))
     {
         return false;
+    }
+    let prev_vis = LAST_APPLIED_TASKBAR_VISIBILITY.swap(
+        if visible { 1 } else { 0 },
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    if !visible && prev_vis == 0 {
+        enforce_taskbar_hidden();
+        return true;
     }
     refresh_taskbar_owner();
     unsafe {
@@ -564,17 +614,17 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
         }
         {
             use windows::Win32::UI::WindowsAndMessaging::{
-                SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+                SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
             };
             let tray_settings = windows::core::w!("TraySettings");
             let mut msg_res = 0usize;
             let _ = SendMessageTimeoutW(
-                HWND_BROADCAST,
+                tray_hwnd,
                 WM_SETTINGCHANGE,
                 windows::Win32::Foundation::WPARAM(0),
                 windows::Win32::Foundation::LPARAM(tray_settings.as_ptr() as isize),
                 SMTO_ABORTIFHUNG,
-                500,
+                200,
                 Some(&mut msg_res),
             );
         }

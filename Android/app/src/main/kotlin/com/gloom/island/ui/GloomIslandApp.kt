@@ -4,8 +4,13 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -14,6 +19,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +32,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
@@ -45,8 +54,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gloom.island.settings.GloomIslandSettings
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -73,7 +88,16 @@ fun GloomIslandApp(
     isInstagramForeground: Boolean = false,
     showReelCounterUntil: Long = 0L,
     lockEvent: LockIslandEvent? = null,
-    onSwipeDown: () -> Unit = {},
+    activeTimer: TimerIslandEvent? = null,
+    onTimerPauseResume: () -> Unit = {},
+    onTimerCancel: () -> Unit = {},
+    voiceAssistant: VoiceAssistantIslandEvent? = null,
+    onVoiceAssistantAskAgain: () -> Unit = {},
+    onVoiceAssistantClose: () -> Unit = {},
+    systemAlert: SystemAlertIslandEvent? = null,
+    onSystemAlertDismiss: () -> Unit = {},
+    onSwipeDown: (Boolean) -> Unit = {},
+    onInputFocusChanged: (Boolean) -> Unit = {},
     settings: GloomIslandSettings = GloomIslandSettings.instance
 ) {
     if (!settings.isIslandEnabled) return
@@ -81,6 +105,25 @@ fun GloomIslandApp(
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val palette = remember(settings.themeStyle) { IslandThemePalettes.getTheme(settings.themeStyle) }
+
+    val islandBrush = remember(palette) {
+        when (palette.fillType) {
+            ThemeFillType.SOLID -> SolidColor(palette.backgroundColors.firstOrNull() ?: Color.Black)
+            ThemeFillType.HORIZONTAL_GRADIENT -> Brush.horizontalGradient(palette.backgroundColors)
+            ThemeFillType.LINEAR_GRADIENT -> Brush.linearGradient(palette.backgroundColors)
+            ThemeFillType.RADIAL_GRADIENT -> Brush.radialGradient(palette.backgroundColors)
+            ThemeFillType.SWEEP_GRADIENT -> Brush.sweepGradient(palette.backgroundColors)
+        }
+    }
+
+    // Interactive Apple fluid touch scale
+    val islandInteractionSource = remember { MutableInteractionSource() }
+    val isIslandPressed by islandInteractionSource.collectIsPressedAsState()
+    val islandScale by animateFloatAsState(
+        targetValue = if (isIslandPressed) 0.97f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
+        label = "islandScale"
+    )
 
     // The collapsed pill hugs the punch-hole; the expanded card slides below
     // the status bar so the clock and system icons stay legible.
@@ -94,10 +137,11 @@ fun GloomIslandApp(
         (px / context.resources.displayMetrics.density).dp
     }
 
+    // Apple HIG critically damped fluid spring (dampingRatio = 0.82f, stiffness = 380f)
     val islandSpring: AnimationSpec<Dp> = if (settings.reducedMotion) {
         tween(durationMillis = 90, easing = FastOutSlowInEasing)
     } else {
-        spring(dampingRatio = 1f, stiffness = 340f)
+        spring(dampingRatio = 0.82f, stiffness = 380f)
     }
 
     val isNotchStyle = settings.islandStyle == "Notch"
@@ -117,6 +161,9 @@ fun GloomIslandApp(
     )
 
     val isLockActive = lockEvent != null && (System.currentTimeMillis() - lockEvent.timestampMs < 2500L)
+    val isTimerActive = activeTimer?.isActive == true
+    val isSystemAlertActive = systemAlert != null && systemAlert.type != SystemAlertIslandEvent.AlertType.NONE
+    val isVoiceActive = voiceAssistant?.isActive == true
     val isMediaActive = mediaTrack.isPlaying || mediaTrack.title.isNotBlank()
     val isNotificationActive = activeNotification != null
     val isTransferActive = activeTransfer.isActive
@@ -124,7 +171,9 @@ fun GloomIslandApp(
         (isInstagramForeground || System.currentTimeMillis() < showReelCounterUntil)
 
     val compactKind = when {
+        isVoiceActive -> IslandCompactKind.VOICE_ASSISTANT
         isLockActive -> IslandCompactKind.LOCK
+        isTimerActive -> IslandCompactKind.TIMER
         isNotificationActive -> IslandCompactKind.NOTIFICATION
         isTransferActive -> IslandCompactKind.TRANSFER
         isReelCounterActive -> IslandCompactKind.REEL_COUNTER
@@ -144,25 +193,41 @@ fun GloomIslandApp(
     val compactInset = 8.dp
 
     val targetWidth by animateDpAsState(
-        targetValue = if (isExpanded) settings.expandedWidth.dp else compactWidth,
+        targetValue = when {
+            isSystemAlertActive -> 232.dp
+            isExpanded -> settings.expandedWidth.dp
+            else -> compactWidth
+        },
         animationSpec = islandSpring,
         label = "islandWidth"
     )
 
     val baseExpandedHeight = settings.expandedHeight.coerceIn(140, 260)
-    val expandedContentHeight = if (isTransferActive) 132 else baseExpandedHeight
+    val expandedContentHeight = when {
+        isVoiceActive -> 210
+        isTimerActive -> 150
+        isNotificationActive && activeNotification?.replyAction != null -> 180
+        isTransferActive -> 132
+        else -> baseExpandedHeight
+    }
 
     val targetHeight by animateDpAsState(
-        targetValue = if (isExpanded) {
-            expandedContentHeight.dp
-        } else settings.pillHeight.dp,
+        targetValue = when {
+            isSystemAlertActive -> 48.dp
+            isExpanded -> expandedContentHeight.dp
+            else -> settings.pillHeight.dp
+        },
         animationSpec = islandSpring,
         label = "islandHeight"
     )
 
     val collapsedCorner = settings.pillHeight.dp / 2
     val targetCorner by animateDpAsState(
-        targetValue = if (isExpanded) settings.expandedCornerRadius.dp else collapsedCorner,
+        targetValue = when {
+            isSystemAlertActive -> 24.dp
+            isExpanded -> settings.expandedCornerRadius.dp
+            else -> collapsedCorner
+        },
         animationSpec = islandSpring,
         label = "islandCorner"
     )
@@ -178,7 +243,7 @@ fun GloomIslandApp(
     )
 
     val borderAlpha by animateFloatAsState(
-        targetValue = if (isExpanded) 1f else 0f,
+        targetValue = if (isExpanded || palette.borderWidthDp > 0f) 1f else 0f,
         animationSpec = if (settings.reducedMotion) {
             tween(durationMillis = 90)
         } else {
@@ -202,6 +267,9 @@ fun GloomIslandApp(
     }
 
     val contentKey = when {
+        isVoiceActive -> "voice_assistant"
+        isSystemAlertActive -> "system_alert"
+        isExpanded && isTimerActive -> "timer"
         isExpanded && isNotificationActive -> "notification"
         isExpanded && isTransferActive -> "transfer"
         isExpanded && isMediaActive -> "media"
@@ -246,6 +314,7 @@ fun GloomIslandApp(
                             if (settings.hapticFeedback) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             }
+                            onInputFocusChanged(false)
                             onToggleExpand()
                         }
                     }
@@ -264,6 +333,10 @@ fun GloomIslandApp(
                 modifier = Modifier
                     .width(totalWidth)
                     .height(targetHeight + (if (isNotchStyle) 2.dp else 0.dp))
+                    .graphicsLayer {
+                        scaleX = islandScale
+                        scaleY = islandScale
+                    }
                     .shadow(
                         elevation = targetElevation,
                         shape = shape,
@@ -272,12 +345,33 @@ fun GloomIslandApp(
                         spotColor = Color.Black
                     )
                     .clip(shape)
-                    .background(Color.Black)
+                    .background(islandBrush)
                     .drawWithContent {
                         drawContent()
-                        if (settings.showBorders) {
+                        if (palette.borderWidthDp > 0f) {
+                            val strokeColor = palette.borderColor
+                            val hairlinePath = shape.createHairlineBorderPath(size, this)
+                            if (settings.borderGlow) {
+                                drawPath(
+                                    path = hairlinePath,
+                                    color = strokeColor.copy(alpha = 0.35f * borderAlpha),
+                                    style = Stroke(
+                                        width = (palette.borderWidthDp + 2f).dp.toPx(),
+                                        cap = StrokeCap.Round
+                                    )
+                                )
+                            }
+                            drawPath(
+                                path = hairlinePath,
+                                color = strokeColor.copy(alpha = borderAlpha.coerceAtLeast(0.85f)),
+                                style = Stroke(
+                                    width = palette.borderWidthDp.dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            )
+                        } else if (settings.showBorders) {
                             val borderColor = (if (settings.highContrast) Color(0x66FFFFFF) else Color(0x1FFFFFFF)).copy(
-                                alpha = (if (settings.highContrast) 0.40f else 0.12f) * borderAlpha.toFloat()
+                                alpha = (if (settings.highContrast) 0.40f else 0.12f) * borderAlpha
                             )
                             val hairlinePath = shape.createHairlineBorderPath(size, this)
                             drawPath(
@@ -295,6 +389,28 @@ fun GloomIslandApp(
                             "GLOOM Dynamic Island, expanded activity. Tap outside to collapse."
                         } else {
                             "GLOOM Dynamic Island. Tap to expand, swipe down for notifications."
+                        }
+                    }
+                    .pointerInput(isExpanded) {
+                        if (!isExpanded) {
+                            var totalDragY = 0f
+                            detectVerticalDragGestures(
+                                onDragStart = { totalDragY = 0f },
+                                onDragEnd = { totalDragY = 0f },
+                                onDragCancel = { totalDragY = 0f },
+                                onVerticalDrag = { change, dragAmount ->
+                                    totalDragY += dragAmount
+                                    if (totalDragY > 20f) {
+                                        change.consume()
+                                        totalDragY = -1000f
+                                        val isRight = change.position.x > (totalWidth.toPx() / 2f)
+                                        if (settings.hapticFeedback) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                        onSwipeDown(isRight)
+                                    }
+                                }
+                            )
                         }
                     }
                     .pointerInput(isExpanded) {
@@ -330,13 +446,33 @@ fun GloomIslandApp(
                         label = "islandContentMorph"
                     ) { key ->
                     when (key) {
+                        "voice_assistant" -> AppleVoiceAssistantActivity(
+                            event = voiceAssistant ?: VoiceAssistantIslandEvent(),
+                            onAskAgain = onVoiceAssistantAskAgain,
+                            onClose = onVoiceAssistantClose
+                        )
+                        "system_alert" -> AppleSystemAlertActivity(
+                            event = systemAlert ?: SystemAlertIslandEvent(),
+                            onDismiss = onSystemAlertDismiss,
+                            cameraGap = cameraGap
+                        )
+                        "timer" -> AppleTimerActivity(
+                            timer = activeTimer ?: TimerIslandEvent(),
+                            onPauseResume = onTimerPauseResume,
+                            onCancel = onTimerCancel
+                        )
                         "notification" -> AppleNotificationActivity(
                             event = activeNotification ?: NotificationIslandEvent(),
                             accentColor = palette.primaryAccent,
-                            onOpen = onNotificationClick,
+                            onOpen = {
+                                onInputFocusChanged(false)
+                                onNotificationClick()
+                            },
                             onDismiss = {
+                                onInputFocusChanged(false)
                                 onNotificationDismiss()
-                            }
+                            },
+                            onInputFocusChanged = onInputFocusChanged
                         )
                         "transfer" -> AppleTransferActivity(
                             transfer = activeTransfer,
@@ -372,7 +508,7 @@ fun GloomIslandApp(
                             notification = activeNotification,
                             batteryLevel = batteryLevel,
                             isCharging = isCharging,
-                            timerText = "",
+                            timerText = activeTimer?.formattedTime ?: "",
                             wingWidth = wingWidth,
                             cameraGap = cameraGap,
                             inset = compactInset,
@@ -438,6 +574,131 @@ fun AppleReelActivity(
             AppleActivityButton(
                 text = "Close",
                 background = Color(0xFFE1306C),
+                foreground = Color.White,
+                modifier = Modifier.weight(1f),
+                onClick = onClose
+            )
+        }
+    }
+}
+
+@Composable
+fun AppleVoiceAssistantActivity(
+    event: VoiceAssistantIslandEvent,
+    onAskAgain: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "voiceOrb")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.90f,
+        targetValue = 1.10f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "voicePulse"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                start = AppleIslandSpec.contentMargin,
+                end = AppleIslandSpec.contentMargin,
+                top = AppleIslandSpec.contentTop,
+                bottom = 12.dp
+            ),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    if (event.isSuccess) Apple.systemGreen else if (event.isFailed) Apple.systemRed else Apple.systemPurple,
+                                    Apple.systemBlue,
+                                    Color.Transparent
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    GloomIcon(
+                        icon = if (event.isThinking) GloomIcons.Sparkles else GloomIcons.Waveform,
+                        tint = Color.White,
+                        size = (18f * if (event.isThinking) pulse else 1f).dp
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = if (event.isThinking) "Thinking…" else if (event.reply != null) "GLOOM" else event.status,
+                        style = IslandType.title,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (event.transcript.isNotBlank()) event.transcript else "Speak a command or question…",
+                        style = IslandType.caption,
+                        color = Apple.secondaryLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        if (event.reply != null) {
+            Text(
+                text = event.reply,
+                style = AppleType.subheadline,
+                color = Color.White,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x22FFFFFF))
+                    .padding(8.dp)
+            )
+        } else if (event.isThinking) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Processing…",
+                    style = IslandType.subtitle,
+                    color = Apple.secondaryLabel
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (event.reply != null || event.isFailed) {
+                AppleActivityButton(
+                    text = "Ask Again",
+                    background = Apple.fillSecondary,
+                    foreground = Color.White,
+                    modifier = Modifier.weight(1f),
+                    onClick = onAskAgain
+                )
+            }
+            AppleActivityButton(
+                text = "Done",
+                background = Apple.systemBlue,
                 foreground = Color.White,
                 modifier = Modifier.weight(1f),
                 onClick = onClose

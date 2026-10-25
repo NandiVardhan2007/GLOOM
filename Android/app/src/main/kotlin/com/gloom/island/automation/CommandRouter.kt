@@ -106,6 +106,32 @@ object CommandRouter {
         RegexOption.IGNORE_CASE
     )
 
+    private val volSetPattern = Regex(
+        """^(?:set|turn|change|put|increase|raise|lower|decrease|adjust)\s+(?:the\s+)?(?:media\s+|device\s+|phone\s+)?volume\s+(?:to\s+|at\s+)?(\d{1,3})%?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val volUpPattern = Regex(
+        """^(?:increase|raise|turn up|boost|bump|up)\s+(?:the\s+)?(?:media\s+|device\s+|phone\s+)?volume(?:\s+by\s+(\d{1,3})%?)?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val volDownPattern = Regex(
+        """^(?:decrease|lower|turn down|drop|reduce|down)\s+(?:the\s+)?(?:media\s+|device\s+|phone\s+)?volume(?:\s+by\s+(\d{1,3})%?)?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val volMutePattern = Regex(
+        """^(?:mute|silence)\s+(?:the\s+)?(?:media\s+|device\s+|phone\s+)?volume$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val volUnmutePattern = Regex(
+        """^(?:unmute)\s+(?:the\s+)?(?:media\s+|device\s+|phone\s+)?volume$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val volumeShortcuts = setOf(
+        "volume up", "turn volume up", "increase volume", "volume down",
+        "turn volume down", "decrease volume", "mute", "mute volume", "mute phone",
+        "unmute", "unmute volume", "volume", "volume status", "check volume"
+    )
+
     private val keyboardCommands = setOf(
         "enter", "send", "submit", "press enter", "hit enter", "press send"
     )
@@ -136,10 +162,17 @@ object CommandRouter {
     fun cleanSpeech(raw: String): String {
         var s = raw.trim().trim('.', '!', '?', ',', ';')
         val fillers = listOf(
-            "ya could you please", "yeah could you please", "could you please",
-            "ya could you", "yeah could you", "could you", "can you please",
-            "can you", "would you please", "would you", "please",
-            "ya please", "yeah please", "ya ", "yeah ", "hey gloom ",
+            "i am asking you to please tell me ", "i am asking you to tell me ",
+            "i am asking you to please ", "i am asking you to ", "i am asking you ",
+            "could you please tell me ", "can you please tell me ",
+            "could you tell me ", "can you tell me ", "would you tell me ",
+            "tell me please ", "tell me ",
+            "ya could you please ", "yeah could you please ", "could you please ",
+            "ya could you ", "yeah could you ", "could you ", "can you please ",
+            "can you ", "would you please ", "would you ", "please ",
+            "what is the ", "what's the ", "what is ", "what's ",
+            "show me the ", "show me ", "give me the ", "give me ",
+            "ya please ", "yeah please ", "ya ", "yeah ", "hey gloom ",
             "hey ", "ok gloom ", "okay gloom ", "ok ", "okay ", "hi gloom ",
             "hi ", "hello gloom ", "hello ", "gloom ", "yo ", "so ", "um "
         )
@@ -158,6 +191,35 @@ object CommandRouter {
         return s.ifBlank { raw.trim() }
     }
 
+    fun isVolumeCommand(lower: String): Boolean {
+        if (!lower.contains("volume") && !lower.contains("mute")) return false
+        return lower in volumeShortcuts ||
+            volSetPattern.matches(lower) ||
+            volUpPattern.matches(lower) ||
+            volDownPattern.matches(lower) ||
+            volMutePattern.matches(lower) ||
+            volUnmutePattern.matches(lower) ||
+            lower.contains("increase") || lower.contains("decrease") ||
+            lower.contains("set") || lower.contains("turn") ||
+            lower.contains("level") || lower.contains("what") || lower.contains("status")
+    }
+
+    fun isWifiQuery(lower: String): Boolean {
+        val hasWifi = lower.contains("wifi") || lower.contains("wi-fi") || lower.contains("network")
+        if (!hasWifi) return false
+        return lower.contains("which") || lower.contains("what") || lower.contains("status") ||
+            lower.contains("connect") || lower.contains("name") || lower.contains("open") ||
+            lower.contains("settings") || lower.contains("am i")
+    }
+
+    fun isPdfQuery(lower: String): Boolean {
+        val hasPdf = lower.contains("pdf") || lower.contains("pdfs")
+        if (!hasPdf) return false
+        return lower.contains("list") || lower.contains("all") || lower.contains("available") ||
+            lower.contains("show") || lower.contains("find") || lower.contains("search") ||
+            lower.contains("get") || lower.contains("what") || lower.contains("tell")
+    }
+
     /**
      * True when [text] is a command this router will execute. The voice panel
      * uses this to decide whether to get out of the way before acting.
@@ -167,6 +229,9 @@ object CommandRouter {
         if (command.isEmpty()) return false
         val lower = command.lowercase()
         if (isReelQuery(lower)) return true
+        if (isVolumeCommand(lower)) return true
+        if (isWifiQuery(lower)) return true
+        if (isPdfQuery(lower)) return true
         if (lower in keyboardCommands || lower in navigationCommands ||
             lower in notificationCommands || lower in quickSettingsCommands ||
             lower in clearCommands || lower in cameraCommands || lower in reelShortcuts ||
@@ -272,6 +337,73 @@ object CommandRouter {
             } else {
                 Outcome(true, false, "Accessibility service not running.")
             }
+        }
+
+        // ── Device Volume Control ──
+        if (isVolumeCommand(lower)) {
+            volSetPattern.matchEntire(command)?.let { match ->
+                val pct = match.groupValues[1].toIntOrNull() ?: 50
+                val msg = SystemTools.setVolumePercent(context, pct)
+                return Outcome(true, true, msg)
+            }
+            if (volMutePattern.matches(command) || lower == "mute" || lower == "mute volume") {
+                val msg = SystemTools.muteVolume(context, true)
+                return Outcome(true, true, msg)
+            }
+            if (volUnmutePattern.matches(command) || lower == "unmute" || lower == "unmute volume") {
+                val msg = SystemTools.muteVolume(context, false)
+                return Outcome(true, true, msg)
+            }
+            if (volUpPattern.matches(command) || lower == "volume up" || lower == "turn volume up") {
+                val msg = SystemTools.adjustVolume(context, android.media.AudioManager.ADJUST_RAISE)
+                return Outcome(true, true, msg)
+            }
+            if (volDownPattern.matches(command) || lower == "volume down" || lower == "turn volume down") {
+                val msg = SystemTools.adjustVolume(context, android.media.AudioManager.ADJUST_LOWER)
+                return Outcome(true, true, msg)
+            }
+            if (lower.contains("what") || lower.contains("status") || lower.contains("level") || lower == "volume") {
+                val msg = SystemTools.getVolumeStatus(context)
+                return Outcome(true, true, msg)
+            }
+            if (lower.contains("increase") || lower.contains("raise") || lower.contains("up")) {
+                val msg = SystemTools.adjustVolume(context, android.media.AudioManager.ADJUST_RAISE)
+                return Outcome(true, true, msg)
+            }
+            if (lower.contains("decrease") || lower.contains("lower") || lower.contains("down")) {
+                val msg = SystemTools.adjustVolume(context, android.media.AudioManager.ADJUST_LOWER)
+                return Outcome(true, true, msg)
+            }
+        }
+
+        // ── Live Wi-Fi & Network Status ──
+        if (isWifiQuery(lower)) {
+            if (lower.contains("open") || lower.contains("settings")) {
+                val ok = SystemTools.openWifiSettings(context)
+                return Outcome(true, ok, if (ok) "Opening Wi-Fi settings." else "Could not open Wi-Fi settings.")
+            }
+            val status = SystemTools.getWifiStatus(context)
+            return Outcome(true, true, status)
+        }
+
+        // ── PDF & Document Search ──
+        if (isPdfQuery(lower)) {
+            val query = if (lower.contains("named ")) {
+                command.substringAfter("named ").trim()
+            } else if (lower.contains("for ")) {
+                command.substringAfter("for ").trim()
+            } else if (lower.contains("about ")) {
+                command.substringAfter("about ").trim()
+            } else ""
+            val files = SystemTools.listPdfFiles(context, query)
+            if (files.isEmpty()) {
+                return Outcome(true, true, if (query.isNotBlank()) "No PDF files matching \"$query\" found." else "No PDF files found on your device.")
+            }
+            val count = files.size
+            val fileList = files.take(5).joinToString("\n") { "• ${it.name} (${it.sizeKb} KB)" }
+            val suffix = if (count > 5) "\n...and ${count - 5} more." else ""
+            val msg = "Found $count PDF ${if (count == 1) "file" else "files"}:\n$fileList$suffix"
+            return Outcome(true, true, msg)
         }
 
         // ── Notebook ──

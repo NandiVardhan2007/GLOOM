@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, memo } from "react";
-import { motion, AnimatePresence, Reorder } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./Dock.css";
@@ -11,6 +11,7 @@ import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { mergeTrayApps, selectDockTrayApps, type AppInfo, type TrayApp } from "./dockApps";
 import { driveLetter, hideDrive, removeCustomFolder, type DockExtra } from "./dockExtras";
 import { createRegionSender, measureElements, padRect, type RegionRect } from "./windowRegion";
+import { MagnifyingDock, type DockEntry } from "./components/MagnifyingDock";
 
 // Host processes (Edge/Chrome/Brave/ApplicationFrameHost) run every PWA/UWP
 // window, so their window title must be part of their identity — otherwise two
@@ -125,31 +126,6 @@ function resolveStartIcon(startIcon: string): string {
 	return "/gloom.svg";
 }
 
-// Stable module-level constants so object references never change between renders,
-// preventing Framer Motion from re-triggering animations on every re-render.
-const ITEM_ENTRY_TRANSITION = {
-	opacity: { duration: 0.15, delay: 0.15 },
-	scale: { type: "spring" as const, stiffness: 400, damping: 25, delay: 0.15 }
-};
-const ITEM_INITIAL = { opacity: 0, scale: 0 };
-const ITEM_ANIMATE = { opacity: 1, scale: 1 };
-const ITEM_EXIT = { opacity: 0, scale: 0 };
-
-// One dot per open window, capped at three.
-function WindowDots({ count, background }: { count: number; background?: boolean }) {
-	return (
-		<div
-			className="window-dots"
-			role="img"
-			aria-label={background ? "Running in background" : `${count} open windows`}
-		>
-			{Array.from({ length: background ? 1 : Math.min(Math.max(count, 1), 3) }, (_, i) => (
-				<div key={i} className={`active-indicator${background ? " background-indicator" : ""}`} />
-			))}
-		</div>
-	);
-}
-
 const Dock = memo(function Dock() {
 	useEffect(() => {
 		return initTheme();
@@ -208,9 +184,8 @@ const Dock = memo(function Dock() {
 	const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
 	const [activeOrder, setActiveOrder] = useState<string[]>([]);
 	const observedTrayPathsRef = useRef(new Set<string>());
-	const [isDragging, setIsDragging] = useState(false);
+	const isDragging = false;
 	const [hoveredApp, setHoveredApp] = useState<string | null>(null);
-	const [pressedApp, setPressedApp] = useState<string | null>(null);
 	const [isReady, setIsReady] = useState(false);
 	const [isImpacted, setIsImpacted] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -220,6 +195,7 @@ const Dock = memo(function Dock() {
 	const iconPickerTargetRef = useRef<string | null>(null);
 	const toastTimerRef = useRef<any>(null);
 	const dockRef = useRef<HTMLDivElement>(null);
+	const [dockRowWidth, setDockRowWidth] = useState(0);
 	const [popupBottom, setPopupBottom] = useState(56);
 	const pinnedItemsRef = useRef<AppInfo[]>([]);
 	const handleAppClickRef = useRef<(app: AppInfo) => void>(() => {});
@@ -866,7 +842,7 @@ const Dock = memo(function Dock() {
 		if (bar && isExpanded && !isHidden && isVisible) {
 			dockBandHeightRef.current = Math.max(dockBandHeightRef.current, bar.height);
 		}
-		const band = (dockBandHeightRef.current || 72 * scale) + 64 * scale;
+		const band = Math.max((dockBandHeightRef.current || 82 * scale) + 160 * scale, 260 * scale);
 		const wanted: RegionRect[] = [
 			{ x: 0, y: window.innerHeight - band, width: window.innerWidth, height: band }
 		];
@@ -893,7 +869,7 @@ const Dock = memo(function Dock() {
 			wanted.push(padRect({ x: p.left, y: a.top, width: p.width, height: a.height }, 40));
 		}
 		sendDockRegion(wanted);
-	});
+	}, [isExpanded, isHidden, isVisible, isDragging, scale, pinnedApps.length, activeApps.length, contextMenu, activeSubmenu, showAddPopup]);
 
 	useEffect(() => {
 		let open = false;
@@ -1056,24 +1032,6 @@ const Dock = memo(function Dock() {
 		};
 	}, []);
 
-	// Items are keyed by identity, not path: web apps running in the same
-	// browser share one executable path.
-	const handleReorder = (newKeys: string[]) => {
-		const oldKeys = pinnedApps.map(itemKey);
-		if (JSON.stringify(newKeys) !== JSON.stringify(oldKeys)) {
-			const reordered = newKeys
-				.map((key) => pinnedApps.find((p) => itemKey(p) === key))
-				.filter((p): p is AppInfo => !!p);
-			setPinnedApps(reordered);
-		}
-	};
-
-	const handleDragEnd = () => {
-		setIsDragging(false);
-		setPressedApp(null);
-		invoke("save_pinned_apps", { apps: pinnedApps }).catch(console.error);
-	};
-
 	useEffect(() => {
 		// Only report true dock-window hover, not the edge-hover from Rust,
 		// to avoid a feedback loop that keeps the dock open.
@@ -1152,52 +1110,166 @@ const Dock = memo(function Dock() {
 		};
 	}, [hoveredApp, isDragging, dockItems]);
 
-	const iconVariants = {
-		idle: { y: 0, scale: 1 },
-		hover: { y: -5, scale: 1.1 },
-		drag: { y: -10, scale: 1.1, opacity: 0.8 },
-		tap: { scale: 0.95 }
-	};
+	const dockEntries = useMemo<DockEntry[]>(() => {
+		const entries: DockEntry[] = [];
 
-	const renderExtra = (extra: DockExtra) => (
-		<motion.div
-			key={extra.id}
-			layout
-			initial={{ opacity: 0, scale: 0 }}
-			animate={{ opacity: 1, scale: 1 }}
-			exit={{ opacity: 0, scale: 0, transition: { duration: 0.12 } }}
-			className="dock-icon-wrapper"
-			onContextMenu={(e) => handleExtraContextMenu(e, extra)}
-			onMouseEnter={() => setHoveredApp(extra.id)}
-			onMouseLeave={() => {
-				setHoveredApp(null);
-				setPressedApp(null);
-			}}
-			onMouseDown={(e) => {
-				if (e.button === 1) e.preventDefault();
-			}}
-			onClick={(e) => {
-				e.stopPropagation();
-				handleExtraClick(extra);
-			}}
-		>
-			{hoveredApp === extra.id && <div className="tooltip">{extra.name}</div>}
-			<motion.div
-				className="dock-icon"
-				variants={iconVariants}
-				animate={pressedApp === extra.id ? "tap" : hoveredApp === extra.id ? "hover" : "idle"}
-				onPointerDown={() => setPressedApp(extra.id)}
-				onPointerUp={() => setPressedApp(null)}
-				onPointerCancel={() => setPressedApp(null)}
-			>
-				{extra.icon ? (
-					<img src={extra.icon} alt={extra.name} draggable={false} />
-				) : (
-					<div className="fallback-icon">{extra.name[0]}</div>
-				)}
-			</motion.div>
-		</motion.div>
-	);
+		if (startItem) {
+			entries.push({
+				kind: "item",
+				item: {
+					id: itemKey(startItem),
+					label: startItem.name,
+					type: "start",
+					icon: resolveStartIcon(startIcon),
+					isGloomOrSettings: true,
+					onLaunch: () => handleAppClick(startItem),
+					onContextMenu: (e) => handleContextMenu(e, startItem)
+				}
+			});
+		}
+
+		if (dockTaskView) {
+			entries.push({
+				kind: "item",
+				item: {
+					id: "task-view",
+					label: "Task View",
+					type: "task-view",
+					customIconNode: <TaskViewIcon />,
+					onLaunch: () => openTaskView(),
+					onContextMenu: (e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						setContextMenu({ x: e.clientX, y: e.clientY, app: null, taskView: true });
+					}
+				}
+			});
+		}
+
+		if (dockExtrasPosition === "left" && dockExtras.length > 0) {
+			dockExtras.forEach((extra) => {
+				entries.push({
+					kind: "item",
+					item: {
+						id: extra.id,
+						label: extra.name,
+						type: "extra",
+						icon: extra.icon,
+						onLaunch: () => handleExtraClick(extra),
+						onContextMenu: (e) => handleExtraContextMenu(e, extra)
+					}
+				});
+			});
+			entries.push({ kind: "separator", id: "sep-left-extras" });
+		}
+
+		pinnedItems.forEach((app) => {
+			const isHost = isBrowserHost(app.path);
+			const cacheKey = isHost
+				? `${app.path}:${app.name.toLowerCase()}`
+				: app.hwnd
+					? `${app.path}-${app.hwnd}`
+					: app.path;
+			const allowPathFallback = !isHost || !app.is_running;
+			const icon =
+				customIcons[cacheKey] ||
+				(allowPathFallback && customIcons[app.path]) ||
+				iconsRef.current[cacheKey] ||
+				(allowPathFallback && iconsRef.current[app.path]) ||
+				app.icon;
+			const isGloom =
+				app.name.toLowerCase() === "settings" ||
+				app.name.toLowerCase() === "gloom" ||
+				app.path.toLowerCase().includes("gloom.exe");
+
+			entries.push({
+				kind: "item",
+				item: {
+					id: itemKey(app),
+					label: app.name,
+					type: "app",
+					icon,
+					isGloomOrSettings: isGloom,
+					isRunning: app.is_running,
+					windowCount: app.all_hwnds?.length ?? 1,
+					isBackground: app.is_background,
+					onLaunch: () => handleAppClick(app),
+					onContextMenu: (e) => handleContextMenu(e, app),
+					onMiddleClick: (e) => handleMiddleClick(e, app)
+				}
+			});
+		});
+
+		if (dockSeparatorEnabled && unpinnedItems.length > 0 && (pinnedItems.length > 0 || startItem)) {
+			entries.push({ kind: "separator", id: "sep-pinned-unpinned" });
+		}
+
+		unpinnedItems.forEach((app) => {
+			const isHost = isBrowserHost(app.path);
+			const cacheKey = isHost
+				? `${app.path}:${app.name.toLowerCase()}`
+				: app.hwnd
+					? `${app.path}-${app.hwnd}`
+					: app.path;
+			const allowPathFallback = !isHost || !app.is_running;
+			const icon =
+				customIcons[cacheKey] ||
+				(allowPathFallback && customIcons[app.path]) ||
+				iconsRef.current[cacheKey] ||
+				(allowPathFallback && iconsRef.current[app.path]) ||
+				app.icon;
+			const isGloom =
+				app.name.toLowerCase() === "settings" ||
+				app.name.toLowerCase() === "gloom" ||
+				app.path.toLowerCase().includes("gloom.exe");
+
+			entries.push({
+				kind: "item",
+				item: {
+					id: itemKey(app),
+					label: app.name,
+					type: "app",
+					icon,
+					isGloomOrSettings: isGloom,
+					isRunning: app.is_running,
+					windowCount: app.all_hwnds?.length ?? 1,
+					isBackground: app.is_background,
+					onLaunch: () => handleAppClick(app),
+					onContextMenu: (e) => handleContextMenu(e, app),
+					onMiddleClick: (e) => handleMiddleClick(e, app)
+				}
+			});
+		});
+
+		if (dockExtrasPosition === "right" && dockExtras.length > 0) {
+			entries.push({ kind: "separator", id: "sep-right-extras" });
+			dockExtras.forEach((extra) => {
+				entries.push({
+					kind: "item",
+					item: {
+						id: extra.id,
+						label: extra.name,
+						type: "extra",
+						icon: extra.icon,
+						onLaunch: () => handleExtraClick(extra),
+						onContextMenu: (e) => handleExtraContextMenu(e, extra)
+					}
+				});
+			});
+		}
+
+		return entries;
+	}, [
+		startItem,
+		startIcon,
+		dockTaskView,
+		dockExtrasPosition,
+		dockExtras,
+		pinnedItems,
+		dockSeparatorEnabled,
+		unpinnedItems,
+		customIcons
+	]);
 
 	return (
 		<div className={`dock-container ${isDragging ? "dragging" : ""}`} onClick={closeMenu}>
@@ -1218,7 +1290,6 @@ const Dock = memo(function Dock() {
 					onMouseLeave={() => {
 						setIsDockHovered(false);
 						setHoveredApp(null);
-						setPressedApp(null);
 					}}
 					initial={{
 						y: -800,
@@ -1233,10 +1304,12 @@ const Dock = memo(function Dock() {
 					animate={{
 						y: !isReady ? -800 : isVisible ? (isHidden ? 100 : 0) : 150,
 						width:
-							isExpanded && !isHidden && isVisible ? (isAdaptive ? adaptiveWidth : "auto") : 34,
-						height: isExpanded && !isHidden && isVisible ? "auto" : 34,
-						borderTopLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 18 : 17,
-						borderTopRightRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 18 : 17,
+							isExpanded && !isHidden && isVisible
+								? (isAdaptive ? adaptiveWidth : Math.max(34, dockRowWidth + 32))
+								: 34,
+						height: isExpanded && !isHidden && isVisible ? 82 : 34,
+						borderTopLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 20 : 17,
+						borderTopRightRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 20 : 17,
 						borderBottomLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 0 : 17,
 						borderBottomRightRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 0 : 17,
 						opacity: isVisible ? 1 : 0,
@@ -1244,8 +1317,8 @@ const Dock = memo(function Dock() {
 					}}
 					transition={{
 						y: { type: "spring", stiffness: 400, damping: 35, mass: 0.8 },
-						width: { type: "spring", stiffness: 250, damping: 22, mass: 0.8 },
-						height: { type: "spring", stiffness: 250, damping: 22, mass: 0.8 },
+						width: { type: "spring", stiffness: 400, damping: 28, mass: 0.6 },
+						height: { type: "spring", stiffness: 350, damping: 28, mass: 0.8 },
 						layout: isDragging ? { duration: 0 } : { type: "spring", stiffness: 300, damping: 25 },
 						borderTopLeftRadius: { type: "spring", stiffness: 500, damping: 30 },
 						borderTopRightRadius: { type: "spring", stiffness: 500, damping: 30 },
@@ -1266,446 +1339,29 @@ const Dock = memo(function Dock() {
 								animate={{ opacity: 1 }}
 								exit={{ opacity: 0 }}
 								transition={{ duration: 0.15 }}
-								className="dock-reorder-container"
+								style={{
+									position: "relative",
+									width: "100%",
+									height: "100%",
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "flex-end"
+								}}
 							>
-								{startItem && (
-									<motion.div
-										initial={{ opacity: 0, scale: 0 }}
-										animate={{ opacity: 1, scale: 1 }}
-										transition={{
-											opacity: { duration: 0.15, delay: 0.15 },
-											scale: { type: "spring", stiffness: 400, damping: 25, delay: 0.15 }
-										}}
-										className="dock-icon-wrapper"
-										onContextMenu={(e) => handleContextMenu(e, startItem)}
-										onMouseEnter={() => setHoveredApp(itemKey(startItem))}
-										onMouseLeave={() => {
-											setHoveredApp(null);
-											setPressedApp(null);
-										}}
-									>
-										{(!dockPreviewEnabled ||
-											(dockPreviewEnabled && hoveredApp === itemKey(startItem))) && (
-											<div className="tooltip">{startItem.name}</div>
-										)}
-										<motion.div
-											className="dock-icon"
-											variants={iconVariants}
-											animate={
-												pressedApp === itemKey(startItem)
-													? "tap"
-													: hoveredApp === itemKey(startItem)
-														? "hover"
-														: "idle"
-											}
-											onPointerDown={() => setPressedApp(itemKey(startItem))}
-											onPointerUp={() => setPressedApp(null)}
-											onPointerCancel={() => setPressedApp(null)}
-											onClick={(e) => {
-												e.stopPropagation();
-												handleAppClick(startItem);
-											}}
-										>
-											<img
-												src={resolveStartIcon(startIcon)}
-												alt="Start"
-												className="gloom-icon-img"
-												style={
-													startIcon.startsWith("custom:") ? { borderRadius: "8px" } : undefined
-												}
-												draggable={false}
-											/>
-										</motion.div>
-									</motion.div>
-								)}
-
-								{dockTaskView && (
-									<motion.div
-										key="task-view"
-										initial={{ opacity: 0, scale: 0 }}
-										animate={{ opacity: 1, scale: 1 }}
-										exit={{ opacity: 0, scale: 0, transition: { duration: 0.12 } }}
-										className="dock-icon-wrapper"
-										onContextMenu={(e) => {
-											e.stopPropagation();
-											e.preventDefault();
-											setContextMenu({ x: e.clientX, y: e.clientY, app: null, taskView: true });
-										}}
-										onMouseEnter={() => setHoveredApp("task-view")}
-										onMouseLeave={() => {
-											setHoveredApp(null);
-											setPressedApp(null);
-										}}
-									>
-										{(!dockPreviewEnabled || hoveredApp === "task-view") && (
-											<div className="tooltip">Task View</div>
-										)}
-										<motion.div
-											className="dock-icon"
-											variants={iconVariants}
-											animate={
-												pressedApp === "task-view"
-													? "tap"
-													: hoveredApp === "task-view"
-														? "hover"
-														: "idle"
-											}
-											onPointerDown={() => setPressedApp("task-view")}
-											onPointerUp={() => setPressedApp(null)}
-											onPointerCancel={() => setPressedApp(null)}
-											onClick={(e) => {
-												e.stopPropagation();
-												openTaskView();
-											}}
-										>
-											<TaskViewIcon />
-										</motion.div>
-									</motion.div>
-								)}
-
-								{dockExtrasPosition === "left" && dockExtras.length > 0 && (
-									<>
-										{dockExtras.map((extra) => renderExtra(extra))}
-										<div
-											className="dock-app-divider"
-											role="separator"
-											aria-orientation="vertical"
-										/>
-									</>
-								)}
-
-								<Reorder.Group
-									as="div"
-									axis="x"
-									values={pinnedItems.map(itemKey)}
-									onReorder={handleReorder}
-									className="dock-reorder-group"
-								>
-									{pinnedItems.map((app) => (
-										<Reorder.Item
-											as="div"
-											key={itemKey(app)}
-											data-dock-key={itemKey(app)}
-											value={itemKey(app)}
-											style={{ position: "relative" }}
-											onDragStart={() => {
-												setIsDragging(true);
-												setHoveredApp(null);
-												setPressedApp(null);
-											}}
-											onDragEnd={handleDragEnd}
-											onContextMenu={(e) => handleContextMenu(e, app)}
-											onMouseDown={(e) => {
-												if (e.button === 1) e.preventDefault();
-											}}
-											onAuxClick={(e) => handleMiddleClick(e, app)}
-											onClick={(e) => {
-												e.stopPropagation();
-												if (!isDragging) handleAppClick(app);
-											}}
-										>
-											<motion.div
-												className="dock-icon-wrapper"
-												initial={ITEM_INITIAL}
-												animate={ITEM_ANIMATE}
-												exit={ITEM_EXIT}
-												transition={ITEM_ENTRY_TRANSITION}
-												onMouseEnter={() => setHoveredApp(itemKey(app))}
-												onMouseLeave={() => {
-													if (!isPreviewHoveredRef.current) {
-														setHoveredApp(null);
-														setPressedApp(null);
-													}
-												}}
-											>
-												<AnimatePresence>
-													{dockPreviewEnabled &&
-														previewData &&
-														previewData.id === itemKey(app) &&
-														hoveredApp === itemKey(app) && (
-															<motion.div
-																className={`preview-tooltip ${previewData.previews.length > 1 ? "multi" : ""}`}
-																initial={{ opacity: 0, y: 10, scale: 0.95 }}
-																animate={{ opacity: 1, y: 0, scale: 1 }}
-																exit={{ opacity: 0, scale: 0.95 }}
-																transition={{ duration: 0.15 }}
-																onMouseEnter={() => {
-																	isPreviewHoveredRef.current = true;
-																}}
-																onMouseLeave={() => {
-																	isPreviewHoveredRef.current = false;
-																	setHoveredApp(null);
-																	setPressedApp(null);
-																}}
-															>
-																<div className="preview-items">
-																	{previewData.previews.map((prev, idx) => (
-																		<div
-																			key={prev.hwnd}
-																			className="preview-item"
-																			onClick={() => invoke("focus_window", { hwnd: prev.hwnd })}
-																		>
-																			<img src={prev.image} alt={`Preview ${idx}`} />
-																			<div className="preview-label">{prev.title || app.name}</div>
-																			<button
-																				className="preview-close-btn"
-																				onClick={(e) => handleClosePreview(e, prev.hwnd)}
-																				title="Close Window"
-																			>
-																				<svg
-																					width="10"
-																					height="10"
-																					viewBox="0 0 24 24"
-																					fill="none"
-																					stroke="currentColor"
-																					strokeWidth="3"
-																					strokeLinecap="round"
-																				>
-																					<line x1="18" y1="6" x2="6" y2="18"></line>
-																					<line x1="6" y1="6" x2="18" y2="18"></line>
-																				</svg>
-																			</button>
-																		</div>
-																	))}
-																</div>
-															</motion.div>
-														)}
-												</AnimatePresence>
-
-												{/* Fallback to text tooltip if previews are disabled, app isn't running, or preview failed to load */}
-												{(!dockPreviewEnabled ||
-													(dockPreviewEnabled && hoveredApp === itemKey(app) && !previewData)) && (
-													<div className="tooltip">{app.name}</div>
-												)}
-												<motion.div
-													className="dock-icon"
-													variants={iconVariants}
-													animate={
-														pressedApp === itemKey(app)
-															? "tap"
-															: isDragging && !app.is_pinned
-																? "idle"
-																: hoveredApp === itemKey(app) && !isDragging
-																	? "hover"
-																	: "idle"
-													}
-													whileDrag="drag"
-													onPointerDown={() => setPressedApp(itemKey(app))}
-													onPointerUp={() => setPressedApp(null)}
-													onPointerCancel={() => setPressedApp(null)}
-												>
-													{(() => {
-														const isHost = isBrowserHost(app.path);
-														const cacheKey = isHost
-															? `${app.path}:${app.name.toLowerCase()}`
-															: app.hwnd
-																? `${app.path}-${app.hwnd}`
-																: app.path;
-														// Running host items must not use the shared path fallback: the
-														// browser and its PWAs share one path, so it would leak one item's
-														// icon onto the others.
-														const allowPathFallback = !isHost || !app.is_running;
-														const icon =
-															customIcons[cacheKey] ||
-															(allowPathFallback && customIcons[app.path]) ||
-															iconsRef.current[cacheKey] ||
-															(allowPathFallback && iconsRef.current[app.path]) ||
-															app.icon;
-
-														const isGloomOrSettings =
-															app.name.toLowerCase() === "settings" ||
-															app.name.toLowerCase() === "gloom" || app.name.toLowerCase() === "gloom" || app.name.toLowerCase() === "gloom" ||
-															(app.path.toLowerCase().includes("gloom.exe") || app.path.toLowerCase().includes("gloom.exe"));
-
-														return icon ? (
-															<img
-																src={icon}
-																alt={app.name}
-																className={isGloomOrSettings ? "gloom-icon-img" : ""}
-																draggable={false}
-															/>
-														) : (
-															<div className="fallback-icon">{app.name[0]}</div>
-														);
-													})()}
-												</motion.div>
-												{app.is_running && (
-													<WindowDots
-														count={app.all_hwnds?.length ?? 1}
-														background={app.is_background}
-													/>
-												)}
-											</motion.div>
-										</Reorder.Item>
-									))}
-								</Reorder.Group>
-
-								{dockSeparatorEnabled &&
-									unpinnedItems.length > 0 &&
-									(pinnedItems.length > 0 || startItem) && (
-										<div
-											className="dock-app-divider"
-											role="separator"
-											aria-orientation="vertical"
-										/>
-									)}
-
-								{unpinnedItems.map((app) => (
-									<motion.div
-										key={itemKey(app)}
-										data-dock-key={itemKey(app)}
-										layout
-										initial={{ opacity: 0, scale: 0 }}
-										animate={{
-											opacity: 1,
-											scale: 1,
-											transition: {
-												opacity: { duration: 0.15, delay: 0.15 },
-												scale: { type: "spring", stiffness: 400, damping: 25, delay: 0.15 }
-											}
-										}}
-										exit={{ opacity: 0, scale: 0, transition: { duration: 0.12 } }}
-										className="dock-icon-wrapper"
-										onContextMenu={(e) => handleContextMenu(e, app)}
-										onMouseEnter={() => setHoveredApp(itemKey(app))}
-										onMouseLeave={() => {
-											if (!isPreviewHoveredRef.current) {
-												setHoveredApp(null);
-												setPressedApp(null);
-											}
-										}}
-										onMouseDown={(e) => {
-											if (e.button === 1) e.preventDefault();
-										}}
-										onAuxClick={(e) => handleMiddleClick(e, app)}
-										onClick={(e) => {
-											e.stopPropagation();
-											handleAppClick(app);
-										}}
-									>
-										<AnimatePresence>
-											{dockPreviewEnabled &&
-												previewData &&
-												previewData.id === itemKey(app) &&
-												hoveredApp === itemKey(app) && (
-													<motion.div
-														className={`preview-tooltip ${previewData.previews.length > 1 ? "multi" : ""}`}
-														initial={{ opacity: 0, y: 10, scale: 0.95 }}
-														animate={{ opacity: 1, y: 0, scale: 1 }}
-														exit={{ opacity: 0, scale: 0.95 }}
-														transition={{ duration: 0.15 }}
-														onMouseEnter={() => {
-															isPreviewHoveredRef.current = true;
-														}}
-														onMouseLeave={() => {
-															isPreviewHoveredRef.current = false;
-															setHoveredApp(null);
-															setPressedApp(null);
-														}}
-													>
-														<div className="preview-items">
-															{previewData.previews.map((prev, idx) => (
-																<div
-																	key={prev.hwnd}
-																	className="preview-item"
-																	onClick={() => invoke("focus_window", { hwnd: prev.hwnd })}
-																>
-																	<img src={prev.image} alt={`Preview ${idx}`} />
-																	<div className="preview-label">{prev.title || app.name}</div>
-																	<button
-																		className="preview-close-btn"
-																		onClick={(e) => handleClosePreview(e, prev.hwnd)}
-																		title="Close Window"
-																	>
-																		<svg
-																			width="10"
-																			height="10"
-																			viewBox="0 0 24 24"
-																			fill="none"
-																			stroke="currentColor"
-																			strokeWidth="3"
-																			strokeLinecap="round"
-																		>
-																			<line x1="18" y1="6" x2="6" y2="18"></line>
-																			<line x1="6" y1="6" x2="18" y2="18"></line>
-																		</svg>
-																	</button>
-																</div>
-															))}
-														</div>
-													</motion.div>
-												)}
-										</AnimatePresence>
-										{(!dockPreviewEnabled ||
-											(dockPreviewEnabled && hoveredApp === itemKey(app) && !previewData)) && (
-											<div className="tooltip">{app.name}</div>
-										)}
-										<motion.div
-											className="dock-icon"
-											variants={iconVariants}
-											animate={
-												pressedApp === itemKey(app)
-													? "tap"
-													: hoveredApp === itemKey(app) && !isDragging
-														? "hover"
-														: "idle"
-											}
-											onPointerDown={() => setPressedApp(itemKey(app))}
-											onPointerUp={() => setPressedApp(null)}
-											onPointerCancel={() => setPressedApp(null)}
-										>
-											{(() => {
-												const isHost = isBrowserHost(app.path);
-												const cacheKey = isHost
-													? `${app.path}:${app.name.toLowerCase()}`
-													: app.hwnd
-														? `${app.path}-${app.hwnd}`
-														: app.path;
-												// Running host items must not use the shared path fallback: the
-												// browser and its PWAs share one path, so it would leak one item's
-												// icon onto the others.
-												const allowPathFallback = !isHost || !app.is_running;
-												const icon =
-													customIcons[cacheKey] ||
-													(allowPathFallback && customIcons[app.path]) ||
-													iconsRef.current[cacheKey] ||
-													(allowPathFallback && iconsRef.current[app.path]) ||
-													app.icon;
-												const isGloomOrSettings =
-													app.name.toLowerCase() === "settings" ||
-													app.name.toLowerCase() === "gloom" || app.name.toLowerCase() === "gloom" ||
-													(app.path.toLowerCase().includes("gloom.exe") || app.path.toLowerCase().includes("gloom.exe"));
-												return icon ? (
-													<img
-														src={icon}
-														alt={app.name}
-														className={isGloomOrSettings ? "gloom-icon-img" : ""}
-														draggable={false}
-													/>
-												) : (
-													<div className="fallback-icon">{app.name[0]}</div>
-												);
-											})()}
-										</motion.div>
-										{app.is_running && (
-											<WindowDots
-												count={app.all_hwnds?.length ?? 1}
-												background={app.is_background}
-											/>
-										)}
-									</motion.div>
-								))}
-
-								{dockExtrasPosition === "right" && dockExtras.length > 0 && (
-									<>
-										<div
-											className="dock-app-divider"
-											role="separator"
-											aria-orientation="vertical"
-										/>
-										{dockExtras.map((extra) => renderExtra(extra))}
-									</>
-								)}
+								<MagnifyingDock
+									entries={dockEntries}
+									dockPreviewEnabled={dockPreviewEnabled}
+									previewData={previewData}
+									onClosePreview={handleClosePreview}
+									onFocusWindow={(hwnd) => invoke("focus_window", { hwnd })}
+									onHoverChange={setHoveredApp}
+									onRowWidthChange={setDockRowWidth}
+									onMouseEnterDock={() => setIsDockHovered(true)}
+									onMouseLeaveDock={() => {
+										setIsDockHovered(false);
+										setHoveredApp(null);
+									}}
+								/>
 							</motion.div>
 						)}
 					</AnimatePresence>

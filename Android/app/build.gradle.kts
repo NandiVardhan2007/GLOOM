@@ -12,8 +12,8 @@ android {
         applicationId = "com.gloom.island"
         minSdk = 26
         targetSdk = 35
-        versionCode = 192
-        versionName = "1.9.2"
+        versionCode = 195
+        versionName = "1.9.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -94,6 +94,9 @@ dependencies {
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // Hidden API bypass for OnComputeInternalInsetsListener and status bar on Android 9 - 15
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:4.3")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
@@ -114,4 +117,3 @@ gradle.taskGraph.whenReady {
         }
     }
 }
-

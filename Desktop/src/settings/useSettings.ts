@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
-import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { getVersion } from "@tauri-apps/api/app";
 import type { UpdateCheckResult } from "../updater";
 import { useSettingsSync } from "../hooks/useSettingsSync";
@@ -59,9 +58,6 @@ export function useSettings() {
 	const [mediaCompactGlowEnabled, setMediaCompactGlowEnabled] = useState(true);
 	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
 		() => (localStorage.getItem("gloom-media-layout") as "classic" | "compact") || "classic"
-	);
-	const [cornersEnabled, setCornersEnabled] = useState(
-		() => localStorage.getItem("gloom-corners-enabled") === "true"
 	);
 	const [showUpdateIndicator, setShowUpdateIndicator] = useState(
 		() => localStorage.getItem("gloom-show-update-indicator") !== "false"
@@ -207,7 +203,6 @@ export function useSettings() {
 			apply(getVal("gloom-brightness-overlay-enabled"), setBrightnessOverlayEnabled, readBool);
 			apply(getVal("gloom-media-ambience-enabled"), setMediaAmbienceEnabled, readBool);
 			apply(getVal("gloom-media-compact-glow-enabled"), setMediaCompactGlowEnabled, readBool);
-			apply(getVal("gloom-corners-enabled"), setCornersEnabled, readBool);
 			apply(getVal("gloom-time-format-24h"), setTimeFormat24h, readBool);
 			apply(getVal("gloom-show-update-indicator"), setShowUpdateIndicator, readBool);
 			apply(getVal("gloom-auto-update"), setAutoUpdate, readBool);
@@ -337,7 +332,7 @@ export function useSettings() {
 	useEffect(() => {
 		loadAllSettings();
 
-		isEnabled()
+		invoke<boolean>("get_autostart_status")
 			.then(setAutostart)
 			.catch(() => {});
 
@@ -380,7 +375,6 @@ export function useSettings() {
 		"gloom-media-ambience-enabled": setMediaAmbienceEnabled,
 		"gloom-media-compact-glow-enabled": setMediaCompactGlowEnabled,
 		"gloom-media-layout": setMediaLayout,
-		"gloom-corners-enabled": setCornersEnabled,
 		"gloom-show-update-indicator": setShowUpdateIndicator,
 		"gloom-time-format-24h": setTimeFormat24h,
 		"gloom-low-battery-threshold": setLowBatteryThreshold,
@@ -509,15 +503,13 @@ export function useSettings() {
 	// ── Autostart ──
 	const toggleAutostart = async () => {
 		try {
-			const currentlyEnabled = await isEnabled();
-			if (currentlyEnabled) {
-				await disable();
-				setAutostart(false);
-			} else {
-				await enable();
-				setAutostart(true);
-			}
-		} catch (err) {}
+			const next = !autostart;
+			await invoke("set_autostart_status", { enabled: next });
+			setAutostart(next);
+			saveSetting("gloom-autostart", String(next));
+		} catch (err) {
+			console.error("Failed to toggle autostart:", err);
+		}
 	};
 
 	// ── Simple boolean toggles ──
@@ -609,11 +601,6 @@ export function useSettings() {
 		saveSetting("gloom-media-compact-glow-enabled", String(next));
 	};
 
-	const toggleCorners = () => {
-		const next = !cornersEnabled;
-		setCornersEnabled(next);
-		saveSetting("gloom-corners-enabled", String(next));
-	};
 
 	const toggleUpdateIndicator = () => {
 		const next = !showUpdateIndicator;
@@ -944,8 +931,6 @@ export function useSettings() {
 		toggleUpdateIndicator,
 		scale,
 		handleScaleChange,
-		cornersEnabled,
-		toggleCorners,
 
 		// Theme
 		themeMode,

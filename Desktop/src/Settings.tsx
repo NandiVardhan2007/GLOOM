@@ -155,8 +155,6 @@ function SettingsApp() {
 							handleSaturationChange={settings.handleSaturationChange}
 							themeBrightness={settings.themeBrightness}
 							handleBrightnessChange={settings.handleBrightnessChange}
-							cornersEnabled={settings.cornersEnabled}
-							toggleCorners={settings.toggleCorners}
 							scale={settings.scale}
 							handleScaleChange={settings.handleScaleChange}
 						/>

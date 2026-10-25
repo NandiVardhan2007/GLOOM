@@ -31,7 +31,9 @@ object AiPlanner {
         "send", "open", "launch", "start", "tap", "click", "press", "type", "write",
         "scroll", "swipe", "search", "find", "like", "comment", "follow", "share",
         "message", "call", "play", "pause", "next", "skip", "back", "home",
-        "enable", "turn on", "turn off", "toggle", "choose", "select"
+        "enable", "turn on", "turn off", "toggle", "choose", "select",
+        "increase", "decrease", "raise", "lower", "set", "mute", "unmute",
+        "list", "show", "tell", "check"
     )
 
     private val BLOCKED_WORDS = listOf(
@@ -42,6 +44,12 @@ object AiPlanner {
     fun looksLikeAction(text: String): Boolean {
         val cleaned = CommandRouter.cleanSpeech(text)
         val lower = cleaned.trim().lowercase()
+
+        // Device volume, wifi, and pdf commands are always actionable
+        if (CommandRouter.isVolumeCommand(lower) || CommandRouter.isWifiQuery(lower) || CommandRouter.isPdfQuery(lower)) {
+            return true
+        }
+
         if (lower.endsWith("?")) return false
         val questionStarts = listOf(
             "what", "how", "why", "who", "when", "where", "which",
