@@ -69,4 +69,23 @@ class VoiceAssistantRoutingTest {
         assertTrue(live.contains("AM") || live.contains("PM"))
         assertTrue(live.contains("2026") || live.contains("202"))
     }
+
+    @Test
+    fun recognizesUnlockCommandsProperly() {
+        assertTrue(CommandRouter.isCommand("unlock"))
+        assertTrue(CommandRouter.isCommand("unlock phone"))
+        assertTrue(CommandRouter.isCommand("unlock my phone"))
+        assertTrue(CommandRouter.isCommand("unlock device"))
+        assertTrue(CommandRouter.isCommand("draw pattern"))
+        assertTrue(CommandRouter.isCommand("replay pattern"))
+        assertTrue(CommandRouter.isCommand("pattern unlock"))
+
+        val cleaned = CommandRouter.cleanSpeech("hey gloom please unlock my phone")
+        assertEquals("unlock my phone", cleaned)
+        assertTrue(CommandRouter.isCommand(cleaned))
+
+        val cleanedPattern = CommandRouter.cleanSpeech("could you please draw the pattern")
+        assertEquals("draw the pattern", cleanedPattern)
+        assertTrue(CommandRouter.isCommand(cleanedPattern))
+    }
 }

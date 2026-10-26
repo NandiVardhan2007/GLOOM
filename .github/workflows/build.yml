@@ -225,14 +225,14 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.1.6 — Incoming Call Island, AI Memories Hub & Live Contacts
-            - **Clean Standard Architecture**: Fully unrooted Android sandbox operation with zero elevated dependencies or root binaries.
-            - **Privacy & Memory Sanitization**: Excised all hardcoded contact aliases and test records; relies purely on real-time device `ContactsContract` and user-taught memories.
-            - **Live Contacts Primary Ground Truth**: Real-time 3-tier lookup directly against device `ContactsContract` for voice calling, eliminating stale mock numbers.
-            - **Incoming Call Island**: Auto-expands for phone/WhatsApp/Telegram calls with Apple 3-button controls (Decline, Speaker, Answer) and call lifecycle state listeners.
-            - **Background Daemons & Health Dashboard**: Real-time battery/sensor telemetry, memory optimization, and service status toggles.
-            - **AI Memories Hub**: Apple-style CRUD interface for managing assistant entities, app defaults, and autonomous recipes.
-            - **Harmonix Music Integration**: Native media playback routing and voice assistant query resolution for Harmonix.
+            ### GLOOM 2.1.8 — Standalone Apple Siri Pop-Up, Home Shortcuts & Lock Screen Unlock-Only Suite
+            - **Dynamic Island Independent Toggle**: Completely turn off the Dynamic Island overlay (`isIslandEnabled = false`) whenever desired while retaining full voice assistant capabilities.
+            - **Apple Siri Floating Pop-Up UI**: Animated multi-color Apple Siri Orb, fluid spring physics, live speech transcription, and interactive answer bubble.
+            - **Lock Screen Siri Unlock-Only Mode**: Use the Siri pop-up directly on the lock screen (even with Dynamic Island disabled) to unlock the phone via saved pattern drawing.
+            - **Lock Screen Security Sandbox**: While locked, all non-unlock queries (apps, messages, files, AI queries) are strictly blocked with secure voice feedback; settings button is hidden.
+            - **Auto-Pop on Screen Wake**: Option to automatically present the Siri pop-up when the screen wakes up locked, allowing hands-free "Unlock" pattern replay.
+            - **Multi-Channel Home Screen Shortcuts**: 1-tap pinned home shortcut, long-press app shortcuts (`shortcuts.xml`), Quick Settings tile (`AssistantTileService`), and direct "GLOOM Assistant" app drawer launcher icon.
+            - **Clean Standard Architecture**: Zero root / KernelSU dependencies; 100% Android sandbox compatibility.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk

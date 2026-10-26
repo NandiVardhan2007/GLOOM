@@ -200,6 +200,18 @@ class GloomIslandOverlayService : Service() {
 
     fun startVoiceAssistant() {
         mainHandler.post {
+            if (!GloomIslandSettings.instance.isIslandEnabled) {
+                try {
+                    startActivity(
+                        Intent(this, VoiceUnlockActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to start VoiceUnlockActivity: ${e.message}")
+                }
+                return@post
+            }
+
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
                 PackageManager.PERMISSION_GRANTED
             ) {
@@ -458,10 +470,33 @@ class GloomIslandOverlayService : Service() {
         val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         val locked = km?.isKeyguardLocked ?: true
         if (locked) {
-            if (GloomIslandSettings.instance.showOnLockScreen) {
+            val settings = GloomIslandSettings.instance
+            if (settings.lockScreenSiriUnlock && settings.lockScreenAutoPopSiri) {
+                mainHandler.postDelayed({
+                    val currentKm = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+                    if (currentKm?.isKeyguardLocked == true) {
+                        try {
+                            startActivity(
+                                Intent(this, VoiceUnlockActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    .putExtra(VoiceUnlockActivity.EXTRA_UNLOCK_ONLY, true)
+                            )
+                        } catch (e: Exception) {
+                            Log.w("GloomOverlay", "Could not launch lock screen Siri pop-up: ${e.message}")
+                        }
+                    }
+                }, 350)
+            }
+            if (settings.showOnLockScreen) {
                 applyCollapsedDimensions()
-                if (GloomIslandSettings.instance.isIslandEnabled) {
+                if (settings.isIslandEnabled || settings.lockScreenSiriUnlock) {
                     composeView?.visibility = android.view.View.VISIBLE
+                    layoutParams?.let { params ->
+                        params.flags = getOverlayFlags()
+                        try {
+                            composeView?.let { windowManager.updateViewLayout(it, params) }
+                        } catch (_: Exception) {}
+                    }
                 }
                 triggerLockEvent(isUnlocked = false)
             } else {
@@ -483,6 +518,20 @@ class GloomIslandOverlayService : Service() {
         applyCollapsedDimensions()
         if (GloomIslandSettings.instance.isIslandEnabled) {
             composeView?.visibility = android.view.View.VISIBLE
+            layoutParams?.let { params ->
+                params.flags = getOverlayFlags()
+                try {
+                    composeView?.let { windowManager.updateViewLayout(it, params) }
+                } catch (_: Exception) {}
+            }
+        } else {
+            composeView?.visibility = android.view.View.GONE
+            layoutParams?.let { params ->
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                try {
+                    composeView?.let { windowManager.updateViewLayout(it, params) }
+                } catch (_: Exception) {}
+            }
         }
         triggerLockEvent(isUnlocked = true)
         composeView?.requestLayout()
@@ -1463,7 +1512,12 @@ class GloomIslandOverlayService : Service() {
         val params = layoutParams ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
 
-        if (!GloomIslandSettings.instance.isIslandEnabled) {
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val isLocked = km?.isKeyguardLocked ?: false
+        val isIslandEnabled = GloomIslandSettings.instance.isIslandEnabled
+        val showLockSiri = !isIslandEnabled && isLocked && GloomIslandSettings.instance.lockScreenSiriUnlock
+
+        if (!isIslandEnabled && !showLockSiri) {
             if (isExpanded) collapseIsland(immediate = true)
             view.visibility = android.view.View.GONE
             params.flags = getOverlayFlags() or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE

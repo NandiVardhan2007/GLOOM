@@ -83,10 +83,16 @@ class GloomIslandSettings {
         const val DEFAULT_CAMERA_HALO = false
         const val DEFAULT_DUAL_LIVE_ACTIVITIES = true
         const val DEFAULT_NOTIFICATION_SWIPE_DISMISS = true
+        const val DEFAULT_LAUNCH_ASSISTANT_ON_APP_OPEN = false
+        const val DEFAULT_LOCK_SCREEN_SIRI_UNLOCK = true
+        const val DEFAULT_LOCK_SCREEN_AUTO_POP_SIRI = true
     }
 
     // ── 0. Master & Plugins ──
     var isIslandEnabled by mutableStateOf(true)
+    var launchAssistantOnAppOpen by mutableStateOf(DEFAULT_LAUNCH_ASSISTANT_ON_APP_OPEN)
+    var lockScreenSiriUnlock by mutableStateOf(DEFAULT_LOCK_SCREEN_SIRI_UNLOCK)
+    var lockScreenAutoPopSiri by mutableStateOf(DEFAULT_LOCK_SCREEN_AUTO_POP_SIRI)
     var pluginMedia by mutableStateOf(true)
     var pluginFileBeam by mutableStateOf(true)
     var pluginNotifications by mutableStateOf(true)
@@ -221,6 +227,9 @@ class GloomIslandSettings {
         cameraHaloEnabled = prefs.getBoolean("camera_halo_enabled", DEFAULT_CAMERA_HALO)
         dualLiveActivitiesEnabled = prefs.getBoolean("dual_live_activities_enabled", DEFAULT_DUAL_LIVE_ACTIVITIES)
         notificationSwipeDismissEnabled = prefs.getBoolean("notification_swipe_dismiss_enabled", DEFAULT_NOTIFICATION_SWIPE_DISMISS)
+        launchAssistantOnAppOpen = prefs.getBoolean("launch_assistant_on_app_open", DEFAULT_LAUNCH_ASSISTANT_ON_APP_OPEN)
+        lockScreenSiriUnlock = prefs.getBoolean("lock_screen_siri_unlock", DEFAULT_LOCK_SCREEN_SIRI_UNLOCK)
+        lockScreenAutoPopSiri = prefs.getBoolean("lock_screen_auto_pop_siri", DEFAULT_LOCK_SCREEN_AUTO_POP_SIRI)
     }
 
     /**
@@ -329,6 +338,9 @@ class GloomIslandSettings {
             .putBoolean("camera_halo_enabled", cameraHaloEnabled)
             .putBoolean("dual_live_activities_enabled", dualLiveActivitiesEnabled)
             .putBoolean("notification_swipe_dismiss_enabled", notificationSwipeDismissEnabled)
+            .putBoolean("launch_assistant_on_app_open", launchAssistantOnAppOpen)
+            .putBoolean("lock_screen_siri_unlock", lockScreenSiriUnlock)
+            .putBoolean("lock_screen_auto_pop_siri", lockScreenAutoPopSiri)
             .apply()
 
         // Broadcast change so running overlay service updates in real-time

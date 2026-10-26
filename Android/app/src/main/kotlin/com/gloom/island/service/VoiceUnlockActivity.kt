@@ -27,8 +27,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,8 +40,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -98,8 +102,31 @@ class VoiceUnlockActivity : ComponentActivity() {
         }
     }
 
+    private fun isKeyguardLocked(): Boolean {
+        val km = getSystemService(KeyguardManager::class.java)
+        return km?.isKeyguardLocked == true || intent?.getBooleanExtra(EXTRA_UNLOCK_ONLY, false) == true
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.action == Intent.ACTION_CREATE_SHORTCUT) {
+            val shortcutIntent = Intent(this, VoiceUnlockActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            val result = Intent().apply {
+                putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent)
+                putExtra(Intent.EXTRA_SHORTCUT_NAME, getString(com.gloom.island.R.string.shortcut_siri_short))
+                putExtra(
+                    Intent.EXTRA_SHORTCUT_ICON_RESOURCE,
+                    Intent.ShortcutIconResource.fromContext(this@VoiceUnlockActivity, com.gloom.island.R.mipmap.ic_launcher)
+                )
+            }
+            setResult(RESULT_OK, result)
+            finish()
+            return
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -131,6 +158,7 @@ class VoiceUnlockActivity : ComponentActivity() {
                 permissionDenied = permissionDenied,
                 reply = reply,
                 thinking = thinking,
+                isUnlockOnly = isKeyguardLocked(),
                 onAskAgain = {
                     reply = null
                     thinking = false
@@ -139,6 +167,15 @@ class VoiceUnlockActivity : ComponentActivity() {
                     transcript = ""
                     status = "Listening…"
                     startListening()
+                },
+                onOpenSettings = {
+                    startActivity(
+                        Intent(this@VoiceUnlockActivity, com.gloom.island.MainActivity::class.java).apply {
+                            putExtra("open_settings", true)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        }
+                    )
+                    finish()
                 },
                 onCancel = { finish() }
             )
@@ -213,16 +250,22 @@ class VoiceUnlockActivity : ComponentActivity() {
     }
 
     private fun looksLikeUnlock(text: String): Boolean {
-        val normalized = text.lowercase()
+        val normalized = text.lowercase().trim()
         val unlock = normalized.contains("unlock") ||
             normalized.contains("open my phone") ||
-            normalized.contains("open the phone")
+            normalized.contains("open the phone") ||
+            normalized.contains("open phone") ||
+            normalized.contains("draw pattern") ||
+            normalized.contains("draw the pattern") ||
+            normalized.contains("pattern unlock") ||
+            normalized.contains("replay pattern")
         val target = normalized.contains("mobile") ||
             normalized.contains("phone") ||
             normalized.contains("screen") ||
             normalized.contains("device") ||
             normalized.contains("gloom") ||
-            normalized.length <= 16
+            normalized.contains("pattern") ||
+            normalized.length <= 24
         return unlock && target
     }
 
@@ -236,6 +279,18 @@ class VoiceUnlockActivity : ComponentActivity() {
             unlockDevice()
             return
         }
+
+        if (isKeyguardLocked()) {
+            // Strictly enforce unlock-only policy while the device is locked
+            failed = true
+            status = "Unlock Only"
+            val msg = "Lock screen voice is restricted to unlocking. Say “Unlock” or “Draw pattern” to unlock your phone."
+            reply = msg
+            speak(msg)
+            recognizer?.stopListening()
+            return
+        }
+
         if (text.isNotBlank()) {
             val brain = com.gloom.island.settings.GloomIslandSettings.instance.aiBrain
             val cleaned = com.gloom.island.automation.CommandRouter.cleanSpeech(text)
@@ -405,6 +460,7 @@ class VoiceUnlockActivity : ComponentActivity() {
         if (keyguard?.isKeyguardLocked != true) {
             status = "Your phone is already unlocked"
             matched = true
+            speak("Your phone is already unlocked.")
             return
         }
 
@@ -491,6 +547,7 @@ class VoiceUnlockActivity : ComponentActivity() {
     companion object {
         private const val TAG = "GloomVoiceUnlock"
         private const val EXTRA_PROMPT_ONLY = "prompt_only"
+        const val EXTRA_UNLOCK_ONLY = "unlock_only"
         private const val SYSTEM_PROMPT =
             "You are GLOOM, the personal AI assistant controlling this Android phone. " +
                 "Keep spoken replies concise, friendly, and under two sentences. " +
@@ -507,7 +564,9 @@ private fun VoiceUnlockUi(
     permissionDenied: Boolean,
     reply: String?,
     thinking: Boolean,
+    isUnlockOnly: Boolean,
     onAskAgain: () -> Unit,
+    onOpenSettings: () -> Unit,
     onCancel: () -> Unit
 ) {
     var autoFinish by remember { mutableStateOf(false) }
@@ -524,35 +583,74 @@ private fun VoiceUnlockUi(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC000000)),
+            .background(Color(0xCC000000))
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { onCancel() },
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .clip(RoundedCornerShape(32.dp))
                 .background(Apple.secondaryGroupedBackground)
-                .padding(24.dp),
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { /* absorb taps inside sheet */ }
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            ) {
+                // Apple HIG drag handle
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(width = 36.dp, height = 5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Apple.fillTertiary)
+                )
+                // Settings shortcut icon button (hidden when on lock screen for privacy & security)
+                if (!isUnlockOnly) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Apple.fillTertiary)
+                            .clickable { onOpenSettings() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GloomIcon(GloomIcons.Gear, Apple.secondaryLabel, 16.dp)
+                    }
+                }
+            }
+
             SiriOrb(
                 active = !failed,
                 matched = matched,
-                modifier = Modifier.size(140.dp)
+                modifier = Modifier.size(136.dp)
             )
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
+            val displayStatus = if (isUnlockOnly && status == "Listening…") "Voice Unlock" else status
             Text(
-                text = status,
+                text = displayStatus,
                 style = AppleType.title3,
-                color = Apple.label,
+                color = if (matched) Apple.systemGreen else Apple.label,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(6.dp))
+            val promptText = if (transcript.isBlank()) {
+                if (isUnlockOnly) "Say “Unlock” to draw pattern" else "Try “Unlock my mobile” or ask a question"
+            } else transcript
             Text(
-                text = if (transcript.isBlank())
-                    "Try “Unlock my mobile” or ask a question"
-                else transcript,
+                text = promptText,
                 style = AppleType.subheadline,
                 color = if (failed) Apple.systemRed else Apple.secondaryLabel,
                 textAlign = TextAlign.Center
@@ -567,7 +665,7 @@ private fun VoiceUnlockUi(
                         .fillMaxWidth()
                         .heightIn(max = 240.dp)
                         .verticalScroll(rememberScrollState())
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(Apple.fillTertiary)
                         .padding(14.dp)
                 )
@@ -581,8 +679,8 @@ private fun VoiceUnlockUi(
                 )
             }
             if (matched && status == "Your phone is already unlocked") {
-                Spacer(Modifier.height(4.dp))
-                GloomIcon(GloomIcons.CheckCircleFill, Apple.systemGreen, 22.dp)
+                Spacer(Modifier.height(6.dp))
+                GloomIcon(GloomIcons.CheckCircleFill, Apple.systemGreen, 24.dp)
             }
             Spacer(Modifier.height(18.dp))
             if (reply != null || failed) {

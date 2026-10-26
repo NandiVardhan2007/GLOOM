@@ -184,7 +184,9 @@ object CommandRouter {
     )
     private val unlockCommands = setOf(
         "unlock", "unlock phone", "unlock my phone", "unlock mobile", "unlock my mobile",
-        "unlock device", "draw pattern", "replay pattern", "test unlock"
+        "unlock device", "unlock screen", "unlock the phone", "unlock the screen", "unlock it",
+        "draw pattern", "draw the pattern", "pattern unlock", "replay pattern",
+        "open phone", "open my phone", "open mobile", "test unlock"
     )
     private val lockCommands = setOf(
         "lock phone", "lock screen", "lock device", "screen off", "lock"

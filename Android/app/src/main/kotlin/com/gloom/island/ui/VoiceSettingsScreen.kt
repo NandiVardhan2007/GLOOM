@@ -281,20 +281,24 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        AppleSection(header = "Try Assistant") {
+        AppleSection(
+            header = "Siri Assistant & Home Shortcut",
+            footer = "Pop up Apple Siri voice assistant to unlock by pattern or run actions. Works anytime, even when Dynamic Island is disabled."
+        ) {
+            val settings = com.gloom.island.settings.GloomIslandSettings.instance
             AppleRow(
-                title = "Open assistant",
+                title = "Open Siri assistant",
                 subtitle = "Ask a question or say “Unlock my mobile”",
                 icon = GloomIcons.Sparkles,
                 iconTint = Apple.systemPurple,
                 showChevron = true,
                 onClick = {
                     val a11y = com.gloom.island.service.GloomIslandAccessibilityService.instance
-                    if (a11y != null) {
+                    if (a11y != null && settings.isIslandEnabled) {
                         a11y.startVoiceAssistant()
                     } else {
                         val overlay = com.gloom.island.service.GloomIslandOverlayService.instance
-                        if (overlay != null) {
+                        if (overlay != null && settings.isIslandEnabled) {
                             overlay.startVoiceAssistant()
                         } else {
                             context.startActivity(
@@ -305,6 +309,49 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                     }
                 }
             )
+            AppleDivider()
+            AppleRow(
+                title = "Add Siri Shortcut to Home",
+                subtitle = "1-tap home screen shortcut for Siri popup",
+                icon = GloomIcons.Plus,
+                iconTint = Apple.systemBlue,
+                showChevron = true,
+                onClick = {
+                    com.gloom.island.service.ShortcutHelper.pinAssistantShortcut(context)
+                }
+            )
+            AppleDivider()
+            AppleSwitchRow(
+                title = "Launch Siri on App Open",
+                description = "Opening GLOOM immediately pops up Apple Siri assistant",
+                checked = settings.launchAssistantOnAppOpen,
+                onCheckedChange = { enabled ->
+                    settings.launchAssistantOnAppOpen = enabled
+                    settings.save(context)
+                }
+            )
+            AppleDivider()
+            AppleSwitchRow(
+                title = "Lock Screen Siri Unlock",
+                description = "Allow Siri unlock pop-up on lock screen even when Dynamic Island is off",
+                checked = settings.lockScreenSiriUnlock,
+                onCheckedChange = { enabled ->
+                    settings.lockScreenSiriUnlock = enabled
+                    settings.save(context)
+                }
+            )
+            if (settings.lockScreenSiriUnlock) {
+                AppleDivider()
+                AppleSwitchRow(
+                    title = "Auto-Pop Siri on Lock Screen",
+                    description = "Automatically pop up Siri unlock card when waking up on lock screen",
+                    checked = settings.lockScreenAutoPopSiri,
+                    onCheckedChange = { enabled ->
+                        settings.lockScreenAutoPopSiri = enabled
+                        settings.save(context)
+                    }
+                )
+            }
         }
 
         if (message != null) {

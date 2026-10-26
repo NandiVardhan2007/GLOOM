@@ -12,8 +12,8 @@ android {
         applicationId = "com.gloom.island"
         minSdk = 26
         targetSdk = 35
-        versionCode = 216
-        versionName = "2.1.6"
+        versionCode = 218
+        versionName = "2.1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

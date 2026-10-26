@@ -324,18 +324,41 @@ fun SecurityScreen(onBack: () -> Unit, onOpenVault: (() -> Unit)? = null) {
         if (step == 0) {
             AppleSection(
                 header = "Device Unlock",
-                footer = "Saying “Unlock my mobile” makes GLOOM draw your saved pattern on the lock screen where Android permits it; if the system blocks the gesture, the secure unlock prompt appears instead. The pattern is stored encrypted with Android Keystore — re-save it once after this update so the encrypted copy exists."
+                footer = "Saying “Unlock my mobile” makes GLOOM draw your saved pattern on the lock screen. Even when Dynamic Island is turned off, the Siri pop-up is available on the lock screen strictly for unlocking purposes."
             ) {
+                val settings = com.gloom.island.settings.GloomIslandSettings.instance
                 AppleRow(
                     title = "Voice Unlock",
-                    subtitle = "Long-press the island, then say “Unlock my mobile”",
+                    subtitle = "Say “Unlock” in the Siri pop-up or Dynamic Island",
                     icon = GloomIcons.Waveform,
                     iconTint = Apple.systemPurple
                 )
                 AppleDivider()
+                AppleSwitchRow(
+                    title = "Lock Screen Siri Unlock",
+                    description = "Allow Siri pop-up on lock screen when Dynamic Island is off",
+                    checked = settings.lockScreenSiriUnlock,
+                    onCheckedChange = { enabled ->
+                        settings.lockScreenSiriUnlock = enabled
+                        settings.save(context)
+                    }
+                )
+                if (settings.lockScreenSiriUnlock) {
+                    AppleDivider()
+                    AppleSwitchRow(
+                        title = "Auto-Pop Siri on Lock Screen",
+                        description = "Automatically pop up Siri unlock card when waking lock screen",
+                        checked = settings.lockScreenAutoPopSiri,
+                        onCheckedChange = { enabled ->
+                            settings.lockScreenAutoPopSiri = enabled
+                            settings.save(context)
+                        }
+                    )
+                }
+                AppleDivider()
                 AppleRow(
                     title = "Storage",
-                    subtitle = "Your pattern is salted and hashed on this device",
+                    subtitle = "Your pattern is encrypted with Android Keystore",
                     icon = GloomIcons.Shield,
                     iconTint = Apple.systemGreen
                 )

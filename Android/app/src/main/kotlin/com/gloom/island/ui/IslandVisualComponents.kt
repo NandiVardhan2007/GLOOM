@@ -22,6 +22,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -2669,4 +2670,91 @@ private fun Modifier.semanticsLabel(label: String): Modifier =
 private fun formatClock(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return String.format(Locale.US, "%d:%02d", total / 60, total % 60)
+}
+
+@Composable
+fun LockScreenSiriTrigger(
+    onOpenSiri: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
+        label = "lockSiriScale"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Row(
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clip(CircleShape)
+                .background(Color(0xE6121214))
+                .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onOpenSiri
+                )
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            MiniSiriOrb(modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Unlock",
+                style = AppleType.caption1,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+fun MiniSiriOrb(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "miniSiri")
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3200, easing = LinearEasing), RepeatMode.Restart),
+        label = "miniRotation"
+    )
+    Canvas(modifier = modifier) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = size.minDimension * 0.45f
+        val blue = Color(0xFF0A84FF)
+        val purple = Color(0xFFBF5AF2)
+        val pink = Color(0xFFFF375F)
+
+        fun blob(color: Color, angleDeg: Float, distance: Float, blobRadius: Float, alpha: Float) {
+            val angle = Math.toRadians((angleDeg + rotation).toDouble())
+            val offset = Offset(
+                center.x + (Math.cos(angle) * distance).toFloat(),
+                center.y + (Math.sin(angle) * distance).toFloat()
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(color.copy(alpha = alpha), Color.Transparent),
+                    center = offset,
+                    radius = blobRadius
+                ),
+                radius = blobRadius,
+                center = offset
+            )
+        }
+        blob(blue, 0f, radius * 0.25f, radius * 0.9f, 0.8f)
+        blob(purple, 120f, radius * 0.25f, radius * 0.85f, 0.7f)
+        blob(pink, 240f, radius * 0.25f, radius * 0.85f, 0.65f)
+    }
 }

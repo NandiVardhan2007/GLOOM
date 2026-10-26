@@ -94,6 +94,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Share to PC: system share-sheet target and Dynamic Island multi-file sharing picker -->
@@ -115,15 +118,59 @@
             </intent-filter>
         </activity>
 
-        <!-- Voice unlock: transparent, appears over the lock screen -->
+        <!-- Voice unlock / Apple Siri Assistant: transparent, appears over the lock screen and homescreen -->
         <activity
             android:name=".service.VoiceUnlockActivity"
-            android:exported="false"
+            android:exported="true"
+            android:label="@string/shortcut_siri_short"
+            android:icon="@mipmap/ic_launcher"
             android:excludeFromRecents="true"
             android:launchMode="singleTop"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:theme="@style/Theme.GloomIsland.Transparent" />
+            android:theme="@style/Theme.GloomIsland.Transparent">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.CREATE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Standalone Launcher icon for GLOOM Siri Assistant shortcut -->
+        <activity-alias
+            android:name=".VoiceShortcutLauncher"
+            android:targetActivity=".service.VoiceUnlockActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/shortcut_siri_short">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Quick Settings Tile for instant Siri Assistant invocation -->
+        <service
+            android:name=".service.AssistantTileService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/tile_assistant_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <!-- FileProvider for In-App Updates and File Sharing -->
         <provider

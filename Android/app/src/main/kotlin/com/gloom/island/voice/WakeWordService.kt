@@ -139,13 +139,14 @@ class WakeWordService : Service() {
     }
 
     private fun openAssistant() {
+        val settings = com.gloom.island.settings.GloomIslandSettings.instance
         val a11y = com.gloom.island.service.GloomIslandAccessibilityService.instance
-        if (a11y != null) {
+        if (a11y != null && settings.isIslandEnabled) {
             a11y.startVoiceAssistant()
             return
         }
         val overlay = com.gloom.island.service.GloomIslandOverlayService.instance
-        if (overlay != null) {
+        if (overlay != null && settings.isIslandEnabled) {
             overlay.startVoiceAssistant()
             return
         }
