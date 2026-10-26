@@ -225,13 +225,12 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.1.8 — Standalone Apple Siri Pop-Up, Home Shortcuts & Lock Screen Unlock-Only Suite
+            ### GLOOM 2.1.9 — Clear Camera Cutout & Zero-Touch Gesture Restoration Fix
+            - **100% Clear Camera Cutout on Lock Screen**: Excised any floating pills or triggers when the Dynamic Island is turned off. The camera punch hole is completely clear and untouched.
+            - **Zero Full-Page Overlays**: Eliminated the delayed re-launch in `VoiceUnlockActivity` that previously left an invisible full-screen window blocking touches and gestures after unlocking.
+            - **Immediate Lifecycle Dismissal**: Added `ACTION_USER_PRESENT` listener and `onStop()` dismissal to guarantee the voice assistant window is completely destroyed the moment the phone unlocks.
+            - **Non-Intrusive Lock Screen Behavior**: Disabled aggressive screen-on auto-pop by default (`lockScreenAutoPopSiri = false`), keeping the lock screen clean. Siri remains accessible via Quick Settings Tile and lock screen shortcut.
             - **Dynamic Island Independent Toggle**: Completely turn off the Dynamic Island overlay (`isIslandEnabled = false`) whenever desired while retaining full voice assistant capabilities.
-            - **Apple Siri Floating Pop-Up UI**: Animated multi-color Apple Siri Orb, fluid spring physics, live speech transcription, and interactive answer bubble.
-            - **Lock Screen Siri Unlock-Only Mode**: Use the Siri pop-up directly on the lock screen (even with Dynamic Island disabled) to unlock the phone via saved pattern drawing.
-            - **Lock Screen Security Sandbox**: While locked, all non-unlock queries (apps, messages, files, AI queries) are strictly blocked with secure voice feedback; settings button is hidden.
-            - **Auto-Pop on Screen Wake**: Option to automatically present the Siri pop-up when the screen wakes up locked, allowing hands-free "Unlock" pattern replay.
-            - **Multi-Channel Home Screen Shortcuts**: 1-tap pinned home shortcut, long-press app shortcuts (`shortcuts.xml`), Quick Settings tile (`AssistantTileService`), and direct "GLOOM Assistant" app drawer launcher icon.
             - **Clean Standard Architecture**: Zero root / KernelSU dependencies; 100% Android sandbox compatibility.
           generate_release_notes: true
           files: |

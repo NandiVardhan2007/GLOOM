@@ -2672,54 +2672,6 @@ private fun formatClock(ms: Long): String {
     return String.format(Locale.US, "%d:%02d", total / 60, total % 60)
 }
 
-@Composable
-fun LockScreenSiriTrigger(
-    onOpenSiri: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
-        label = "lockSiriScale"
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Row(
-            modifier = Modifier
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .clip(CircleShape)
-                .background(Color(0xE6121214))
-                .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onOpenSiri
-                )
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            MiniSiriOrb(modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "Unlock",
-                style = AppleType.caption1,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-        }
-    }
-}
 
 @Composable
 fun MiniSiriOrb(modifier: Modifier = Modifier) {

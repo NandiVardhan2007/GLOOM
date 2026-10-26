@@ -2,7 +2,10 @@ package com.gloom.island.service
 
 import android.Manifest
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -102,6 +105,29 @@ class VoiceUnlockActivity : ComponentActivity() {
         }
     }
 
+    private val userPresentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_USER_PRESENT) {
+                Log.i(TAG, "Device unlocked (USER_PRESENT) — closing VoiceUnlockActivity immediately")
+                dismissImmediately()
+            }
+        }
+    }
+
+    private fun dismissImmediately(delayMs: Long = 0) {
+        if (delayMs <= 0) {
+            finishAndRemoveTask()
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        } else {
+            Handler(Looper.getMainLooper()).postDelayed({
+                finishAndRemoveTask()
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }, delayMs)
+        }
+    }
+
     private fun isKeyguardLocked(): Boolean {
         val km = getSystemService(KeyguardManager::class.java)
         return km?.isKeyguardLocked == true || intent?.getBooleanExtra(EXTRA_UNLOCK_ONLY, false) == true
@@ -123,8 +149,15 @@ class VoiceUnlockActivity : ComponentActivity() {
                 )
             }
             setResult(RESULT_OK, result)
-            finish()
+            finishAndRemoveTask()
             return
+        }
+
+        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(userPresentReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(userPresentReceiver, filter)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -175,9 +208,9 @@ class VoiceUnlockActivity : ComponentActivity() {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                         }
                     )
-                    finish()
+                    dismissImmediately()
                 },
-                onCancel = { finish() }
+                onCancel = { dismissImmediately() }
             )
         }
 
@@ -461,6 +494,7 @@ class VoiceUnlockActivity : ComponentActivity() {
             status = "Your phone is already unlocked"
             matched = true
             speak("Your phone is already unlocked.")
+            dismissImmediately(1000)
             return
         }
 
@@ -481,30 +515,17 @@ class VoiceUnlockActivity : ComponentActivity() {
             } catch (_: Exception) {
             }
             status = "Unlocking…"
-            finish()
+            dismissImmediately()
             val handler = Handler(Looper.getMainLooper())
             handler.postDelayed({
                 accessibility.performUnlockPattern(pattern)
-                // Wait for the swipe-up (250 ms), the bouncer delay (900 ms), and
-                // the full pattern stroke (up to 1350 ms) before deciding it failed.
                 handler.postDelayed({
                     try {
                         wake?.release()
                     } catch (_: Exception) {
                     }
-                    val stillLocked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
-                    if (stillLocked) {
-                        try {
-                            startActivity(
-                                Intent(this, VoiceUnlockActivity::class.java)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    .putExtra(EXTRA_PROMPT_ONLY, true)
-                            )
-                        } catch (_: Exception) {
-                        }
-                    }
-                }, 3400)
-            }, 650)
+                }, 3000)
+            }, 400)
             return
         }
 
@@ -514,26 +535,38 @@ class VoiceUnlockActivity : ComponentActivity() {
     private fun promptSystemUnlock() {
         val keyguard = getSystemService(KeyguardManager::class.java)
         if (keyguard?.isKeyguardLocked != true) {
-            finish()
+            dismissImmediately()
             return
         }
         keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
             override fun onDismissSucceeded() {
-                finish()
+                dismissImmediately()
             }
 
             override fun onDismissError() {
                 status = "Unlock was not completed"
                 failed = true
+                dismissImmediately(1500)
             }
 
             override fun onDismissCancelled() {
-                finish()
+                dismissImmediately()
             }
         })
     }
 
+    override fun onStop() {
+        super.onStop()
+        val km = getSystemService(KeyguardManager::class.java)
+        if (km?.isKeyguardLocked != true) {
+            dismissImmediately()
+        }
+    }
+
     override fun onDestroy() {
+        try {
+            unregisterReceiver(userPresentReceiver)
+        } catch (_: Exception) {}
         recognizer?.destroy()
         recognizer = null
         pendingSpeech = null

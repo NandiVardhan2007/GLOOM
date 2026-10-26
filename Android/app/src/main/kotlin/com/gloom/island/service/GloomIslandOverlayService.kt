@@ -487,16 +487,14 @@ class GloomIslandOverlayService : Service() {
                     }
                 }, 350)
             }
-            if (settings.showOnLockScreen) {
+            if (settings.showOnLockScreen && settings.isIslandEnabled) {
                 applyCollapsedDimensions()
-                if (settings.isIslandEnabled || settings.lockScreenSiriUnlock) {
-                    composeView?.visibility = android.view.View.VISIBLE
-                    layoutParams?.let { params ->
-                        params.flags = getOverlayFlags()
-                        try {
-                            composeView?.let { windowManager.updateViewLayout(it, params) }
-                        } catch (_: Exception) {}
-                    }
+                composeView?.visibility = android.view.View.VISIBLE
+                layoutParams?.let { params ->
+                    params.flags = getOverlayFlags()
+                    try {
+                        composeView?.let { windowManager.updateViewLayout(it, params) }
+                    } catch (_: Exception) {}
                 }
                 triggerLockEvent(isUnlocked = false)
             } else {
@@ -1361,6 +1359,12 @@ class GloomIslandOverlayService : Service() {
                 ) { _, method, args ->
                     if (method.name == "onComputeInternalInsets" && args != null && args.isNotEmpty()) {
                         val inoutInfo = args[0]
+                        if (!GloomIslandSettings.instance.isIslandEnabled) {
+                            setTouchableInsetsMethod.invoke(inoutInfo, 3) // TOUCHABLE_INSETS_REGION
+                            val region = touchableRegionField.get(inoutInfo) as Region
+                            regionSetMethod.invoke(region, Rect(0, 0, 0, 0))
+                            return@newProxyInstance null
+                        }
                         if (!isExpanded) {
                             val density = resources.displayMetrics.density
                             val screenWidth = resources.displayMetrics.widthPixels
@@ -1512,12 +1516,9 @@ class GloomIslandOverlayService : Service() {
         val params = layoutParams ?: return
         if (!isViewAttached && !view.isAttachedToWindow) return
 
-        val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        val isLocked = km?.isKeyguardLocked ?: false
         val isIslandEnabled = GloomIslandSettings.instance.isIslandEnabled
-        val showLockSiri = !isIslandEnabled && isLocked && GloomIslandSettings.instance.lockScreenSiriUnlock
 
-        if (!isIslandEnabled && !showLockSiri) {
+        if (!isIslandEnabled) {
             if (isExpanded) collapseIsland(immediate = true)
             view.visibility = android.view.View.GONE
             params.flags = getOverlayFlags() or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE

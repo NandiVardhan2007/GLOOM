@@ -85,7 +85,7 @@ class GloomIslandSettings {
         const val DEFAULT_NOTIFICATION_SWIPE_DISMISS = true
         const val DEFAULT_LAUNCH_ASSISTANT_ON_APP_OPEN = false
         const val DEFAULT_LOCK_SCREEN_SIRI_UNLOCK = true
-        const val DEFAULT_LOCK_SCREEN_AUTO_POP_SIRI = true
+        const val DEFAULT_LOCK_SCREEN_AUTO_POP_SIRI = false
     }
 
     // ── 0. Master & Plugins ──

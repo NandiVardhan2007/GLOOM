@@ -120,21 +120,6 @@ fun GloomIslandApp(
 ) {
     val context = LocalContext.current
     if (!settings.isIslandEnabled) {
-        val km = remember { context.getSystemService(android.app.KeyguardManager::class.java) }
-        val isLocked = km?.isKeyguardLocked == true
-        if (isLocked && settings.lockScreenSiriUnlock) {
-            LockScreenSiriTrigger(
-                onOpenSiri = {
-                    try {
-                        context.startActivity(
-                            android.content.Intent(context, com.gloom.island.service.VoiceUnlockActivity::class.java)
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                .putExtra(com.gloom.island.service.VoiceUnlockActivity.EXTRA_UNLOCK_ONLY, true)
-                        )
-                    } catch (_: Exception) {}
-                }
-            )
-        }
         return
     }
 
