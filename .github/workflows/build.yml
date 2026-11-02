@@ -225,13 +225,13 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.1.9 — Clear Camera Cutout & Zero-Touch Gesture Restoration Fix
-            - **100% Clear Camera Cutout on Lock Screen**: Excised any floating pills or triggers when the Dynamic Island is turned off. The camera punch hole is completely clear and untouched.
-            - **Zero Full-Page Overlays**: Eliminated the delayed re-launch in `VoiceUnlockActivity` that previously left an invisible full-screen window blocking touches and gestures after unlocking.
-            - **Immediate Lifecycle Dismissal**: Added `ACTION_USER_PRESENT` listener and `onStop()` dismissal to guarantee the voice assistant window is completely destroyed the moment the phone unlocks.
-            - **Non-Intrusive Lock Screen Behavior**: Disabled aggressive screen-on auto-pop by default (`lockScreenAutoPopSiri = false`), keeping the lock screen clean. Siri remains accessible via Quick Settings Tile and lock screen shortcut.
-            - **Dynamic Island Independent Toggle**: Completely turn off the Dynamic Island overlay (`isIslandEnabled = false`) whenever desired while retaining full voice assistant capabilities.
-            - **Clean Standard Architecture**: Zero root / KernelSU dependencies; 100% Android sandbox compatibility.
+            ### GLOOM 2.2.0 — Dynamic Island for Windows Parity & Synced Lyrics Release
+            - **Real-Time Synced Lyrics Engine (LRCLIB)**: Dynamic LRCLIB synchronization with title normalization and sub-second subtitle playback within `CompactMediaPlayer`.
+            - **Native Win32 KeyLockMonitor**: Background Win32 `GetKeyState` monitoring for Caps Lock and Num Lock states, presenting an Apple-style floating Island HUD indicator pill.
+            - **Bilateral Charging Laser Beams**: Reactive bilateral laser sweep animations and cyan/purple halo glow radiating from the Island upon AC power connection.
+            - **Basics Quick Actions**: Direct system shortcuts added to Command Center for Task Manager, File Explorer, and Lock PC with glassmorphism styling.
+            - **Calendar Month Progress**: Dynamic monthly progress elapsed percentage indicator integrated into the Desktop Calendar header.
+            - **Codebase Sanitization & Dead Code Audit**: Zero unused symbols, strict TypeScript/Rust compiler guarantees, and verified clean cross-platform test suites.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Release.apk

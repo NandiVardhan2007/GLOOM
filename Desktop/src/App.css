@@ -2551,3 +2551,154 @@ img {
 	font-size: 11px;
 	opacity: 0.6;
 }
+
+
+/* ─── Synced Lyrics ───────────────────────────────────── */
+.cmp-lyrics-line {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 11px;
+	color: #60a5fa;
+	font-weight: 500;
+	margin-top: 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 190px;
+}
+
+.cmp-lyrics-icon {
+	font-size: 10px;
+	opacity: 0.8;
+}
+
+.cmp-lyrics-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ─── Key Lock HUD Pill ────────────────────────────── */
+.key-lock-pill-hud {
+	position: absolute;
+	top: calc(100% + 8px);
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 12px;
+	background: rgba(18, 18, 18, 0.88);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 9999px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.2);
+	z-index: 1000;
+	pointer-events: none;
+}
+
+.key-lock-icon {
+	display: flex;
+	align-items: center;
+	color: var(--gloom-accent, #60a5fa);
+}
+
+.key-lock-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.9);
+}
+
+.key-lock-state {
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.key-lock-state.enabled {
+	color: #32d74b;
+}
+
+.key-lock-state.disabled {
+	color: rgba(255, 255, 255, 0.4);
+}
+
+/* ─── Charging Bilateral Beams & Energy Sweep ───────── */
+.charging-beams-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	overflow: visible;
+	z-index: 999;
+}
+
+.charging-beam {
+	position: absolute;
+	top: 50%;
+	height: 3px;
+	border-radius: 9999px;
+	transform: translateY(-50%);
+	pointer-events: none;
+}
+
+.charging-beam.left {
+	right: 100%;
+	background: linear-gradient(to left, #00ffff, #8c00ff 50%, transparent);
+	box-shadow: 0 0 16px 4px rgba(0, 255, 255, 0.7), 0 0 30px 8px rgba(140, 0, 255, 0.4);
+	animation: beam-shoot-left 2.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.charging-beam.right {
+	left: 100%;
+	background: linear-gradient(to right, #00ffff, #8c00ff 50%, transparent);
+	box-shadow: 0 0 16px 4px rgba(0, 255, 255, 0.7), 0 0 30px 8px rgba(140, 0, 255, 0.4);
+	animation: beam-shoot-right 2.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes beam-shoot-left {
+	0% { width: 0px; opacity: 0; }
+	15% { width: 280px; opacity: 1; }
+	60% { width: 450px; opacity: 0.9; }
+	100% { width: 550px; opacity: 0; }
+}
+
+@keyframes beam-shoot-right {
+	0% { width: 0px; opacity: 0; }
+	15% { width: 280px; opacity: 1; }
+	60% { width: 450px; opacity: 0.9; }
+	100% { width: 550px; opacity: 0; }
+}
+
+.charging-halo-glow {
+	position: absolute;
+	inset: -4px;
+	border-radius: inherit;
+	pointer-events: none;
+	box-shadow: 0 0 24px 6px rgba(0, 255, 255, 0.6), inset 0 0 12px rgba(140, 0, 255, 0.5);
+	animation: charging-halo-pulse 2.8s ease-out forwards;
+}
+
+@keyframes charging-halo-pulse {
+	0% { opacity: 0; transform: scale(0.96); }
+	20% { opacity: 1; transform: scale(1.02); }
+	70% { opacity: 0.7; transform: scale(1); }
+	100% { opacity: 0; transform: scale(1.04); }
+}
+
+/* ─── Calendar Month Progress Badge ────────────────── */
+.calendar-month-progress {
+	font-size: 10px;
+	font-weight: 600;
+	color: #60a5fa;
+	background: rgba(96, 165, 250, 0.15);
+	padding: 2px 7px;
+	border-radius: 9999px;
+	margin-left: 8px;
+	letter-spacing: -0.2px;
+	display: inline-flex;
+	align-items: center;
+}

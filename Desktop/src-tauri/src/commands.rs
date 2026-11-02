@@ -4617,6 +4617,8 @@ pub enum SystemAction {
     PowerOptions,
     NetworkConnections,
     TaskView,
+    FileExplorer,
+    LockScreen,
 }
 
 #[tauri::command]
@@ -4657,6 +4659,8 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
                 "explorer.exe".into(),
                 "shell:::{3080F90E-D7AD-11D9-BD98-0000947B0257}".into(),
             ),
+            SystemAction::FileExplorer => ("explorer.exe".into(), String::new()),
+            SystemAction::LockScreen => ("rundll32.exe".into(), "user32.dll,LockWorkStation".into()),
         };
         let file: Vec<u16> = file.encode_utf16().chain(Some(0)).collect();
         let args: Vec<u16> = args.encode_utf16().chain(Some(0)).collect();

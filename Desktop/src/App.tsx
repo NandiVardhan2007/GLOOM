@@ -55,7 +55,9 @@ import {
 	ChevronRight,
 	Inbox,
 	Music,
-	Smartphone
+	Smartphone,
+	Folder,
+	Lock
 } from "lucide-react";
 
 /**
@@ -534,6 +536,9 @@ function App() {
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(() =>
 		parseInt(localStorage.getItem("gloom-low-battery-threshold") || "20")
 	);
+	const [keyLockNotice, setKeyLockNotice] = useState<{ key: string; enabled: boolean } | null>(null);
+	const keyLockTimeoutRef = useRef<any>(null);
+	const [showChargingBeams, setShowChargingBeams] = useState(false);
 	const prevChargingRef = useRef<boolean | null>(null);
 	const powerPulseTimeoutRef = useRef<any>(null);
 	const lowBatteryPulseShownRef = useRef<boolean>(false);
@@ -560,6 +565,10 @@ function App() {
 	useEffect(() => {
 		if (isReady && prevChargingRef.current !== null && prevChargingRef.current !== isCharging) {
 			setShowPowerPulse(true);
+			if (isCharging) {
+				setShowChargingBeams(true);
+				setTimeout(() => setShowChargingBeams(false), 3200);
+			}
 			if (notchMode === "peek") triggerEventPeek(4000);
 			if (powerPulseTimeoutRef.current) clearTimeout(powerPulseTimeoutRef.current);
 			powerPulseTimeoutRef.current = setTimeout(() => {
@@ -2137,6 +2146,21 @@ function App() {
 		};
 	}, []);
 
+	// Listen for Key Lock (Caps Lock / Num Lock) Changes from Dynamic Island Engine
+	useEffect(() => {
+		const unlisten = listen<{ key: string; enabled: boolean }>("key-lock-changed", (event) => {
+			setKeyLockNotice(event.payload);
+			if (notchMode === "peek") triggerEventPeek(2500);
+			if (keyLockTimeoutRef.current) clearTimeout(keyLockTimeoutRef.current);
+			keyLockTimeoutRef.current = setTimeout(() => {
+				setKeyLockNotice(null);
+			}, 2200);
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, [notchMode, triggerEventPeek]);
+
 	// Wi-Fi is a three-state control: Off, on-but-not-connected, Connected.
 	// The radio state alone can't tell those apart, so get_wifi_status returns
 	// both flags, plus the connected network's name. Returns false so the startup loader knows to retry.
@@ -2855,6 +2879,26 @@ function App() {
 					position: "relative"
 				}}
 			>
+				<AnimatePresence>
+					{keyLockNotice && (
+						<motion.div
+							key="key-lock-pill"
+							className="key-lock-pill-hud"
+							initial={{ opacity: 0, y: -8, scale: 0.92 }}
+							animate={{ opacity: 1, y: 0, scale: 1 }}
+							exit={{ opacity: 0, y: -8, scale: 0.92 }}
+							transition={{ type: "spring", stiffness: 450, damping: 30 }}
+						>
+							<div className="key-lock-icon">
+								<Type size={12} strokeWidth={2.4} />
+							</div>
+							<span className="key-lock-label">{keyLockNotice.key}:</span>
+							<span className={`key-lock-state ${keyLockNotice.enabled ? "enabled" : "disabled"}`}>
+								{keyLockNotice.enabled ? "On" : "Off"}
+							</span>
+						</motion.div>
+					)}
+				</AnimatePresence>
 				<motion.div
 					ref={gloomRef}
 					className={`gloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""} ${isPill ? "pill-mode" : ""}`}
@@ -2911,6 +2955,13 @@ function App() {
 						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
 					}}
 				>
+					{showChargingBeams && (
+						<div className="charging-beams-container">
+							<div className="charging-beam left" />
+							<div className="charging-beam right" />
+							<div className="charging-halo-glow" />
+						</div>
+					)}
 					<EdgeSurface edge="top" flares={!isPill || notchMode === "fixed" ? (isImpacted || notchMode === "fixed") : false} />
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
@@ -3706,6 +3757,36 @@ function App() {
 													className="cc-circular-btn"
 													onClick={(e) => {
 														e.stopPropagation();
+														invoke("open_system_action", { action: "task-manager" });
+													}}
+													title="Task Manager"
+												>
+													<Cpu size={14} />
+												</button>
+												<button
+													className="cc-circular-btn"
+													onClick={(e) => {
+														e.stopPropagation();
+														invoke("open_system_action", { action: "file-explorer" });
+													}}
+													title="File Explorer"
+												>
+													<Folder size={14} />
+												</button>
+												<button
+													className="cc-circular-btn"
+													onClick={(e) => {
+														e.stopPropagation();
+														invoke("open_system_action", { action: "lock-screen" });
+													}}
+													title="Lock PC"
+												>
+													<Lock size={14} />
+												</button>
+												<button
+													className="cc-circular-btn"
+													onClick={(e) => {
+														e.stopPropagation();
 														invoke("restart_gloom");
 													}}
 													title="Restart GLOOM"
@@ -4169,6 +4250,9 @@ function Calendar() {
 			<div className="calendar-header">
 				<span className="month-year">
 					{monthName} {currentYear}
+				</span>
+				<span className="calendar-month-progress" title={`Day ${today} of ${totalDays} (${Math.round((today / totalDays) * 100)}%)`}>
+					{Math.round((today / totalDays) * 100)}%
 				</span>
 			</div>
 			<div className="calendar-grid">

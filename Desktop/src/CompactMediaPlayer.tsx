@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { Visualizer } from "./App";
+import { useLyrics } from "./hooks/useLyrics";
 import {
 	PlayIcon,
 	PauseIcon,
@@ -153,6 +154,8 @@ export function CompactMediaPlayer({
 		return Math.min(positionMs + (isPlaying ? elapsed : 0), durationMs || Infinity);
 	});
 
+	const { activeLyric } = useLyrics(mediaInfo.title, mediaInfo.artist, displayPosition);
+
 	// Tick: extrapolate position every 250ms
 	useEffect(() => {
 		const tick = () => {
@@ -227,6 +230,18 @@ export function CompactMediaPlayer({
 				<div className="cmp-track">
 					<TitleMarquee title={mediaInfo.title} />
 					<span className="cmp-artist">{mediaInfo.artist}</span>
+					{activeLyric && (
+						<motion.div
+							key={activeLyric}
+							initial={{ opacity: 0, y: 2 }}
+							animate={{ opacity: 1, y: 0 }}
+							className="cmp-lyrics-line"
+							title={activeLyric}
+						>
+							<span className="cmp-lyrics-icon">♪</span>
+							<span className="cmp-lyrics-text">{activeLyric}</span>
+						</motion.div>
+					)}
 				</div>
 				<div className="cmp-visualizer">
 					<Visualizer isPlaying={isPlaying} bars={5} height={16} />

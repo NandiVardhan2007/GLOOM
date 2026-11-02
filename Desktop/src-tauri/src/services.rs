@@ -81,6 +81,53 @@ fn win_number_index(vk: u16) -> Option<u8> {
     }
 }
 
+#[derive(serde::Serialize, Clone)]
+pub struct KeyLockPayload {
+    pub key: String,
+    pub enabled: bool,
+}
+
+/// Monitors Caps Lock and Num Lock key states without high CPU overhead,
+/// emitting "key-lock-changed" events to display the Apple-style Dynamic Island HUD.
+pub fn setup_key_lock_monitor(app_handle: AppHandle) {
+    std::thread::spawn(move || {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CAPITAL, VK_NUMLOCK};
+        let get_state = |vk: u16| -> bool {
+            unsafe { (GetKeyState(vk as i32) & 1) != 0 }
+        };
+        let mut last_caps = get_state(VK_CAPITAL.0);
+        let mut last_num = get_state(VK_NUMLOCK.0);
+
+        while !SHUTTING_DOWN.load(Ordering::Relaxed) {
+            let caps = get_state(VK_CAPITAL.0);
+            if caps != last_caps {
+                last_caps = caps;
+                let _ = app_handle.emit(
+                    "key-lock-changed",
+                    KeyLockPayload {
+                        key: "Caps Lock".to_string(),
+                        enabled: caps,
+                    },
+                );
+            }
+
+            let num = get_state(VK_NUMLOCK.0);
+            if num != last_num {
+                last_num = num;
+                let _ = app_handle.emit(
+                    "key-lock-changed",
+                    KeyLockPayload {
+                        key: "Num Lock".to_string(),
+                        enabled: num,
+                    },
+                );
+            }
+
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    });
+}
+
 /// The dock's Win+Number replacement can be turned off in Settings > Dock.
 fn dock_win_number_enabled() -> bool {
     let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get() else {

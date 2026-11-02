@@ -1,6 +1,6 @@
 [package]
 name = "gloom"
-version = "2.1.9"
+version = "2.2.0"
 description = "GLOOM: Dynamic Island & Notch for Windows"
 authors = ["Nandu"]
 edition = "2021"
