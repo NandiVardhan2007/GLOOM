@@ -128,6 +128,113 @@ pub fn setup_key_lock_monitor(app_handle: AppHandle) {
     });
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct FullscreenGamePayload {
+    pub is_fullscreen: bool,
+    pub reason: String,
+}
+
+/// Evaluates if a Windows Shell notification state indicates an active D3D fullscreen game
+/// or presentation mode where notifications and on-screen overlays should step aside.
+pub fn is_fullscreen_distraction_free(state: windows::Win32::UI::Shell::QUERY_USER_NOTIFICATION_STATE) -> bool {
+    use windows::Win32::UI::Shell::{QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN};
+    matches!(state, QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)
+}
+
+/// Safely queries the current Windows user notification state.
+pub fn query_user_notification_state_safe() -> Result<windows::Win32::UI::Shell::QUERY_USER_NOTIFICATION_STATE, i32> {
+    use windows::Win32::UI::Shell::SHQueryUserNotificationState;
+    unsafe {
+        match SHQueryUserNotificationState() {
+            Ok(state) => Ok(state),
+            Err(e) => Err(e.code().0),
+        }
+    }
+}
+
+/// Hysteresis debouncer for fullscreen transitions.
+/// Prevents rapid flickering during Alt+Tab by requiring:
+/// - `enter_threshold` consecutive positive samples to trigger fullscreen (e.g. 1 sample = 500ms)
+/// - `exit_threshold` consecutive negative samples to confirm exit (e.g. 2 samples = 1000ms)
+#[derive(Debug, Clone)]
+pub struct FullscreenDebouncer {
+    enter_threshold: u32,
+    exit_threshold: u32,
+    consecutive_enter: u32,
+    consecutive_exit: u32,
+    current_state: bool,
+}
+
+impl FullscreenDebouncer {
+    pub fn new(enter_threshold: u32, exit_threshold: u32) -> Self {
+        Self {
+            enter_threshold: enter_threshold.max(1),
+            exit_threshold: exit_threshold.max(1),
+            consecutive_enter: 0,
+            consecutive_exit: 0,
+            current_state: false,
+        }
+    }
+
+    pub fn update(&mut self, is_sample_fullscreen: bool) -> bool {
+        if is_sample_fullscreen {
+            self.consecutive_exit = 0;
+            self.consecutive_enter += 1;
+            if self.consecutive_enter >= self.enter_threshold {
+                self.current_state = true;
+            }
+        } else {
+            self.consecutive_enter = 0;
+            self.consecutive_exit += 1;
+            if self.consecutive_exit >= self.exit_threshold {
+                self.current_state = false;
+            }
+        }
+        self.current_state
+    }
+
+    #[allow(dead_code)]
+    pub fn is_fullscreen(&self) -> bool {
+        self.current_state
+    }
+}
+
+/// Background daemon monitoring DirectX/D3D fullscreen games and presentations.
+/// Emits "fullscreen-game-changed" events to allow the GLOOM Dynamic Island to tuck away cleanly.
+pub fn setup_fullscreen_game_monitor(app_handle: AppHandle) {
+    std::thread::spawn(move || {
+        let mut debouncer = FullscreenDebouncer::new(1, 2);
+        let mut last_emitted_state = false;
+
+        while !SHUTTING_DOWN.load(Ordering::Relaxed) {
+            let sample = if let Ok(state) = query_user_notification_state_safe() {
+                is_fullscreen_distraction_free(state)
+            } else {
+                false
+            };
+
+            let debounced = debouncer.update(sample);
+            if debounced != last_emitted_state {
+                last_emitted_state = debounced;
+                let reason = if debounced {
+                    "fullscreen_d3d_or_presentation".to_string()
+                } else {
+                    "desktop_normal".to_string()
+                };
+                let _ = app_handle.emit(
+                    "fullscreen-game-changed",
+                    FullscreenGamePayload {
+                        is_fullscreen: debounced,
+                        reason,
+                    },
+                );
+            }
+
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    });
+}
+
 /// The dock's Win+Number replacement can be turned off in Settings > Dock.
 fn dock_win_number_enabled() -> bool {
     let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get() else {
@@ -4593,9 +4700,10 @@ fn recover_from_webview_failure(handle: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_helper_name, is_launchable_entry, is_primary_monitor, is_start_menu_process_path,
-        notch_mode_reserves_work_area, pack_cursor, trim_thumbnail_cache, unpack_cursor,
-        win_number_index,
+        is_fullscreen_distraction_free, is_helper_name, is_launchable_entry, is_primary_monitor,
+        is_start_menu_process_path, notch_mode_reserves_work_area, pack_cursor,
+        trim_thumbnail_cache, unpack_cursor, win_number_index, FullscreenDebouncer,
+        FullscreenGamePayload,
     };
 
     #[test]
@@ -4671,5 +4779,44 @@ mod tests {
             "Brave",
             "C:\\Program Files\\Brave\\brave.exe"
         ));
+    }
+
+    #[test]
+    fn notification_state_identifies_d3d_games_and_presentations() {
+        use windows::Win32::UI::Shell::{
+            QUNS_ACCEPTS_NOTIFICATIONS, QUNS_BUSY, QUNS_NOT_PRESENT, QUNS_PRESENTATION_MODE,
+            QUNS_QUIET_TIME, QUNS_RUNNING_D3D_FULL_SCREEN,
+        };
+        assert!(is_fullscreen_distraction_free(QUNS_RUNNING_D3D_FULL_SCREEN));
+        assert!(is_fullscreen_distraction_free(QUNS_PRESENTATION_MODE));
+        assert!(!is_fullscreen_distraction_free(QUNS_ACCEPTS_NOTIFICATIONS));
+        assert!(!is_fullscreen_distraction_free(QUNS_BUSY));
+        assert!(!is_fullscreen_distraction_free(QUNS_QUIET_TIME));
+        assert!(!is_fullscreen_distraction_free(QUNS_NOT_PRESENT));
+    }
+
+    #[test]
+    fn fullscreen_debouncer_requires_consecutive_samples() {
+        let mut debouncer = FullscreenDebouncer::new(1, 2);
+        // 1 sample of true triggers fullscreen
+        assert!(debouncer.update(true));
+        assert!(debouncer.is_fullscreen());
+        // 1 sample of false should still stay true (requires 2 false samples)
+        assert!(debouncer.update(false));
+        assert!(debouncer.is_fullscreen());
+        // 2nd sample of false confirms exit
+        assert!(!debouncer.update(false));
+        assert!(!debouncer.is_fullscreen());
+    }
+
+    #[test]
+    fn fullscreen_payload_serializes_correctly() {
+        let payload = FullscreenGamePayload {
+            is_fullscreen: true,
+            reason: "d3d_full_screen".to_string(),
+        };
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(json.contains("\"is_fullscreen\":true"));
+        assert!(json.contains("\"reason\":\"d3d_full_screen\""));
     }
 }

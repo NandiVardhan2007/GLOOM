@@ -43,6 +43,22 @@ pub async fn set_notch_visible(visible: bool) {
 }
 
 #[tauri::command]
+pub fn get_fullscreen_game_state() -> Result<crate::services::FullscreenGamePayload, String> {
+    let state = crate::services::query_user_notification_state_safe()
+        .map_err(|e| format!("Failed to query notification state: HRESULT {e}"))?;
+    let is_fullscreen = crate::services::is_fullscreen_distraction_free(state);
+    let reason = if is_fullscreen {
+        "fullscreen_d3d_or_presentation".to_string()
+    } else {
+        "desktop_normal".to_string()
+    };
+    Ok(crate::services::FullscreenGamePayload {
+        is_fullscreen,
+        reason,
+    })
+}
+
+#[tauri::command]
 pub fn setup_shelf_drop(app: AppHandle) {
     let first = app.clone();
     let _ = app.run_on_main_thread(move || crate::shelf::setup(&first));
