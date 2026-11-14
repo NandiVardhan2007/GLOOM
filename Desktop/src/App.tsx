@@ -39,6 +39,7 @@ import { EdgeSurface } from "./components/EdgeSurface";
 import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
 import { BluetoothPanel } from "./components/BluetoothPanel";
+import { MascotFace } from "./components/MascotFace";
 import {
 	Cpu,
 	MemoryStick,
@@ -561,6 +562,9 @@ function App() {
 	const [avoidFullscreenGames, setAvoidFullscreenGames] = useState(() => {
 		return localStorage.getItem("gloom-avoid-fullscreen-games") !== "false";
 	});
+	const [mascotEnabled, setMascotEnabled] = useState(() => {
+		return localStorage.getItem("gloom-mascot-enabled") !== "false";
+	});
 	const [isFullscreenGame, setIsFullscreenGame] = useState(false);
 
 	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
@@ -1033,6 +1037,9 @@ function App() {
 				const avoidGames = getVal("gloom-avoid-fullscreen-games", "true");
 				setAvoidFullscreenGames(avoidGames !== "false");
 
+				const mascotVal = getVal("gloom-mascot-enabled", "true");
+				setMascotEnabled(mascotVal !== "false");
+
 				const nMode = getVal("gloom-notch-mode", "fixed");
 				if (nMode) {
 					const mapped = nMode === "auto-hide" ? "smart" : nMode;
@@ -1165,6 +1172,7 @@ function App() {
 			"gloom-show-update-indicator": (value) => setShowUpdateIndicator(String(value) === "true"),
 			"gloom-time-format-24h": setTimeFormat24h,
 			"gloom-avoid-fullscreen-games": (v: unknown) => setAvoidFullscreenGames(v !== "false"),
+			"gloom-mascot-enabled": (v: unknown) => setMascotEnabled(v !== "false"),
 			"gloom-island-style": (v: unknown) => setIslandStyle(v === "pill" ? "pill" : "notch")
 		},
 		[windowLabel]
@@ -2811,6 +2819,7 @@ function App() {
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
+		if (mascotEnabled) w += 34;
 		if (isMusicMode) {
 			if (settingsVisualizerEnabled && isPlaying) w += 30;
 			if (settingsAlbumArtEnabled) w += 30;
@@ -3407,39 +3416,56 @@ function App() {
 																		</motion.button>
 																	)}
 																</AnimatePresence>
-																<div className="time-flip-container" onClick={toggleCalendarMode}>
-																	<AnimatePresence initial={false}>
-																		{timerSeconds > 0 || isTimerFinished ? (
-																			<motion.span
-																				key="timer"
-																				className={`time compact-timer ${isTimerFinished ? "timer-finished" : ""}`}
-																				initial={{ rotateX: -90, opacity: 0 }}
-																				animate={{ rotateX: 0, opacity: 1 }}
-																				exit={{ rotateX: 90, opacity: 0 }}
-																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
-																			>
-																				{isTimerFinished && (
-																					<BellRing
-																						size={13}
-																						strokeWidth={2.5}
-																						className="timer-bell"
-																					/>
-																				)}
-																				{formatTimerTime(timerSeconds)}
-																			</motion.span>
-																		) : (
-																			<motion.span
-																				key="clock"
-																				className="time"
-																				initial={{ rotateX: -90, opacity: 0 }}
-																				animate={{ rotateX: 0, opacity: 1 }}
-																				exit={{ rotateX: 90, opacity: 0 }}
-																				transition={{ type: "spring", stiffness: 600, damping: 30 }}
-																			>
-																				{time}
-																			</motion.span>
-																		)}
-																	</AnimatePresence>
+																<div className="time-mascot-flex-group">
+																	{mascotEnabled && (
+																		<motion.div
+																			key="notch-mascot-companion"
+																			className="notch-mascot-companion"
+																			initial={{ opacity: 0, scale: 0.8 }}
+																			animate={{ opacity: 1, scale: 1 }}
+																			exit={{ opacity: 0, scale: 0.8 }}
+																			transition={{ duration: 0.2 }}
+																		>
+																			<MascotFace
+																				scale={0.76}
+																				isPlayingMusic={isPlaying}
+																			/>
+																		</motion.div>
+																	)}
+																	<div className="time-flip-container" onClick={toggleCalendarMode}>
+																		<AnimatePresence initial={false}>
+																			{timerSeconds > 0 || isTimerFinished ? (
+																				<motion.span
+																					key="timer"
+																					className={`time compact-timer ${isTimerFinished ? "timer-finished" : ""}`}
+																					initial={{ rotateX: -90, opacity: 0 }}
+																					animate={{ rotateX: 0, opacity: 1 }}
+																					exit={{ rotateX: 90, opacity: 0 }}
+																					transition={{ type: "spring", stiffness: 600, damping: 30 }}
+																				>
+																					{isTimerFinished && (
+																						<BellRing
+																							size={13}
+																							strokeWidth={2.5}
+																							className="timer-bell"
+																						/>
+																					)}
+																					{formatTimerTime(timerSeconds)}
+																				</motion.span>
+																			) : (
+																				<motion.span
+																					key="clock"
+																					className="time"
+																					initial={{ rotateX: -90, opacity: 0 }}
+																					animate={{ rotateX: 0, opacity: 1 }}
+																					exit={{ rotateX: 90, opacity: 0 }}
+																					transition={{ type: "spring", stiffness: 600, damping: 30 }}
+																				>
+																					{time}
+																				</motion.span>
+																			)}
+																		</AnimatePresence>
+																	</div>
 																</div>
 																<AnimatePresence>
 																	{showPanelArrows && (

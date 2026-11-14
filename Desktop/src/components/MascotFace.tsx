@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
 import type { MascotFaceProps, MascotMood } from "./mascot/types";
 import { stepSpring, dampGaze } from "./mascot/springMath";
 import "./MascotFace.css";
@@ -14,6 +15,7 @@ export const MascotFace: React.FC<MascotFaceProps> = ({
 }) => {
 	const [activeMood, setActiveMood] = useState<MascotMood>(mood);
 	const [pokeCount, setPokeCount] = useState(0);
+	const [audioLevel, setAudioLevel] = useState(0);
 
 	// Spring state refs
 	const eyeOpenRef = useRef({ pos: 1.0, vel: 0, target: 1.0 });
@@ -33,6 +35,29 @@ export const MascotFace: React.FC<MascotFaceProps> = ({
 			setActiveMood(mood);
 		}
 	}, [mood, activeMood]);
+
+	// Listen to audio visualization events when playing music
+	useEffect(() => {
+		if (!isPlayingMusic) {
+			setAudioLevel(0);
+			return;
+		}
+		let unlistenFn: (() => void) | null = null;
+		listen<{ frequencies: number[] }>("audio-visualization", (event) => {
+			const freqs = event.payload?.frequencies;
+			if (freqs && freqs.length > 0) {
+				const sum = freqs.reduce((a, b) => a + b, 0);
+				const avg = sum / freqs.length;
+				setAudioLevel(avg);
+			}
+		}).then((fn) => {
+			unlistenFn = fn;
+		}).catch(() => {});
+
+		return () => {
+			if (unlistenFn) unlistenFn();
+		};
+	}, [isPlayingMusic]);
 
 	// Natural blinking loop when idle
 	useEffect(() => {
@@ -154,10 +179,25 @@ export const MascotFace: React.FC<MascotFaceProps> = ({
 		animFrameRef.current = requestAnimationFrame(loop);
 	}, [activeMood]);
 
+	// Rhythmic bobbing during music playback
+	useEffect(() => {
+		if (!isPlayingMusic) return;
+		const hopInterval = setInterval(() => {
+			hopRef.current.target = -3.2;
+			startAnimationLoop();
+			setTimeout(() => {
+				hopRef.current.target = 0;
+				startAnimationLoop();
+			}, 180);
+		}, 650);
+
+		return () => clearInterval(hopInterval);
+	}, [isPlayingMusic, startAnimationLoop]);
+
 	// Trigger animation on props change
 	useEffect(() => {
 		startAnimationLoop();
-	}, [startAnimationLoop, isListening, micLevel, activeMood]);
+	}, [startAnimationLoop, isListening, micLevel, audioLevel, activeMood]);
 
 	// Poking handler
 	const handleClick = (e: React.MouseEvent) => {
@@ -207,9 +247,12 @@ export const MascotFace: React.FC<MascotFaceProps> = ({
 		startAnimationLoop();
 	};
 
-	// Eye open multiplier (accounts for mic reactivity when listening)
+	// Eye open multiplier (accounts for mic or music reactivity)
 	const rawOpen = eyeOpenRef.current.pos;
-	const listeningDilation = isListening ? 1.0 + Math.min(micLevel, 1.0) * 0.35 : 1.0;
+	const effectiveLevel = Math.max(micLevel, audioLevel);
+	const listeningDilation = (isListening || (isPlayingMusic && effectiveLevel > 0.05))
+		? 1.0 + Math.min(effectiveLevel, 1.0) * 0.4
+		: 1.0;
 	const eyeHeight = Math.max(1.2, 7.5 * rawOpen * listeningDilation);
 	const hopY = hopRef.current.pos;
 

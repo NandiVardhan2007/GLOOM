@@ -180,6 +180,23 @@ img {
 	position: relative;
 }
 
+.time-mascot-flex-group {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+}
+
+.notch-mascot-companion {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	user-select: none;
+	flex-shrink: 0;
+	z-index: 2;
+}
+
 /* Shelf: OS file drag hovering over the notch (see onDragDropEvent in App.tsx) */
 .gloom.drag-hover {
 	outline: 2px dashed rgba(255, 255, 255, 0.75);
