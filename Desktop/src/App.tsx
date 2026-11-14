@@ -558,6 +558,11 @@ function App() {
 		return raw;
 	});
 
+	const [avoidFullscreenGames, setAvoidFullscreenGames] = useState(() => {
+		return localStorage.getItem("gloom-avoid-fullscreen-games") !== "false";
+	});
+	const [isFullscreenGame, setIsFullscreenGame] = useState(false);
+
 	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
 		return localStorage.getItem("gloom-island-style") === "pill" ? "pill" : "notch";
 	});
@@ -764,7 +769,8 @@ function App() {
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
 	const isHidden =
 		!startupAnimating &&
-		((notchMode === "smart" && isOverlapped && interactionState === "none") ||
+		((avoidFullscreenGames && isFullscreenGame && interactionState === "none") ||
+			(notchMode === "smart" && isOverlapped && interactionState === "none") ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
 	useEffect(() => {
@@ -1024,6 +1030,9 @@ function App() {
 				const thresholdStr = getVal("gloom-low-battery-threshold", "20");
 				if (thresholdStr) setLowBatteryThreshold(parseInt(thresholdStr as string));
 
+				const avoidGames = getVal("gloom-avoid-fullscreen-games", "true");
+				setAvoidFullscreenGames(avoidGames !== "false");
+
 				const nMode = getVal("gloom-notch-mode", "fixed");
 				if (nMode) {
 					const mapped = nMode === "auto-hide" ? "smart" : nMode;
@@ -1155,6 +1164,7 @@ function App() {
 			},
 			"gloom-show-update-indicator": (value) => setShowUpdateIndicator(String(value) === "true"),
 			"gloom-time-format-24h": setTimeFormat24h,
+			"gloom-avoid-fullscreen-games": (v: unknown) => setAvoidFullscreenGames(v !== "false"),
 			"gloom-island-style": (v: unknown) => setIslandStyle(v === "pill" ? "pill" : "notch")
 		},
 		[windowLabel]
@@ -2141,6 +2151,23 @@ function App() {
 			setVolume(event.payload.volume);
 			setIsMuted(event.payload.is_muted);
 		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, []);
+
+	// Fullscreen game & presentation detection (Hey Nixi D3D parity)
+	useEffect(() => {
+		const unlisten = listen<{ is_fullscreen: boolean; reason: string }>(
+			"fullscreen-game-changed",
+			(event) => {
+				setIsFullscreenGame(event.payload.is_fullscreen);
+			}
+		);
+		invoke<{ is_fullscreen: boolean; reason: string }>("get_fullscreen_game_state")
+			.then((state) => setIsFullscreenGame(state.is_fullscreen))
+			.catch(() => {});
+
 		return () => {
 			unlisten.then((fn) => fn());
 		};

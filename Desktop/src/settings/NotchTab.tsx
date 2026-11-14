@@ -1,4 +1,5 @@
 import {
+	Gamepad2,
 	PanelTop,
 	Calendar,
 	BellRing,
@@ -21,6 +22,8 @@ interface NotchTabProps {
 	handleIslandStyleChange: (style: "notch" | "pill") => void;
 	notchMode: string;
 	setNotchModeValue: (mode: string) => void;
+	avoidFullscreenGames: boolean;
+	toggleAvoidFullscreenGames: () => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
 	calendarEnabled: boolean;
@@ -68,6 +71,8 @@ export function NotchTab({
 	handleIslandStyleChange,
 	notchMode,
 	setNotchModeValue,
+	avoidFullscreenGames,
+	toggleAvoidFullscreenGames,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
 	calendarEnabled,
@@ -117,6 +122,21 @@ export function NotchTab({
 						<option value="notch">Notch (Attached)</option>
 						<option value="pill">Pill (Floating)</option>
 					</select>
+				</SettingRow>
+
+				<SettingRow
+					icon={Gamepad2}
+					label="Avoid Fullscreen Games"
+					desc="Step aside and tuck the notch away during 3D games and presentations"
+				>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={avoidFullscreenGames}
+							onChange={toggleAvoidFullscreenGames}
+						/>
+						<span className="slider"></span>
+					</label>
 				</SettingRow>
 				<SettingRow icon={PanelTop} label="Notch Behavior" desc="Choose how the notch appears">
 					<select

@@ -165,6 +165,8 @@ function SettingsApp() {
 							handleIslandStyleChange={settings.handleIslandStyleChange}
 							notchMode={settings.notchMode}
 							setNotchModeValue={settings.setNotchModeValue}
+							avoidFullscreenGames={settings.avoidFullscreenGames}
+							toggleAvoidFullscreenGames={settings.toggleAvoidFullscreenGames}
 							notchEdgeDelay={settings.notchEdgeDelay}
 							handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
 							calendarEnabled={settings.calendarEnabled}
