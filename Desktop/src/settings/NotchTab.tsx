@@ -24,6 +24,8 @@ interface NotchTabProps {
 	setNotchModeValue: (mode: string) => void;
 	avoidFullscreenGames: boolean;
 	toggleAvoidFullscreenGames: () => void;
+	mascotEnabled: boolean;
+	toggleMascotEnabled: () => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
 	calendarEnabled: boolean;
@@ -73,6 +75,8 @@ export function NotchTab({
 	setNotchModeValue,
 	avoidFullscreenGames,
 	toggleAvoidFullscreenGames,
+	mascotEnabled,
+	toggleMascotEnabled,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
 	calendarEnabled,
@@ -134,6 +138,21 @@ export function NotchTab({
 							type="checkbox"
 							checked={avoidFullscreenGames}
 							onChange={toggleAvoidFullscreenGames}
+						/>
+						<span className="slider"></span>
+					</label>
+				</SettingRow>
+
+				<SettingRow
+					icon={Sparkles}
+					label="Island Mascot & Reactive Eyes"
+					desc="Emotional companion with gaze tracking, spring physics, and music headphones"
+				>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={mascotEnabled}
+							onChange={toggleMascotEnabled}
 						/>
 						<span className="slider"></span>
 					</label>

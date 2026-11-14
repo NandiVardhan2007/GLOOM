@@ -167,6 +167,8 @@ function SettingsApp() {
 							setNotchModeValue={settings.setNotchModeValue}
 							avoidFullscreenGames={settings.avoidFullscreenGames}
 							toggleAvoidFullscreenGames={settings.toggleAvoidFullscreenGames}
+							mascotEnabled={settings.mascotEnabled}
+							toggleMascotEnabled={settings.toggleMascotEnabled}
 							notchEdgeDelay={settings.notchEdgeDelay}
 							handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
 							calendarEnabled={settings.calendarEnabled}
