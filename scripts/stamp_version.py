@@ -61,6 +61,8 @@ def compute_version_code(version: str, explicit_code: str | None = None) -> int:
 
 def stamp_android(version: str, version_code: int) -> None:
     path = ROOT / "Android/app/build.gradle.kts"
+    if not path.exists():
+        return
     text = path.read_text(encoding="utf-8")
     text, code_count = re.subn(r"(?m)^(\s*versionCode\s*=\s*)\d+", rf"\g<1>{version_code}", text, count=1)
     text, name_count = re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]*"', rf'\g<1>"{version}"', text, count=1)

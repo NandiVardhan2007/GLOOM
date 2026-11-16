@@ -31,15 +31,12 @@ import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ask } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
-import { EdgeSurface } from "./components/EdgeSurface";
 import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
 import { BluetoothPanel } from "./components/BluetoothPanel";
-import { MascotFace } from "./components/MascotFace";
 import {
 	Cpu,
 	MemoryStick,
@@ -56,7 +53,6 @@ import {
 	ChevronRight,
 	Inbox,
 	Music,
-	Smartphone,
 	Folder,
 	Lock
 } from "lucide-react";
@@ -499,6 +495,8 @@ const TitleMarquee = ({ title }: { title: string }) => {
 	);
 };
 
+const isLinux = typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("linux");
+
 function App() {
 	useEffect(() => {
 		return initTheme();
@@ -562,13 +560,10 @@ function App() {
 	const [avoidFullscreenGames, setAvoidFullscreenGames] = useState(() => {
 		return localStorage.getItem("gloom-avoid-fullscreen-games") !== "false";
 	});
-	const [mascotEnabled, setMascotEnabled] = useState(() => {
-		return localStorage.getItem("gloom-mascot-enabled") !== "false";
-	});
 	const [isFullscreenGame, setIsFullscreenGame] = useState(false);
 
 	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
-		return localStorage.getItem("gloom-island-style") === "pill" ? "pill" : "notch";
+		return (localStorage.getItem("gloom-island-style") as "notch" | "pill") || "pill";
 	});
 
 	useEffect(() => {
@@ -710,7 +705,7 @@ function App() {
 	const [isVisible, setIsVisible] = useState(true);
 	const [isImpacted, setIsImpacted] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
-	const [startupAnimating, setStartupAnimating] = useState(false);
+	const startupAnimating = false;
 
 	const [dockMode, setDockMode] = useState(() => {
 		const raw = localStorage.getItem("gloom-dock-mode") || "smart";
@@ -750,16 +745,22 @@ function App() {
 	// refs and the DOM, so it is safe to call from any callback.
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];
-		if (pillTargetRef.current) wanted.push(pillTargetRef.current);
-		// Each floating part, padded to cover what it paints outside its box: a
-		// tooltip card's shadow reaches 20px out plus a 6px drop, a bubble's
-		// glow less, and the screen corners nothing.
-		wanted.push(
-			...measureElements([
-				[".activity-bubble", 16],
-				[".status-tooltip", 28]
-			])
-		);
+		if (isOpen) {
+			wanted.push({
+				x: 0,
+				y: 0,
+				width: window.innerWidth,
+				height: 420 * scale
+			});
+		} else {
+			if (pillTargetRef.current) wanted.push(pillTargetRef.current);
+			wanted.push(
+				...measureElements([
+					[".activity-bubble", 16],
+					[".status-tooltip", 28]
+				])
+			);
+		}
 		sendNotchRegion(wanted);
 	};
 	const [systemSettingsReady, setSystemSettingsReady] = useState(false);
@@ -849,90 +850,11 @@ function App() {
 			return;
 		}
 
-		const proceedWithStartup = () => {
-			const checkVisibility = async () => {
-				try {
-					const win = getCurrentWebviewWindow();
-					const visible = await win.isVisible();
-					if (visible) {
-						setStartupAnimating(true);
-						setIsReady(true);
-						// The window is shown here; WebView2 may only create its
-						// render child now, so refresh the drop targets.
-						invoke("setup_shelf_drop").catch(() => {});
-						setTimeout(() => {
-							setIsImpacted(true);
-							setIsExpanded(true);
-						}, 240);
-						setTimeout(() => setStartupAnimating(false), 1500);
-						return true;
-					}
-				} catch (e) {}
-				return false;
-			};
-
-			const interval = setInterval(async () => {
-				if (await checkVisibility()) clearInterval(interval);
-			}, 100);
-
-			checkVisibility();
-			return interval;
-		};
-
-		// Mirror Overlay.tsx's splash decision so we only wait when a splash will actually fire.
-		// Overlay always emits splash-done, but on a normal relaunch it emits it near-instantly
-		// (after one async getVersion() call) — before this listener would be registered.
-		// By making the same decision here we avoid a race and avoid any unnecessary delay.
-		const firstRun = localStorage.getItem("gloom-first-run") === null;
-		const storedVersion = localStorage.getItem("gloom-app-version");
-
-		const waitForSplash = () => {
-			// Splash is definitely coming — register listener now (2800ms animation gives us plenty of time)
-			let started = false;
-			let interval: any;
-			const unlistenSplash = listen("splash-done", () => {
-				if (started) return;
-				started = true;
-				interval = proceedWithStartup();
-				unlistenSplash.then((fn) => fn());
-			});
-			const safetyTimer = setTimeout(() => {
-				if (started) return;
-				started = true;
-				interval = proceedWithStartup();
-				unlistenSplash.then((fn) => fn());
-			}, 6000);
-			return () => {
-				clearTimeout(safetyTimer);
-				if (interval) clearInterval(interval);
-				unlistenSplash.then((fn) => fn());
-			};
-		};
-
-		if (firstRun || storedVersion === null) {
-			// Splash is definitely showing — wait for it
-			return waitForSplash();
-		}
-
-		// Has a version key — need async check to know if version changed
-		let interval: any;
-		getVersion()
-			.then((currentVersion) => {
-				if (storedVersion !== currentVersion) {
-					// Version changed — splash is coming, wait for it
-					// (splash takes 2800ms so there's plenty of time to register the listener)
-					waitForSplash();
-				} else {
-					// Same version — no splash, start immediately
-					interval = proceedWithStartup();
-				}
-			})
-			.catch(() => {
-				interval = proceedWithStartup();
-			});
-		return () => {
-			if (interval) clearInterval(interval);
-		};
+		// Instant fluid startup: reveal the Apple Dynamic Island immediately on launch
+		setIsReady(true);
+		setIsImpacted(true);
+		setIsExpanded(true);
+		invoke("setup_shelf_drop").catch(() => {});
 	}, [windowLabel]);
 
 	// Settings state
@@ -981,7 +903,7 @@ function App() {
 		() => localStorage.getItem("gloom-media-compact-glow-enabled") !== "false"
 	);
 	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
-		() => (localStorage.getItem("gloom-media-layout") as "classic" | "compact") || "classic"
+		() => (localStorage.getItem("gloom-media-layout") as "classic" | "compact") || "compact"
 	);
 	const [compactVolumeExpanded, setCompactVolumeExpanded] = useState(false);
 
@@ -1037,8 +959,8 @@ function App() {
 				const avoidGames = getVal("gloom-avoid-fullscreen-games", "true");
 				setAvoidFullscreenGames(avoidGames !== "false");
 
-				const mascotVal = getVal("gloom-mascot-enabled", "true");
-				setMascotEnabled(mascotVal !== "false");
+				const styleVal = getVal("gloom-island-style", "pill");
+				setIslandStyle(styleVal === "notch" ? "notch" : "pill");
 
 				const nMode = getVal("gloom-notch-mode", "fixed");
 				if (nMode) {
@@ -1115,24 +1037,11 @@ function App() {
 			releaseNotchHover();
 		});
 
-		const unlistenPairingRequest = listen<{ deviceId: string; deviceName: string; ip: string }>(
-			"livebridge-pairing-request",
-			async (event) => {
-				const { deviceId, deviceName, ip } = event.payload;
-				const confirmed = await ask(
-					`Device "${deviceName}" (${ip}) wants to connect to GLOOM on this PC. Allow this device?`,
-					{ title: "GLOOM Mobile Connection", kind: "info" }
-				);
-				invoke("respond_livebridge_pairing", { deviceId, allow: confirmed }).catch(() => {});
-			}
-		);
-
 		return () => {
 			unlistenVisibility.then((f) => f());
 			unlistenNotchOverlap.then((f) => f());
 			unlistenNotchEdgeHover.then((f) => f());
 			unlistenNotchPointerLeft.then((f) => f());
-			unlistenPairingRequest.then((f) => f());
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [windowLabel]);
@@ -1172,8 +1081,7 @@ function App() {
 			"gloom-show-update-indicator": (value) => setShowUpdateIndicator(String(value) === "true"),
 			"gloom-time-format-24h": setTimeFormat24h,
 			"gloom-avoid-fullscreen-games": (v: unknown) => setAvoidFullscreenGames(v !== "false"),
-			"gloom-mascot-enabled": (v: unknown) => setMascotEnabled(v !== "false"),
-			"gloom-island-style": (v: unknown) => setIslandStyle(v === "pill" ? "pill" : "notch")
+			"gloom-island-style": (v: unknown) => setIslandStyle(String(v) === "notch" ? "notch" : "pill")
 		},
 		[windowLabel]
 	);
@@ -1199,7 +1107,7 @@ function App() {
 				.then(async () => {
 					if (cancelled) return;
 					try {
-						if (dockEnabled) {
+						if (!isLinux && dockEnabled) {
 							if (!appliedDock.current?.enabled) {
 								await invoke("init_dock", { mode: dockMode });
 								appliedDock.current = { enabled: true, mode: dockMode };
@@ -1207,7 +1115,7 @@ function App() {
 								await invoke("change_dock_mode", { mode: dockMode });
 								appliedDock.current = { enabled: true, mode: dockMode };
 							}
-						} else if (appliedDock.current?.enabled !== false) {
+						} else if (!isLinux && appliedDock.current?.enabled !== false) {
 							await invoke("toggle_dock", { enable: false });
 							appliedDock.current = { enabled: false, mode: dockMode };
 						}
@@ -1513,35 +1421,35 @@ function App() {
 	const notchPinnedRef = useRef(false);
 	const releaseDeferredRef = useRef(false);
 
-	// Shared hover-release, called on DOM hover end and when the backend
-	// reports the pointer left the (now click-through) notch window. Closes an
-	// open notch, remembering its panel, and returns to the resting mode.
+	// Shared hover-release, called on DOM hover end.
+	// Only clears transient hover states. Does NOT collapse an explicitly opened modal island.
 	const releaseNotchHover = () => {
-		// A view being typed into (a Wi-Fi password) keeps the notch open; the
-		// release happens once it lets go, if the pointer is still away.
 		if (notchPinnedRef.current) {
 			releaseDeferredRef.current = true;
 			return;
 		}
 		setIsHovered(false);
 		setIsNotchHovered(false);
+	};
+
+	const closeNotch = useCallback(() => {
 		if (isOpenRef.current) {
 			const panel = asNotchPanel(gloomModeRef.current);
 			if (panel && rememberPanelEnabledRef.current) rememberPanelRef.current(panel);
 			setIsOpen(false);
 		}
-		setGloomMode((prev) =>
-			prev === "music" ||
-			prev === "command-center" ||
-			prev === "calendar" ||
-			prev === "status" ||
-			prev === "shelf" ||
-			prev === "wifi" ||
-			prev === "bluetooth"
-				? restingModeRef.current
-				: prev
-		);
-	};
+		setGloomMode(restingModeRef.current);
+	}, []);
+
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && isOpenRef.current) {
+				closeNotch();
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [closeNotch]);
 
 	const clearShelfCollapse = () => {
 		if (shelfCollapseTimer.current !== null) {
@@ -1671,19 +1579,6 @@ function App() {
 				}
 			});
 		}
-	};
-
-	const beamFileToMobile = (item: ShelfItem) => {
-		if (!item.path) return;
-		showShelfNotice(`Beaming "${item.name}" to Mobile Island...`);
-		invoke("beam_file_to_device", { path: item.path })
-			.then(() => {
-				showShelfNotice(`Beamed "${item.name}" to Mobile Island!`);
-			})
-			.catch((err) => {
-				console.error("[bridge] beam failed:", err);
-				showShelfNotice(`Could not beam file: ${err}`);
-			});
 	};
 
 	// Shelf drag-and-drop plumbing. The backend registers its own OLE drop
@@ -2819,7 +2714,6 @@ function App() {
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
-		if (mascotEnabled) w += 34;
 		if (isMusicMode) {
 			if (settingsVisualizerEnabled && isPlaying) w += 30;
 			if (settingsAlbumArtEnabled) w += 30;
@@ -2876,8 +2770,9 @@ function App() {
 	// window region below is cut from it, so the region is already at the
 	// final size while the pill animates.
 	const isPill = islandStyle === "pill";
+	const pillYOffset = isPill ? 10 : 0;
 	// In fixed mode or notch mode, the notch/pill must be anchored flush to the screen's top edge (y = 0) with zero gap.
-	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : 0) : -150;
+	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -120 : pillYOffset) : -150;
 	const pillTargetWidth = !isReady
 		? 34
 		: isExpanded && isVisible && !isHidden
@@ -2886,13 +2781,16 @@ function App() {
 				? 39.1
 				: 30.6;
 	const pillTargetHeight = !isReady ? 34 : getDynamicHeight();
+	const pillRadius = isPill
+		? (isOpen ? (isCalendarMode ? 38 : 34) : 22)
+		: (isCalendarMode ? 28 : (isImpacted || notchMode === "fixed" ? 0 : 18));
 	// Shadow and the edge flares beside the pill.
 	pillTargetRef.current = notchPillBox(
 		window.innerWidth,
 		scale,
-		pillTargetY,
+		Math.max(0, pillTargetY - 4),
 		pillTargetWidth,
-		pillTargetHeight,
+		pillTargetHeight + (isPill ? 4 : 0),
 		24
 	);
 
@@ -2901,10 +2799,18 @@ function App() {
 	// state. Sent after every render, but only when the region changes.
 	useEffect(() => {
 		if (windowLabel === "main") updateNotchRegion();
-	}, [pillTargetWidth, pillTargetHeight, isExpanded, isOpen, isHidden, isVisible, interactionState, musicActivity, shelfItems.length, statusWidget]);
+	}, [pillTargetWidth, pillTargetHeight, isExpanded, isOpen, isHidden, isVisible, interactionState, musicActivity, shelfItems.length, statusWidget, islandStyle, isPill]);
 
 	return (
-		<div className="screen" style={{ overflow: "hidden" }}>
+		<div
+			className="screen"
+			style={{ overflow: "hidden" }}
+			onClick={() => {
+				if (isOpen) {
+					closeNotch();
+				}
+			}}
+		>
 
 			<div
 				style={{
@@ -2937,18 +2843,19 @@ function App() {
 				</AnimatePresence>
 				<motion.div
 					ref={gloomRef}
-					className={`gloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""} ${isPill ? "pill-mode" : ""}`}
+					className={`gloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""} ${isPill ? "pill-mode" : "notch-mode"}`}
 					onMouseEnter={() => setIsNotchHovered(true)}
 					onMouseLeave={() => setIsNotchHovered(false)}
 					onWheel={handleWheel}
+					whileTap={{ scale: 0.97 }}
 					initial={{
 						y: 250,
 						width: 30.6,
 						height: 44.2,
-						borderTopLeftRadius: 18,
-						borderTopRightRadius: 18,
-						borderBottomLeftRadius: 18,
-						borderBottomRightRadius: 18,
+						borderTopLeftRadius: 22,
+						borderTopRightRadius: 22,
+						borderBottomLeftRadius: 22,
+						borderBottomRightRadius: 22,
 						scaleX: 1,
 						scaleY: 1,
 						opacity: 0
@@ -2960,16 +2867,20 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: isPill && notchMode !== "fixed" ? (isCalendarMode ? 28 : 18) : (isImpacted || notchMode === "fixed" ? 0 : 18),
-						borderTopRightRadius: isPill && notchMode !== "fixed" ? (isCalendarMode ? 28 : 18) : (isImpacted || notchMode === "fixed" ? 0 : 18),
-						borderBottomLeftRadius: isCalendarMode ? 28 : 18,
-						borderBottomRightRadius: isCalendarMode ? 28 : 18,
+						borderTopLeftRadius: isPill ? pillRadius : (isImpacted || notchMode === "fixed" ? 0 : 18),
+						borderTopRightRadius: isPill ? pillRadius : (isImpacted || notchMode === "fixed" ? 0 : 18),
+						borderBottomLeftRadius: pillRadius,
+						borderBottomRightRadius: pillRadius,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
 					onClick={(e) => {
 						e.stopPropagation();
-						if (!isOpen) openNotch(openingPanel());
+						if (isOpen) {
+							closeNotch();
+						} else {
+							openNotch(isMusicMode ? "music" : openingPanel());
+						}
 					}}
 					onHoverStart={() => {
 						releaseDeferredRef.current = false;
@@ -2980,15 +2891,15 @@ function App() {
 					onHoverEnd={releaseNotchHover}
 					style={{ originY: 0 }}
 					transition={{
-						width: { type: "spring", stiffness: 400, damping: 31 },
-						height: { type: "spring", stiffness: 450, damping: 29 },
-						y: { type: "spring", stiffness: 550, damping: 45, mass: 0.8, restDelta: 0.001 },
-						opacity: { duration: 0.2 },
-						borderTopLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderTopRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderBottomLeftRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						borderBottomRightRadius: { type: "spring", stiffness: 1000, damping: 40 },
-						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
+						width: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 },
+						height: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 },
+						y: { type: "spring", stiffness: 420, damping: 32, mass: 0.8, restDelta: 0.001 },
+						opacity: { duration: 0.18 },
+						borderTopLeftRadius: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 },
+						borderTopRightRadius: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 },
+						borderBottomLeftRadius: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 },
+						borderBottomRightRadius: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 },
+						default: { type: "spring", stiffness: 360, damping: 30, mass: 0.8 }
 					}}
 				>
 					{showChargingBeams && (
@@ -2998,7 +2909,12 @@ function App() {
 							<div className="charging-halo-glow" />
 						</div>
 					)}
-					<EdgeSurface edge="top" flares={!isPill || notchMode === "fixed" ? (isImpacted || notchMode === "fixed") : false} />
+					{!isPill && (
+						<>
+							<div className="notch-flare notch-flare-left" />
+							<div className="notch-flare notch-flare-right" />
+						</>
+					)}
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div
@@ -3416,22 +3332,7 @@ function App() {
 																		</motion.button>
 																	)}
 																</AnimatePresence>
-																<div className="time-mascot-flex-group">
-																	{mascotEnabled && (
-																		<motion.div
-																			key="notch-mascot-companion"
-																			className="notch-mascot-companion"
-																			initial={{ opacity: 0, scale: 0.8 }}
-																			animate={{ opacity: 1, scale: 1 }}
-																			exit={{ opacity: 0, scale: 0.8 }}
-																			transition={{ duration: 0.2 }}
-																		>
-																			<MascotFace
-																				scale={0.76}
-																				isPlayingMusic={isPlaying}
-																			/>
-																		</motion.div>
-																	)}
+																<div className="time-pill-center">
 																	<div className="time-flip-container" onClick={toggleCalendarMode}>
 																		<AnimatePresence initial={false}>
 																			{timerSeconds > 0 || isTimerFinished ? (
@@ -3673,26 +3574,46 @@ function App() {
 													</button>
 												</div>
 
-												{/* Dock Mode Pill */}
-												<div
-													className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
-													onClick={toggleDockModeSetting}
-													title="Cycle dock mode: Fixed / Smart / Peek"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<DockIcon />
+												{/* Platform Pill: Power on Linux, Dock Mode on Windows */}
+												{isLinux ? (
+													<div
+														className="cc-pill-tile"
+														onClick={() => openBatterySaverSettings()}
+														title="Battery / Power Status"
+													>
+														<div className="cc-pill-icon-wrapper">
+															<BatterySaverIcon />
+														</div>
+														<div className="cc-pill-info">
+															<span className="cc-pill-title">Power</span>
+															<span className="cc-pill-status">
+																{batteryLevel !== null
+																	? `${Math.round(batteryLevel)}%${isCharging ? " ⚡" : ""}`
+																	: "AC Power"}
+															</span>
+														</div>
 													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Dock Mode</span>
-														<span className="cc-pill-status">
-															{dockMode === "fixed"
-																? "Fixed"
-																: dockMode === "smart"
-																	? "Smart"
-																	: "Peek"}
-														</span>
+												) : (
+													<div
+														className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
+														onClick={toggleDockModeSetting}
+														title="Cycle dock mode: Fixed / Smart / Peek"
+													>
+														<div className="cc-pill-icon-wrapper">
+															<DockIcon />
+														</div>
+														<div className="cc-pill-info">
+															<span className="cc-pill-title">Dock Mode</span>
+															<span className="cc-pill-status">
+																{dockMode === "fixed"
+																	? "Fixed"
+																	: dockMode === "smart"
+																		? "Smart"
+																		: "Peek"}
+															</span>
+														</div>
 													</div>
-												</div>
+												)}
 
 												{/* Bluetooth Pill */}
 												<div
@@ -4159,18 +4080,6 @@ function App() {
 																			? `Text · ${item.text?.length ?? 0} chars`
 																			: item.name}
 																	</span>
-																	{item.type === "file" && item.path && (
-																		<button
-																			className="shelf-tile-beam"
-																			title="Beam to Mobile Island"
-																			onClick={(e) => {
-																				e.stopPropagation();
-																				beamFileToMobile(item);
-																			}}
-																		>
-																			<Smartphone size={10} strokeWidth={2.4} />
-																		</button>
-																	)}
 																	<button
 																		className="shelf-tile-remove"
 																		title="Remove from shelf"

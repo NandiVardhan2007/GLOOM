@@ -34,6 +34,14 @@ function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const settings = useSettings();
 	const { announcement, dismissed, dismiss } = useAnnouncement();
+	const isLinux = typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("linux");
+	const visibleTabs = TABS.filter((t) => !(isLinux && t.id === "dock"));
+
+	useEffect(() => {
+		if (isLinux && activeTab === "dock") {
+			setActiveTab("notch");
+		}
+	}, [isLinux, activeTab]);
 
 	useEffect(() => {
 		return initTheme();
@@ -83,7 +91,7 @@ function SettingsApp() {
 
 			<div className="settings-body">
 				<div className="settings-sidebar">
-					{TABS.map(({ id, label, icon: Icon }) => (
+					{visibleTabs.map(({ id, label, icon: Icon }) => (
 						<button
 							key={id}
 							className={`sidebar-tab ${activeTab === id ? "active" : ""}`}
@@ -167,8 +175,6 @@ function SettingsApp() {
 							setNotchModeValue={settings.setNotchModeValue}
 							avoidFullscreenGames={settings.avoidFullscreenGames}
 							toggleAvoidFullscreenGames={settings.toggleAvoidFullscreenGames}
-							mascotEnabled={settings.mascotEnabled}
-							toggleMascotEnabled={settings.toggleMascotEnabled}
 							notchEdgeDelay={settings.notchEdgeDelay}
 							handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
 							calendarEnabled={settings.calendarEnabled}
@@ -206,7 +212,7 @@ function SettingsApp() {
 							handleWidgetsChange={settings.handleWidgetsChange}
 						/>
 					)}
-					{activeTab === "dock" && (
+					{activeTab === "dock" && !isLinux && (
 						<DockTab
 							dockEnabled={settings.dockEnabled}
 							toggleDock={settings.toggleDock}

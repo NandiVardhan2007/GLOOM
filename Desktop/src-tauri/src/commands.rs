@@ -93,23 +93,8 @@ pub async fn shelf_open(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn beam_file_to_device(app: AppHandle, path: String, target_ip: Option<String>) -> Result<(), String> {
-    crate::livebridge::stream_file_to_companion(app, &path, target_ip)
-}
-
-#[tauri::command]
-pub fn get_bridge_devices() -> Vec<crate::livebridge::BridgeDevice> {
-    crate::livebridge::get_known_devices()
-}
-
-#[tauri::command]
-pub fn respond_livebridge_pairing(device_id: String, allow: bool) -> bool {
-    crate::livebridge::resolve_livebridge_pairing(&device_id, allow)
-}
-
-#[tauri::command]
-pub fn clear_trusted_devices(app: AppHandle) -> Result<(), String> {
-    crate::livebridge::clear_all_trusted_devices(&app)
+pub fn get_platform() -> &'static str {
+    "windows"
 }
 
 /// Drops shelf entries whose files no longer exist (moved, deleted, drive

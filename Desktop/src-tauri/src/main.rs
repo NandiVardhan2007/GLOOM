@@ -1,28 +1,92 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "windows")]
 mod battery;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/battery.rs"]
+mod battery;
+
+#[cfg(target_os = "windows")]
 mod bluetooth;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/bluetooth.rs"]
+mod bluetooth;
+
+#[cfg(target_os = "windows")]
 mod commands;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/commands.rs"]
+mod commands;
+
 mod diagnostics;
+
+#[cfg(target_os = "windows")]
 mod dock_extras;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/dock_extras.rs"]
+mod dock_extras;
+
+#[cfg(target_os = "windows")]
 mod services;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/services.rs"]
+mod services;
+
+#[cfg(target_os = "windows")]
 mod shelf;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/shelf.rs"]
+mod shelf;
+
+#[cfg(target_os = "windows")]
 mod shelf_preview;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/shelf_preview.rs"]
+mod shelf_preview;
+
 mod state;
+
+#[cfg(target_os = "windows")]
 mod tray;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/tray.rs"]
+mod tray;
+
 mod types;
 mod updater;
+
+#[cfg(target_os = "windows")]
 mod utils;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/utils.rs"]
+mod utils;
+
+#[cfg(target_os = "windows")]
 mod wifi;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/wifi.rs"]
+mod wifi;
+
+#[cfg(target_os = "windows")]
 mod window_region;
-mod bridge_tls;
-mod livebridge;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/window_region.rs"]
+mod window_region;
+
+#[cfg(target_os = "windows")]
+mod autostart;
+#[cfg(target_os = "linux")]
+#[path = "platform/linux/autostart.rs"]
 mod autostart;
 
 use std::sync::atomic::Ordering;
 use tauri::Manager;
+
+#[cfg(target_os = "windows")]
 use windows::core::BOOL;
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT, CTRL_C_EVENT};
 
 use crate::commands::*;
@@ -30,6 +94,7 @@ use crate::services::*;
 use crate::state::*;
 use crate::utils::*;
 
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn ctrl_handler(ctrl_type: u32) -> BOOL {
     if ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT || ctrl_type == CTRL_CLOSE_EVENT {
         set_taskbar_visibility(true, true);
@@ -49,11 +114,23 @@ fn main() {
         }
         return;
     }
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux Wayland sessions, client-side window positioning (set_position)
+        // and always-on-top overlay stacking are restricted by the Wayland protocol.
+        // Defaulting to X11 backend (XWayland) ensures pixel-perfect top anchoring and topmost z-order.
+        if std::env::var("DISPLAY").is_ok() {
+            std::env::set_var("GDK_BACKEND", "x11");
+        }
+    }
+
+    #[cfg(target_os = "windows")]
     unsafe {
         let _ = SetConsoleCtrlHandler(Some(ctrl_handler), true);
     }
 
     // Single-instance enforcement
+    #[cfg(target_os = "windows")]
     unsafe {
         use windows::Win32::Foundation::{CloseHandle, GetLastError};
         use windows::Win32::System::Threading::{
@@ -150,10 +227,7 @@ fn main() {
             shelf_drag_icon,
             shelf_prune,
             shelf_open,
-            beam_file_to_device,
-            get_bridge_devices,
-            respond_livebridge_pairing,
-            clear_trusted_devices,
+            get_platform,
             get_active_windows,
             get_tray_apps,
             show_tray_context_menu,
@@ -228,7 +302,6 @@ fn main() {
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());
-            livebridge::start_livebridge_service(app.handle().clone());
             // Populate the settings cache before anything else: a webview can
             // invoke save_setting as soon as it loads, which happens before the
             // rest of this hook runs.
@@ -263,10 +336,28 @@ fn main() {
             // needs to stay transparent; set_click_through then drives the
             // click-through bit directly. The worst a rebuild does is make the
             // window click-through until the next cursor update.
+            #[cfg(target_os = "windows")]
             let _ = window.set_ignore_cursor_events(true);
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(dock_win) = app.get_webview_window("dock") {
+                    let _ = dock_win.close();
+                }
+                let h = app.handle().clone();
+                crate::utils::reconcile_main_appbar(&h);
+                tauri::async_runtime::spawn(async move {
+                    use tauri::Emitter;
+                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                    crate::utils::reconcile_main_appbar(&h);
+                    let _ = h.emit("splash-done", ());
+                });
+            }
+
+            #[cfg(target_os = "windows")]
             let dock_win = app.get_webview_window("dock").unwrap();
-            // Same for the dock window, which has a region too.
+            #[cfg(target_os = "windows")]
             let _ = dock_win.set_ignore_cursor_events(true);
+            #[cfg(target_os = "windows")]
             if let Ok(hwnd) = dock_win.hwnd() {
                 DOCK_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
             }
@@ -281,16 +372,20 @@ fn main() {
                 }
             };
 
-            let dock_clone = dock_win.clone();
-            let update_dock_window_rect = move || {
-                if let (Ok(p), Ok(s)) = (dock_clone.outer_position(), dock_clone.outer_size()) {
-                    if let Ok(mut lock) = DOCK_WINDOW_RECT.lock() {
-                        *lock = Some((p, s));
+            #[cfg(target_os = "windows")]
+            let update_dock_window_rect = {
+                let dock_clone = dock_win.clone();
+                move || {
+                    if let (Ok(p), Ok(s)) = (dock_clone.outer_position(), dock_clone.outer_size()) {
+                        if let Ok(mut lock) = DOCK_WINDOW_RECT.lock() {
+                            *lock = Some((p, s));
+                        }
                     }
                 }
             };
 
             update_main_rect();
+            #[cfg(target_os = "windows")]
             update_dock_window_rect();
 
             let u_main = update_main_rect.clone();
@@ -319,33 +414,36 @@ fn main() {
                 _ => {}
             });
 
-            let u_dock = update_dock_window_rect.clone();
-            let dock_for_events = dock_win.clone();
-            let handle_for_dock_events = app.handle().clone();
-            dock_win.on_window_event(move |e| match e {
-                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
-                    u_dock();
-                    sync_overlays(&handle_for_dock_events);
-                }
-                tauri::WindowEvent::ScaleFactorChanged { .. } => {
-                    let h = handle_for_dock_events.clone();
-                    if DOCK_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                        let w = dock_for_events.clone();
-                        tauri::async_runtime::spawn(async move {
-                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                            register_dock_appbar(w);
-                            sync_overlays(&h);
-                        });
-                    } else {
-                        sync_overlays(&h);
+            #[cfg(target_os = "windows")]
+            {
+                let u_dock = update_dock_window_rect.clone();
+                let dock_for_events = dock_win.clone();
+                let handle_for_dock_events = app.handle().clone();
+                dock_win.on_window_event(move |e| match e {
+                    tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                        u_dock();
+                        sync_overlays(&handle_for_dock_events);
                     }
-                }
-                tauri::WindowEvent::CloseRequested { api, .. } => {
-                    api.prevent_close();
-                    restore_taskbar_and_exit(&handle_for_dock_events);
-                }
-                _ => {}
-            });
+                    tauri::WindowEvent::ScaleFactorChanged { .. } => {
+                        let h = handle_for_dock_events.clone();
+                        if DOCK_APPBAR_REGISTERED.load(Ordering::Relaxed) {
+                            let w = dock_for_events.clone();
+                            tauri::async_runtime::spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                register_dock_appbar(w);
+                                sync_overlays(&h);
+                            });
+                        } else {
+                            sync_overlays(&h);
+                        }
+                    }
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        restore_taskbar_and_exit(&handle_for_dock_events);
+                    }
+                    _ => {}
+                });
+            }
 
             sync_overlays(app.handle());
 
@@ -355,6 +453,7 @@ fn main() {
             if let Some(ov_win) = app.get_webview_window("overlay") {
                 // Layered from the start, like the notch and dock (see
                 // set_click_through): the overlay has a window region too.
+                #[cfg(target_os = "windows")]
                 let _ = ov_win.set_ignore_cursor_events(true);
                 let _ = ov_win.show();
                 let _ = ov_win.hide();
@@ -393,6 +492,7 @@ fn main() {
             wifi::setup_wifi_notifications(app.handle().clone());
             bluetooth::setup_bluetooth_notifications(app.handle().clone());
 
+            #[cfg(target_os = "windows")]
             // Listen for second-instance signal to open settings
             if let Some(&h_event) = SINGLE_INSTANCE_EVENT_HANDLE.get() {
                 if h_event != 0 {

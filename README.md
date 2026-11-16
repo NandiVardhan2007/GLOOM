@@ -4,25 +4,25 @@
 
   # G L O O M
 
-  ### Next-Generation Dynamic Island & Fluid Desktop Dock Ecosystem
-  **A seamless, glanceable activity surface & fluid desktop dock crafted for Windows 11/10 and Android**
+  ### Next-Generation Dynamic Island & Fluid Desktop Dock
+  **A seamless, glanceable activity surface & fluid desktop dock crafted for Windows 11/10 and Linux (Zorin OS, Ubuntu, Debian)**
 
   <p align="center">
     <a href="https://github.com/NandiVardhan2007/GLOOM/releases/latest"><img src="https://img.shields.io/github/v/release/NandiVardhan2007/GLOOM?style=for-the-badge&color=007aff&label=Release&logo=github" alt="Latest Release" /></a>
     <a href="https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/NandiVardhan2007/GLOOM/build.yml?style=for-the-badge&label=Build&logo=githubactions&logoColor=white" alt="Build Status" /></a>
     <a href="https://microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-11%20%7C%2010-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Desktop" /></a>
-    <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-Cutout--Aware-3ddc84?style=for-the-badge&logo=android&logoColor=white" alt="Android Mobile" /></a>
+    <a href="https://zorin.com/os/"><img src="https://img.shields.io/badge/Linux-Zorin%20%7C%20Ubuntu%20%7C%20Debian-e95420?style=for-the-badge&logo=linux&logoColor=white" alt="Linux Desktop" /></a>
     <a href="https://tauri.app"><img src="https://img.shields.io/badge/Desktop-Tauri%20v2%20%7C%20Rust-ffc13b?style=for-the-badge&logo=tauri&logoColor=black" alt="Tauri 2" /></a>
-    <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Mobile-Jetpack%20Compose-4285f4?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge" alt="MIT License" /></a>
   </p>
 
   <p align="center">
     <a href="#-what-is-gloom">What is GLOOM</a> •
-    <a href="#-key-features">Features</a> •
+    <a href="#-apple-design--dynamic-island-features">Apple Island Design</a> •
+    <a href="#-cross-platform-desktop-power">Platform Parity</a> •
     <a href="#-dual-island-styles-notch--pill">Island Styles</a> •
-    <a href="#-livebridge-continuity">LiveBridge</a> •
     <a href="#-installation--quickstart">Install</a> •
+    <a href="#-building-from-source">Build from Source</a> •
     <a href="#-support--sponsorship">Sponsor</a>
   </p>
 
@@ -32,39 +32,39 @@
 
 ## ⚡ What is GLOOM?
 
-**GLOOM** reimagines how you interact with ongoing tasks, media, system metrics, and cross-device continuity. Blending the fluid elegance of Apple's **Dynamic Island** with the tactile delight of a fluid desktop dock, GLOOM lives unobtrusively at the periphery of your workspace — expanding when needed and melting into the bezel when idle.
+**GLOOM** brings the fluid elegance of Apple's **iOS Dynamic Island** and the tactile delight of a fluid desktop dock to **Windows** and **Linux** (Zorin OS, Ubuntu, Debian, Arch). It sits unobtrusively at the periphery of your screen — expanding with fluid spring physics when active and melting into the bezel when idle.
 
-Whether on your dual-monitor Windows workstation or your Android smartphone, GLOOM maintains unified physics, instant TLS-encrypted universal clipboard and file beams, and local offline AI tools.
+Engineered with Rust, Tauri v2, React 19, and Framer Motion, GLOOM adheres strictly to Apple's **Human Interface Guidelines (HIG)**: true OLED black materials, specular micro-rim illumination, 40px glass diffusion, organic phosphor green waveforms, and critically damped harmonic springs.
 
 > [!NOTE]
-> **Independent Implementation**: GLOOM is an independent, cross-platform overlay suite engineered in Rust, Tauri, React 19, and Kotlin. It does not utilize Apple proprietary code or require iOS.
+> **Independent Implementation**: GLOOM is an independent, cross-platform overlay application engineered in Rust, Tauri, and React 19. It does not utilize Apple proprietary code or require macOS/iOS.
 
 ---
 
-## 🌟 Key Features
+## 🍏 Apple Design & Dynamic Island Features
 
 <table>
   <tr>
     <td width="50%">
-      <h3 align="center">🖥️ Windows Desktop Suite</h3>
+      <h3 align="center">🏝️ Apple Dynamic Island (iOS 18 HIG)</h3>
       <ul>
-        <li><b>Apple-Style Magnifying Dock</b>: True macOS-measured magnification ($B=42\text{px}$, $M=72\text{px}$, $g=12\text{px}$, $R=3$, scaled accurately to 100% UI scale) with fluid spring physics, launch bounce ($0 \to -28 \to 0 \to -10 \to 0$), anchored tooltips, high-res $256\times 256$ crisp icon extraction, and two-layer zero-jitter architecture.</li>
-        <li><b>Keyboard & Accessibility First</b>: Focusable hit slots with <kbd>Tab</kbd> navigation, <kbd>Enter</kbd>/<kbd>Space</kbd> launch, and automatic <code>prefers-reduced-motion</code> adaptation.</li>
-        <li><b>High-Density Performance</b>: Seamless scale + x-offset GPU transforms for large docks ($N > 15$) eliminating layout reflows.</li>
-        <li><b>Notch & Pill Topologies</b>: Switch between a classic floating squircle pill and a MacBook-style flush bezel notch with concave shoulder curves.</li>
-        <li><b>Layered Pass-Through Architecture</b>: Transparent topmost overlay (<code>WS_EX_LAYERED</code>) with pixel-accurate click-through detection.</li>
-        <li><b>Fullscreen Intelligence</b>: Auto-suppresses when full-screen 3D games, presentations, or video players gain focus.</li>
-        <li><b>Glanceable System Hub</b>: Live CPU/RAM telemetry, media controller, volume mixer, quick Wi-Fi picker, and weather forecast.</li>
+        <li><b>Pure OLED Glass Materials</b>: True <code>#000000</code> background with heavy glass backdrop blur (<code>blur(40px) saturate(210%)</code>) and specular top micro-rim light reflection.</li>
+        <li><b>Harmonic Spring Physics</b>: Synchronized physics model (<code>stiffness: 380, damping: 32, mass: 0.8</code>) governing width, height, position, and squircle corner radii with instant pointer-down tap response (<code>whileTap={{ scale: 0.97 }}</code>).</li>
+        <li><b>Intuitive Gestural Interaction</b>: Click the capsule to expand, click the header to toggle closed, click the desktop backdrop or press <kbd>Esc</kbd> to dismiss. Zero accidental collapses during hover or control navigation.</li>
+        <li><b>Phosphor Lime Equalizer</b>: Reactive audio visualizer streaming live frequency harmonics in glowing phosphor green gradients (<code>#30D158</code> to <code>#34C759</code>).</li>
+        <li><b>Apple Music Experience</b>: Continuous album art squircle, real-time <b>LRCLIB synced lyrics</b>, track marquee, elapsed/remaining time stamps, and precision glass scrubbers.</li>
+        <li><b>SF Pro Typography</b>: Optical tracking and tabular numbers (<code>tabular-nums</code>) across clocks, timers, volume sliders, and telemetry indicators.</li>
       </ul>
     </td>
     <td width="50%">
-      <h3 align="center">📱 Android Mobile Overlay</h3>
+      <h3 align="center">🖥️ Cross-Platform Desktop Power</h3>
       <ul>
-        <li><b>Cutout-Aware Alignment</b>: Dynamically queries <code>WindowInsets.DisplayCutout</code> to wrap flush around center punch-holes, corner cameras, and teardrops.</li>
-        <li><b>Zero-Gap Top Bezel Anchor</b>: Anchors cleanly against the top screen edge with subpixel overbleed, eliminating awkward status bar gaps.</li>
-        <li><b>Hands-On Mobile Automation</b>: Deterministic, accessibility-driven automation for WhatsApp, Instagram reels, pattern unlock, and Chrome form filling.</li>
-        <li><b>Offline Tool Caller (Needle-3)</b>: Quantized Cactus-3 model asset with sub-25ms grammar-constrained local intent prediction.</li>
-        <li><b>Cloud API Vault</b>: Hardware-backed AES-256-GCM Keystore vault for multi-key Groq, OpenRouter, and Gemini rotation.</li>
+        <li><b>Multi-Platform Linux Support</b>: Native X11 and Wayland (XWayland) integration on <b>Zorin OS</b>, <b>Ubuntu</b>, and <b>Debian</b> via WebKitGTK and Cairo input regions.</li>
+        <li><b>Zero-Warning Clean Console</b>: Intercepted and silenced benign FUSE <code>statvfs</code> and Tracker3 IPC messages for clean, noise-free execution.</li>
+        <li><b>Window Region Clipping</b>: Pixel-accurate click pass-through outside the pill capsule; captures full input when expanded for controls and outside-click dismissal.</li>
+        <li><b>Fullscreen Intelligence</b>: Auto-suppresses when full-screen 3D games, presentations, or video players gain focus.</li>
+        <li><b>Glanceable Control Center</b>: iOS 18 glass tiles for quick Wi-Fi management, Bluetooth devices, volume slider, brightness control, and battery telemetry.</li>
+        <li><b>macOS-Style Magnifying Dock</b>: Optional fluid dock for Windows featuring true continuous magnification ($B=42\text{px}$, $M=72\text{px}$, $g=12\text{px}$), launch bounce, and smooth app launching.</li>
       </ul>
     </td>
   </tr>
@@ -74,7 +74,7 @@ Whether on your dual-monitor Windows workstation or your Android smartphone, GLO
 
 ## 🎨 Dual Island Styles: Notch & Pill
 
-GLOOM adapts to your personal aesthetic with two distinct primary geometries:
+GLOOM adapts to your personal setup with two primary geometries:
 
 ```
        [ CLASSIC FLOATING PILL ]                    [ FLUSH BEZEL NOTCH ]
@@ -85,171 +85,120 @@ GLOOM adapts to your personal aesthetic with two distinct primary geometries:
    │                               │                    └───────────────┘
 ```
 
-1. **Floating Pill Mode**:
-   - Compact `180×37 px` or standard `230×37 px` capsule floating gracefully below the top bezel.
-   - Ideal for centered multi-monitor setups and standard phone cutouts.
+1. **Floating Pill Mode (Default)**:
+   - Compact capsule sitting with a crisp `10px` offset below the top edge.
+   - Continuous squircle curvature (`22px` radius resting, morphing to `34–38px` expanded).
+   - Ideal for centered multi-monitor setups, ultrawides, and clean minimalist desktops.
 2. **Bezel Notch Mode**:
-   - Anchored directly at `Y = 0` with zero gap.
-   - Features **C1-continuous cubic-bezier concave shoulder flares** on both sides, mimicking modern MacBook and high-end smartphone display hardware.
-
----
-
-## 🌉 LiveBridge: Zero-Cloud Cross-Device Continuity
-
-Work seamlessly across your PC and mobile device with peer-to-peer authenticated synchronization:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant D as GLOOM Desktop (Win11)
-    participant M as GLOOM Mobile (Android)
-
-    Note over D,M: Local Subnet Discovery & Mutual TLS (Port 53391)
-    D->>M: Authenticated Handshake (X-Gloom-Auth-Token + Nonce)
-    M-->>D: 200 OK (Certificate Verified)
-    
-    rect rgb(18, 24, 38)
-    Note over D,M: Universal Clipboard Sync
-    D->>M: Push Encrypted Clipboard Payload
-    M->>M: Update System Clipboard Buffer
-    end
-
-    rect rgb(28, 20, 36)
-    Note over D,M: LAN File Beam (Chunked Streaming)
-    D->>M: Stream File Chunk (SHA-256 Validated)
-    M->>M: Write atomically to Downloads/
-    M-->>D: Transfer Completed Badge
-    end
-```
-
-- **Zero Third-Party Relays**: Direct local TCP socket with self-signed certificate pinning (`rustls`).
-- **Replay Protection**: Enforces sliding-window nonces and strict 60-second timestamp validation.
-- **Universal Clipboard**: Copies on desktop instantly reflect on Android without cloud leaks.
-- **LAN File Beam**: High-speed streaming verified on-the-fly against SHA-256 checksums.
-
----
-
-## 📐 Presentation State Architecture
-
-GLOOM coordinates across 13 presentation states:
-
-| State | Purpose | Desktop Presentation | Android Presentation |
-|:---|:---|:---|:---|
-| `idle` | Ambient standby | 230×37 px pill / notch | 180×37 dp pill / notch |
-| `peek` | Transient notification (2.5s) | 400×180 px card with audio/app info | 400×180 dp card previewing alert/OTP |
-| `minimal` | Secondary multitasking badge | Collapsed auxiliary wing | Detached satellite bubble |
-| `expandedActivity` | Interactive controls | 400×180 px glass panel | 400×180 dp card with controls |
-| `expandedControl` | Full system hub | Multi-tab dashboard & settings | Quick settings & sliders |
-| `suppressed` | Fullscreen game / landscape | 0-opacity, zero hit-test capture | Auto-hidden during landscape |
+   - Anchored flush against the screen's top bezel (`Y = 0`).
+   - Features **C1-continuous cubic-bezier concave shoulder flares** on both sides, matching modern MacBook hardware aesthetics.
 
 ---
 
 ## 📁 Repository Structure
 
-The codebase is organized into clean, dedicated workspaces:
+The codebase is organized into clean, focused directories:
 
 ```
 GLOOM/
-├── Desktop/                  # Windows Desktop Tauri Workspace
+├── Desktop/                  # Desktop Tauri Workspace (Windows & Linux)
 │   ├── src/                  # React 19 + TypeScript Frontend
-│   │   ├── components/       # DynamicIsland, QuickPanel, EdgeSurface
-│   │   ├── settings/         # Appearance, Dock, Notch, General tabs
-│   │   └── hooks/            # LiveBridge & Telemetry hooks
-│   └── src-tauri/            # Rust Backend (Win32 APIs, rustls bridge, system hooks)
-│       └── src/              # window_effects, bridge, audio, monitors
-├── Android/                  # Android Overlay & Agent Workspace
-│   └── app/src/main/kotlin/  # Kotlin + Jetpack Compose
-│       └── com/gloom/island/ # OverlayService, CutoutDetector, AiPlanner, SecureKeyStore
+│   │   ├── components/       # DynamicIsland, QuickPanel, StatusWidgets
+│   │   ├── settings/         # Appearance, Notch, General tabs
+│   │   └── icons/            # Apple SF-inspired SVG icons
+│   └── src-tauri/            # Rust Backend (Cross-Platform)
+│       ├── src/              # App entrypoint, state, updater, audio
+│       └── src/platform/
+│           └── linux/        # Native Linux (Cairo regions, wpctl, bluetoothctl, GTK)
 ├── installer/                # Inno Setup Windows Installer Configuration
-├── scripts/                  # Semantic version stamping and release utilities
-└── tests/                    # Plain Python schema and protocol verification tests
+├── scripts/                  # Version stamping & release automation
+└── tests/                    # Configuration and geometry test suites
 ```
 
 ---
 
 ## 🛠️ Installation & Quickstart
 
-### ⚡ One-Line Quick Install
+### 🪟 Windows 11 / 10
 
-#### 🪟 Windows (PowerShell)
-Open PowerShell (Terminal) and run the official one-liner to download, install, and launch GLOOM automatically:
+#### 1. Quick One-Liner (PowerShell)
+Open PowerShell and run:
 
 ```powershell
 irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.ps1 | iex
 ```
 
-> [!TIP]
-> **Silent / Unattended Install**: For headless setup or script deployment:
-> ```powershell
-> powershell -ExecutionPolicy Bypass -c "irm https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/GLOOM-Island-Setup.exe -OutFile $env:TEMP\GLOOM-Island-Setup.exe; Start-Process $env:TEMP\GLOOM-Island-Setup.exe -ArgumentList '/VERYSILENT /NORESTART /SP-' -Wait; Start-Process (Join-Path $env:LOCALAPPDATA 'Programs\GLOOM\GLOOM.exe')"
-> ```
+#### 2. Dedicated Setup Wizard (.exe)
+Download **[`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest)** from the latest GitHub Release. Run the setup wizard to install GLOOM with Start Menu integration, desktop shortcut, and seamless background auto-updating.
 
-#### 🤖 Android (via ADB)
-Connect your device with USB debugging enabled and run:
+---
 
-```powershell
-# Windows PowerShell
-irm https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/GLOOM-Island-Release.apk -OutFile $env:TEMP\gloom.apk; adb install -r $env:TEMP\gloom.apk
-```
+### 🐧 Linux (Zorin OS, Ubuntu, Debian, Arch)
+
+#### Dedicated Native Package (.deb)
+Download **`gloom_*_amd64.deb`** from the [Latest Release](https://github.com/NandiVardhan2007/GLOOM/releases/latest) and install via terminal:
+
 ```bash
-# macOS / Linux Bash
-curl -sL "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/GLOOM-Island-Release.apk" -o /tmp/gloom.apk && adb install -r /tmp/gloom.apk && rm /tmp/gloom.apk
+sudo dpkg -i gloom_*_amd64.deb
+# If missing any dependencies:
+sudo apt-get install -f
 ```
 
----
-
-### 📦 Manual Download (Pre-Compiled Binaries)
-Grab verified release assets directly from GitHub Releases:
-- **Windows**: Download [`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest) (Includes Start Menu shortcuts, auto-updater & clean uninstaller).
-- **Android**: Download [`GLOOM-Island-Release.apk`](https://github.com/NandiVardhan2007/GLOOM/releases/latest).
+Once installed, GLOOM automatically registers in your desktop application launcher (`com.nandu.gloom.desktop`) with hicolor icons and executes natively on X11 / XWayland.
 
 ---
 
-### 🔨 Building from Source
+## 🔨 Building from Source
 
-#### Prerequisites
+### Prerequisites
 - **Node.js**: v20 or v22
 - **Rust Toolchain**: Stable (`rustup update stable`)
-- **Android SDK**: API 35 / JDK 17
-- **Inno Setup 6** (for building the Windows installer wizard)
+- **System Dependencies**:
+  - **Linux**: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`
+  - **Windows**: Visual Studio C++ Build Tools, Inno Setup 6 (optional, for `.exe` installer)
 
-#### Desktop (Windows)
-```powershell
-# 1. Install dependencies
+### Build Instructions
+
+#### On Linux (Ubuntu / Zorin OS / Debian):
+```bash
+# 1. Install required system libraries
+sudo apt-get update && sudo apt-get install -y \
+  libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+# 2. Install Node dependencies & build frontend
 cd Desktop
 npm install
-
-# 2. Run in development mode
-npm run tauri dev
-
-# 3. Compile production binary
+npm test
 npm run build
+
+# 3. Compile optimized release executable
 cargo build --release --manifest-path src-tauri/Cargo.toml
 
-# 4. Generate official Inno Setup installer
-iscc ../installer/gloom.iss
+# 4. Run the release binary
+./src-tauri/target/release/gloom
 ```
 
-#### Mobile (Android)
-```bash
-# 1. Navigate to Android workspace
-cd Android
+#### On Windows:
+```powershell
+# 1. Install Node dependencies & build frontend
+cd Desktop
+npm install
+npm test
+npm run build
 
-# 2. Run unit test suite
-./gradlew testDebugUnitTest
+# 2. Compile Windows release executable
+cargo build --release --manifest-path src-tauri/Cargo.toml
 
-# 3. Assemble debug APK
-./gradlew assembleDebug
-
-# 4. Install directly to connected device via ADB
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+# 3. Optional: Compile Inno Setup installer wizard
+iscc ..\installer\gloom.iss
 ```
 
 ---
 
 ## 💖 Support & Sponsorship
 
-GLOOM is free and open-source software built with passion. If GLOOM enhances your daily workflow, consider sponsoring the project to support continuous development, hardware testing, and server infrastructure!
+GLOOM is free and open-source software built with craft and precision. If GLOOM enhances your daily workflow, consider sponsoring the project to support continuous development!
 
 <div align="center">
 
@@ -279,5 +228,5 @@ Scan or send via any UPI application (Google Pay, PhonePe, Paytm, BHIM):
 This repository is licensed under the terms of the **[MIT License](LICENSE)**.
 
 ```
-Copyright (c) 2026 GLOOM Ecosystem Contributors
+Copyright (c) 2026 GLOOM Contributors
 ```

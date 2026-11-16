@@ -1,7 +1,7 @@
 [package]
 name = "gloom"
-version = "2.2.0"
-description = "GLOOM: Dynamic Island & Notch for Windows"
+version = "2.3.0"
+description = "GLOOM: Dynamic Island & Notch for Windows and Linux"
 authors = ["Nandu"]
 edition = "2021"
 license = "MIT"
@@ -9,6 +9,7 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [lib]
@@ -26,6 +27,28 @@ tauri = { version = "2.11", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+base64 = "0.22"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-updater = "2"
+window-vibrancy = "0.7.1"
+tokio = { version = "1", features = ["time", "sync"] }
+image = "0.25"
+# Reads the thumbnail or text inside Office files for shelf previews.
+zip = { version = "4.6", default-features = false, features = ["deflate-flate2"] }
+tauri-plugin-drag = "2.1.1"
+tauri-plugin-dialog = "2"
+rustfft = "6"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
+futures-util = "0.3"
+sha2 = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+cairo-rs = "0.18"
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
 windows-core = "0.61"
 windows-collections = "0.2"
 windows = { version = "0.61", features = [
@@ -74,23 +97,5 @@ windows = { version = "0.61", features = [
 	"Win32_NetworkManagement_WiFi",
 	"Win32_NetworkManagement_WNet"
 ] }
-base64 = "0.22"
-tauri-plugin-autostart = "2.5.1"
-tauri-plugin-clipboard-manager = "2"
-tauri-plugin-updater = "2"
-window-vibrancy = "0.7.1"
 wmi = "0.14"
-tokio = { version = "1", features = ["time", "sync"] }
 webview2-com = "0.38"
-image = "0.25"
-# Reads the thumbnail or text inside Office files for shelf previews.
-zip = { version = "4.6", default-features = false, features = ["deflate-flate2"] }
-tauri-plugin-drag = "2.1.1"
-tauri-plugin-dialog = "2"
-rustfft = "6"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
-futures-util = "0.3"
-rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
-rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
-sha2 = "0.10"
-

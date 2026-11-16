@@ -31,9 +31,6 @@ export function useSettings() {
 	const [avoidFullscreenGames, setAvoidFullscreenGames] = useState(
 		() => localStorage.getItem("gloom-avoid-fullscreen-games") !== "false"
 	);
-	const [mascotEnabled, setMascotEnabled] = useState(
-		() => localStorage.getItem("gloom-mascot-enabled") !== "false"
-	);
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("gloom-timer-sound-enabled") !== "false"
 	);
@@ -198,7 +195,6 @@ export function useSettings() {
 			apply(getVal("gloom-weather-enabled"), setWeatherEnabled, readBool);
 			apply(getVal("gloom-calendar-enabled"), setCalendarEnabled, readBool);
 			apply(getVal("gloom-avoid-fullscreen-games"), setAvoidFullscreenGames, readBool);
-			apply(getVal("gloom-mascot-enabled"), setMascotEnabled, readBool);
 			apply(getVal("gloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("gloom-music-mode-enabled"), setMusicModeEnabled, readBool);
 			apply(getVal("gloom-notch-remember-panel") ?? getVal("gloom-notch-click-to-open"),
@@ -375,7 +371,6 @@ export function useSettings() {
 		"gloom-weather-enabled": setWeatherEnabled,
 		"gloom-calendar-enabled": setCalendarEnabled,
 		"gloom-avoid-fullscreen-games": setAvoidFullscreenGames,
-		"gloom-mascot-enabled": setMascotEnabled,
 		"gloom-timer-sound-enabled": setTimerSoundEnabled,
 		"gloom-music-mode-enabled": setMusicModeEnabled,
 		"gloom-notch-remember-panel": setNotchRememberPanel,
@@ -539,12 +534,6 @@ export function useSettings() {
 		const next = !avoidFullscreenGames;
 		setAvoidFullscreenGames(next);
 		saveSetting("gloom-avoid-fullscreen-games", String(next));
-	};
-
-	const toggleMascotEnabled = () => {
-		const next = !mascotEnabled;
-		setMascotEnabled(next);
-		saveSetting("gloom-mascot-enabled", String(next));
 	};
 
 	const toggleTimerSound = () => {
@@ -772,6 +761,7 @@ export function useSettings() {
 	const handleIslandStyleChange = (style: "notch" | "pill") => {
 		setIslandStyle(style);
 		saveSetting("gloom-island-style", style);
+		emit("settings-changed", { key: "gloom-island-style", value: style }).catch(() => {});
 	};
 
 	const handleThresholdChange = (val: number) => {
@@ -977,8 +967,6 @@ export function useSettings() {
 		toggleCalendar,
 		avoidFullscreenGames,
 		toggleAvoidFullscreenGames,
-		mascotEnabled,
-		toggleMascotEnabled,
 		timerSoundEnabled,
 		toggleTimerSound,
 		musicModeEnabled,
