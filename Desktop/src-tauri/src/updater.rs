@@ -95,11 +95,16 @@ async fn check_latest_manifest(
 
         let mut download_url = None;
         if let Some(platforms) = json.get("platforms").and_then(|p| p.as_object()) {
-            if let Some(win) = platforms
-                .get("windows-x86_64")
-                .or_else(|| platforms.get("windows-x86_64-nsis"))
+            #[cfg(windows)]
+            let target_key = "windows-x86_64";
+            #[cfg(not(windows))]
+            let target_key = "linux-x86_64";
+
+            if let Some(plat) = platforms
+                .get(target_key)
+                .or_else(|| platforms.get("windows-x86_64"))
             {
-                if let Some(url) = win.get("url").and_then(|u| u.as_str()) {
+                if let Some(url) = plat.get("url").and_then(|u| u.as_str()) {
                     download_url = Some(url.to_string());
                 }
             }
@@ -150,10 +155,15 @@ async fn check_github_releases(
             .map(str::to_string);
 
         let mut download_url = None;
+        #[cfg(windows)]
+        let target_ext = ".exe";
+        #[cfg(not(windows))]
+        let target_ext = ".deb";
+
         if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
             for asset in assets {
                 if let Some(name) = asset.get("name").and_then(|n| n.as_str()) {
-                    if name.ends_with(".exe") && !name.ends_with(".sha256") {
+                    if name.ends_with(target_ext) && !name.ends_with(".sha256") {
                         if let Some(url) =
                             asset.get("browser_download_url").and_then(|u| u.as_str())
                         {
@@ -194,7 +204,12 @@ async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
 
     let total_size = res.content_length().unwrap_or(0);
     let temp_dir = std::env::temp_dir();
-    let installer_path = temp_dir.join("GLOOM-Island-Setup.exe");
+    #[cfg(windows)]
+    let installer_name = "GLOOM-Island-Setup.exe";
+    #[cfg(not(windows))]
+    let installer_name = "gloom-latest.deb";
+
+    let installer_path = temp_dir.join(installer_name);
     let mut file = tokio::fs::File::create(&installer_path)
         .await
         .map_err(|e| e.to_string())?;
@@ -279,7 +294,17 @@ async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
         std::process::exit(0);
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let deb_path = installer_path.to_string_lossy().to_string();
+        let _ = std::process::Command::new("pkexec")
+            .args(["dpkg", "-i", &deb_path])
+            .spawn();
+        app.cleanup_before_exit();
+        std::process::exit(0);
+    }
+
+    #[cfg(not(any(windows, target_os = "linux")))]
     Ok(())
 }
 

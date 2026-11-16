@@ -32,6 +32,13 @@ pub fn enable_autostart(_app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-pub fn is_autostart_enabled(_app: &AppHandle) -> bool {
+pub fn is_autostart_enabled(app: &AppHandle) -> bool {
+    if let Some(val) = crate::utils::get_setting_str(app, "gloom-autostart") {
+        if val == "false" {
+            return false;
+        } else if val == "true" {
+            return true;
+        }
+    }
     autostart_file_path().map(|p| p.exists()).unwrap_or(false)
 }
