@@ -155,6 +155,21 @@ Once installed, GLOOM automatically registers in your desktop application launch
 
 ---
 
+### 🧹 Clean Uninstallation
+
+To remove GLOOM and all associated caches, configurations, and shortcuts without leaving any leftovers:
+
+- **Windows (PowerShell)**:
+  ```powershell
+  irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninstall.ps1 | iex
+  ```
+- **Linux (Terminal)**:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninstall.sh | bash
+  ```
+
+---
+
 ## 🔨 Building from Source
 
 ### Prerequisites

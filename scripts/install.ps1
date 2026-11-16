@@ -1,20 +1,17 @@
-﻿<#
-.SYNOPSIS
-    GLOOM Windows CLI Installer
-.DESCRIPTION
-    Automated one-line installer for GLOOM Dynamic Island & Fluid Dock on Windows 11/10.
-.EXAMPLE
-    irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.ps1 | iex
-#>
-
-[CmdletBinding()]
-param (
-    [switch]$Interactive = $false,
-    [switch]$NoLaunch = $false
-)
+# GLOOM Windows CLI Installer
+# Automated one-line installer for GLOOM Dynamic Island & Fluid Dock on Windows 11/10.
 
 $ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+
+# Ensure TLS 1.2 is active (PowerShell 5.1 compatibility)
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+} catch {}
+
+$Interactive = $false
+$NoLaunch = $false
+if ($args -contains "-Interactive") { $Interactive = $true }
+if ($args -contains "-NoLaunch") { $NoLaunch = $true }
 
 Clear-Host -ErrorAction SilentlyContinue
 
