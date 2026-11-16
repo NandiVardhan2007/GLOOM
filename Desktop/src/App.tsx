@@ -33,7 +33,6 @@ import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
-import { NotchFlares } from "./components/NotchFlares";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
@@ -2791,9 +2790,9 @@ function App() {
 				? 39.1
 				: 30.6;
 	const pillTargetHeight = !isReady ? 34 : getDynamicHeight();
-	const pillRadius = isPill
-		? (isOpen ? (isCalendarMode ? 38 : 34) : 22)
-		: (isCalendarMode ? 28 : (isImpacted || notchMode === "fixed" ? 0 : 18));
+	const pillRadius = isOpen
+		? (isCalendarMode ? 32 : 26)
+		: (isPill ? 22 : 20);
 	// Shadow and the edge flares beside the pill.
 	pillTargetRef.current = notchPillBox(
 		window.innerWidth,
@@ -2900,8 +2899,8 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: isPill ? pillRadius : 0,
-						borderTopRightRadius: isPill ? pillRadius : 0,
+						borderTopLeftRadius: pillRadius,
+						borderTopRightRadius: pillRadius,
 						borderBottomLeftRadius: pillRadius,
 						borderBottomRightRadius: pillRadius,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
@@ -2942,7 +2941,7 @@ function App() {
 							<div className="charging-halo-glow" />
 						</div>
 					)}
-					<NotchFlares visible={!isPill && isVisible && !isHidden && pillTargetY <= 2} />
+
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div
