@@ -135,7 +135,14 @@ Download **[`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/
 
 ### 🐧 Linux (Zorin OS, Ubuntu, Debian, Arch)
 
-#### Dedicated Native Package (.deb)
+#### 1. Quick One-Liner (Terminal)
+Open your terminal and run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.sh | bash
+```
+
+#### 2. Manual Package (.deb)
 Download **`gloom_*_amd64.deb`** from the [Latest Release](https://github.com/NandiVardhan2007/GLOOM/releases/latest) and install via terminal:
 
 ```bash

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     GLOOM Windows One-Line Installer
 .DESCRIPTION
@@ -46,8 +46,14 @@ $process = Start-Process -FilePath $tempExe -ArgumentList $arguments -PassThru -
 if ($process.ExitCode -eq 0) {
     Write-Host "`n  ✓ GLOOM installed successfully!" -ForegroundColor Green
     
-    $installPath = Join-Path $env:LOCALAPPDATA "Programs\GLOOM\GLOOM.exe"
-    if (-not $NoLaunch -and (Test-Path $installPath)) {
+    $possiblePaths = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\GLOOM\gloom.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\GLOOM\GLOOM.exe"),
+        (Join-Path $env:ProgramFiles "GLOOM\gloom.exe"),
+        (Join-Path ${env:ProgramFiles(x86)} "GLOOM\gloom.exe")
+    )
+    $installPath = $possiblePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $NoLaunch -and $installPath) {
         Write-Host "  🚀 Launching GLOOM Dynamic Island..." -ForegroundColor Cyan
         Start-Process -FilePath $installPath
     }
