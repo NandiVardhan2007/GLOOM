@@ -185,15 +185,49 @@ jobs:
           DEB_DIR="deb-package"
           mkdir -p "$DEB_DIR/usr/bin"
           mkdir -p "$DEB_DIR/usr/share/applications"
+          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/32x32/apps"
+          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/64x64/apps"
           mkdir -p "$DEB_DIR/usr/share/icons/hicolor/128x128/apps"
+          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/256x256/apps"
           mkdir -p "$DEB_DIR/usr/share/icons/hicolor/512x512/apps"
+          mkdir -p "$DEB_DIR/usr/share/pixmaps"
           mkdir -p "$DEB_DIR/DEBIAN"
 
           cp Desktop/src-tauri/target/release/gloom "$DEB_DIR/usr/bin/gloom"
           chmod 755 "$DEB_DIR/usr/bin/gloom"
 
+          cp Desktop/src-tauri/icons/32x32.png "$DEB_DIR/usr/share/icons/hicolor/32x32/apps/gloom.png"
+          cp Desktop/src-tauri/icons/64x64.png "$DEB_DIR/usr/share/icons/hicolor/64x64/apps/gloom.png"
           cp Desktop/src-tauri/icons/128x128.png "$DEB_DIR/usr/share/icons/hicolor/128x128/apps/gloom.png"
+          cp Desktop/src-tauri/icons/256x256.png "$DEB_DIR/usr/share/icons/hicolor/256x256/apps/gloom.png"
           cp Desktop/src-tauri/icons/512x512.png "$DEB_DIR/usr/share/icons/hicolor/512x512/apps/gloom.png"
+          cp Desktop/src-tauri/icons/512x512.png "$DEB_DIR/usr/share/pixmaps/gloom.png"
+
+          cat << 'EOF' > "$DEB_DIR/DEBIAN/postinst"
+          #!/bin/sh
+          set -e
+          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+          fi
+          if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+          fi
+          exit 0
+          EOF
+          chmod 755 "$DEB_DIR/DEBIAN/postinst"
+
+          cat << 'EOF' > "$DEB_DIR/DEBIAN/postrm"
+          #!/bin/sh
+          set -e
+          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+          fi
+          if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+          fi
+          exit 0
+          EOF
+          chmod 755 "$DEB_DIR/DEBIAN/postrm"
 
           cat << EOF > "$DEB_DIR/DEBIAN/control"
           Package: gloom

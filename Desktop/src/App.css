@@ -130,29 +130,21 @@ img {
 		0 6px 20px rgba(0, 0, 0, 0.6);
 }
 
-.gloom.notch-mode .notch-flare,
-.gloom:not(.pill-mode) .notch-flare {
+.notch-flare {
 	position: absolute;
 	top: 0;
 	width: 14px;
 	height: 14px;
 	pointer-events: none;
-	background: transparent;
 	z-index: 10;
 }
 
-.gloom.notch-mode .notch-flare-left,
-.gloom:not(.pill-mode) .notch-flare-left {
+.notch-flare-left {
 	left: -14px;
-	border-top-right-radius: 14px;
-	box-shadow: 7px -7px 0 7px #000000;
 }
 
-.gloom.notch-mode .notch-flare-right,
-.gloom:not(.pill-mode) .notch-flare-right {
+.notch-flare-right {
 	right: -14px;
-	border-top-left-radius: 14px;
-	box-shadow: -7px -7px 0 7px #000000;
 }
 
 .main-row {

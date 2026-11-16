@@ -33,6 +33,7 @@ import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
+import { NotchFlares } from "./components/NotchFlares";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
@@ -552,7 +553,8 @@ function App() {
 	}, []);
 
 	const [notchMode, setNotchMode] = useState(() => {
-		const raw = localStorage.getItem("gloom-notch-mode") || "fixed";
+		const raw = localStorage.getItem("gloom-notch-mode");
+		if (!raw) return "fixed";
 		if (raw === "auto-hide") return "smart";
 		return raw;
 	});
@@ -760,6 +762,14 @@ function App() {
 					[".status-tooltip", 28]
 				])
 			);
+			// Always keep the top-edge peek sensor region active so hovering the top edge reveals the notch/pill
+			const sensorWidth = Math.max(380, (pillTargetWidth + 100) * scale);
+			wanted.push({
+				x: Math.round((window.innerWidth - sensorWidth) / 2),
+				y: 0,
+				width: Math.round(sensorWidth),
+				height: Math.round(16 * scale)
+			});
 		}
 		sendNotchRegion(wanted);
 	};
@@ -2812,6 +2822,29 @@ function App() {
 			}}
 		>
 
+			{/* Top-edge peek sensor: reveals the Dynamic Island / Notch immediately when cursor touches top screen edge */}
+			<div
+				className="top-edge-peek-sensor"
+				onMouseEnter={() => {
+					setInteractionState("active");
+					triggerEventPeek(4000);
+				}}
+				onMouseMove={() => {
+					setInteractionState("active");
+				}}
+				style={{
+					position: "fixed",
+					top: 0,
+					left: "50%",
+					transform: "translateX(-50%)",
+					width: Math.max(380, pillTargetWidth + 100),
+					height: 16,
+					zIndex: 99999,
+					pointerEvents: "auto",
+					background: "transparent"
+				}}
+			/>
+
 			<div
 				style={{
 					zoom: scale,
@@ -2867,8 +2900,8 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: isPill ? pillRadius : (isImpacted || notchMode === "fixed" ? 0 : 18),
-						borderTopRightRadius: isPill ? pillRadius : (isImpacted || notchMode === "fixed" ? 0 : 18),
+						borderTopLeftRadius: isPill ? pillRadius : 0,
+						borderTopRightRadius: isPill ? pillRadius : 0,
 						borderBottomLeftRadius: pillRadius,
 						borderBottomRightRadius: pillRadius,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
@@ -2909,12 +2942,7 @@ function App() {
 							<div className="charging-halo-glow" />
 						</div>
 					)}
-					{!isPill && (
-						<>
-							<div className="notch-flare notch-flare-left" />
-							<div className="notch-flare notch-flare-right" />
-						</>
-					)}
+					<NotchFlares visible={!isPill && isVisible && !isHidden && pillTargetY <= 2} />
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div

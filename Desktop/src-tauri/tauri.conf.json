@@ -106,8 +106,8 @@
     "publisher": "Nandu",
     "copyright": "Copyright © 2026 Nandu",
     "category": "Utility",
-    "shortDescription": "GLOOM Dynamic Island and Notch for Windows",
-    "longDescription": "GLOOM replaces the Windows taskbar with a dock and adds an intelligent notch for media, quick controls, and status.",
+    "shortDescription": "GLOOM Dynamic Island and Fluid Dock for Windows & Linux",
+    "longDescription": "GLOOM brings next-generation Apple Dynamic Island and fluid dock surfaces to Windows and Linux with smooth spring physics, media controls, and status.",
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper"
