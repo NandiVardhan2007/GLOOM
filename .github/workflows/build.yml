@@ -30,10 +30,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 22 (LTS)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: Desktop/package.json
 
@@ -136,10 +136,10 @@ jobs:
             librsvg2-dev \
             libasound2-dev
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 22 (LTS)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: Desktop/package.json
 

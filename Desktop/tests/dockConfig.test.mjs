@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DOCK_CONFIG, sizeFor, xOffsetFor } from "../src/dockConfig.ts";
+import { DOCK_CONFIG, sizeFor, xOffsetFor } from "../src/dockConfig.js";
 
 describe("DOCK_CONFIG tuning constants", () => {
 	it("exposes all required tuning constants", () => {

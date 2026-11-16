@@ -263,8 +263,7 @@ img {
 	position: relative;
 }
 
-.time-pill-center,
-.time-mascot-flex-group {
+.time-pill-center {
 	display: flex;
 	align-items: center;
 	justify-content: center;
