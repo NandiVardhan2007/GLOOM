@@ -441,7 +441,19 @@ export function CompactMediaPlayer({
 	// Classic Layout (Side-by-side squircle album art + metadata + scrubber + transport)
 	if (layout === "classic") {
 		return (
-			<div className="apple-media-container apple-classic-view">
+			<div
+				className="apple-media-container apple-classic-view"
+				onWheel={(e) => {
+					if (e.target instanceof HTMLElement && e.target.closest(".apple-karaoke-sheet")) return;
+					e.stopPropagation();
+					const step = e.deltaY < 0 ? 0.03 : -0.03;
+					const newVol = Math.max(0, Math.min(1, volume + step));
+					if (newVol !== volume) {
+						onVolumeChange(newVol);
+						playTactileSound("tick");
+					}
+				}}
+			>
 				{/* Ambient Artwork Glow */}
 				{albumArtUrl && (
 					<div
@@ -682,7 +694,19 @@ export function CompactMediaPlayer({
 
 	// Compact Layout (Vertical stacked Dynamic Island view)
 	return (
-		<div className="apple-media-container apple-compact-view">
+		<div
+			className="apple-media-container apple-compact-view"
+			onWheel={(e) => {
+				if (e.target instanceof HTMLElement && e.target.closest(".apple-karaoke-sheet")) return;
+				e.stopPropagation();
+				const step = e.deltaY < 0 ? 0.03 : -0.03;
+				const newVol = Math.max(0, Math.min(1, volume + step));
+				if (newVol !== volume) {
+					onVolumeChange(newVol);
+					playTactileSound("tick");
+				}
+			}}
+		>
 			{/* Ambient Artwork Glow */}
 			{albumArtUrl && (
 				<div

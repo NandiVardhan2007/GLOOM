@@ -1774,8 +1774,21 @@ function App() {
 			target.closest(".calendar-grid") ||
 			target.closest(".timer-column") ||
 			target.closest(".shelf-content") ||
-			target.closest(".qp-list")
+			target.closest(".qp-list") ||
+			target.closest(".apple-karaoke-sheet")
 		) {
+			return;
+		}
+
+		// When playing music or in music mode, vertical wheel controls volume directly
+		if (isMusicMode && (isPlaying || isOpen) && Math.abs(e.deltaY) > Math.abs(e.deltaX) && Math.abs(e.deltaY) >= 3) {
+			e.stopPropagation();
+			const step = e.deltaY < 0 ? 0.03 : -0.03;
+			const newVol = Math.max(0, Math.min(1, volume + step));
+			if (newVol !== volume) {
+				handleVolumeChange(newVol);
+				playTactileSound("tick");
+			}
 			return;
 		}
 
