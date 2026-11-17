@@ -12,3 +12,7 @@
 - Task 6: complete (commits 152f71a..d90416d, request_notch_keyboard_focus Win32 HWND & NOACTIVATE toggling)
 - Task 7: complete (commits d90416d..d36b390, ProductivityDrawer with Files, Clipboard, Scratchpad + 16/16 tests pass)
 - Task 8: complete (commits d36b390..a20cbe1, Live Activity system + Downloads folder watcher + 16/16 tests pass)
+- Task 9: complete (commits a20cbe1..35c02f4, v2.4.0 bump, documentation cleanup, HANDOFF.md update, full verification)
+
+## Complete
+All 9 tasks across Stage 1, Stage 2, and Stage 3 successfully executed, verified, and committed. Zero regressions, 16/16 tests passing, Vite production build clean.
