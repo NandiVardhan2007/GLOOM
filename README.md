@@ -52,7 +52,11 @@ Engineered with Rust, Tauri v2, React 19, and Framer Motion, GLOOM adheres stric
         <li><b>Harmonic Spring Physics</b>: Synchronized physics model (<code>stiffness: 380, damping: 32, mass: 0.8</code>) governing width, height, position, and squircle corner radii with instant pointer-down tap response (<code>whileTap={{ scale: 0.97 }}</code>).</li>
         <li><b>Intuitive Gestural Interaction</b>: Click the capsule to expand, click the header to toggle closed, click the desktop backdrop or press <kbd>Esc</kbd> to dismiss. Zero accidental collapses during hover or control navigation.</li>
         <li><b>Phosphor Lime Equalizer</b>: Reactive audio visualizer streaming live frequency harmonics in glowing phosphor green gradients (<code>#30D158</code> to <code>#34C759</code>).</li>
-        <li><b>Apple Music Experience</b>: Continuous album art squircle, real-time <b>LRCLIB synced lyrics</b>, track marquee, elapsed/remaining time stamps, and precision glass scrubbers.</li>
+        <li><b>Apple Music Experience</b>: Continuous album art squircle, dynamic dual-radial artwork backlight aura, real-time <b>LRCLIB synced lyrics</b>, track marquee, elapsed/remaining time stamps, and mouse wheel volume scrubbing.</li>
+        <li><b>Tactile Sound Engine</b>: Synthesized zero-latency Web Audio micro-transients for snaps, ticks, switches, and pops.</li>
+        <li><b>Multi-Mode Visualizer</b>: Switch between Phosphor Bars, Liquid Wave, and Breathing Halo animations.</li>
+        <li><b>Unified Productivity Drawer</b>: 3-tab Apple drawer integrating File Stash, Win32 Clipboard History ring buffer (last 15 items), and Persistent Quick Scratchpad with dynamic keyboard focus management.</li>
+        <li><b>Live Activity System</b>: Real-time browser download watcher tracking active downloads with animated progress shimmers.</li>
         <li><b>SF Pro Typography</b>: Optical tracking and tabular numbers (<code>tabular-nums</code>) across clocks, timers, volume sliders, and telemetry indicators.</li>
       </ul>
     </td>
