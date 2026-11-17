@@ -1412,6 +1412,93 @@ pub fn re_assert_topmost(hwnd: HWND) {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
         let new_ex = ex | WS_EX_NOACTIVATE.0 as usize | WS_EX_TOOLWINDOW.0 as usize;
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex as isize);
+
+        // Sanitize styles to permanently eliminate window titlebars and borders
+        sanitize_window_style(hwnd);
+    }
+}
+
+/// Strips all window caption, non-client title bar, minimize/maximize/close buttons,
+/// system menu, and sizing borders from a window, guaranteeing it remains a pure borderless
+/// popup window without any non-client rendering. Also configures DWM non-client rendering
+/// policy, disables Windows 11 rounded corners, and suppresses borders.
+pub fn sanitize_window_style(hwnd: HWND) {
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, GWL_STYLE, GWL_EXSTYLE,
+            WS_CAPTION, WS_THICKFRAME, WS_MINIMIZEBOX, WS_MAXIMIZEBOX, WS_SYSMENU,
+            WS_BORDER, WS_DLGFRAME, WS_POPUP, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+            WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE,
+            SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE, SWP_FRAMECHANGED,
+        };
+        use windows::Win32::Graphics::Dwm::{
+            DwmSetWindowAttribute, DWMNCRENDERINGPOLICY, DWMNCRP_DISABLED,
+            DWMWA_NCRENDERING_POLICY, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWA_BORDER_COLOR,
+            DWM_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND,
+        };
+
+        // 1. Strip all caption, sysmenu, minimize/maximize boxes, and sizing frames from GWL_STYLE
+        let current_style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+        let unwanted = WS_CAPTION.0
+            | WS_THICKFRAME.0
+            | WS_MINIMIZEBOX.0
+            | WS_MAXIMIZEBOX.0
+            | WS_SYSMENU.0
+            | WS_BORDER.0
+            | WS_DLGFRAME.0;
+        let wanted_style = (current_style & !unwanted) | WS_POPUP.0 | WS_CLIPCHILDREN.0 | WS_CLIPSIBLINGS.0;
+        if wanted_style != current_style {
+            SetWindowLongPtrW(hwnd, GWL_STYLE, wanted_style as isize);
+        }
+
+        // 2. Ensure WS_EX_TOOLWINDOW and WS_EX_NOACTIVATE on GWL_EXSTYLE
+        let current_ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
+        let wanted_ex = current_ex | WS_EX_TOOLWINDOW.0 as usize | WS_EX_NOACTIVATE.0 as usize;
+        if wanted_ex != current_ex {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, wanted_ex as isize);
+        }
+
+        // 3. Clear window title text in Win32 so no caption text can ever render
+        let _ = SetWindowTextW(hwnd, windows::core::w!(""));
+
+        // 4. Disable DWM non-client rendering policy so DWM never paints a caption, title, or frame
+        let nc_policy = DWMNCRP_DISABLED;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_NCRENDERING_POLICY,
+            &nc_policy as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<DWMNCRENDERINGPOLICY>() as u32,
+        );
+
+        // 5. Force Windows 11 DWM to not round corners and suppress 1px window border
+        let corner_pref = DWMWCP_DONOTROUND;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &corner_pref as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
+        );
+
+        const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_BORDER_COLOR,
+            &DWMWA_COLOR_NONE as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
+
+        // 6. Recalculate frame if style was changed
+        if wanted_style != current_style {
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
+        }
     }
 }
 

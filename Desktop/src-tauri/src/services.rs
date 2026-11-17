@@ -3778,10 +3778,8 @@ pub fn register_appbar(window: tauri::WebviewWindow) {
                 WS_EX_TOOLWINDOW,
             };
 
-            // Set styles first
-            let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-            ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
-            let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
+            // Set styles and sanitize frame
+            crate::utils::sanitize_window_style(hwnd);
 
             let mut abd = APPBARDATA {
                 cbSize: std::mem::size_of::<APPBARDATA>() as u32,
@@ -3893,6 +3891,7 @@ fn set_main_appbar_reservation(main_win: tauri::WebviewWindow, reserve: bool) {
         // may look clean while the shell still holds the strip.
         unregister_appbar_native(hwnd);
         MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
+        crate::utils::sanitize_window_style(hwnd);
         if let Ok(Some(monitor)) = main_win.primary_monitor() {
             let m_size = monitor.size();
             let m_pos = monitor.position();
@@ -4021,10 +4020,8 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
                 WS_EX_NOACTIVATE as WS_EX_NA, WS_EX_TOOLWINDOW,
             };
 
-            // Set extended styles (ToolWindow and NoActivate)
-            let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-            ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
-            let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
+            // Set extended styles and sanitize frame
+            crate::utils::sanitize_window_style(hwnd);
 
             let callback_message = RegisterWindowMessageW(windows::core::w!("GloomDockAppBar"));
             if callback_message == 0 {
@@ -4216,6 +4213,9 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
 
             let mut process_id = 0u32;
             GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+            if process_id == std::process::id() {
+                return true.into();
+            }
 
             if let Ok(process_handle) =
                 OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id)

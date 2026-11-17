@@ -495,6 +495,9 @@ pub async fn change_notch_mode(app: AppHandle, _mode: String) {
             let target_height = (420.0 * gloom_scale * scale) as u32;
             let _ = main_win.set_position(tauri::PhysicalPosition::new(m_pos.x, m_pos.y));
             let _ = main_win.set_size(tauri::PhysicalSize::new(m_size.width, target_height));
+            if let Ok(hwnd) = main_win.hwnd() {
+                crate::utils::sanitize_window_style(hwnd);
+            }
         }
 
         let current = CURRENT_NOTCH_OVERLAP.load(Ordering::Relaxed);

@@ -15,14 +15,8 @@ import {
 import "./App.css";
 import { initTheme } from "./theme";
 import {
-	PlayIcon,
-	PauseIcon,
-	SkipBackIcon,
-	SkipForwardIcon,
 	VolumeLowIcon,
-	VolumeHighIcon,
-	MusicNoteIcon,
-	HeadphonesIcon
+	MusicNoteIcon
 } from "./icons";
 import { CompactMediaPlayer } from "./CompactMediaPlayer";
 import { useWeather } from "./hooks/useWeather";
@@ -444,57 +438,6 @@ type GloomMode =
 // The shelf is a short-lived stash: one row, newest first, oldest evicted.
 const SHELF_MAX_ITEMS = 10;
 
-const MARQUEE_SPEED = 30; // px/s — constant for all titles
-const MARQUEE_MIN_DURATION = 5; // floor so short titles don't flicker
-
-const TitleMarquee = ({ title }: { title: string }) => {
-	const textRef = useRef<HTMLSpanElement>(null);
-	const containerRef = useRef<HTMLDivElement>(null);
-	const [isOverflowing, setIsOverflowing] = useState(false);
-	const [scrollDistance, setScrollDistance] = useState(0);
-	const [scrollDuration, setScrollDuration] = useState(8);
-
-	useEffect(() => {
-		const check = () => {
-			if (textRef.current && containerRef.current) {
-				const textWidth = textRef.current.scrollWidth;
-				const containerWidth = containerRef.current.clientWidth;
-				const overflow = textWidth > containerWidth;
-				setIsOverflowing(overflow);
-				if (overflow) {
-					const distance = textWidth - containerWidth;
-					setScrollDistance(distance);
-					setScrollDuration(Math.max(distance / MARQUEE_SPEED, MARQUEE_MIN_DURATION));
-				}
-			}
-		};
-		check();
-		const observer = new ResizeObserver(check);
-		if (containerRef.current) observer.observe(containerRef.current);
-		return () => observer.disconnect();
-	}, [title]);
-
-	return (
-		<div
-			ref={containerRef}
-			className="premium-title-wrap"
-			style={{ width: "100%", overflow: "hidden" }}
-		>
-			<span
-				ref={textRef}
-				className={`premium-title ${isOverflowing ? "marquee" : ""}`}
-				style={
-					{
-						"--scroll-distance": isOverflowing ? `-${scrollDistance}px` : undefined,
-						"--scroll-duration": `${scrollDuration}s`
-					} as React.CSSProperties
-				}
-			>
-				{title}
-			</span>
-		</div>
-	);
-};
 
 const isLinux = typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("linux");
 
@@ -916,6 +859,8 @@ function App() {
 		() => (localStorage.getItem("gloom-media-layout") as "classic" | "compact") || "compact"
 	);
 	const [compactVolumeExpanded, setCompactVolumeExpanded] = useState(false);
+	const [classicVolumeExpanded, setClassicVolumeExpanded] = useState(false);
+	const [lyricsExpanded, setLyricsExpanded] = useState(false);
 
 	// Weather hook
 	const {
@@ -2720,7 +2665,10 @@ function App() {
 			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
-		if (isMusicMode && isOpen) return mediaLayout === "compact" ? 300 : 340;
+		if (isMusicMode && isOpen) {
+			if (lyricsExpanded) return 380;
+			return mediaLayout === "compact" ? 320 : 360;
+		}
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
@@ -2753,12 +2701,17 @@ function App() {
 		if (gloomMode === "wifi" || gloomMode === "bluetooth") return 300;
 		if (gloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
+			if (lyricsExpanded) return 260;
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
-			let h = mediaLayout === "compact" ? (hasProgressBar ? 132 : 116) : 120;
 			if (mediaLayout === "compact") {
-				if (compactVolumeExpanded) h += 36;
+				let h = hasProgressBar ? 148 : 124;
+				if (compactVolumeExpanded) h += 34;
+				return h;
+			} else {
+				let h = hasProgressBar ? 152 : 128;
+				if (classicVolumeExpanded) h += 34;
+				return h;
 			}
-			return h;
 		}
 		return 36;
 	};
@@ -2769,12 +2722,14 @@ function App() {
 	const showPanelArrows =
 		isOpen && asNotchPanel(gloomMode) !== null && NOTCH_PANELS.filter(panelAvailable).length > 1;
 
-	// Close compact media player expansions when notch is unhovered or mode changes
+	// Close media player expansions when notch is closed, unhovered, or mode changes
 	useEffect(() => {
-		if (mediaLayout === "compact") {
+		if (!isOpen || !isMusicMode) {
 			setCompactVolumeExpanded(false);
+			setClassicVolumeExpanded(false);
+			setLyricsExpanded(false);
 		}
-	}, [isHovered, mediaLayout, gloomMode]);
+	}, [isOpen, isMusicMode]);
 
 	// The pill's target geometry: the animation springs toward it, and the
 	// window region below is cut from it, so the region is already at the
@@ -2997,256 +2952,39 @@ function App() {
 											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 500, damping: 30 }}
 										>
-											{mediaLayout === "compact" ? (
-												<CompactMediaPlayer
-													mediaInfo={mediaInfo}
-													albumArtUrl={albumArtUrl}
-													albumArtKey={albumArtKey}
-													isPlaying={isPlaying}
-													volume={displayVolume}
-													volumeExpanded={compactVolumeExpanded}
-													onVolumeExpandedChange={setCompactVolumeExpanded}
-													onTogglePlayPause={togglePlayPause}
-													onVolumeChange={handleVolumeChange}
-													prevFront={prevFront}
-													prevBack={prevBack}
-													nextFront={nextFront}
-													nextBack={nextBack}
-													onAnimatePrev={animatePrev}
-													onAnimateNext={animateNext}
-													onLayoutChange={(layout) => {
-														setMediaLayout(layout);
-														localStorage.setItem("gloom-media-layout", layout);
-														invoke("save_setting", {
-															key: "gloom-media-layout",
-															value: layout
-														}).catch(console.error);
-														window.dispatchEvent(
-															new CustomEvent("settings-changed", {
-																detail: { key: "media-layout", value: layout }
-															})
-														);
-													}}
-												/>
-											) : (
-												<div className="compact-premium-layout">
-													<div className="album-art-section">
-														<motion.div
-															className="premium-album-art"
-															whileHover={{ scale: 1.05 }}
-															whileTap={{ scale: 0.95 }}
-															onClick={(e) => {
-																e.stopPropagation();
-																setMediaLayout("compact");
-																localStorage.setItem("gloom-media-layout", "compact");
-																invoke("save_setting", {
-																	key: "gloom-media-layout",
-																	value: "compact"
-																}).catch(console.error);
-																window.dispatchEvent(
-																	new CustomEvent("settings-changed", {
-																		detail: { key: "media-layout", value: "compact" }
-																	})
-																);
-															}}
-															style={{ cursor: "pointer" }}
-														>
-															<AnimatePresence mode="wait" initial={false}>
-																{albumArtUrl ? (
-																	<motion.img
-																		key={`art-${albumArtKey}`}
-																		src={albumArtUrl}
-																		alt="Art"
-																		initial={{ rotateY: 90, opacity: 0 }}
-																		animate={{ rotateY: 0, opacity: 1 }}
-																		exit={{ rotateY: -90, opacity: 0 }}
-																		transition={{ duration: 0.3, ease: "easeInOut" }}
-																		style={{ width: "100%", height: "100%", objectFit: "cover" }}
-																	/>
-																) : (
-																	<motion.div
-																		key="placeholder"
-																		className="art-placeholder-mini"
-																		initial={{ rotateY: 90, opacity: 0 }}
-																		animate={{ rotateY: 0, opacity: 1 }}
-																		exit={{ rotateY: -90, opacity: 0 }}
-																		transition={{ duration: 0.3, ease: "easeInOut" }}
-																	>
-																		<MusicNoteIcon size={32} className="music-placeholder-svg" />
-																	</motion.div>
-																)}
-															</AnimatePresence>
-														</motion.div>
-													</div>
-
-													<div className="metadata-controls-section-middle">
-														<div className="track-header-row">
-															<div className="track-info-middle">
-																<TitleMarquee title={mediaInfo.title} />
-																<span className="premium-artist">{mediaInfo.artist}</span>
-															</div>
-															<div className="header-visualizer-wrap">
-																<div className="header-visualizer">
-																	<Visualizer isPlaying={isPlaying} bars={5} height={18} />
-																</div>
-																<motion.button
-																	className="classic-audio-output-btn"
-																	onClick={(e) => {
-																		e.stopPropagation();
-																		invoke("open_sound_settings").catch(() => {});
-																	}}
-																	whileTap={{ scale: 0.9 }}
-																	title="Audio Output"
-																>
-																	<HeadphonesIcon size={20} style={{ opacity: 0.5 }} />
-																</motion.button>
-															</div>
-														</div>
-
-														<div className="controls-row-sleek">
-															<motion.button
-																className="sleek-btn previous-btn"
-																onClick={(e) => {
-																	e.stopPropagation();
-																	animatePrev();
-																}}
-																whileHover={{ scale: 1.2 }}
-																whileTap={{ scale: 0.9 }}
-																transition={{ type: "spring", stiffness: 400, damping: 25 }}
-															>
-																<div
-																	style={{
-																		position: "relative",
-																		width: 32,
-																		height: 16,
-																		overflow: "hidden"
-																	}}
-																>
-																	<motion.div
-																		animate={prevBack}
-																		style={{
-																			position: "absolute",
-																			inset: 0,
-																			display: "flex",
-																			alignItems: "center",
-																			justifyContent: "center"
-																		}}
-																	>
-																		<SkipBackIcon size={32} />
-																	</motion.div>
-																	<motion.div
-																		animate={prevFront}
-																		style={{
-																			position: "absolute",
-																			inset: 0,
-																			display: "flex",
-																			alignItems: "center",
-																			justifyContent: "center"
-																		}}
-																	>
-																		<SkipBackIcon size={32} />
-																	</motion.div>
-																</div>
-															</motion.button>
-
-															<motion.button
-																className="sleek-btn play-pause-btn-floating"
-																onClick={(e) => {
-																	e.stopPropagation();
-																	togglePlayPause();
-																}}
-																whileHover={{ scale: 1.2 }}
-																whileTap={{ scale: 0.95 }}
-																transition={{ type: "spring", stiffness: 400, damping: 25 }}
-															>
-																<AnimatePresence mode="wait" initial={false}>
-																	<motion.div
-																		key={isPlaying ? "pause" : "play"}
-																		initial={{ opacity: 0, scale: 0.8 }}
-																		animate={{ opacity: 1, scale: 1 }}
-																		exit={{ opacity: 0, scale: 0.8 }}
-																		transition={{ duration: 0.15 }}
-																		style={{
-																			display: "flex",
-																			alignItems: "center",
-																			justifyContent: "center"
-																		}}
-																	>
-																		{isPlaying ? <PauseIcon size={26} /> : <PlayIcon size={26} />}
-																	</motion.div>
-																</AnimatePresence>
-															</motion.button>
-
-															<motion.button
-																className="sleek-btn next-btn"
-																onClick={(e) => {
-																	e.stopPropagation();
-																	animateNext();
-																}}
-																whileHover={{ scale: 1.2 }}
-																whileTap={{ scale: 0.9 }}
-																transition={{ type: "spring", stiffness: 400, damping: 25 }}
-															>
-																<div
-																	style={{
-																		position: "relative",
-																		width: 32,
-																		height: 16,
-																		overflow: "hidden"
-																	}}
-																>
-																	<motion.div
-																		animate={nextBack}
-																		style={{
-																			position: "absolute",
-																			inset: 0,
-																			display: "flex",
-																			alignItems: "center",
-																			justifyContent: "center"
-																		}}
-																	>
-																		<SkipForwardIcon size={32} />
-																	</motion.div>
-																	<motion.div
-																		animate={nextFront}
-																		style={{
-																			position: "absolute",
-																			inset: 0,
-																			display: "flex",
-																			alignItems: "center",
-																			justifyContent: "center"
-																		}}
-																	>
-																		<SkipForwardIcon size={32} />
-																	</motion.div>
-																</div>
-															</motion.button>
-														</div>
-
-														<div className="volume-slider-container">
-															<VolumeLowIcon size={12} style={{ opacity: 0.5 }} />
-															<div className="slider-track-premium">
-																<input
-																	type="range"
-																	min="0"
-																	max="1"
-																	step="0.01"
-																	value={displayVolume}
-																	onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-																	onPointerDown={(e) => e.stopPropagation()}
-																	onClick={(e) => e.stopPropagation()}
-																	className="premium-slider"
-																/>
-																<div
-																	className="slider-progress-fill"
-																	style={{ width: `${displayVolume * 100}%` }}
-																/>
-															</div>
-															<VolumeHighIcon size={14} style={{ opacity: 0.5 }} />
-														</div>
-													</div>
-												</div>
-											)}
+											<CompactMediaPlayer
+												layout={mediaLayout}
+												mediaInfo={mediaInfo}
+												albumArtUrl={albumArtUrl}
+												albumArtKey={albumArtKey}
+												isPlaying={isPlaying}
+												volume={displayVolume}
+												volumeExpanded={mediaLayout === "compact" ? compactVolumeExpanded : classicVolumeExpanded}
+												onVolumeExpandedChange={mediaLayout === "compact" ? setCompactVolumeExpanded : setClassicVolumeExpanded}
+												lyricsExpanded={lyricsExpanded}
+												onLyricsExpandedChange={setLyricsExpanded}
+												onTogglePlayPause={togglePlayPause}
+												onVolumeChange={handleVolumeChange}
+												prevFront={prevFront}
+												prevBack={prevBack}
+												nextFront={nextFront}
+												nextBack={nextBack}
+												onAnimatePrev={animatePrev}
+												onAnimateNext={animateNext}
+												onLayoutChange={(layout) => {
+													setMediaLayout(layout);
+													localStorage.setItem("gloom-media-layout", layout);
+													invoke("save_setting", {
+														key: "gloom-media-layout",
+														value: layout
+													}).catch(console.error);
+													window.dispatchEvent(
+														new CustomEvent("settings-changed", {
+															detail: { key: "media-layout", value: layout }
+														})
+													);
+												}}
+											/>
 										</motion.div>
 									) : (
 										<motion.div

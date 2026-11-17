@@ -2811,3 +2811,597 @@ img {
 	display: inline-flex;
 	align-items: center;
 }
+
+
+/* ─── Apple Music Fluid Dynamic Island Player ────────────────── */
+.apple-media-container {
+	width: 100%;
+	height: 100%;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	overflow: hidden;
+	box-sizing: border-box;
+	user-select: none;
+	border-radius: inherit;
+}
+
+.apple-media-container.lyrics-open {
+	padding: 6px 10px;
+}
+
+/* Ambient Artwork Glow Aura */
+.apple-artwork-aura {
+	position: absolute;
+	inset: -30px;
+	background-size: cover;
+	background-position: center;
+	filter: blur(45px) saturate(220%) opacity(0.25);
+	pointer-events: none;
+	z-index: 0;
+	transform: translateZ(0);
+}
+
+/* Classic View (Side-by-Side Squircle Artwork + Metadata + Scrubber + Controls) */
+.apple-classic-view {
+	padding: 4px 6px;
+}
+
+.apple-classic-main-row {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	gap: 14px;
+	position: relative;
+	z-index: 1;
+}
+
+.apple-album-art-wrap {
+	flex-shrink: 0;
+	cursor: pointer;
+}
+
+.apple-album-art {
+	width: 86px;
+	height: 86px;
+	border-radius: 14px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.06);
+	box-shadow:
+		0 8px 24px rgba(0, 0, 0, 0.5),
+		0 0 0 0.5px rgba(255, 255, 255, 0.15);
+	position: relative;
+	perspective: 500px;
+}
+
+.apple-album-art img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.apple-art-placeholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.35);
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.apple-content-col {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	flex: 1;
+	min-width: 0;
+	gap: 4px;
+}
+
+/* Header Row */
+.apple-header-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+}
+
+.apple-meta-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	flex: 1;
+	text-align: left;
+}
+
+.apple-artist {
+	font-size: 11.5px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.6);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	letter-spacing: -0.01em;
+}
+
+.apple-header-visualizer {
+	padding-top: 2px;
+	flex-shrink: 0;
+}
+
+/* Live Synced Lyric Ticker Pill */
+.apple-live-lyric-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	background: rgba(255, 255, 255, 0.08);
+	border: 0.5px solid rgba(255, 255, 255, 0.15);
+	border-radius: 9999px;
+	padding: 1.5px 8px;
+	cursor: pointer;
+	backdrop-filter: blur(12px);
+	box-sizing: border-box;
+	transition: background 0.15s ease, border-color 0.15s ease;
+	margin-top: 1px;
+}
+
+.apple-live-lyric-pill:hover {
+	background: rgba(255, 255, 255, 0.15);
+	border-color: rgba(255, 255, 255, 0.28);
+}
+
+.apple-live-lyric-pill.compact {
+	width: 100%;
+	justify-content: flex-start;
+	margin: 2px 0;
+}
+
+.apple-lyric-sparkle {
+	font-size: 11px;
+	color: #30D158;
+	font-weight: 700;
+	flex-shrink: 0;
+	text-shadow: 0 0 8px rgba(48, 209, 88, 0.5);
+}
+
+.apple-lyric-text {
+	font-size: 11px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.92);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	letter-spacing: -0.01em;
+}
+
+/* Apple Scrubber Bar with direct pointer manipulation */
+.apple-scrubber-container {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	user-select: none;
+	touch-action: none;
+	margin: 1px 0;
+}
+
+.apple-scrubber-time {
+	font-size: 10px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.55);
+	min-width: 28px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum" 1;
+	letter-spacing: -0.01em;
+	flex-shrink: 0;
+}
+
+.apple-scrubber-track-area {
+	flex: 1;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	position: relative;
+	touch-action: none;
+}
+
+.apple-scrubber-rail {
+	width: 100%;
+	height: 3.5px;
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 9999px;
+	position: relative;
+	overflow: visible;
+	transition: height 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-scrubber-track-area:hover .apple-scrubber-rail,
+.apple-scrubber-track-area.scrubbing .apple-scrubber-rail {
+	height: 5.5px;
+}
+
+.apple-scrubber-fill {
+	position: absolute;
+	left: 0;
+	top: 0;
+	height: 100%;
+	background: #FFFFFF;
+	border-radius: 9999px;
+	pointer-events: none;
+	box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.apple-scrubber-thumb {
+	position: absolute;
+	top: 50%;
+	width: 9px;
+	height: 9px;
+	background: #FFFFFF;
+	border-radius: 50%;
+	transform: translate(-50%, -50%) scale(0);
+	transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 0 6px rgba(255, 255, 255, 0.8);
+	pointer-events: none;
+}
+
+.apple-scrubber-track-area:hover .apple-scrubber-thumb,
+.apple-scrubber-track-area.scrubbing .apple-scrubber-thumb {
+	transform: translate(-50%, -50%) scale(1);
+}
+
+/* Controls Row */
+.apple-controls-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	gap: 4px;
+}
+
+.apple-controls-row.compact {
+	padding-top: 2px;
+}
+
+.apple-transport-group {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.apple-aux-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.apple-btn-icon {
+	background: none;
+	border: none;
+	color: rgba(255, 255, 255, 0.65);
+	cursor: pointer;
+	padding: 5px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+.apple-btn-icon:hover {
+	color: #FFFFFF;
+	background: rgba(255, 255, 255, 0.12);
+}
+
+.apple-btn-icon.active {
+	color: #FFFFFF;
+	background: rgba(255, 255, 255, 0.22);
+}
+
+.apple-btn-icon-mini {
+	background: none;
+	border: none;
+	color: rgba(255, 255, 255, 0.6);
+	cursor: pointer;
+	padding: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+.apple-btn-icon-mini:hover {
+	color: #FFFFFF;
+	background: rgba(255, 255, 255, 0.12);
+}
+
+.apple-btn-icon-mini.active {
+	color: #FFFFFF;
+	background: rgba(255, 255, 255, 0.22);
+}
+
+.apple-btn-transport {
+	background: none;
+	border: none;
+	color: #FFFFFF;
+	cursor: pointer;
+	padding: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+}
+
+.apple-btn-playpause {
+	background: rgba(255, 255, 255, 0.15);
+	border: none;
+	color: #FFFFFF;
+	cursor: pointer;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	backdrop-filter: blur(12px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+	transition: background 0.15s ease;
+}
+
+.apple-btn-playpause:hover {
+	background: rgba(255, 255, 255, 0.26);
+}
+
+/* Apple Volume Dropdown */
+.apple-volume-dropdown {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 4px 2px 2px 2px;
+	overflow: hidden;
+	flex-shrink: 0;
+	position: relative;
+	z-index: 2;
+}
+
+.apple-volume-rail {
+	flex: 1;
+	height: 4px;
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 9999px;
+	position: relative;
+	overflow: hidden;
+}
+
+.apple-volume-fill {
+	position: absolute;
+	left: 0;
+	top: 0;
+	height: 100%;
+	background: #FFFFFF;
+	border-radius: 9999px;
+	pointer-events: none;
+}
+
+.apple-volume-input {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 100%;
+	height: 100%;
+	background: transparent;
+	cursor: pointer;
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	z-index: 2;
+}
+
+.apple-volume-input::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	opacity: 0;
+}
+
+/* Apple Karaoke Lyrics Sheet */
+.apple-karaoke-sheet {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	position: relative;
+	z-index: 10;
+}
+
+.apple-karaoke-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding-bottom: 6px;
+	border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+	flex-shrink: 0;
+}
+
+.apple-karaoke-meta {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	text-align: left;
+}
+
+.apple-karaoke-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: #FFFFFF;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	letter-spacing: -0.015em;
+}
+
+.apple-karaoke-artist {
+	font-size: 11px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.55);
+}
+
+.apple-karaoke-close-btn {
+	background: rgba(255, 255, 255, 0.12);
+	border: none;
+	color: rgba(255, 255, 255, 0.85);
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.apple-karaoke-close-btn:hover {
+	background: rgba(255, 255, 255, 0.25);
+	color: #FFFFFF;
+}
+
+.apple-karaoke-list {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 4px;
+	scrollbar-width: none;
+	mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+	-webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+}
+
+.apple-karaoke-list::-webkit-scrollbar {
+	display: none;
+}
+
+.apple-karaoke-line {
+	font-size: 13px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.35);
+	cursor: pointer;
+	padding: 5px 8px;
+	border-radius: 8px;
+	transition: color 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.22s ease;
+	text-align: left;
+	line-height: 1.35;
+	user-select: none;
+}
+
+.apple-karaoke-line:hover {
+	color: rgba(255, 255, 255, 0.7);
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.apple-karaoke-line.active {
+	font-size: 15px;
+	font-weight: 700;
+	color: #FFFFFF;
+	text-shadow: 0 0 16px rgba(255, 255, 255, 0.65);
+	transform: scale(1.02);
+	transform-origin: left center;
+}
+
+.apple-karaoke-status {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: rgba(255, 255, 255, 0.5);
+	font-size: 12px;
+	gap: 6px;
+}
+
+.apple-karaoke-spinner {
+	width: 18px;
+	height: 18px;
+	border: 2px solid rgba(255, 255, 255, 0.2);
+	border-top-color: #30D158;
+	border-radius: 50%;
+	animation: apple-spin 0.8s linear infinite;
+}
+
+@keyframes apple-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.apple-lyrics-bottom-bar {
+	width: 100%;
+	padding-top: 4px;
+	flex-shrink: 0;
+}
+
+/* Compact Stacked View */
+.apple-compact-view {
+	padding: 2px 4px;
+}
+
+.apple-compact-top-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+}
+
+.apple-compact-art {
+	width: 38px;
+	height: 38px;
+	border-radius: 9px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.08);
+	flex-shrink: 0;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.apple-compact-art img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.apple-art-placeholder-mini {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.35);
+}
+
+.apple-compact-meta {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	flex: 1;
+	text-align: left;
+}
+
+.apple-compact-right-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}

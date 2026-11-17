@@ -337,7 +337,14 @@ fn main() {
             // click-through bit directly. The worst a rebuild does is make the
             // window click-through until the next cursor update.
             #[cfg(target_os = "windows")]
-            let _ = window.set_ignore_cursor_events(true);
+            {
+                let _ = window.set_ignore_cursor_events(true);
+                let _ = window.set_decorations(false);
+                let _ = window.set_shadow(false);
+                if let Ok(hwnd) = window.hwnd() {
+                    crate::utils::sanitize_window_style(hwnd);
+                }
+            }
             #[cfg(target_os = "linux")]
             {
                 if let Some(dock_win) = app.get_webview_window("dock") {
@@ -356,10 +363,14 @@ fn main() {
             #[cfg(target_os = "windows")]
             let dock_win = app.get_webview_window("dock").unwrap();
             #[cfg(target_os = "windows")]
-            let _ = dock_win.set_ignore_cursor_events(true);
-            #[cfg(target_os = "windows")]
-            if let Ok(hwnd) = dock_win.hwnd() {
-                DOCK_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+            {
+                let _ = dock_win.set_ignore_cursor_events(true);
+                let _ = dock_win.set_decorations(false);
+                let _ = dock_win.set_shadow(false);
+                if let Ok(hwnd) = dock_win.hwnd() {
+                    crate::utils::sanitize_window_style(hwnd);
+                    DOCK_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+                }
             }
 
             // Sync window rects initially and on event
@@ -454,7 +465,14 @@ fn main() {
                 // Layered from the start, like the notch and dock (see
                 // set_click_through): the overlay has a window region too.
                 #[cfg(target_os = "windows")]
-                let _ = ov_win.set_ignore_cursor_events(true);
+                {
+                    let _ = ov_win.set_ignore_cursor_events(true);
+                    let _ = ov_win.set_decorations(false);
+                    let _ = ov_win.set_shadow(false);
+                    if let Ok(hwnd) = ov_win.hwnd() {
+                        crate::utils::sanitize_window_style(hwnd);
+                    }
+                }
                 let _ = ov_win.show();
                 let _ = ov_win.hide();
                 let overlay_handle = app.handle().clone();

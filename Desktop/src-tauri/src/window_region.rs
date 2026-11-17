@@ -51,6 +51,7 @@ pub fn set_window_region(window: Window, rects: Vec<IntRect>) {
         GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TRANSPARENT.0 != 0
     };
     crate::utils::set_click_through(hwnd, click_through);
+    crate::utils::sanitize_window_style(hwnd);
     unsafe {
         let region = CreateRectRgn(0, 0, 0, 0);
         for rect in physical_rects(&rects, scale) {

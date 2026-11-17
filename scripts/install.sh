@@ -81,8 +81,8 @@ DEB_URL=$(echo "$RELEASE_JSON" | grep -o 'https://[^"]*amd64\.deb' | head -n 1)
 VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | cut -d '"' -f 4)
 
 if [ -z "$DEB_URL" ]; then
-    VERSION="v2.3.1"
-    DEB_URL="https://github.com/$REPO/releases/download/$VERSION/gloom_2.3.1_amd64.deb"
+    VERSION="v2.3.2"
+    DEB_URL="https://github.com/$REPO/releases/download/$VERSION/gloom_2.3.2_amd64.deb"
 fi
 print_success "Target release found: ${BOLD}$VERSION${NC}"
 print_info "Package source: $DEB_URL"

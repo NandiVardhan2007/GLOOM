@@ -183,3 +183,6 @@ pub fn dock_enabled() -> bool {
             .unwrap_or(false)
     })
 }
+
+pub fn sanitize_window_style(_hwnd: isize) {}
+

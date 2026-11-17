@@ -55,7 +55,7 @@ Write-Step "2" "Querying latest verified release from GitHub"
 $repo = "NandiVardhan2007/GLOOM"
 $downloadUrl = "https://github.com/$repo/releases/latest/download/GLOOM-Island-Setup.exe"
 
-$version = "v2.3.1"
+$version = "v2.3.2"
 try {
     $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -UseBasicParsing -ErrorAction Stop
     if ($releaseInfo.tag_name) {

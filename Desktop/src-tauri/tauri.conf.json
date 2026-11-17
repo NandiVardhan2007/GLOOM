@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "GLOOM",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "identifier": "com.nandu.gloom",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "GLOOM",
+        "title": "",
         "width": 1920,
         "height": 420,
         "x": 0,

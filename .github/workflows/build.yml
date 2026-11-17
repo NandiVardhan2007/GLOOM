@@ -179,7 +179,7 @@ jobs:
       - name: Package Linux Dedicated .deb Installer
         run: |
           mkdir -p build-artifacts
-          VERSION="${RELEASE_VERSION:-2.3.1}"
+          VERSION="${RELEASE_VERSION:-2.3.2}"
 
           # Native Debian / Ubuntu / Zorin OS Package (.deb)
           DEB_DIR="deb-package"
@@ -306,15 +306,20 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.3.1 — Multi-Platform Dynamic Island (Windows & Linux Dedicated Installers)
+            ### GLOOM 2.3.2 — Live Synced Karaoke Lyrics & Direct Scrubber Bar Overhaul
 
-            #### 🍏 Apple iOS 18 Design & HIG Engineering
-            - **Pure OLED Black & Specular Glass Materials**: Pure `#000000` foundation with 40px backdrop blur, saturation boost, and Apple specular micro-rim illumination.
-            - **Unified Harmonic Springs**: Synchronized spring physics (`stiffness: 380, damping: 32, mass: 0.8`) with instant pointer-down tap feedback (`whileTap={{ scale: 0.97 }}`).
-            - **Seamless Floating Pill & Flush Notch Switching**: Instantaneous toggling between Floating Pill and Bezel Notch geometries with C1-continuous shoulder flares.
-            - **Phosphor Lime Audio Waveform**: Ambient-reactive audio visualizer bars streaming frequency waveforms with glowing green gradients (`#30D158` to `#34C759`).
-            - **SF Pro Tabular Numerals**: Optical letter-spacing and tabular numbers on clocks, countdown timers, and track scrubbers.
-            - **Intuitive Island Interaction**: Click capsule to expand, click header to toggle closed, click backdrop or press <kbd>Esc</kbd> to dismiss. Zero accidental collapses during hover.
+            #### 🎵 Live Synced Karaoke Lyrics (Apple Music Style)
+            - **Apple Music Karaoke Sheet**: Expandable synchronized lyric stream with smooth spring auto-centering, glowing bold pure-white singing line, and interactive click-to-seek timestamp jumping.
+            - **Live Ticker Pill**: Ambient phosphor lime `♪` pill in standard playback view with subtle crossfading line text.
+            - **Intelligent LRCLIB Pipeline**: Automatic query cleaning and fallback search supporting singles, remixes, and soundtrack releases.
+
+            #### 🎛️ Apple-Grade Direct Scrubber Bar (/apple-design)
+            - **1:1 Direct Manipulation**: Powered by `setPointerCapture` for interruptible, zero-latency scrub tracking that never drops when dragging outside the island.
+            - **Tabular Monospace Timing**: Tabular numeric time formatters (`formatTime`, `formatRemaining`) eliminating jittering layout shifts.
+            - **Tactile Visual Feedback**: Frosted capsule rail with luminous white progress fill and glowing thumb indicator.
+
+            #### 🪟 Windows White Bar & Titlebar Eradication
+            - **Native DWM & Win32 Sanitization**: Stripped `WS_CAPTION`, `WS_THICKFRAME`, and `WS_SYSMENU`, enforced `WS_POPUP`, disabled DWM non-client rendering policy (`DWMNCRP_DISABLED`), and suppressed borders (`DWMWA_COLOR_NONE`).
 
             #### 📦 Dedicated Native Installers
             - **Windows Dedicated Setup Wizard**: `GLOOM-Island-Setup.exe` packaged via Inno Setup with automatic start menu integration, desktop shortcuts, uninstaller, and silent update pipeline.
