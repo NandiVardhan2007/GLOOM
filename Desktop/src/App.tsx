@@ -30,7 +30,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { NotchFlares } from "./components/NotchFlares";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
-import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
+import { ProductivityDrawer } from "./components/cards/ProductivityDrawer";
 import { WifiPanel } from "./components/WifiPanel";
 import { BluetoothPanel } from "./components/BluetoothPanel";
 import {
@@ -811,6 +811,7 @@ function App() {
 				[".apple-karaoke-sheet", 24],
 				[".control-center-panel", 24],
 				[".shelf-panel", 24],
+				[".productivity-drawer-container", 24],
 				[".calendar-panel", 24],
 				[".timer-panel", 24]
 			])
@@ -2797,7 +2798,7 @@ function App() {
 	const getDynamicWidth = () => {
 		if (gloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (isCalendarMode) return 480;
-		if (gloomMode === "shelf") return 380;
+		if (gloomMode === "shelf") return 420;
 		if (gloomMode === "command-center" && isOpen) return 350;
 		if (gloomMode === "wifi" || gloomMode === "bluetooth") return 350;
 		if (showMusicOnStatusHover) {
@@ -2832,12 +2833,9 @@ function App() {
 		}
 		// Sized to the calendar's week-row count plus the timer's fixed content.
 		if (gloomMode === "calendar") return calendarMonthRows >= 6 ? 320 : 288;
-		// Shelf expands on mode alone (no hover needed: there is no cursor
-		// hover during an OS drag) and is sized to exactly one row of tiles,
-		// plus room for the scrollbar once the tiles overflow it.
+		// Unified Productivity Drawer (Files, Clipboard History, Scratchpad)
 		if (gloomMode === "shelf") {
-			if (shelfItems.length === 0) return 130;
-			return shelfOverflowing ? 190 : 176;
+			return 220;
 		}
 		if (gloomMode === "command-center") return isOpen ? 230 : 36;
 		if (gloomMode === "wifi" || gloomMode === "bluetooth") return 300;
@@ -3891,121 +3889,23 @@ function App() {
 									)}
 								</AnimatePresence>
 
-								{/* Shelf Panel */}
+								{/* Unified Productivity Drawer (Files, Clipboard History, Scratchpad) */}
 								<AnimatePresence>
 									{gloomMode === "shelf" && (
-										<motion.div
-											className="shelf-content"
-											onClick={(e) => e.stopPropagation()}
-											onWheel={handleShelfWheel}
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
-										>
-											{shelfNotice && <div className="shelf-notice">{shelfNotice}</div>}
-											{shelfItems.length === 0 ? (
-												<div className="shelf-empty">
-													<span>Drop files or selected text here</span>
-												</div>
-											) : (
-												<div
-													className={`shelf-items-grid ${shelfOverflowing ? "overflowing" : ""}`}
-													ref={shelfGridRef}
-												>
-													<AnimatePresence mode="popLayout" onExitComplete={measureShelfOverflow}>
-														{shelfItems.map((item) => {
-															const preview = item.path ? shelfThumbs[item.path] : undefined;
-															const thumb = preview?.thumb;
-															return (
-																<motion.div
-																	key={item.id}
-																	layout
-																	initial={
-																		shelfNewIdsRef.current.has(item.id)
-																			? { opacity: 0, scale: 0.82 }
-																			: false
-																	}
-																	animate={{ opacity: 1, scale: 1 }}
-																	exit={{
-																		opacity: 0,
-																		scale: 0.82,
-																		transition: { duration: 0.16, ease: "easeOut" }
-																	}}
-																	transition={{
-																		type: "spring",
-																		stiffness: 520,
-																		damping: 38,
-																		mass: 0.7
-																	}}
-																	className={`shelf-tile ${item.type === "text" || (!thumb && preview?.text) ? "is-text" : ""}`}
-																	title={
-																		item.type === "text" ? item.text?.slice(0, 1000) : item.path
-																	}
-																	onPointerDown={(e) => handleShelfPointerDown(e, item)}
-																	onPointerMove={(e) => handleShelfPointerMove(e, item)}
-																	onClick={(e) => handleShelfTileClick(e, item)}
-																>
-																	<div className="shelf-tile-preview">
-																		{item.type === "text" ? (
-																			<div className="shelf-tile-text">
-																				<Type
-																					size={11}
-																					strokeWidth={2}
-																					className="shelf-tile-text-icon"
-																				/>
-																				<span className="shelf-tile-text-body">{item.text}</span>
-																			</div>
-																		) : !thumb && preview?.text ? (
-																			// A document or text file: its opening text,
-																			// marked with its type's icon.
-																			<div className="shelf-tile-text">
-																				<ShelfTypeIcon
-																					name={item.name}
-																					folder={false}
-																					size={11}
-																					className="shelf-tile-text-icon"
-																				/>
-																				<span className="shelf-tile-text-body">{preview.text}</span>
-																			</div>
-																		) : (
-																			<>
-																				<div className="shelf-tile-placeholder">
-																					{preview && !thumb ? (
-																						<ShelfTypeIcon
-																							name={item.name}
-																							folder={preview.folder}
-																						/>
-																					) : null}
-																				</div>
-																				{thumb ? (
-																					<img src={thumb} alt="" draggable={false} />
-																				) : null}
-																			</>
-																		)}
-																	</div>
-																	<span className="shelf-tile-name">
-																		{item.type === "text"
-																			? `Text · ${item.text?.length ?? 0} chars`
-																			: item.name}
-																	</span>
-																	<button
-																		className="shelf-tile-remove"
-																		title="Remove from shelf"
-																		onClick={(e) => {
-																			e.stopPropagation();
-																			removeShelfItem(item.id);
-																		}}
-																	>
-																		<X size={11} strokeWidth={2.5} />
-																	</button>
-																</motion.div>
-															);
-														})}
-													</AnimatePresence>
-												</div>
-											)}
-										</motion.div>
+										<ProductivityDrawer
+											shelfItems={shelfItems}
+											shelfThumbs={shelfThumbs}
+											shelfNotice={shelfNotice}
+											shelfOverflowing={shelfOverflowing}
+											shelfGridRef={shelfGridRef}
+											measureShelfOverflow={measureShelfOverflow}
+											shelfNewIdsRef={shelfNewIdsRef}
+											handleShelfPointerDown={handleShelfPointerDown}
+											handleShelfPointerMove={handleShelfPointerMove}
+											handleShelfTileClick={handleShelfTileClick}
+											removeShelfItem={removeShelfItem}
+											handleShelfWheel={handleShelfWheel}
+										/>
 									)}
 								</AnimatePresence>
 							</motion.div>

@@ -1,0 +1,325 @@
+/* Productivity Drawer Container */
+.productivity-drawer-container {
+	position: absolute;
+	top: 34px;
+	left: 0;
+	width: 100%;
+	height: calc(100% - 34px);
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	padding: 6px 12px 10px 12px;
+	color: var(--gloom-text, white);
+	border-radius: 0 0 18px 18px;
+	overflow: hidden;
+	z-index: 2;
+}
+
+/* Apple-style Segmented Navigation Header */
+.productivity-nav-header {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	margin-bottom: 6px;
+	flex-shrink: 0;
+}
+
+.productivity-segmented-control {
+	display: inline-flex;
+	align-items: center;
+	background: rgba(255, 255, 255, 0.08);
+	backdrop-filter: blur(20px);
+	border-radius: 9999px;
+	padding: 2.5px;
+	gap: 3px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.productivity-segment-btn {
+	background: transparent;
+	border: none;
+	border-radius: 9999px;
+	padding: 3px 10px;
+	font-size: 11px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.65);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	cursor: pointer;
+	transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+	user-select: none;
+}
+
+.productivity-segment-btn:hover {
+	color: rgba(255, 255, 255, 0.9);
+}
+
+.productivity-segment-btn.active {
+	background: rgba(255, 255, 255, 0.18);
+	color: #fff;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.tab-pill-badge {
+	background: rgba(255, 255, 255, 0.2);
+	padding: 0.5px 5px;
+	border-radius: 9999px;
+	font-size: 9px;
+	font-weight: 600;
+	line-height: 1.2;
+}
+
+.tab-dot-badge {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: #30d158;
+	box-shadow: 0 0 6px rgba(48, 209, 88, 0.7);
+}
+
+/* Body Pane */
+.productivity-body-pane {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.productivity-tab-page {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+}
+
+/* Files Page (inherits existing shelf-items-grid styling) */
+.files-page {
+	position: relative;
+}
+
+/* Clipboard Toolbar */
+.clipboard-toolbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 11px;
+	color: rgba(255, 255, 255, 0.6);
+	margin-bottom: 6px;
+	padding: 0 2px;
+	flex-shrink: 0;
+}
+
+.clipboard-title {
+	font-weight: 500;
+	letter-spacing: -0.01em;
+}
+
+.clipboard-clear-btn {
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 6px;
+	padding: 2px 7px;
+	color: rgba(255, 255, 255, 0.75);
+	font-size: 10px;
+	font-weight: 500;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.clipboard-clear-btn:hover {
+	background: rgba(255, 69, 58, 0.2);
+	color: #ff453a;
+	border-color: rgba(255, 69, 58, 0.35);
+}
+
+/* Clipboard Items List */
+.clipboard-items-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	padding-right: 4px;
+}
+
+.clipboard-items-list::-webkit-scrollbar {
+	width: 4px;
+}
+
+.clipboard-items-list::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.clipboard-items-list::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.18);
+	border-radius: 4px;
+}
+
+.clipboard-card {
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-radius: 8px;
+	padding: 7px 10px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	cursor: pointer;
+	transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.clipboard-card:hover {
+	background: rgba(255, 255, 255, 0.09);
+	border-color: rgba(255, 255, 255, 0.14);
+}
+
+.clipboard-card:active {
+	transform: scale(0.99);
+}
+
+.clipboard-card-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.clipboard-card-text {
+	font-size: 11px;
+	color: rgba(255, 255, 255, 0.9);
+	margin: 0;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	word-break: break-word;
+	line-height: 1.35;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.clipboard-card-meta {
+	display: flex;
+	gap: 5px;
+	font-size: 9.5px;
+	color: rgba(255, 255, 255, 0.45);
+	margin-top: 3px;
+}
+
+.clipboard-card-copy-btn {
+	background: transparent;
+	border: none;
+	padding: 4px;
+	border-radius: 6px;
+	color: rgba(255, 255, 255, 0.5);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+.clipboard-card-copy-btn:hover {
+	color: #fff;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.clipboard-card-copy-btn.copied {
+	color: #30d158;
+}
+
+/* Scratchpad Toolbar */
+.scratchpad-toolbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 10.5px;
+	color: rgba(255, 255, 255, 0.55);
+	margin-bottom: 6px;
+	padding: 0 2px;
+	flex-shrink: 0;
+}
+
+.scratchpad-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.scratchpad-action-btn {
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 6px;
+	padding: 2px 7px;
+	color: rgba(255, 255, 255, 0.8);
+	font-size: 10px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.scratchpad-action-btn:hover {
+	background: rgba(255, 255, 255, 0.14);
+	color: #fff;
+}
+
+.scratchpad-action-btn.clear:hover {
+	background: rgba(255, 69, 58, 0.2);
+	color: #ff453a;
+	border-color: rgba(255, 69, 58, 0.35);
+}
+
+/* Scratchpad Textarea Wrapper */
+.scratchpad-textarea-wrapper {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 8px;
+	padding: 8px 10px;
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.scratchpad-textarea {
+	flex: 1;
+	width: 100%;
+	height: 100%;
+	background: transparent;
+	border: none;
+	outline: none;
+	resize: none;
+	color: rgba(255, 255, 255, 0.92);
+	font-size: 11.5px;
+	line-height: 1.45;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	caret-color: #38bdf8;
+}
+
+.scratchpad-textarea::placeholder {
+	color: rgba(255, 255, 255, 0.32);
+	font-style: italic;
+}
+
+.scratchpad-textarea::-webkit-scrollbar {
+	width: 4px;
+}
+
+.scratchpad-textarea::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.scratchpad-textarea::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.18);
+	border-radius: 4px;
+}
