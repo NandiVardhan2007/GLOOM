@@ -4255,7 +4255,7 @@ pub fn setup_settings_watcher(app: AppHandle) {
                                 .collect();
 
                             *cache = new_settings.clone();
-                            (changed, removed)
+                            Some((changed, removed))
                         })
                 };
                 if let Some((changed, removed)) = changes {

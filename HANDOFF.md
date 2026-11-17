@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-17 22:05 IST  
+> **Last Updated**: 2026-11-17 22:15 IST  
 > **Release Version**: 2.4.0 (versionCode 240) — Standalone Desktop Dynamic Island & Modular Island Card Engine  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), Phase 11 In-App Updater overhaul (instant update check, clean silent uninstaller & zero-leftover installer upgrade), and Phase 12 Comprehensive Rust Codebase Hardening via `/rust-skills`: zero-panic hardening across all production paths (`commands.rs`, `services.rs`, `main.rs`), lock-free atomic integers in high-frequency 1000Hz mouse hook (`MH_CACHED_MON_X/Y/W/H`), persistent HTTP connection pooling (`get_updater_client`), Rust 2024 safe extern blocks (`PrintWindow`), and standard trait derivations (`Debug`, `PartialEq`, `Eq`) across all IPC structs in `types.rs`, `wifi.rs`, and `bluetooth.rs`. All 16/16 Node tests pass, clean Vite production bundle.
+> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), Phase 11 In-App Updater overhaul (instant update check, clean silent uninstaller & zero-leftover installer upgrade), and Phase 12 Comprehensive Rust Codebase Hardening via `/rust-skills`: zero-panic hardening across all production paths (`commands.rs`, `services.rs`, `main.rs`), lock-free atomic integers in high-frequency 1000Hz mouse hook (`MH_CACHED_MON_X/Y/W/H`), persistent HTTP connection pooling (`get_updater_client`), Rust 2024 safe extern blocks (`PrintWindow`), standard trait derivations (`Debug`, `PartialEq`, `Eq`) across all IPC structs in `types.rs`, `wifi.rs`, and `bluetooth.rs`, and settings watcher closure type alignment (`Some((changed, removed))`). All 16/16 Node tests pass, clean Vite production bundle.
 
 ---
 
@@ -35,6 +35,7 @@ GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for 
 5. **Win32 Focus & Frame Reconcile Fixes (`services.rs`, `commands.rs`)**:
    - Fixed `SetFocus(Some(hwnd))` call in `commands.rs` to pass `Option<HWND>` per `windows 0.61` contract.
    - Restored `SWP_FRAMECHANGED` import in `services.rs:3803` and `services.rs:4043` required by window repositioning routines.
+   - Aligned `setup_settings_watcher` closure return type in `commands.rs:4258` by wrapping `(changed, removed)` in `Some(...)` to satisfy `.and_then()` return type signature.
 
 ### 🌟 Phase 11 Complete — Instant Update Check & Clean Zero-Leftover Upgrade (2026-11-17):
 1. **Instantaneous Update Check (`updater.rs`)**:
