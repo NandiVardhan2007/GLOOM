@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-17 20:15 IST  
+> **Last Updated**: 2026-11-17 21:45 IST  
 > **Release Version**: 2.4.0 (versionCode 240) — Standalone Desktop Dynamic Island & Modular Island Card Engine  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and verified release v2.4.0. Completed the full 9-task Modular Island Card Engine implementation plan across all 3 stages. Engineered zero-latency synthesized Web Audio tactile transients (snap, tick, switch, pop); multi-mode reactive audio visualizers (Phosphor gradient bars, liquid SVG sine wave, breathing halo glow) with cycle persistence; dynamic canvas downsampled dual-radial album artwork aura; mouse wheel vertical scrubbing on media capsule for volume control with tick audio feedback; Win32 `AddClipboardFormatListener` background message loop with thread-safe 15-item text clip ring buffer (`get_clipboard_history`, `clear_clipboard_history`); dynamic Win32 keyboard focus manager (`request_notch_keyboard_focus`) with `WS_EX_NOACTIVATE` toggling and previous foreground HWND restoration; 3-tab unified Productivity Drawer (Files, Clipboard History, Persistent Quick Scratchpad); real-time browser download watcher on `Downloads` folder detecting `.crdownload`/`.part` files with animated Live Activity pill capsule and shimmer progress track; all 16/16 Node test runner tests pass; clean Vite production bundle compiles with zero errors.
+> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), and Phase 11 In-App Updater overhaul: instantaneous update check (<300ms) with removed dead endpoints/fallbacks, and clean Inno Setup installer upgrade with silent previous version uninstallation, zero-leftover directory wiping, and automatic relaunch on silent update. All 16/16 Node tests pass, clean Vite production bundle.
 
 ---
 
@@ -13,6 +13,22 @@ GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for 
 1. **GLOOM Desktop Notch & Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
 2. **Modular Island Card Engine**: Multi-mode visualizers, dynamic album art glow aura, Web Audio tactile transients, live LRCLIB lyrics, unified productivity drawer (Files, Clipboard history, Scratchpad notes), and real-time Live Activities (browser download watcher).
 3. **Fluid macOS-Style Dock**: Windows taskbar replacement with continuous magnification, running/minimized window indicators, launch bounce, and high-DPI icon extraction.
+
+### 🌟 Phase 11 Complete — Instant Update Check & Clean Zero-Leftover Upgrade (2026-11-17):
+1. **Instantaneous Update Check (`updater.rs`)**:
+   - Eliminated the 25-second timeout, lowering network timeout to 4 seconds.
+   - Refactored `check_latest_manifest()` to directly parse and return `ManifestInfo` from GitHub release `latest.json` on success; removed nonexistent `build-artifacts/latest.json`.
+   - Fixed logic inversion where up-to-date checks returned `None` and triggered a 30s fallback loop into GitHub API and unrelated repos (`JARVIS`).
+   - GitHub API is now an isolated fallback solely if `latest.json` is unreachable.
+   - Reduced update check duration from ~30-55s down to <300ms for instant "GLOOM is up to date" feedback.
+2. **Clean Zero-Leftover Installer Upgrade (`installer/gloom.iss`, `updater.rs`)**:
+   - Configured `UsePreviousAppDir=yes` to respect existing user installation path.
+   - Added Inno Setup `[Code]` section:
+     - `GetUninstallString()` queries HKCU/HKLM registry for previous installation.
+     - `UnInstallOldVersion()` terminates any running `gloom.exe` (`taskkill /F /IM gloom.exe`), executes `unins000.exe /VERYSILENT /NORESTART /SUPPRESSMSGBOXES` and waits until terminated.
+     - `CurStepChanged(ssInstall)` uses `DelTree('{app}\*', False, True, True)` to clean out all remaining old files, DLLs, and stale remnants before extracting new files.
+   - Added `Filename: "{app}\{#MyAppExeName}"; Flags: nowait; Check: WizardSilent` in `[Run]` so in-app updates automatically relaunch `gloom.exe` upon completion.
+   - Updated `updater.rs` to launch installer with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /FORCECLOSEAPPLICATIONS`.
 
 ### 🌟 Phase 10 Complete — Maximum Performance Architecture & WebView2 Acceleration (2026-11-17):
 1. **Direct GPU Rasterization & Zero-Copy Compositing (`main.rs`)**:

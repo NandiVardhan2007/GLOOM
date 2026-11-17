@@ -8,6 +8,7 @@
 #define MyAppPublisher "GLOOM Team"
 #define MyAppURL "https://github.com/NandiVardhan2007/GLOOM"
 #define MyAppExeName "gloom.exe"
+#define MyAppId "{A786F351-4E89-4B52-9E11-23F1C45DE9A8}"
 
 [Setup]
 AppId={{A786F351-4E89-4B52-9E11-23F1C45DE9A8}
@@ -19,7 +20,7 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\GLOOM
-UsePreviousAppDir=no
+UsePreviousAppDir=yes
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=..\build-artifacts
@@ -54,4 +55,64 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: startupicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait; Check: WizardSilent
+
+[Code]
+// Helper to retrieve previous uninstall string
+function GetUninstallString(): String;
+var
+  sUninstPath: String;
+begin
+  sUninstPath := '';
+  // Check HKCU (CurrentUser) first - default for lowest privileges
+  if not RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1', 'UninstallString', sUninstPath) then
+  begin
+    // Check HKLM (LocalMachine) fallback
+    RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1', 'UninstallString', sUninstPath);
+  end;
+  Result := sUninstPath;
+end;
+
+// Kill any running gloom.exe and execute previous uninstaller silently
+function UnInstallOldVersion(): Integer;
+var
+  sUninstPath: String;
+  iResultCode: Integer;
+begin
+  Result := 0;
+  // Ensure any running gloom process is terminated
+  Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
+  Sleep(250);
+
+  sUninstPath := GetUninstallString();
+  if sUninstPath <> '' then
+  begin
+    sUninstPath := RemoveQuotes(sUninstPath);
+    if FileExists(sUninstPath) then
+    begin
+      // Execute uninstaller silently with no restart and suppressed message boxes
+      Exec(sUninstPath, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
+      Result := iResultCode;
+      Sleep(500);
+    end;
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  appDir: String;
+begin
+  if CurStep = ssInstall then
+  begin
+    // Step 1: Remove old version completely via its uninstaller
+    UnInstallOldVersion();
+
+    // Step 2: Clean up any lingering leftovers in {app} before installing the new files
+    appDir := ExpandConstant('{app}');
+    if DirExists(appDir) then
+    begin
+      DelTree(appDir + '\*', False, True, True);
+    end;
+  end;
+end;

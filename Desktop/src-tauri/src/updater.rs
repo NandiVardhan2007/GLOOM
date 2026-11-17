@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// Minimum time between background update checks. Manual checks bypass this.
 const CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
 /// Network timeout for a single manifest request.
-const CHECK_TIMEOUT_SECS: u64 = 25;
+const CHECK_TIMEOUT_SECS: u64 = 4;
 /// A release must be at least this old before auto-update installs it, so a
 /// broken release cannot reach everyone within minutes of being published.
 const MIN_AUTO_INSTALL_AGE_SECS: i64 = 24 * 60 * 60;
@@ -50,138 +50,122 @@ fn is_newer_semver(candidate: &str, current: &str) -> bool {
     false
 }
 
-async fn check_latest_manifest(
-    current_version: &str,
-) -> Option<(String, Option<String>, Option<String>, Option<String>)> {
+#[derive(Clone, Debug)]
+struct ManifestInfo {
+    version: String,
+    pub_date: Option<String>,
+    notes: Option<String>,
+    download_url: Option<String>,
+}
+
+async fn check_latest_manifest() -> Option<ManifestInfo> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
         .user_agent("GLOOM-Desktop-Updater")
         .build()
         .ok()?;
 
-    let endpoints = [
-        "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/latest.json",
-        "https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/build-artifacts/latest.json",
-    ];
+    let endpoint = "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/latest.json";
+    let resp = client.get(endpoint).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
 
-    for endpoint in endpoints {
-        let resp = match client.get(endpoint).send().await {
-            Ok(r) if r.status().is_success() => r,
-            _ => continue,
-        };
+    let json: serde_json::Value = resp.json().await.ok()?;
+    let tag_name = json
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if tag_name.is_empty() {
+        return None;
+    }
 
-        let json: serde_json::Value = match resp.json().await {
-            Ok(j) => j,
-            Err(_) => continue,
-        };
+    let pub_date = json
+        .get("pub_date")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let notes = json
+        .get("notes")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
 
-        let tag_name = json
-            .get("version")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if tag_name.is_empty() {
-            continue;
-        }
+    let mut download_url = None;
+    if let Some(platforms) = json.get("platforms").and_then(|p| p.as_object()) {
+        #[cfg(windows)]
+        let target_key = "windows-x86_64";
+        #[cfg(not(windows))]
+        let target_key = "linux-x86_64";
 
-        let pub_date = json
-            .get("pub_date")
-            .and_then(|v| v.as_str())
-            .map(str::to_string);
-        let body = json
-            .get("notes")
-            .and_then(|v| v.as_str())
-            .map(str::to_string);
-
-        let mut download_url = None;
-        if let Some(platforms) = json.get("platforms").and_then(|p| p.as_object()) {
-            #[cfg(windows)]
-            let target_key = "windows-x86_64";
-            #[cfg(not(windows))]
-            let target_key = "linux-x86_64";
-
-            if let Some(plat) = platforms
-                .get(target_key)
-                .or_else(|| platforms.get("windows-x86_64"))
-            {
-                if let Some(url) = plat.get("url").and_then(|u| u.as_str()) {
-                    download_url = Some(url.to_string());
-                }
+        if let Some(plat) = platforms
+            .get(target_key)
+            .or_else(|| platforms.get("windows-x86_64"))
+        {
+            if let Some(url) = plat.get("url").and_then(|u| u.as_str()) {
+                download_url = Some(url.to_string());
             }
         }
-
-        if is_newer_semver(&tag_name, current_version) {
-            return Some((tag_name, pub_date, body, download_url));
-        } else {
-            return None;
-        }
     }
-    None
+
+    Some(ManifestInfo {
+        version: tag_name,
+        pub_date,
+        notes,
+        download_url,
+    })
 }
 
-async fn check_github_releases(
-    current_version: &str,
-) -> Option<(String, Option<String>, Option<String>, Option<String>)> {
+async fn check_github_releases() -> Option<ManifestInfo> {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
         .user_agent("GLOOM-Desktop-Updater")
         .build()
         .ok()?;
 
-    let endpoints = [
-        "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest",
-        "https://api.github.com/repos/NandiVardhan2007/JARVIS/releases/latest",
-    ];
+    let endpoint = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest";
+    let resp = client.get(endpoint).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
 
-    for endpoint in endpoints {
-        let resp = match client.get(endpoint).send().await {
-            Ok(r) if r.status().is_success() => r,
-            _ => continue,
-        };
+    let json: serde_json::Value = resp.json().await.ok()?;
+    let tag_name = json.get("tag_name")?.as_str()?.to_string();
+    let pub_date = json
+        .get("published_at")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let notes = json
+        .get("body")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
 
-        let json: serde_json::Value = match resp.json().await {
-            Ok(j) => j,
-            Err(_) => continue,
-        };
+    let mut download_url = None;
+    #[cfg(windows)]
+    let target_ext = ".exe";
+    #[cfg(not(windows))]
+    let target_ext = ".deb";
 
-        let tag_name = json.get("tag_name")?.as_str()?.to_string();
-        let pub_date = json
-            .get("published_at")
-            .and_then(|v| v.as_str())
-            .map(str::to_string);
-        let body = json
-            .get("body")
-            .and_then(|v| v.as_str())
-            .map(str::to_string);
-
-        let mut download_url = None;
-        #[cfg(windows)]
-        let target_ext = ".exe";
-        #[cfg(not(windows))]
-        let target_ext = ".deb";
-
-        if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
-            for asset in assets {
-                if let Some(name) = asset.get("name").and_then(|n| n.as_str()) {
-                    if name.ends_with(target_ext) && !name.ends_with(".sha256") {
-                        if let Some(url) =
-                            asset.get("browser_download_url").and_then(|u| u.as_str())
-                        {
-                            download_url = Some(url.to_string());
-                            break;
-                        }
+    if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
+        for asset in assets {
+            if let Some(name) = asset.get("name").and_then(|n| n.as_str()) {
+                if name.ends_with(target_ext) && !name.ends_with(".sha256") {
+                    if let Some(url) =
+                        asset.get("browser_download_url").and_then(|u| u.as_str())
+                    {
+                        download_url = Some(url.to_string());
+                        break;
                     }
                 }
             }
         }
-
-        if is_newer_semver(&tag_name, current_version) {
-            return Some((tag_name, pub_date, body, download_url));
-        } else {
-            return None;
-        }
     }
-    None
+
+    Some(ManifestInfo {
+        version: tag_name,
+        pub_date,
+        notes,
+        download_url,
+    })
 }
 
 async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
@@ -277,7 +261,7 @@ async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
         use windows_core::HSTRING;
 
         let path_h = HSTRING::from(installer_path.to_string_lossy().as_ref());
-        let args_h = HSTRING::from("/SILENT /NORESTART /SP-");
+        let args_h = HSTRING::from("/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /FORCECLOSEAPPLICATIONS");
         let op_h = HSTRING::from("open");
 
         unsafe {
@@ -446,25 +430,38 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
     }
 
     let current_version = app.package_info().version.to_string();
-    let check_outcome = match check_latest_manifest(&current_version).await {
+    let manifest = match check_latest_manifest().await {
         Some(found) => Some(found),
-        None => check_github_releases(&current_version).await,
+        None => check_github_releases().await,
     };
 
-    let (result, download_url_to_save) = match check_outcome {
-        Some((tag, date, body, download_url)) => {
-            if let Ok(mut g_url) = GITHUB_DOWNLOAD_URL.lock() {
-                *g_url = download_url.clone();
+    let (result, download_url_to_save) = match manifest {
+        Some(info) => {
+            let is_newer = is_newer_semver(&info.version, &current_version);
+            if is_newer {
+                if let Ok(mut g_url) = GITHUB_DOWNLOAD_URL.lock() {
+                    *g_url = info.download_url.clone();
+                }
+                (
+                    UpdateCheckResult {
+                        available: true,
+                        version: Some(info.version),
+                        date: info.pub_date,
+                        body: info.notes,
+                    },
+                    info.download_url,
+                )
+            } else {
+                (
+                    UpdateCheckResult {
+                        available: false,
+                        version: Some(info.version),
+                        date: info.pub_date,
+                        body: info.notes,
+                    },
+                    None,
+                )
             }
-            (
-                UpdateCheckResult {
-                    available: true,
-                    version: Some(tag),
-                    date,
-                    body: body.clone(),
-                },
-                download_url,
-            )
         }
         None => (UpdateCheckResult::default(), None),
     };
@@ -688,9 +685,13 @@ mod tests {
         assert!(is_newer_semver("1.8.0", "1.7.0"));
         assert!(is_newer_semver("v1.8.0", "1.7.0"));
         assert!(is_newer_semver("v2.0.0", "1.9.9"));
+        assert!(is_newer_semver("v2.4.0", "2.3.3"));
         assert!(is_newer_semver("1.7.1", "1.7.0"));
         assert!(!is_newer_semver("1.7.0", "1.7.0"));
         assert!(!is_newer_semver("v1.7.0", "1.7.0"));
+        assert!(!is_newer_semver("v2.4.0", "2.4.0"));
+        assert!(!is_newer_semver("2.4.0", "2.4.0"));
+        assert!(!is_newer_semver("2.3.3", "2.4.0"));
         assert!(!is_newer_semver("1.6.9", "1.7.0"));
     }
 
