@@ -10,3 +10,4 @@
 - Task 4: complete (commits 4277d9d..152f71a, tests: npm test --prefix Desktop → 13/13 pass, vite build clean)
 - Task 5: complete (commits 152f71a..d90416d, Win32 AddClipboardFormatListener, 15-item ring buffer, get/clear commands)
 - Task 6: complete (commits 152f71a..d90416d, request_notch_keyboard_focus Win32 HWND & NOACTIVATE toggling)
+- Task 7: complete (commits d90416d..d36b390, ProductivityDrawer with Files, Clipboard, Scratchpad + 16/16 tests pass)
