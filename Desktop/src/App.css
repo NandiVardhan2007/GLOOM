@@ -1364,6 +1364,22 @@ img {
 	pointer-events: auto;
 }
 
+.visualizer-interactive-wrapper {
+	padding: 2px 4px;
+	border-radius: 8px;
+	transition: background 0.15s ease, transform 0.15s ease;
+	user-select: none;
+}
+
+.visualizer-interactive-wrapper:hover {
+	background: rgba(255, 255, 255, 0.08);
+	transform: scale(1.05);
+}
+
+.visualizer-interactive-wrapper:active {
+	transform: scale(0.95);
+}
+
 .premium-title-wrap {
 	-webkit-mask-image: linear-gradient(to right, black calc(100% - 8px), transparent 100%);
 	mask-image: linear-gradient(to right, black calc(100% - 8px), transparent 100%);

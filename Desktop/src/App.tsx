@@ -296,15 +296,41 @@ function GreenDownArrowIcon() {
 	);
 }
 
+export type VisualizerMode = "bars" | "wave" | "halo";
+
 export const Visualizer = memo(function Visualizer({
 	isPlaying,
 	bars = 5,
-	height = 20
+	height = 20,
+	mode: controlledMode,
+	onModeChange
 }: {
 	isPlaying: boolean;
 	bars?: number;
 	height?: number;
+	mode?: VisualizerMode;
+	onModeChange?: (mode: VisualizerMode) => void;
 }) {
+	const [localMode, setLocalMode] = useState<VisualizerMode>(() => {
+		if (typeof localStorage !== "undefined") {
+			const saved = localStorage.getItem("gloom-visualizer-mode");
+			if (saved === "wave" || saved === "halo") return saved;
+		}
+		return "bars";
+	});
+	const activeMode = controlledMode ?? localMode;
+
+	const cycleMode = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		playTactileSound("switch");
+		const next: VisualizerMode = activeMode === "bars" ? "wave" : activeMode === "wave" ? "halo" : "bars";
+		setLocalMode(next);
+		if (typeof localStorage !== "undefined") {
+			localStorage.setItem("gloom-visualizer-mode", next);
+		}
+		if (onModeChange) onModeChange(next);
+	};
+
 	const [audioData, setAudioData] = useState<number[]>(new Array(bars).fill(0.18));
 
 	useEffect(() => {
@@ -314,8 +340,6 @@ export const Visualizer = memo(function Visualizer({
 		}
 
 		const unlisten = listen<{ frequencies: number[] }>("audio-visualization", (event) => {
-			// If we receive fewer frequencies than bars, repeat or interpolate
-			// If more, slice
 			let data = event.payload.frequencies;
 			if (data.length > bars) data = data.slice(0, bars);
 			while (data.length < bars) data.push(0.18);
@@ -327,27 +351,113 @@ export const Visualizer = memo(function Visualizer({
 		};
 	}, [isPlaying, bars]);
 
+	const avgAmplitude = audioData.reduce((acc, v) => acc + v, 0) / (audioData.length || 1);
+
 	return (
 		<div
-			className="visualizer-horizontal"
-			style={{ height: `${height}px`, width: `${bars * 6}px` }}
+			className="visualizer-interactive-wrapper"
+			onClick={cycleMode}
+			title={`Visualizer: ${activeMode} (click to switch)`}
+			style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
 		>
-			{audioData.map((value, i) => (
-				<motion.div
-					key={i}
-					className="bar-horizontal"
-					animate={{
-						scaleY: isPlaying ? Math.max(0.2, value) : 0.1,
-						opacity: isPlaying ? 0.95 : 0.5
+			{activeMode === "bars" && (
+				<div
+					className="visualizer-horizontal"
+					style={{ height: `${height}px`, width: `${bars * 6}px` }}
+				>
+					{audioData.map((value, i) => (
+						<motion.div
+							key={i}
+							className="bar-horizontal"
+							animate={{
+								scaleY: isPlaying ? Math.max(0.2, value) : 0.1,
+								opacity: isPlaying ? 0.95 : 0.5
+							}}
+							transition={{
+								type: "spring",
+								stiffness: 600,
+								damping: 30,
+								mass: 0.5
+							}}
+						/>
+					))}
+				</div>
+			)}
+
+			{activeMode === "wave" && (
+				<svg
+					width={bars * 6.5}
+					height={height}
+					viewBox="0 0 28 16"
+					style={{ overflow: "visible" }}
+				>
+					<defs>
+						<linearGradient id="wave-phosphor-grad" x1="0" y1="0" x2="1" y2="0">
+							<stop offset="0%" stopColor="#30D158" />
+							<stop offset="100%" stopColor="#34C759" />
+						</linearGradient>
+					</defs>
+					<motion.path
+						d={
+							isPlaying
+								? `M 0 8 Q 7 ${8 - avgAmplitude * 10} 14 8 T 28 8`
+								: "M 0 8 L 28 8"
+						}
+						fill="none"
+						stroke="url(#wave-phosphor-grad)"
+						strokeWidth="2.2"
+						strokeLinecap="round"
+						animate={{
+							d: isPlaying
+								? [
+										`M 0 8 Q 7 ${8 - avgAmplitude * 12} 14 8 T 28 8`,
+										`M 0 8 Q 7 ${8 + avgAmplitude * 12} 14 8 T 28 8`,
+										`M 0 8 Q 7 ${8 - avgAmplitude * 12} 14 8 T 28 8`
+									]
+								: "M 0 8 L 28 8"
+						}}
+						transition={{ repeat: Infinity, duration: 0.45, ease: "easeInOut" }}
+						style={{ filter: "drop-shadow(0 0 4px rgba(48, 209, 88, 0.6))" }}
+					/>
+				</svg>
+			)}
+
+			{activeMode === "halo" && (
+				<div
+					style={{
+						width: `${height}px`,
+						height: `${height}px`,
+						position: "relative",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center"
 					}}
-					transition={{
-						type: "spring",
-						stiffness: 600,
-						damping: 30,
-						mass: 0.5
-					}}
-				/>
-			))}
+				>
+					<motion.div
+						style={{
+							position: "absolute",
+							inset: 0,
+							borderRadius: "50%",
+							border: "1.5px solid #30D158",
+							boxShadow: "0 0 8px rgba(48, 209, 88, 0.7)"
+						}}
+						animate={{
+							scale: isPlaying ? [1, 1 + avgAmplitude * 0.4, 1] : 1,
+							opacity: isPlaying ? [0.6, 1, 0.6] : 0.3
+						}}
+						transition={{ repeat: Infinity, duration: 0.5, ease: "easeInOut" }}
+					/>
+					<div
+						style={{
+							width: 4,
+							height: 4,
+							borderRadius: "50%",
+							background: "#30D158",
+							boxShadow: "0 0 4px #30D158"
+						}}
+					/>
+				</div>
+			)}
 		</div>
 	);
 });
