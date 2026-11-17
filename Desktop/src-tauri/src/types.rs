@@ -15,12 +15,12 @@ pub struct WmiMonitorBrightnessEvent {
     pub brightness: u8,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct AudioVisualizationData {
     pub frequencies: Vec<f32>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MediaInfo {
     pub title: String,
     pub artist: String,
@@ -46,7 +46,7 @@ pub enum SystemCommand {
     ToggleVisibility(bool),
 }
 
-#[derive(Clone, Copy, Deserialize, Debug)]
+#[derive(Clone, Copy, Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct IntRect {
     pub x: i32,
     pub y: i32,
@@ -54,7 +54,7 @@ pub struct IntRect {
     pub height: i32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AppInfo {
     pub name: String,
     pub path: String,
@@ -67,18 +67,18 @@ pub struct AppInfo {
     pub is_minimized: Option<bool>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct BrightnessChangeEvent {
     pub brightness: u32,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct VolumeChangeEvent {
     pub volume: f32,
     pub is_muted: bool,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct WifiStatus {
     pub enabled: bool,
     pub connected: bool,
@@ -86,7 +86,7 @@ pub struct WifiStatus {
     pub ssid: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct AudioSessionInfo {
     pub pid: u32,
     pub name: String,
@@ -95,7 +95,7 @@ pub struct AudioSessionInfo {
     pub is_muted: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ClipboardItem {
     pub id: String,
     pub text: String,

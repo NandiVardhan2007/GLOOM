@@ -825,9 +825,11 @@ fn launch_path(path: &str) {
                             }
                             app_dirs.sort();
                             if let Some(latest) = app_dirs.last() {
-                                let exe = latest.join(Path::new(&final_path).file_name().unwrap());
-                                if exe.exists() {
-                                    final_path = exe.to_string_lossy().to_string();
+                                if let Some(file_name) = Path::new(&final_path).file_name() {
+                                    let exe = latest.join(file_name);
+                                    if exe.exists() {
+                                        final_path = exe.to_string_lossy().to_string();
+                                    }
                                 }
                             }
                         }
@@ -2064,8 +2066,10 @@ pub async fn get_app_icon(
             }
 
             if let Some(ref base64) = icon_data {
-                if let Ok(mut lock) = ICON_CACHE.get().unwrap().lock() {
-                    lock.insert(ck_clone, base64.clone());
+                if let Some(cache) = ICON_CACHE.get() {
+                    if let Ok(mut lock) = cache.lock() {
+                        lock.insert(ck_clone, base64.clone());
+                    }
                 }
             }
             icon_data
@@ -4231,11 +4235,11 @@ pub fn setup_settings_watcher(app: AppHandle) {
                     };
                     crate::utils::read_settings_file(&settings_path)
                         .ok()
-                        .map(|new_settings| {
+                        .and_then(|new_settings| {
                             let mut cache = crate::state::SETTINGS_CACHE
                                 .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
                                 .lock()
-                                .unwrap();
+                                .ok()?;
 
                             let mut changed = Vec::new();
                             for (key, value) in &new_settings {
@@ -4743,7 +4747,7 @@ pub fn request_notch_keyboard_focus(app_handle: AppHandle, focus: bool) -> Resul
                     let new_ex = ex & !(WS_EX_NOACTIVATE.0 as isize);
                     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
                     let _ = SetForegroundWindow(hwnd);
-                    let _ = SetFocus(hwnd);
+                    let _ = SetFocus(Some(hwnd));
                 } else {
                     let new_ex = ex | (WS_EX_NOACTIVATE.0 as isize);
                     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);

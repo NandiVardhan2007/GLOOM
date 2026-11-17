@@ -574,10 +574,11 @@ fn main() {
                     MenuItem::with_id(app, "settings", "Open Settings", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&settings_item, &restart_item, &quit_item])?;
                 let ah = app.handle().clone();
-                TrayIconBuilder::new()
-                    .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Gloom")
-                    .menu(&menu)
+                let mut tray_builder = TrayIconBuilder::new().tooltip("Gloom").menu(&menu);
+                if let Some(icon) = app.default_window_icon() {
+                    tray_builder = tray_builder.icon(icon.clone());
+                }
+                tray_builder
                     .on_menu_event(move |_, event| match event.id().as_ref() {
                         "quit" => {
                             diagnostics::record("shutdown", "source=tray");

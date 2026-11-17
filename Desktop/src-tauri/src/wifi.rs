@@ -31,7 +31,7 @@ use windows::Win32::NetworkManagement::WiFi::{
 /// How long to wait for Windows to report the outcome of a connection attempt.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(25);
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct WifiNetwork {
     pub ssid: String,
     /// Signal quality, 0-100.
@@ -43,7 +43,7 @@ pub struct WifiNetwork {
     pub saved: bool,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct WifiNetworkList {
     pub networks: Vec<WifiNetwork>,
     /// Windows refused to list networks because location access is off for

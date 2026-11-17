@@ -1539,8 +1539,8 @@ pub fn capture_hwnd_to_base64(hwnd: HWND, max_width: u32, max_height: u32) -> Op
         use windows::Win32::UI::WindowsAndMessaging::{
             GetWindowPlacement, IsWindow, WINDOWPLACEMENT,
         };
-        #[link(name = "user32")]
-        extern "system" {
+        // SAFETY: user32!PrintWindow is the standard Win32 window render capture API
+        unsafe extern "system" {
             pub fn PrintWindow(hwnd: HWND, hdcBlt: HDC, nFlags: u32) -> i32;
         }
 

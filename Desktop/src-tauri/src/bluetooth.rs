@@ -45,7 +45,7 @@ const PROP_BATTERY: &str = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
 /// How long Windows waits for the user to answer a pairing prompt.
 const PAIRING_ANSWER_TIMEOUT: Duration = Duration::from_secs(60);
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct BtDevice {
     pub id: String,
     pub name: String,

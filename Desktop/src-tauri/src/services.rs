@@ -2190,8 +2190,10 @@ static MH_RIGHT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LEFT_ENTRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_RIGHT_ENTRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LAST_MONITOR_UPDATE_MS: AtomicI64 = AtomicI64::new(0);
-static MH_CACHED_MON_POS: Mutex<Option<(i32, i32)>> = Mutex::new(None);
-static MH_CACHED_MON_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+static MH_CACHED_MON_X: AtomicI32 = AtomicI32::new(0);
+static MH_CACHED_MON_Y: AtomicI32 = AtomicI32::new(0);
+static MH_CACHED_MON_W: AtomicU32 = AtomicU32::new(1920);
+static MH_CACHED_MON_H: AtomicU32 = AtomicU32::new(1080);
 static CAPTURE_UI_ACTIVE: AtomicBool = AtomicBool::new(false);
 static CAPTURE_RECHECK: AtomicBool = AtomicBool::new(true);
 static CAPTURE_LAST_SCAN_MS: AtomicI64 = AtomicI64::new(0);
@@ -2604,17 +2606,9 @@ fn top_edge_dwell_ms(app_handle: &AppHandle) -> i64 {
 /// True when the cursor sits inside the top-edge hot band on the primary
 /// monitor. Shared by the dwell gate and top-edge hit-testing continuity.
 fn in_top_edge_band(cursor: windows::Win32::Foundation::POINT, scale: f64) -> bool {
-    let (mon_x, mon_y) = MH_CACHED_MON_POS
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .unwrap_or((0, 0));
-    let mon_w = MH_CACHED_MON_SIZE
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .map(|s| s.0 as i32)
-        .unwrap_or(1920);
+    let mon_x = MH_CACHED_MON_X.load(Ordering::Relaxed);
+    let mon_y = MH_CACHED_MON_Y.load(Ordering::Relaxed);
+    let mon_w = MH_CACHED_MON_W.load(Ordering::Relaxed) as i32;
 
     cursor.y <= (mon_y + (TOP_EDGE_BAND_PX * scale) as i32)
         && cursor.x >= mon_x
@@ -2867,17 +2861,10 @@ fn dock_edge_armed_for(
     now: i64,
     scale: f64,
 ) -> bool {
-    let (mon_x, mon_y) = MH_CACHED_MON_POS
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .unwrap_or((0, 0));
-    let (mon_w, mon_h) = MH_CACHED_MON_SIZE
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .map(|s| (s.0 as i32, s.1 as i32))
-        .unwrap_or((1920, 1080));
+    let mon_x = MH_CACHED_MON_X.load(Ordering::Relaxed);
+    let mon_y = MH_CACHED_MON_Y.load(Ordering::Relaxed);
+    let mon_w = MH_CACHED_MON_W.load(Ordering::Relaxed) as i32;
+    let mon_h = MH_CACHED_MON_H.load(Ordering::Relaxed) as i32;
 
     let in_band = cursor.y >= (mon_y + mon_h - (BOTTOM_EDGE_BAND_PX * scale) as i32)
         && cursor.x >= mon_x
@@ -2942,17 +2929,10 @@ fn update_dock_interaction(
         return;
     }
 
-    let (mon_x, mon_y) = MH_CACHED_MON_POS
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .unwrap_or((0, 0));
-    let (mon_w, mon_h) = MH_CACHED_MON_SIZE
-        .lock()
-        .ok()
-        .and_then(|g| *g)
-        .map(|s| (s.0 as i32, s.1 as i32))
-        .unwrap_or((1920, 1080));
+    let mon_x = MH_CACHED_MON_X.load(Ordering::Relaxed);
+    let mon_y = MH_CACHED_MON_Y.load(Ordering::Relaxed);
+    let mon_w = MH_CACHED_MON_W.load(Ordering::Relaxed) as i32;
+    let mon_h = MH_CACHED_MON_H.load(Ordering::Relaxed) as i32;
 
     let mut is_click_interactive = false;
     let mut is_hovered = false;
@@ -3276,18 +3256,18 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
             if let Ok(Some(monitor)) = app_handle.primary_monitor() {
                 let pos = *monitor.position();
                 let size = *monitor.size();
-                *MH_CACHED_MON_POS.lock().unwrap() = Some((pos.x, pos.y));
-                *MH_CACHED_MON_SIZE.lock().unwrap() = Some((size.width, size.height));
+                MH_CACHED_MON_X.store(pos.x, Ordering::Relaxed);
+                MH_CACHED_MON_Y.store(pos.y, Ordering::Relaxed);
+                MH_CACHED_MON_W.store(size.width, Ordering::Relaxed);
+                MH_CACHED_MON_H.store(size.height, Ordering::Relaxed);
                 MH_LAST_MONITOR_UPDATE_MS.store(now, Ordering::Relaxed);
             }
         }
 
-        let cached_pos = MH_CACHED_MON_POS.lock().unwrap().unwrap_or((0, 0));
-        let cached_size = MH_CACHED_MON_SIZE.lock().unwrap().unwrap_or((1920, 1080));
-        let mon_x = cached_pos.0;
-        let mon_y = cached_pos.1;
-        let mon_w = cached_size.0 as i32;
-        let mon_h = cached_size.1 as i32;
+        let mon_x = MH_CACHED_MON_X.load(Ordering::Relaxed);
+        let mon_y = MH_CACHED_MON_Y.load(Ordering::Relaxed);
+        let mon_w = MH_CACHED_MON_W.load(Ordering::Relaxed) as i32;
+        let mon_h = MH_CACHED_MON_H.load(Ordering::Relaxed) as i32;
 
         let fg_fs = CURRENT_FOREGROUND_FULLSCREEN.load(Ordering::Relaxed);
 
@@ -3742,7 +3722,8 @@ fn collect_shortcuts(dir: &std::path::Path, apps: &mut Vec<AppInfo>, depth: i32)
                 .extension()
                 .is_some_and(|e| e.eq_ignore_ascii_case("lnk"))
             {
-                let name = path.file_stem().unwrap().to_string_lossy().to_string();
+                let Some(stem) = path.file_stem() else { continue; };
+                let name = stem.to_string_lossy().to_string();
                 if is_helper_name(&name) || name.starts_with("Install") {
                     continue;
                 }
@@ -3805,9 +3786,9 @@ pub fn sync_overlays(app: &AppHandle) {
 
 pub fn register_appbar(window: tauri::WebviewWindow) {
     if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
+        let Ok(hwnd) = window.hwnd() else { return; };
         let m_size = monitor.size();
         let m_pos = monitor.position();
-        let hwnd = window.hwnd().unwrap();
         let scale = monitor.scale_factor();
         let gloom_scale = crate::utils::get_gloom_scale(window.app_handle());
         let ph = ((420.0 * gloom_scale) * scale) as i32;
@@ -3819,7 +3800,7 @@ pub fn register_appbar(window: tauri::WebviewWindow) {
                 SHAppBarMessage, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA,
             };
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+                GetWindowRect, SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
             };
 
             // Set styles and sanitize frame
@@ -4059,7 +4040,8 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
                 APPBARDATA,
             };
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowRect, RegisterWindowMessageW, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+                GetWindowRect, RegisterWindowMessageW, SetWindowPos, SWP_FRAMECHANGED,
+                SWP_NOACTIVATE, SWP_NOZORDER,
             };
 
             // Set extended styles and sanitize frame

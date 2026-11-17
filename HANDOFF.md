@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-17 21:52 IST  
+> **Last Updated**: 2026-11-17 22:05 IST  
 > **Release Version**: 2.4.0 (versionCode 240) — Standalone Desktop Dynamic Island & Modular Island Card Engine  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), Phase 11 In-App Updater overhaul (instant update check, clean silent uninstaller & zero-leftover installer upgrade), and CI build fixes: corrected Win32 `SetFocus` import in `commands.rs`, removed `--locked` from CI `cargo check` to permit version stamping, purged unused `tauri-plugin-updater` dependency, and cleaned up unused Win32 imports. All 16/16 Node tests pass, clean Vite production bundle.
+> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), Phase 11 In-App Updater overhaul (instant update check, clean silent uninstaller & zero-leftover installer upgrade), and Phase 12 Comprehensive Rust Codebase Hardening via `/rust-skills`: zero-panic hardening across all production paths (`commands.rs`, `services.rs`, `main.rs`), lock-free atomic integers in high-frequency 1000Hz mouse hook (`MH_CACHED_MON_X/Y/W/H`), persistent HTTP connection pooling (`get_updater_client`), Rust 2024 safe extern blocks (`PrintWindow`), and standard trait derivations (`Debug`, `PartialEq`, `Eq`) across all IPC structs in `types.rs`, `wifi.rs`, and `bluetooth.rs`. All 16/16 Node tests pass, clean Vite production bundle.
 
 ---
 
@@ -13,6 +13,28 @@ GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for 
 1. **GLOOM Desktop Notch & Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
 2. **Modular Island Card Engine**: Multi-mode visualizers, dynamic album art glow aura, Web Audio tactile transients, live LRCLIB lyrics, unified productivity drawer (Files, Clipboard history, Scratchpad notes), and real-time Live Activities (browser download watcher).
 3. **Fluid macOS-Style Dock**: Windows taskbar replacement with continuous magnification, running/minimized window indicators, launch bounce, and high-DPI icon extraction.
+
+### 🌟 Phase 12 Complete — Comprehensive Rust Codebase Hardening via `/rust-skills` (2026-11-17):
+1. **Zero-Panic Resilience (`err-no-unwrap-prod`, `anti-unwrap-abuse`)**:
+   - Replaced all 6 production `.unwrap()` hazards with safe pattern matching:
+     - `commands.rs:828`: Safe `if let Some(file_name) = Path::new(&final_path).file_name()`.
+     - `commands.rs:2067`: Safe `if let Some(cache) = ICON_CACHE.get()`.
+     - `commands.rs:4238`: Safe `if let Ok(mut cache) = SETTINGS_CACHE.get_or_init(...).lock()`.
+     - `services.rs:3725`: Safe `let Some(stem) = path.file_stem() else { continue; };`.
+     - `services.rs:3791`: Safe `let Ok(hwnd) = window.hwnd() else { return; };`.
+     - `main.rs:578`: Crash-proof `if let Some(icon) = app.default_window_icon()`.
+2. **Lock-Free High-Frequency Mouse Hook Atomics (`conc-atomic-ordering`, `own-mutex-interior`)**:
+   - Replaced `MH_CACHED_MON_POS: Mutex<Option<(i32, i32)>>` and `MH_CACHED_MON_SIZE: Mutex<Option<(u32, u32)>>` in `services.rs` with lock-free atomic primitives: `MH_CACHED_MON_X: AtomicI32`, `MH_CACHED_MON_Y: AtomicI32`, `MH_CACHED_MON_W: AtomicU32`, `MH_CACHED_MON_H: AtomicU32`.
+   - Eliminates mutex locking, contention, and poisoning risks on every mouse move in the 1000Hz `WH_MOUSE_LL` hook.
+3. **Connection Pooling & Memory Optimization (`perf-`, `mem-`)**:
+   - Implemented `get_updater_client()` using `OnceLock<Option<reqwest::Client>>` in `updater.rs` to share TLS state and socket connections across manifest and GitHub queries.
+4. **Rust 2024 Safety & API Traits (`unsafe-extern-block`, `api-common-traits`)**:
+   - Updated `utils.rs:1544` extern declaration with `// SAFETY:` comment and `unsafe extern "system"` block.
+   - Derived `Debug, PartialEq, Eq` across all public IPC structs in `types.rs`, `bluetooth.rs`, and `wifi.rs`.
+
+5. **Win32 Focus & Frame Reconcile Fixes (`services.rs`, `commands.rs`)**:
+   - Fixed `SetFocus(Some(hwnd))` call in `commands.rs` to pass `Option<HWND>` per `windows 0.61` contract.
+   - Restored `SWP_FRAMECHANGED` import in `services.rs:3803` and `services.rs:4043` required by window repositioning routines.
 
 ### 🌟 Phase 11 Complete — Instant Update Check & Clean Zero-Leftover Upgrade (2026-11-17):
 1. **Instantaneous Update Check (`updater.rs`)**:

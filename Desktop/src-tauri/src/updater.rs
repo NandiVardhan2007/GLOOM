@@ -58,12 +58,21 @@ struct ManifestInfo {
     download_url: Option<String>,
 }
 
+fn get_updater_client() -> Option<&'static reqwest::Client> {
+    static CLIENT: std::sync::OnceLock<Option<reqwest::Client>> = std::sync::OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
+                .user_agent("GLOOM-Desktop-Updater")
+                .build()
+                .ok()
+        })
+        .as_ref()
+}
+
 async fn check_latest_manifest() -> Option<ManifestInfo> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
-        .user_agent("GLOOM-Desktop-Updater")
-        .build()
-        .ok()?;
+    let client = get_updater_client()?;
 
     let endpoint = "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/latest.json";
     let resp = client.get(endpoint).send().await.ok()?;
@@ -116,11 +125,7 @@ async fn check_latest_manifest() -> Option<ManifestInfo> {
 }
 
 async fn check_github_releases() -> Option<ManifestInfo> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
-        .user_agent("GLOOM-Desktop-Updater")
-        .build()
-        .ok()?;
+    let client = get_updater_client()?;
 
     let endpoint = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest";
     let resp = client.get(endpoint).send().await.ok()?;
