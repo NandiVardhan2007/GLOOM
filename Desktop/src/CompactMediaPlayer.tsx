@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { Visualizer } from "./App";
+import { playTactileSound } from "./utils/audioFeedback.ts";
 import { useLyrics, LyricLine } from "./hooks/useLyrics";
 import {
 	PlayIcon,
@@ -378,6 +379,7 @@ export function CompactMediaPlayer({
 			backendPosRef.current = seekPos;
 			backendTimeRef.current = Date.now();
 			setDisplayPosition(seekPos);
+			playTactileSound("tick");
 			invoke("media_seek", { positionMs: seekPos }).catch(() => {});
 		},
 		[]
@@ -391,6 +393,7 @@ export function CompactMediaPlayer({
 	);
 
 	const toggleLyrics = () => {
+		playTactileSound("switch");
 		if (onLyricsExpandedChange) {
 			onLyricsExpandedChange(!lyricsExpanded);
 		}

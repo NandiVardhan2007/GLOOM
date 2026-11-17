@@ -19,6 +19,7 @@ import {
 	MusicNoteIcon
 } from "./icons";
 import { CompactMediaPlayer } from "./CompactMediaPlayer";
+import { playTactileSound } from "./utils/audioFeedback.ts";
 import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
@@ -1395,6 +1396,7 @@ function App() {
 			const panel = asNotchPanel(gloomModeRef.current);
 			if (panel && rememberPanelEnabledRef.current) rememberPanelRef.current(panel);
 			setIsOpen(false);
+			playTactileSound("pop");
 		}
 		setGloomMode(restingModeRef.current);
 	}, []);
@@ -1904,6 +1906,7 @@ function App() {
 	// Expands the notch into a panel, or into an activity's own view.
 	const openNotch = (view: NotchPanel | "music" | "shelf") => {
 		if (gloomMode === "announcement") return;
+		playTactileSound("snap");
 		setIsOpen(true);
 		setGloomMode(view);
 	};
