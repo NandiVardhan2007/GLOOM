@@ -2562,7 +2562,7 @@ pub fn open_system_tray() {
         return;
     }
     tauri::async_runtime::spawn_blocking(move || unsafe {
-        use std::sync::atomic::{AtomicIsize, Ordering};
+        use std::sync::atomic::Ordering;
         use windows::core::PCSTR;
         use windows::Win32::UI::WindowsAndMessaging::{
             FindWindowA, GetWindowLongA, IsWindowVisible, SetLayeredWindowAttributes,
@@ -4724,8 +4724,9 @@ static PREVIOUS_FOREGROUND_HWND: AtomicIsize = AtomicIsize::new(0);
 #[tauri::command]
 pub fn request_notch_keyboard_focus(app_handle: AppHandle, focus: bool) -> Result<(), String> {
     use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowLongPtrW, SetFocus, SetForegroundWindow,
+        GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow,
         SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
     };
 

@@ -67,7 +67,7 @@ jobs:
 
       - name: Verify Cargo Check & Compile Windows Test Suite
         run: |
-          cargo check --locked --manifest-path Desktop/src-tauri/Cargo.toml
+          cargo check --manifest-path Desktop/src-tauri/Cargo.toml
           cargo test --manifest-path Desktop/src-tauri/Cargo.toml
 
       - name: Compile Windows Tauri Desktop Binary (Release)

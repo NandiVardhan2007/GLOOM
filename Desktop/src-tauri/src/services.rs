@@ -3819,9 +3819,7 @@ pub fn register_appbar(window: tauri::WebviewWindow) {
                 SHAppBarMessage, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA,
             };
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-                SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
-                WS_EX_TOOLWINDOW,
+                GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
             };
 
             // Set styles and sanitize frame
@@ -4061,9 +4059,7 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
                 APPBARDATA,
             };
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, GetWindowRect, RegisterWindowMessageW, SetWindowLongPtrW,
-                SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER,
-                WS_EX_NOACTIVATE as WS_EX_NA, WS_EX_TOOLWINDOW,
+                GetWindowRect, RegisterWindowMessageW, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
             };
 
             // Set extended styles and sanitize frame

@@ -1899,7 +1899,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gloom"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "base64 0.22.1",
  "cairo-rs",
@@ -1919,7 +1919,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-drag",
  "tauri-plugin-opener",
- "tauri-plugin-updater",
  "tokio",
  "webview2-com",
  "window-vibrancy 0.7.1",

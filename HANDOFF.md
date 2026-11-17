@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-17 21:45 IST  
+> **Last Updated**: 2026-11-17 21:52 IST  
 > **Release Version**: 2.4.0 (versionCode 240) — Standalone Desktop Dynamic Island & Modular Island Card Engine  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), and Phase 11 In-App Updater overhaul: instantaneous update check (<300ms) with removed dead endpoints/fallbacks, and clean Inno Setup installer upgrade with silent previous version uninstallation, zero-leftover directory wiping, and automatic relaunch on silent update. All 16/16 Node tests pass, clean Vite production bundle.
+> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), Phase 11 In-App Updater overhaul (instant update check, clean silent uninstaller & zero-leftover installer upgrade), and CI build fixes: corrected Win32 `SetFocus` import in `commands.rs`, removed `--locked` from CI `cargo check` to permit version stamping, purged unused `tauri-plugin-updater` dependency, and cleaned up unused Win32 imports. All 16/16 Node tests pass, clean Vite production bundle.
 
 ---
 
