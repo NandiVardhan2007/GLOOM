@@ -31,6 +31,7 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { NotchFlares } from "./components/NotchFlares";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import { ProductivityDrawer } from "./components/cards/ProductivityDrawer";
+import { LiveActivityBanner, type LiveActivityItem } from "./components/cards/LiveActivityBanner";
 import { WifiPanel } from "./components/WifiPanel";
 import { BluetoothPanel } from "./components/BluetoothPanel";
 import {
@@ -50,7 +51,8 @@ import {
 	Inbox,
 	Music,
 	Folder,
-	Lock
+	Lock,
+	Download
 } from "lucide-react";
 
 /**
@@ -784,6 +786,8 @@ function App() {
 	const timeCenterRef = useRef<HTMLDivElement>(null);
 	const musicBubbleRef = useRef<HTMLButtonElement>(null);
 	const shelfBubbleRef = useRef<HTMLButtonElement>(null);
+	const downloadBubbleRef = useRef<HTMLButtonElement>(null);
+	const [liveActivities, setLiveActivities] = useState<LiveActivityItem[]>([]);
 	const reportNotchRect = useRef<() => void>(() => {});
 	// The pill's target box in window CSS px, and the sender that applies the
 	// notch window's region (holding earlier regions while it shrinks).
@@ -812,6 +816,7 @@ function App() {
 				[".control-center-panel", 24],
 				[".shelf-panel", 24],
 				[".productivity-drawer-container", 24],
+				[".live-activity-capsule", 20],
 				[".calendar-panel", 24],
 				[".timer-panel", 24]
 			])
@@ -870,7 +875,7 @@ function App() {
 		const updateRect = () => {
 			if (gloomRef.current && windowLabel === "main") {
 				// Activity bubbles sit beside the pill and must stay clickable too.
-				const rects = [gloomRef.current, musicBubbleRef.current, shelfBubbleRef.current]
+				const rects = [gloomRef.current, musicBubbleRef.current, shelfBubbleRef.current, downloadBubbleRef.current]
 					.filter((el): el is NonNullable<typeof el> => el !== null)
 					.map((el) => el.getBoundingClientRect());
 				const left = Math.min(...rects.map((r) => r.left));
@@ -1102,11 +1107,19 @@ function App() {
 			releaseNotchHover();
 		});
 
+		// Live Activity updates (active browser downloads)
+		const unlistenLiveActivities = listen<LiveActivityItem[]>("live-activity-update", (event) => {
+			if (Array.isArray(event.payload)) {
+				setLiveActivities(event.payload);
+			}
+		});
+
 		return () => {
 			unlistenVisibility.then((f) => f());
 			unlistenNotchOverlap.then((f) => f());
 			unlistenNotchEdgeHover.then((f) => f());
 			unlistenNotchPointerLeft.then((f) => f());
+			unlistenLiveActivities.then((f) => f());
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [windowLabel]);
@@ -2017,6 +2030,8 @@ function App() {
 	const showMusicBubble = musicActivity && timerActive && !isOpen && isVisible && !isHidden;
 	const showShelfBubble =
 		shelfItems.length > 0 && !isOpen && isVisible && !isHidden && gloomMode !== "announcement";
+	const showDownloadBubble =
+		liveActivities.length > 0 && !isOpen && isVisible && !isHidden && gloomMode !== "announcement";
 	restingModeRef.current = collapsedMode;
 	gloomModeRef.current = gloomMode;
 
@@ -3979,6 +3994,67 @@ function App() {
 						</motion.button>
 					)}
 				</AnimatePresence>
+				{/* Active Browser Download Live Activity Bubble */}
+				<AnimatePresence onExitComplete={() => reportNotchRect.current()}>
+					{showDownloadBubble && (
+						<motion.button
+							key="download-bubble"
+							ref={downloadBubbleRef}
+							type="button"
+							className={`activity-bubble download-bubble ${isHovered ? "expanded" : ""}`}
+							aria-label={`Downloading: ${liveActivities[0]?.title ?? ""}`}
+							style={{ left: "50%" }}
+							initial={{
+								opacity: 0,
+								scale: 0.4,
+								x: -28,
+								marginLeft: getDynamicWidth() / 2 + (showMusicBubble ? 48 : 8)
+							}}
+							animate={{
+								opacity: 1,
+								scale: 1,
+								x: 0,
+								marginLeft: getDynamicWidth() / 2 + (showMusicBubble ? 48 : 8)
+							}}
+							exit={{ opacity: 0, scale: 0.4, x: -28 }}
+							transition={{
+								type: "spring",
+								stiffness: 400,
+								damping: 31,
+								opacity: { duration: 0.15 }
+							}}
+							onAnimationComplete={() => reportNotchRect.current()}
+							onClick={(e) => {
+								e.stopPropagation();
+								playTactileSound("snap");
+								invoke("open_system_action", { action: "file-explorer" }).catch(() => {});
+							}}
+						>
+							<Download size={13} strokeWidth={2.4} className="download-bubble-icon" />
+							<span>{liveActivities[0]?.detail ?? "Downloading"}</span>
+						</motion.button>
+					)}
+				</AnimatePresence>
+
+				{/* Floating Live Activity Banner for expanded notch view */}
+				{isOpen && liveActivities.length > 0 && (
+					<div
+						className="live-activity-banner-anchor"
+						style={{
+							position: "absolute",
+							top: getDynamicHeight() + 10,
+							left: "50%",
+							transform: "translateX(-50%)",
+							zIndex: 10
+						}}
+					>
+						<LiveActivityBanner
+							activities={liveActivities}
+							onOpenDownloads={() => invoke("open_system_action", { action: "file-explorer" }).catch(() => {})}
+							onDismiss={(id) => setLiveActivities((prev) => prev.filter((a) => a.id !== id))}
+						/>
+					</div>
+				)}
 			</div>
 		</div>
 	);

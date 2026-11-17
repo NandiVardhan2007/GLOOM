@@ -227,3 +227,6 @@ pub fn get_clipboard_items() -> Vec<crate::types::ClipboardItem> {
 
 pub fn clear_clipboard_items() {}
 
+pub fn setup_download_watcher(_app: AppHandle) {}
+
+

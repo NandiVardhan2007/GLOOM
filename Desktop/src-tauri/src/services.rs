@@ -4825,6 +4825,79 @@ fn recover_from_webview_failure(handle: &AppHandle) {
     });
 }
 
+pub fn setup_download_watcher(app_handle: AppHandle) {
+    std::thread::spawn(move || {
+        let downloads_path = match std::env::var("USERPROFILE") {
+            Ok(p) => std::path::PathBuf::from(p).join("Downloads"),
+            Err(_) => match std::env::var("HOME") {
+                Ok(h) => std::path::PathBuf::from(h).join("Downloads"),
+                Err(_) => return,
+            },
+        };
+
+        let mut last_items: Vec<crate::types::LiveActivityItem> = Vec::new();
+
+        while !SHUTTING_DOWN.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(2000));
+            if SHUTTING_DOWN.load(Ordering::Relaxed) {
+                break;
+            }
+
+            let mut active_downloads = Vec::new();
+            if let Ok(entries) = std::fs::read_dir(&downloads_path) {
+                for entry in entries.flatten() {
+                    if let Ok(ft) = entry.file_type() {
+                        if ft.is_file() {
+                            let file_name = entry.file_name().to_string_lossy().to_string();
+                            let is_partial = file_name.ends_with(".crdownload")
+                                || file_name.ends_with(".part")
+                                || file_name.ends_with(".download");
+                            if is_partial {
+                                let clean_name = file_name
+                                    .trim_end_matches(".crdownload")
+                                    .trim_end_matches(".part")
+                                    .trim_end_matches(".download")
+                                    .to_string();
+                                let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                                let detail = format_file_size_human(size_bytes);
+                                active_downloads.push(crate::types::LiveActivityItem {
+                                    id: file_name,
+                                    activity_type: "download".to_string(),
+                                    title: clean_name,
+                                    progress: None,
+                                    detail,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if active_downloads != last_items {
+                let _ = app_handle.emit("live-activity-update", &active_downloads);
+                last_items = active_downloads;
+            }
+        }
+    });
+}
+
+fn format_file_size_human(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = KB * 1024.0;
+    const GB: f64 = MB * 1024.0;
+
+    let b = bytes as f64;
+    if b >= GB {
+        format!("{:.1} GB", b / GB)
+    } else if b >= MB {
+        format!("{:.1} MB", b / MB)
+    } else if b >= KB {
+        format!("{:.0} KB", b / KB)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

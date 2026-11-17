@@ -103,3 +103,14 @@ pub struct ClipboardItem {
     pub char_count: usize,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LiveActivityItem {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub activity_type: String,
+    pub title: String,
+    pub progress: Option<f32>,
+    pub detail: String,
+}
+
+

@@ -508,6 +508,7 @@ fn main() {
             services::setup_keyboard_hook(app.handle().clone());
             services::setup_key_lock_monitor(app.handle().clone());
             services::setup_fullscreen_game_monitor(app.handle().clone());
+            services::setup_download_watcher(app.handle().clone());
             setup_taskbar_hook();
             setup_audio_visualization(app.handle().clone());
             setup_settings_watcher(app.handle().clone());
