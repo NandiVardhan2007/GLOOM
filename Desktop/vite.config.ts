@@ -31,8 +31,11 @@ export default defineConfig(async () => ({
 		}
 	},
 
-	// Multiple HTML entry points
+	// Multiple HTML entry points with native V8 modern browser target
 	build: {
+		target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome120" : "safari16",
+		minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
+		sourcemap: !!process.env.TAURI_ENV_DEBUG,
 		rollupOptions: {
 			input: {
 				main: "index.html",

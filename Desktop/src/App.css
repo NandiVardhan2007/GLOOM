@@ -56,6 +56,9 @@ img {
 	flex-direction: column;
 	position: relative;
 	box-sizing: border-box;
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	will-change: width, height, transform;
 	/* No overflow:hidden — pseudo-elements for concave corners extend outside the box */
 
 	font-family:
@@ -1395,6 +1398,8 @@ img {
 .visualizer-interactive-wrapper {
 	padding: 2px 4px;
 	border-radius: 8px;
+	transform: translateZ(0);
+	will-change: transform;
 	transition: background 0.15s ease, transform 0.15s ease;
 	user-select: none;
 }

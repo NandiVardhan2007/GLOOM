@@ -71,7 +71,7 @@ export async function extractDominantPalette(imageUrl: string): Promise<Dominant
 				const size = 16;
 				canvas.width = size;
 				canvas.height = size;
-				const ctx = canvas.getContext("2d");
+				const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 				if (!ctx) {
 					resolve(DEFAULT_PALETTE);

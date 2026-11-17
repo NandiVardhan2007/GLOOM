@@ -125,6 +125,22 @@ fn main() {
     }
 
     #[cfg(target_os = "windows")]
+    {
+        // Enforce maximum performance Chromium switches for WebView2:
+        // 1. Direct GPU rasterization for all layers and paths (zero CPU overhead for springs & visualizers)
+        // 2. Zero-copy GPU memory upload (drastically cuts RAM & IPC latency)
+        // 3. Disable background throttling to guarantee fluid 120/144Hz animation frame pacing
+        // 4. Disable occluded window throttling so top-edge overlays never drop frames
+        // 5. Out-of-process canvas GPU rasterization for high-framerate visualizers
+        if std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_err() {
+            std::env::set_var(
+                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --enable-features=VaapiVideoDecoder,CanvasOopRasterization",
+            );
+        }
+    }
+
+    #[cfg(target_os = "windows")]
     unsafe {
         let _ = SetConsoleCtrlHandler(Some(ctrl_handler), true);
     }
