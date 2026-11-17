@@ -299,7 +299,10 @@ fn main() {
             bluetooth::bluetooth_pairing_respond,
             bluetooth::bluetooth_unpair,
             get_fullscreen_game_state,
-            set_notch_open
+            set_notch_open,
+            get_clipboard_history,
+            clear_clipboard_history,
+            request_notch_keyboard_focus
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());

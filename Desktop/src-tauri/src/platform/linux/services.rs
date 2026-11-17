@@ -220,3 +220,10 @@ pub fn setup_system_worker(_app: AppHandle) -> Sender<SystemCommand> {
 
     tx
 }
+
+pub fn get_clipboard_items() -> Vec<crate::types::ClipboardItem> {
+    vec![]
+}
+
+pub fn clear_clipboard_items() {}
+

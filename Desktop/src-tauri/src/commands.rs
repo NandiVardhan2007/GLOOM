@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{AppHandle, Emitter, Manager, Window};
 use windows::core::Interface;
 use windows::Win32::Foundation::{HWND, LPARAM};
@@ -2562,7 +2562,7 @@ pub fn open_system_tray() {
         return;
     }
     tauri::async_runtime::spawn_blocking(move || unsafe {
-        use std::sync::atomic::Ordering;
+        use std::sync::atomic::{AtomicIsize, Ordering};
         use windows::core::PCSTR;
         use windows::Win32::UI::WindowsAndMessaging::{
             FindWindowA, GetWindowLongA, IsWindowVisible, SetLayeredWindowAttributes,
@@ -4718,3 +4718,54 @@ pub async fn activate_tray_icon(tray_id: String) -> Result<(), String> {
 pub fn set_notch_open(open: bool) {
     crate::state::NOTCH_IS_OPEN.store(open, std::sync::atomic::Ordering::Relaxed);
 }
+
+static PREVIOUS_FOREGROUND_HWND: AtomicIsize = AtomicIsize::new(0);
+
+#[tauri::command]
+pub fn request_notch_keyboard_focus(app_handle: AppHandle, focus: bool) -> Result<(), String> {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowLongPtrW, SetFocus, SetForegroundWindow,
+        SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+    };
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        if let Ok(raw_hwnd) = window.hwnd() {
+            let hwnd = HWND(raw_hwnd.0 as _);
+            unsafe {
+                let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+                if focus {
+                    let current_fg = GetForegroundWindow();
+                    if !current_fg.0.is_null() && current_fg.0 != hwnd.0 {
+                        PREVIOUS_FOREGROUND_HWND.store(current_fg.0 as isize, Ordering::Relaxed);
+                    }
+                    let new_ex = ex & !(WS_EX_NOACTIVATE.0 as isize);
+                    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
+                    let _ = SetForegroundWindow(hwnd);
+                    let _ = SetFocus(hwnd);
+                } else {
+                    let new_ex = ex | (WS_EX_NOACTIVATE.0 as isize);
+                    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
+                    let prev = PREVIOUS_FOREGROUND_HWND.swap(0, Ordering::Relaxed);
+                    if prev != 0 {
+                        let prev_hwnd = HWND(prev as _);
+                        let _ = SetForegroundWindow(prev_hwnd);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_clipboard_history() -> Result<Vec<crate::types::ClipboardItem>, String> {
+    Ok(crate::services::get_clipboard_items())
+}
+
+#[tauri::command]
+pub fn clear_clipboard_history() -> Result<(), String> {
+    crate::services::clear_clipboard_items();
+    Ok(())
+}
+

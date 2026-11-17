@@ -4574,11 +4574,20 @@ pub fn setup_display_change_monitor(app_handle: AppHandle) {
             Err(_) => return,
         };
 
+        #[link(name = "user32")]
+        extern "system" {
+            fn AddClipboardFormatListener(hwnd: HWND) -> BOOL;
+            fn RemoveClipboardFormatListener(hwnd: HWND) -> BOOL;
+        }
+        let _ = AddClipboardFormatListener(hwnd);
+
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, Some(hwnd), 0, 0).as_bool() {
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
+
+        let _ = RemoveClipboardFormatListener(hwnd);
     });
 }
 
@@ -4597,6 +4606,7 @@ unsafe extern "system" fn display_monitor_proc(
     const PBT_APMRESUMESUSPEND: u32 = 0x0007;
     const WM_DWMCOLORIZATIONCOLORCHANGED: u32 = 0x0320;
     const WM_SETTINGCHANGE: u32 = 0x001A;
+    const WM_CLIPBOARDUPDATE: u32 = 0x031D;
 
     if msg != 0 && msg == TASKBAR_CREATED_MESSAGE.load(Ordering::Relaxed) {
         // Explorer has rebuilt its AppBar list. A primary-monitor DPI change
@@ -4655,6 +4665,16 @@ unsafe extern "system" fn display_monitor_proc(
             }
             LRESULT(0)
         }
+        WM_CLIPBOARDUPDATE => {
+            if let Some(app_handle) = DISPLAY_MONITOR_HANDLE.get() {
+                let ah = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(60)).await;
+                    process_clipboard_update(&ah);
+                });
+            }
+            LRESULT(0)
+        }
         WM_DWMCOLORIZATIONCOLORCHANGED | WM_SETTINGCHANGE => {
             if let Some(app_handle) = DISPLAY_MONITOR_HANDLE.get() {
                 let color_hex = if let Some(c) = crate::commands::get_windows_accent_color() {
@@ -4682,6 +4702,55 @@ unsafe extern "system" fn display_monitor_proc(
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
+}
+
+static CLIPBOARD_HISTORY: Mutex<Vec<crate::types::ClipboardItem>> = Mutex::new(Vec::new());
+
+pub fn get_clipboard_items() -> Vec<crate::types::ClipboardItem> {
+    CLIPBOARD_HISTORY.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+pub fn clear_clipboard_items() {
+    let mut history = CLIPBOARD_HISTORY.lock().unwrap_or_else(|e| e.into_inner());
+    history.clear();
+}
+
+pub fn process_clipboard_update(app_handle: &AppHandle) {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    if let Ok(text) = app_handle.clipboard().read_text() {
+        let trimmed = text.trim();
+        if trimmed.is_empty() || text.len() > 65536 {
+            return;
+        }
+
+        let mut history = CLIPBOARD_HISTORY.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(first) = history.first() {
+            if first.text == text {
+                return;
+            }
+        }
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let item = crate::types::ClipboardItem {
+            id: format!("{}_{}", now, history.len()),
+            text: text.clone(),
+            timestamp: now,
+            char_count: trimmed.chars().count(),
+        };
+
+        history.insert(0, item);
+        if history.len() > 15 {
+            history.truncate(15);
+        }
+        let list = history.clone();
+        drop(history);
+
+        let _ = app_handle.emit("clipboard-history-updated", list);
     }
 }
 

@@ -836,3 +836,19 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
 pub async fn activate_tray_icon(tray_id: String) -> Result<(), String> {
     crate::tray::interact(&tray_id, false)
 }
+
+#[tauri::command]
+pub fn request_notch_keyboard_focus(_app_handle: AppHandle, _focus: bool) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_clipboard_history() -> Result<Vec<crate::types::ClipboardItem>, String> {
+    Ok(vec![])
+}
+
+#[tauri::command]
+pub fn clear_clipboard_history() -> Result<(), String> {
+    Ok(())
+}
+

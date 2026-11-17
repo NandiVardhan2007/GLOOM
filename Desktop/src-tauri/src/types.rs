@@ -94,3 +94,12 @@ pub struct AudioSessionInfo {
     pub volume: f32,
     pub is_muted: bool,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ClipboardItem {
+    pub id: String,
+    pub text: String,
+    pub timestamp: u64,
+    pub char_count: usize,
+}
+
