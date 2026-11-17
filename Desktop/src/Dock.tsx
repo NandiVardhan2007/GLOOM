@@ -117,6 +117,17 @@ function TaskViewIcon() {
 	);
 }
 
+// System Tray Chevron glyph: native upward arrow for background notification area tasks.
+function TrayChevronIcon() {
+	return (
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+			<polyline points="18 15 12 9 6 15" />
+		</svg>
+	);
+}
+
+const isLinux = typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("linux");
+
 function resolveStartIcon(startIcon: string): string {
 	if (startIcon === "gloom-colorful") return "/gloom-colorful.svg";
 	if (startIcon === "gloom-golden") return "/gloom-golden.svg";
@@ -842,7 +853,11 @@ const Dock = memo(function Dock() {
 		if (bar && isExpanded && !isHidden && isVisible) {
 			dockBandHeightRef.current = Math.max(dockBandHeightRef.current, bar.height);
 		}
-		const band = Math.max((dockBandHeightRef.current || 56 * scale) + 120 * scale, 180 * scale);
+		const hasPreview = !!previewData;
+		const band = Math.max(
+			(dockBandHeightRef.current || 56 * scale) + (hasPreview ? 340 * scale : 120 * scale),
+			hasPreview ? 380 * scale : 180 * scale
+		);
 		const wanted: RegionRect[] = [
 			{ x: 0, y: window.innerHeight - band, width: window.innerWidth, height: band }
 		];
@@ -869,7 +884,7 @@ const Dock = memo(function Dock() {
 			wanted.push(padRect({ x: p.left, y: a.top, width: p.width, height: a.height }, 40));
 		}
 		sendDockRegion(wanted);
-	}, [isExpanded, isHidden, isVisible, isDragging, scale, pinnedApps.length, activeApps.length, contextMenu, activeSubmenu, showAddPopup]);
+	}, [isExpanded, isHidden, isVisible, isDragging, scale, pinnedApps.length, activeApps.length, contextMenu, activeSubmenu, showAddPopup, previewData]);
 
 	useEffect(() => {
 		let open = false;
@@ -1193,6 +1208,7 @@ const Dock = memo(function Dock() {
 					isRunning: app.is_running,
 					windowCount: app.all_hwnds?.length ?? 1,
 					isBackground: app.is_background,
+					isMinimized: app.is_minimized,
 					onLaunch: () => handleAppClick(app),
 					onContextMenu: (e) => handleContextMenu(e, app),
 					onMiddleClick: (e) => handleMiddleClick(e, app)
@@ -1234,6 +1250,7 @@ const Dock = memo(function Dock() {
 					isRunning: app.is_running,
 					windowCount: app.all_hwnds?.length ?? 1,
 					isBackground: app.is_background,
+					isMinimized: app.is_minimized,
 					onLaunch: () => handleAppClick(app),
 					onContextMenu: (e) => handleContextMenu(e, app),
 					onMiddleClick: (e) => handleMiddleClick(e, app)
@@ -1255,6 +1272,26 @@ const Dock = memo(function Dock() {
 						onContextMenu: (e) => handleExtraContextMenu(e, extra)
 					}
 				});
+			});
+		}
+
+		if (!isLinux) {
+			entries.push({
+				kind: "item",
+				item: {
+					id: "tray-chevron-arrow",
+					label: "System Tray / Background Tasks",
+					type: "tray-chevron",
+					customIconNode: <TrayChevronIcon />,
+					onLaunch: () => {
+						invoke("open_system_tray").catch(console.error);
+					},
+					onContextMenu: (e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						invoke("open_system_tray").catch(console.error);
+					}
+				}
 			});
 		}
 

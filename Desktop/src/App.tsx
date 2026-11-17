@@ -33,6 +33,7 @@ import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
+import { NotchFlares } from "./components/NotchFlares";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
@@ -564,7 +565,7 @@ function App() {
 	const [isFullscreenGame, setIsFullscreenGame] = useState(false);
 
 	const [islandStyle, setIslandStyle] = useState<"notch" | "pill">(() => {
-		return (localStorage.getItem("gloom-island-style") as "notch" | "pill") || "pill";
+		return (localStorage.getItem("gloom-island-style") as "notch" | "pill") || "notch";
 	});
 
 	useEffect(() => {
@@ -2884,8 +2885,8 @@ function App() {
 						y: 250,
 						width: 30.6,
 						height: 44.2,
-						borderTopLeftRadius: 22,
-						borderTopRightRadius: 22,
+						borderTopLeftRadius: isPill ? 22 : 0,
+						borderTopRightRadius: isPill ? 22 : 0,
 						borderBottomLeftRadius: 22,
 						borderBottomRightRadius: 22,
 						scaleX: 1,
@@ -2899,8 +2900,8 @@ function App() {
 						opacity: isVisible ? 1 : 0,
 						scaleX: 1,
 						scaleY: 1,
-						borderTopLeftRadius: pillRadius,
-						borderTopRightRadius: pillRadius,
+						borderTopLeftRadius: isPill ? pillRadius : 0,
+						borderTopRightRadius: isPill ? pillRadius : 0,
 						borderBottomLeftRadius: pillRadius,
 						borderBottomRightRadius: pillRadius,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
@@ -2941,6 +2942,7 @@ function App() {
 							<div className="charging-halo-glow" />
 						</div>
 					)}
+					<NotchFlares visible={!isPill && isVisible && !isHidden && pillTargetY <= 2} />
 
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (

@@ -179,7 +179,7 @@ jobs:
       - name: Package Linux Dedicated .deb Installer
         run: |
           mkdir -p build-artifacts
-          VERSION="${RELEASE_VERSION:-2.3.0}"
+          VERSION="${RELEASE_VERSION:-2.3.1}"
 
           # Native Debian / Ubuntu / Zorin OS Package (.deb)
           DEB_DIR="deb-package"
@@ -306,7 +306,7 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.3.0 — Multi-Platform Dynamic Island (Windows & Linux Dedicated Installers)
+            ### GLOOM 2.3.1 — Multi-Platform Dynamic Island (Windows & Linux Dedicated Installers)
 
             #### 🍏 Apple iOS 18 Design & HIG Engineering
             - **Pure OLED Black & Specular Glass Materials**: Pure `#000000` foundation with 40px backdrop blur, saturation boost, and Apple specular micro-rim illumination.

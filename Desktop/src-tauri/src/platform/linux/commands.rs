@@ -259,6 +259,7 @@ pub async fn get_installed_apps() -> Vec<AppInfo> {
                         hwnd: None,
                         executable: None,
                         all_hwnds: None,
+                        is_minimized: None,
                     });
                 }
             }

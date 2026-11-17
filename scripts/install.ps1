@@ -1,4 +1,4 @@
-# GLOOM Windows CLI Installer
+﻿# GLOOM Windows CLI Installer
 # Automated one-line installer for GLOOM Dynamic Island & Fluid Dock on Windows 11/10.
 
 $ErrorActionPreference = 'Stop'
@@ -55,7 +55,7 @@ Write-Step "2" "Querying latest verified release from GitHub"
 $repo = "NandiVardhan2007/GLOOM"
 $downloadUrl = "https://github.com/$repo/releases/latest/download/GLOOM-Island-Setup.exe"
 
-$version = "v2.3.0"
+$version = "v2.3.1"
 try {
     $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -UseBasicParsing -ErrorAction Stop
     if ($releaseInfo.tag_name) {
@@ -87,19 +87,27 @@ try {
 Write-Step "4" "Deploying GLOOM into system environment"
 Write-SubInfo "Configuring Start Menu shortcuts and uninstaller registration..."
 
-$arguments = if ($Interactive) { "" } else { "/VERYSILENT /NORESTART /SP-" }
-$process = Start-Process -FilePath $tempExe -ArgumentList $arguments -PassThru -Wait
+# Stop any running GLOOM instances so files are not locked during installation
+Stop-Process -Name "gloom" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "GLOOM" -Force -ErrorAction SilentlyContinue
 
-if ($process.ExitCode -eq 0) {
+$arguments = if ($Interactive) { "" } else { "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /FORCECLOSEAPPLICATIONS" }
+$process = Start-Process -FilePath $tempExe -ArgumentList $arguments -PassThru
+$exited = $process.WaitForExit(90000)
+if (-not $exited) {
+    try { $process.Kill() } catch {}
+}
+
+$possiblePaths = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\GLOOM\gloom.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\GLOOM\GLOOM.exe"),
+    (Join-Path $env:ProgramFiles "GLOOM\gloom.exe"),
+    (Join-Path ${env:ProgramFiles(x86)} "GLOOM\gloom.exe")
+)
+$installPath = $possiblePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if ($process.ExitCode -eq 0 -or $installPath) {
     Remove-Item $tempExe -Force -ErrorAction SilentlyContinue
-
-    $possiblePaths = @(
-        (Join-Path $env:LOCALAPPDATA "Programs\GLOOM\gloom.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\GLOOM\GLOOM.exe"),
-        (Join-Path $env:ProgramFiles "GLOOM\gloom.exe"),
-        (Join-Path ${env:ProgramFiles(x86)} "GLOOM\gloom.exe")
-    )
-    $installPath = $possiblePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
     Write-Host @"
 

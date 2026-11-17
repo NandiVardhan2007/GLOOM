@@ -419,7 +419,7 @@ pub fn setup_window_change_hook(app_handle: AppHandle) {
         use windows::Win32::UI::Accessibility::SetWinEventHook;
         use windows::Win32::UI::WindowsAndMessaging::{
             EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY, EVENT_OBJECT_HIDE, EVENT_OBJECT_SHOW,
-            WINEVENT_OUTOFCONTEXT,
+            EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, WINEVENT_OUTOFCONTEXT,
         };
 
         // Hook create and destroy events for top-level windows
@@ -460,9 +460,19 @@ pub fn setup_window_change_hook(app_handle: AppHandle) {
             0,
             WINEVENT_OUTOFCONTEXT,
         );
+        // Hook minimize start and end events (fires when windows minimize to taskbar or restore)
+        let _min_hook = SetWinEventHook(
+            EVENT_SYSTEM_MINIMIZESTART,
+            EVENT_SYSTEM_MINIMIZEEND,
+            None,
+            Some(window_change_event_proc),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT,
+        );
 
         // Store hooks to prevent them from being dropped
-        Box::leak(Box::new(_create_hook));
+        Box::leak(Box::new((_create_hook, _destroy_hook, _show_hook, _hide_hook, _min_hook)));
     }
 }
 
@@ -3565,6 +3575,7 @@ pub fn trigger_app_scan() {
                                                 hwnd: None,
                                                 executable,
                                                 all_hwnds: None,
+                                                is_minimized: None,
                                             });
                                         }
                                         ILFree(Some(absolute_pidl as *const _));
@@ -3718,6 +3729,7 @@ fn collect_shortcuts(dir: &std::path::Path, apps: &mut Vec<AppInfo>, depth: i32)
                         hwnd: None,
                         executable,
                         all_hwnds: None,
+                        is_minimized: None,
                     });
                 }
             }
@@ -4352,6 +4364,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                             hwnd: Some(hwnd.0 as isize),
                             executable: exe_name,
                             all_hwnds: None,
+                            is_minimized: Some(windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd).as_bool()),
                         });
                     }
                 }

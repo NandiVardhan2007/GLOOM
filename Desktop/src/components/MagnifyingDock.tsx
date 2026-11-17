@@ -5,13 +5,14 @@ import { DOCK_CONFIG, sizeFor, xOffsetFor } from "../dockConfig";
 export interface MagnifyingDockItem {
 	id: string;
 	label: string;
-	type: "start" | "task-view" | "extra" | "app";
+	type: "start" | "task-view" | "tray-chevron" | "extra" | "app";
 	icon?: string | null;
 	customIconNode?: React.ReactNode;
 	isGloomOrSettings?: boolean;
 	isRunning?: boolean;
 	windowCount?: number;
 	isBackground?: boolean;
+	isMinimized?: boolean;
 	onLaunch: () => void;
 	onContextMenu?: (e: React.MouseEvent) => void;
 	onMiddleClick?: (e: React.MouseEvent) => void;
@@ -40,18 +41,48 @@ interface MagnifyingDockProps {
 
 /**
  * WindowDots indicator for active running apps.
+ * Renders glowing dots for visible windows and an upward caret arrow for minimized/background tasks.
  */
-function WindowDots({ count, background }: { count: number; background?: boolean }) {
+function WindowDots({
+	count,
+	background,
+	minimized
+}: {
+	count: number;
+	background?: boolean;
+	minimized?: boolean;
+}) {
+	const isMinimizedOrBg = background || minimized;
+	if (isMinimizedOrBg) {
+		return (
+			<div
+				className="window-dots minimized-dots"
+				role="img"
+				aria-label={background ? "Running in background" : "Minimized window"}
+			>
+				<svg
+					className="minimized-arrow-indicator"
+					viewBox="0 0 6 5"
+					fill="currentColor"
+					width="6"
+					height="5"
+				>
+					<path d="M3 0.6L5.6 4.4H0.4L3 0.6Z" />
+				</svg>
+			</div>
+		);
+	}
+
 	return (
 		<div
 			className="window-dots"
 			role="img"
-			aria-label={background ? "Running in background" : `${count} open windows`}
+			aria-label={`${count} open windows`}
 		>
-			{Array.from({ length: background ? 1 : Math.min(Math.max(count, 1), 3) }, (_, i) => (
+			{Array.from({ length: Math.min(Math.max(count, 1), 3) }, (_, i) => (
 				<div
 					key={i}
-					className={`active-indicator${background ? " background-indicator" : ""}`}
+					className="active-indicator"
 				/>
 			))}
 		</div>
@@ -194,6 +225,7 @@ const VisualDockIcon = memo(function VisualDockIcon({
 				<WindowDots
 					count={item.windowCount ?? 1}
 					background={item.isBackground}
+					minimized={item.isMinimized}
 				/>
 			)}
 		</motion.div>

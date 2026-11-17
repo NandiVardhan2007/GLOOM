@@ -9,6 +9,7 @@ export interface AppInfo {
 	all_hwnds?: [number, string][];
 	tray_ids?: string[];
 	is_background?: boolean;
+	is_minimized?: boolean;
 }
 
 export interface TrayApp {

@@ -77,21 +77,21 @@ Engineered with Rust, Tauri v2, React 19, and Framer Motion, GLOOM adheres stric
 GLOOM adapts to your personal setup with two primary geometries:
 
 ```
-       [ CLASSIC FLOATING PILL ]                    [ FLUSH BEZEL NOTCH ]
+       [ FLUSH BEZEL NOTCH ]                        [ FLOATING PILL ]
        
-   ┌───────────────────────────────┐           ─────────────────────────────────
-   │                               │           ───────┐                 ┌───────
-   │       (  GLOOM ISLAND  )      │                   \   GLOOM NOTCH   /
-   │                               │                    └───────────────┘
+   ─────────────────────────────────           ┌───────────────────────────────┐
+   ───────┐                 ┌───────           │                               │
+           \   GLOOM NOTCH   /                 │       (  GLOOM ISLAND  )      │
+            └───────────────┘                  │                               │
 ```
 
-1. **Floating Pill Mode (Default)**:
+1. **Bezel Notch Mode (Default)**:
+   - Anchored flush against the screen's top bezel (`Y = 0`).
+   - Features **C1-continuous cubic-bezier concave shoulder flares** on both sides, matching modern MacBook hardware aesthetics.
+2. **Floating Pill Mode**:
    - Compact capsule sitting with a crisp `10px` offset below the top edge.
    - Continuous squircle curvature (`22px` radius resting, morphing to `34–38px` expanded).
    - Ideal for centered multi-monitor setups, ultrawides, and clean minimalist desktops.
-2. **Bezel Notch Mode**:
-   - Anchored flush against the screen's top bezel (`Y = 0`).
-   - Features **C1-continuous cubic-bezier concave shoulder flares** on both sides, matching modern MacBook hardware aesthetics.
 
 ---
 

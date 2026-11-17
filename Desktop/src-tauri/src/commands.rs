@@ -902,6 +902,10 @@ pub async fn get_active_windows() -> Vec<AppInfo> {
                         (app.hwnd.unwrap_or(0), app.name.clone()),
                     ]);
                 }
+                // If ANY window is not minimized, the app as a whole is not minimized.
+                if app.is_minimized == Some(false) {
+                    existing.is_minimized = Some(false);
+                }
             } else {
                 let mut new_app = app.clone();
                 new_app.all_hwnds = Some(vec![(app.hwnd.unwrap_or(0), app.name.clone())]);
@@ -2003,23 +2007,33 @@ pub async fn get_app_icon(
 
             // High-resolution extraction via IShellItemImageFactory (requests full 256x256 icon from PE resources)
             if icon_data.is_none() {
-                let target_for_shell = if is_lnk { &path_clone } else { &actual_path };
-                let wide: Vec<u16> = target_for_shell
-                    .encode_utf16()
-                    .chain(std::iter::once(0))
-                    .collect();
+                let candidates = if is_lnk {
+                    vec![path_clone.as_str(), actual_path.as_str()]
+                } else {
+                    vec![actual_path.as_str()]
+                };
 
-                let factory_res: windows_core::Result<IShellItemImageFactory> =
-                    SHCreateItemFromParsingName(windows::core::PCWSTR(wide.as_ptr()), None);
-                if let Ok(factory) = factory_res {
-                    let size = SIZE { cx: 256, cy: 256 };
-                    if let Ok(hbitmap) = factory
-                        .GetImage(size, SIIGBF(SIIGBF_ICONONLY.0 | SIIGBF_BIGGERSIZEOK.0))
-                        .or_else(|_| factory.GetImage(size, SIIGBF_BIGGERSIZEOK))
-                    {
-                        if !hbitmap.0.is_null() {
-                            icon_data = crate::utils::hbitmap_to_base64(hbitmap);
-                            let _ = windows::Win32::Graphics::Gdi::DeleteObject(hbitmap.into());
+                for target_for_shell in candidates {
+                    if icon_data.is_some() || target_for_shell.is_empty() {
+                        break;
+                    }
+                    let wide: Vec<u16> = target_for_shell
+                        .encode_utf16()
+                        .chain(std::iter::once(0))
+                        .collect();
+
+                    let factory_res: windows_core::Result<IShellItemImageFactory> =
+                        SHCreateItemFromParsingName(windows::core::PCWSTR(wide.as_ptr()), None);
+                    if let Ok(factory) = factory_res {
+                        let size = SIZE { cx: 256, cy: 256 };
+                        if let Ok(hbitmap) = factory
+                            .GetImage(size, SIIGBF(SIIGBF_ICONONLY.0 | SIIGBF_BIGGERSIZEOK.0))
+                            .or_else(|_| factory.GetImage(size, SIIGBF_BIGGERSIZEOK))
+                        {
+                            if !hbitmap.0.is_null() {
+                                icon_data = crate::utils::hbitmap_to_base64(hbitmap);
+                                let _ = windows::Win32::Graphics::Gdi::DeleteObject(hbitmap.into());
+                            }
                         }
                     }
                 }
@@ -2204,6 +2218,7 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
             hwnd: None,
             executable: Some("explorer.exe".into()),
             all_hwnds: None,
+            is_minimized: None,
         },
         AppInfo {
             name: "Microsoft Edge".into(),
@@ -2213,6 +2228,7 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
             hwnd: None,
             executable: Some("msedge.exe".into()),
             all_hwnds: None,
+            is_minimized: None,
         },
         AppInfo {
             name: "Notepad".into(),
@@ -2222,6 +2238,7 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
             hwnd: None,
             executable: Some("notepad.exe".into()),
             all_hwnds: None,
+            is_minimized: None,
         },
         AppInfo {
             name: "Settings".into(),
@@ -2231,6 +2248,7 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
             hwnd: None,
             executable: None,
             all_hwnds: None,
+            is_minimized: None,
         },
     ]
 }
@@ -4516,6 +4534,7 @@ mod pwa_icon_tests {
             hwnd: None,
             executable: Some("brave.exe".into()),
             all_hwnds: None,
+            is_minimized: None,
         };
         assert!(is_pwa_shortcut_for(&app, "youtube", "brave.exe"));
         assert!(is_pwa_shortcut_for(&app, "YouTube", "BRAVE.EXE"));
@@ -4556,6 +4575,7 @@ mod pwa_icon_tests {
                 hwnd: None,
                 executable: Some("brave.exe".into()),
                 all_hwnds: None,
+                is_minimized: None,
             },
             AppInfo {
                 name: "Netflix".into(),
@@ -4565,6 +4585,7 @@ mod pwa_icon_tests {
                 hwnd: None,
                 executable: Some("msedge.exe".into()),
                 all_hwnds: None,
+                is_minimized: None,
             },
         ]));
         assert_eq!(

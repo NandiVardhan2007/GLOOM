@@ -63,6 +63,8 @@ pub struct AppInfo {
     pub hwnd: Option<isize>,
     pub executable: Option<String>,
     pub all_hwnds: Option<Vec<(isize, String)>>, // (hwnd, title)
+    #[serde(default)]
+    pub is_minimized: Option<bool>,
 }
 
 #[derive(Clone, Serialize)]
