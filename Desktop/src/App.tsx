@@ -690,30 +690,28 @@ function App() {
 	// refs and the DOM, so it is safe to call from any callback.
 	const updateNotchRegion = () => {
 		const wanted: RegionRect[] = [];
-		if (isOpen) {
-			wanted.push({
-				x: 0,
-				y: 0,
-				width: window.innerWidth,
-				height: 420 * scale
-			});
-		} else {
-			if (pillTargetRef.current) wanted.push(pillTargetRef.current);
-			wanted.push(
-				...measureElements([
-					[".activity-bubble", 16],
-					[".status-tooltip", 28]
-				])
-			);
-			// Always keep the top-edge peek sensor region active so hovering the top edge reveals the notch/pill
-			const sensorWidth = Math.max(380, (pillTargetWidth + 100) * scale);
-			wanted.push({
-				x: Math.round((window.innerWidth - sensorWidth) / 2),
-				y: 0,
-				width: Math.round(sensorWidth),
-				height: Math.round(16 * scale)
-			});
-		}
+		if (pillTargetRef.current) wanted.push(pillTargetRef.current);
+		wanted.push(
+			...measureElements([
+				[".activity-bubble", 16],
+				[".status-tooltip", 28],
+				[".notch-panel-arrow", 16],
+				[".expanded-music-container", 24],
+				[".apple-karaoke-sheet", 24],
+				[".control-center-panel", 24],
+				[".shelf-panel", 24],
+				[".calendar-panel", 24],
+				[".timer-panel", 24]
+			])
+		);
+		// Always keep the top-edge peek sensor region active so hovering the top edge reveals the notch/pill
+		const sensorWidth = Math.max(380, (pillTargetWidth + 100) * scale);
+		wanted.push({
+			x: Math.round((window.innerWidth - sensorWidth) / 2),
+			y: 0,
+			width: Math.round(sensorWidth),
+			height: Math.round(16 * scale)
+		});
 		sendNotchRegion(wanted);
 	};
 	const [systemSettingsReady, setSystemSettingsReady] = useState(false);
@@ -1000,6 +998,11 @@ function App() {
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [windowLabel]);
+
+	// Sync expanded notch state to backend so the mouse hook can catch outside clicks
+	useEffect(() => {
+		invoke("set_notch_open", { open: isOpen }).catch(() => {});
+	}, [isOpen]);
 
 	// Settings sync — consolidated dispatch for all settings events
 	useSettingsSync(
@@ -1404,6 +1407,19 @@ function App() {
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [closeNotch]);
+
+	// The low-level mouse hook emits this when clicking outside the notch
+	// while it is expanded, smoothly dismissing the panel.
+	useEffect(() => {
+		const unlisten = listen("notch-dismiss", () => {
+			if (isOpenRef.current) {
+				closeNotch();
+			}
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
 	}, [closeNotch]);
 
 	const clearShelfCollapse = () => {
@@ -2667,7 +2683,7 @@ function App() {
 		}
 		if (isMusicMode && isOpen) {
 			if (lyricsExpanded) return 380;
-			return mediaLayout === "compact" ? 320 : 360;
+			return mediaLayout === "compact" ? 330 : 380;
 		}
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 

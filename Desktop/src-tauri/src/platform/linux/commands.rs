@@ -48,6 +48,9 @@ pub async fn set_notch_hovered(_app: AppHandle, _hovered: bool) {}
 pub async fn set_notch_visible(_visible: bool) {}
 
 #[tauri::command]
+pub async fn set_notch_open(_open: bool) {}
+
+#[tauri::command]
 pub fn get_fullscreen_game_state() -> Result<crate::services::FullscreenGamePayload, String> {
     Ok(crate::services::FullscreenGamePayload {
         is_fullscreen: false,

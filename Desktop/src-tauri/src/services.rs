@@ -3151,7 +3151,53 @@ fn is_start_foreground_fast() -> bool {
             }
         }
     }
+    // An expanded notch closes when you press outside it. The notch window's
+    // region is clipped to the island pill and its floating panels, so a click
+    // outside it reaches the underlying desktop / windows directly.
+    if code >= 0
+        && (wparam.0 == WM_LBUTTONDOWN as usize || wparam.0 == WM_RBUTTONDOWN as usize)
+        && NOTCH_IS_OPEN.load(Ordering::Relaxed)
+    {
+        let point = (*(lparam.0 as *const MSLLHOOKSTRUCT)).pt;
+        if !notch_takes_press(point) {
+            NOTCH_IS_OPEN.store(false, Ordering::Relaxed);
+            if let Some(app) = WINDOW_CHANGE_APP_HANDLE.get().cloned() {
+                std::thread::spawn(move || {
+                    let _ = app.emit("notch-dismiss", ());
+                });
+            }
+        }
+    }
     CallNextHookEx(None, code, wparam, lparam)
+}
+
+/// Whether the notch window takes a press at `point`: it isn't click-through
+/// and the point is inside its window region.
+unsafe fn notch_takes_press(point: windows::Win32::Foundation::POINT) -> bool {
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetWindowRgn, PtInRegion};
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
+
+    let hwnd = HWND(MAIN_HWND.load(Ordering::Relaxed) as *mut _);
+    if hwnd.0.is_null() || GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TRANSPARENT.0 != 0 {
+        return false;
+    }
+    let mut bounds = RECT::default();
+    if GetWindowRect(hwnd, &mut bounds).is_err() {
+        return false;
+    }
+    let region = CreateRectRgn(0, 0, 0, 0);
+    // No region yet means the whole window.
+    let inside = if GetWindowRgn(hwnd, region).0 == 0 {
+        point.x >= bounds.left
+            && point.x < bounds.right
+            && point.y >= bounds.top
+            && point.y < bounds.bottom
+    } else {
+        PtInRegion(region, point.x - bounds.left, point.y - bounds.top).as_bool()
+    };
+    let _ = DeleteObject(region.into());
+    inside
 }
 
 /// Whether the dock window takes a press at `point`: it isn't click-through

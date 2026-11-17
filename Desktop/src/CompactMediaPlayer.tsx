@@ -480,14 +480,25 @@ export function CompactMediaPlayer({
 
 					{/* Metadata + Scrubber + Controls */}
 					<div className="apple-content-col">
-						{/* Top Header: Title & Visualizer */}
+						{/* Top Header: Title & Actions (Visualizer + Lyrics toggle) */}
 						<div className="apple-header-row">
 							<div className="apple-meta-info">
 								<TitleMarquee title={mediaInfo.title} />
 								<span className="apple-artist">{mediaInfo.artist}</span>
 							</div>
-							<div className="apple-header-visualizer">
-								<Visualizer isPlaying={isPlaying} bars={5} height={18} />
+							<div className="apple-compact-right-actions">
+								<Visualizer isPlaying={isPlaying} bars={4} height={16} />
+								<motion.button
+									className={`apple-btn-icon-mini ${lyricsExpanded ? "active" : ""}`}
+									onClick={(e) => {
+										e.stopPropagation();
+										toggleLyrics();
+									}}
+									whileTap={{ scale: 0.9 }}
+									title="Live Synced Lyrics"
+								>
+									<LyricsIcon size={16} active={lyricsExpanded} />
+								</motion.button>
 							</div>
 						</div>
 
@@ -606,31 +617,17 @@ export function CompactMediaPlayer({
 								</motion.button>
 							</div>
 
-							<div className="apple-aux-group">
-								<motion.button
-									className={`apple-btn-icon ${lyricsExpanded ? "active" : ""}`}
-									onClick={(e) => {
-										e.stopPropagation();
-										toggleLyrics();
-									}}
-									whileTap={{ scale: 0.9 }}
-									title="Live Synced Lyrics"
-								>
-									<LyricsIcon size={19} active={lyricsExpanded} />
-								</motion.button>
-
-								<motion.button
-									className="apple-btn-icon"
-									onClick={(e) => {
-										e.stopPropagation();
-										invoke("open_sound_settings").catch(() => {});
-									}}
-									whileTap={{ scale: 0.9 }}
-									title="Audio Output Device"
-								>
-									<HeadphonesIcon size={19} />
-								</motion.button>
-							</div>
+							<motion.button
+								className="apple-btn-icon"
+								onClick={(e) => {
+									e.stopPropagation();
+									invoke("open_sound_settings").catch(() => {});
+								}}
+								whileTap={{ scale: 0.9 }}
+								title="Audio Output Device"
+							>
+								<HeadphonesIcon size={20} />
+							</motion.button>
 						</div>
 					</div>
 				</div>

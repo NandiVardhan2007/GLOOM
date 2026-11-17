@@ -4713,3 +4713,8 @@ pub async fn activate_tray_icon(tray_id: String) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub fn set_notch_open(open: bool) {
+    crate::state::NOTCH_IS_OPEN.store(open, std::sync::atomic::Ordering::Relaxed);
+}

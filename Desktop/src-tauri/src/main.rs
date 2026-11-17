@@ -298,7 +298,8 @@ fn main() {
             bluetooth::bluetooth_pair,
             bluetooth::bluetooth_pairing_respond,
             bluetooth::bluetooth_unpair,
-            get_fullscreen_game_state
+            get_fullscreen_game_state,
+            set_notch_open
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());
@@ -343,6 +344,7 @@ fn main() {
                 let _ = window.set_shadow(false);
                 if let Ok(hwnd) = window.hwnd() {
                     crate::utils::sanitize_window_style(hwnd);
+                    MAIN_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
                 }
             }
             #[cfg(target_os = "linux")]

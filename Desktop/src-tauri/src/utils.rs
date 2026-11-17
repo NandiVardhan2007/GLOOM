@@ -1499,6 +1499,31 @@ pub fn sanitize_window_style(hwnd: HWND) {
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
             );
         }
+
+        // 7. Subclass window to intercept and suppress WM_NCCALCSIZE, WM_NCPAINT, and WM_NCACTIVATE
+        let _ = windows::Win32::UI::Shell::SetWindowSubclass(
+            hwnd,
+            Some(no_titlebar_subclass_proc),
+            0x9100,
+            0,
+        );
+    }
+}
+
+unsafe extern "system" fn no_titlebar_subclass_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    _id: usize,
+    _ref_data: usize,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::UI::WindowsAndMessaging::{WM_NCCALCSIZE, WM_NCPAINT, WM_NCACTIVATE};
+    match msg {
+        WM_NCCALCSIZE => windows::Win32::Foundation::LRESULT(0),
+        WM_NCPAINT => windows::Win32::Foundation::LRESULT(0),
+        WM_NCACTIVATE => windows::Win32::Foundation::LRESULT(1),
+        _ => windows::Win32::UI::Shell::DefSubclassProc(hwnd, msg, wparam, lparam),
     }
 }
 

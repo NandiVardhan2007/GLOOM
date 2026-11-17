@@ -32,6 +32,8 @@ pub static MENU_IS_OPEN: AtomicBool = AtomicBool::new(false);
 // The dock window's handle, for the mouse hook to tell whether a press lands
 // on the dock (which closes its own menus) or outside it.
 pub static DOCK_HWND: AtomicIsize = AtomicIsize::new(0);
+pub static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
+pub static NOTCH_IS_OPEN: AtomicBool = AtomicBool::new(false);
 pub static MENU_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static ICON_CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 

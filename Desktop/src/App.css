@@ -2845,14 +2845,14 @@ img {
 
 /* Classic View (Side-by-Side Squircle Artwork + Metadata + Scrubber + Controls) */
 .apple-classic-view {
-	padding: 4px 6px;
+	padding: 6px 14px 6px 12px;
 }
 
 .apple-classic-main-row {
 	display: flex;
 	align-items: center;
 	width: 100%;
-	gap: 14px;
+	gap: 12px;
 	position: relative;
 	z-index: 1;
 }
@@ -3354,7 +3354,7 @@ img {
 
 /* Compact Stacked View */
 .apple-compact-view {
-	padding: 2px 4px;
+	padding: 4px 12px 6px 12px;
 }
 
 .apple-compact-top-row {
