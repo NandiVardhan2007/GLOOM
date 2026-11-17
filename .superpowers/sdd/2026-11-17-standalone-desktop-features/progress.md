@@ -11,3 +11,4 @@
 - Task 5: complete (commits 152f71a..d90416d, Win32 AddClipboardFormatListener, 15-item ring buffer, get/clear commands)
 - Task 6: complete (commits 152f71a..d90416d, request_notch_keyboard_focus Win32 HWND & NOACTIVATE toggling)
 - Task 7: complete (commits d90416d..d36b390, ProductivityDrawer with Files, Clipboard, Scratchpad + 16/16 tests pass)
+- Task 8: complete (commits d36b390..a20cbe1, Live Activity system + Downloads folder watcher + 16/16 tests pass)
