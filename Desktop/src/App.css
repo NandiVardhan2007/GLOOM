@@ -2850,13 +2850,14 @@ img {
 /* Ambient Artwork Glow Aura */
 .apple-artwork-aura {
 	position: absolute;
-	inset: -30px;
+	inset: -35px;
 	background-size: cover;
 	background-position: center;
-	filter: blur(45px) saturate(220%) opacity(0.25);
+	filter: blur(48px) saturate(240%) opacity(0.36);
 	pointer-events: none;
 	z-index: 0;
 	transform: translateZ(0);
+	transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 /* Classic View (Side-by-Side Squircle Artwork + Metadata + Scrubber + Controls) */

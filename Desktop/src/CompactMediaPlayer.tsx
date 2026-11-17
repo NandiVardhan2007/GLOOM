@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { Visualizer } from "./App";
 import { playTactileSound } from "./utils/audioFeedback.ts";
+import { extractDominantPalette, DEFAULT_PALETTE, DominantPalette } from "./utils/colorExtractor.ts";
 import { useLyrics, LyricLine } from "./hooks/useLyrics";
 import {
 	PlayIcon,
@@ -341,6 +342,16 @@ export function CompactMediaPlayer({
 	const backendTimeRef = useRef(positionUpdatedAt || Date.now());
 	const isSeekingRef = useRef(false);
 
+	const [palette, setPalette] = useState<DominantPalette>(DEFAULT_PALETTE);
+
+	useEffect(() => {
+		if (albumArtUrl) {
+			extractDominantPalette(albumArtUrl).then(setPalette).catch(() => {});
+		} else {
+			setPalette(DEFAULT_PALETTE);
+		}
+	}, [albumArtUrl]);
+
 	useEffect(() => {
 		if (!isSeekingRef.current) {
 			backendPosRef.current = positionMs;
@@ -435,7 +446,9 @@ export function CompactMediaPlayer({
 				{albumArtUrl && (
 					<div
 						className="apple-artwork-aura"
-						style={{ backgroundImage: `url(${albumArtUrl})` }}
+						style={{
+							backgroundImage: `radial-gradient(circle at 20% 50%, ${palette.primary} 0%, transparent 70%), radial-gradient(circle at 80% 50%, ${palette.secondary} 0%, transparent 65%), url(${albumArtUrl})`
+						}}
 					/>
 				)}
 
@@ -670,6 +683,16 @@ export function CompactMediaPlayer({
 	// Compact Layout (Vertical stacked Dynamic Island view)
 	return (
 		<div className="apple-media-container apple-compact-view">
+			{/* Ambient Artwork Glow */}
+			{albumArtUrl && (
+				<div
+					className="apple-artwork-aura"
+					style={{
+						backgroundImage: `radial-gradient(circle at 20% 50%, ${palette.primary} 0%, transparent 70%), radial-gradient(circle at 80% 50%, ${palette.secondary} 0%, transparent 65%), url(${albumArtUrl})`
+					}}
+				/>
+			)}
+
 			{/* Row 1: Mini Squircle Art + Title + Visualizer + Lyrics toggle */}
 			<div className="apple-compact-top-row">
 				<div
