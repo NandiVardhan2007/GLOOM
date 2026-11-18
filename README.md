@@ -9,13 +9,12 @@
   # G L O O M
 
   ### Next-Generation Dynamic Island, Fluid Desktop Dock & Desktop Companion
-  **A seamless, glanceable activity surface, fluid desktop dock & acrylic window suite crafted for Windows 11/10 and Linux (Zorin OS, Ubuntu, Debian)**
+  **A seamless, glanceable activity surface, fluid desktop dock & acrylic window suite crafted for Windows 11 and Windows 10**
 
   <p align="center">
     <a href="https://github.com/NandiVardhan2007/GLOOM/releases/latest"><img src="https://img.shields.io/github/v/release/NandiVardhan2007/GLOOM?style=for-the-badge&color=007aff&label=Release&logo=github" alt="Latest Release" /></a>
     <a href="https://github.com/NandiVardhan2007/GLOOM/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/NandiVardhan2007/GLOOM/build.yml?style=for-the-badge&label=Build&logo=githubactions&logoColor=white" alt="Build Status" /></a>
     <a href="https://microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-11%20%7C%2010-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Desktop" /></a>
-    <a href="https://zorin.com/os/"><img src="https://img.shields.io/badge/Linux-Zorin%20%7C%20Ubuntu%20%7C%20Debian-e95420?style=for-the-badge&logo=linux&logoColor=white" alt="Linux Desktop" /></a>
     <a href="https://tauri.app"><img src="https://img.shields.io/badge/Desktop-Tauri%20v2%20%7C%20Rust-ffc13b?style=for-the-badge&logo=tauri&logoColor=black" alt="Tauri 2" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge" alt="MIT License" /></a>
   </p>
@@ -24,7 +23,7 @@
     <a href="#-what-is-gloom">What is GLOOM</a> •
     <a href="#-apple-design--dynamic-island-features">Dynamic Island</a> •
     <a href="#-on-demand-acrylic-windows--calendar-sync">Acrylic Windows</a> •
-    <a href="#-cross-platform-desktop-power">Platform Parity</a> •
+    <a href="#-cross-platform-desktop-power">Windows Desktop Power</a> •
     <a href="#-dual-island-styles-notch--pill">Island Styles</a> •
     <a href="#-installation--quickstart">Install</a> •
     <a href="#-building-from-source">Build from Source</a> •
@@ -37,12 +36,12 @@
 
 ## ⚡ What is GLOOM?
 
-**GLOOM** brings the fluid elegance of Apple's **iOS Dynamic Island** and the tactile delight of a fluid desktop dock to **Windows** and **Linux** (Zorin OS, Ubuntu, Debian, Arch). It sits unobtrusively at the periphery of your screen — expanding with fluid spring physics when active and melting into the bezel when idle.
+**GLOOM** brings the fluid elegance of Apple's **iOS Dynamic Island** and the tactile delight of a fluid desktop dock to **Windows 11 and Windows 10**. It sits unobtrusively at the periphery of your screen — expanding with fluid spring physics when active and melting into the bezel when idle.
 
 Engineered with Rust, Tauri v2, React 19, and Framer Motion, GLOOM adheres strictly to Apple's **Human Interface Guidelines (HIG)**: true OLED black materials, specular micro-rim illumination, 40px glass diffusion, organic phosphor green waveforms, and critically damped harmonic springs.
 
 > [!NOTE]
-> **Independent Implementation**: GLOOM is an independent, cross-platform overlay application engineered in Rust, Tauri, and React 19. It does not utilize Apple proprietary code or require macOS/iOS.
+> **Independent Implementation**: GLOOM is an independent overlay application engineered in Rust, Tauri, and React 19. It does not utilize Apple proprietary code or require macOS/iOS.
 
 ---
 
@@ -149,37 +148,15 @@ GLOOM/
 
 ### 🪟 Windows 11 / 10
 
-#### 1. Quick One-Liner (PowerShell)
+#### 1. Dedicated Setup Wizard (.exe)
+Download **[`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest)** from the latest GitHub Release. Run the setup wizard to install GLOOM with Start Menu integration, desktop shortcut, and seamless background auto-updating.
+
+#### 2. Quick One-Liner (PowerShell)
 Open PowerShell and run:
 
 ```powershell
 irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.ps1 | iex
 ```
-
-#### 2. Dedicated Setup Wizard (.exe)
-Download **[`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest)** from the latest GitHub Release. Run the setup wizard to install GLOOM with Start Menu integration, desktop shortcut, and seamless background auto-updating.
-
----
-
-### 🐧 Linux (Zorin OS, Ubuntu, Debian, Arch)
-
-#### 1. Quick One-Liner (Terminal)
-Open your terminal and run:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/install.sh | bash
-```
-
-#### 2. Manual Package (.deb)
-Download **`gloom_*_amd64.deb`** from the [Latest Release](https://github.com/NandiVardhan2007/GLOOM/releases/latest) and install via terminal:
-
-```bash
-sudo dpkg -i gloom_*_amd64.deb
-# If missing any dependencies:
-sudo apt-get install -f
-```
-
-Once installed, GLOOM automatically registers in your desktop application launcher (`com.nandu.gloom.desktop`) with hicolor icons and executes natively on X11 / XWayland.
 
 ---
 
@@ -187,14 +164,9 @@ Once installed, GLOOM automatically registers in your desktop application launch
 
 To remove GLOOM and all associated caches, configurations, and shortcuts without leaving any leftovers:
 
-- **Windows (PowerShell)**:
-  ```powershell
-  irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninstall.ps1 | iex
-  ```
-- **Linux (Terminal)**:
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninstall.sh | bash
-  ```
+```powershell
+irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninstall.ps1 | iex
+```
 
 ---
 
@@ -203,33 +175,9 @@ To remove GLOOM and all associated caches, configurations, and shortcuts without
 ### Prerequisites
 - **Node.js**: v20 or v22
 - **Rust Toolchain**: Stable (`rustup update stable`)
-- **System Dependencies**:
-  - **Linux**: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`
-  - **Windows**: Visual Studio C++ Build Tools, Inno Setup 6 (optional, for `.exe` installer)
+- **System Dependencies**: Visual Studio C++ Build Tools, Inno Setup 6 (optional, for `.exe` installer)
 
-### Build Instructions
-
-#### On Linux (Ubuntu / Zorin OS / Debian):
-```bash
-# 1. Install required system libraries
-sudo apt-get update && sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
-# 2. Install Node dependencies & build frontend
-cd Desktop
-npm install
-npm test
-npm run build
-
-# 3. Compile optimized release executable
-cargo build --release --manifest-path src-tauri/Cargo.toml
-
-# 4. Run the release binary
-./src-tauri/target/release/gloom
-```
-
-#### On Windows:
+### Build Instructions (Windows)
 ```powershell
 # 1. Install Node dependencies & build frontend
 cd Desktop

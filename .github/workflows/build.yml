@@ -1,4 +1,4 @@
-name: Build & Release GLOOM (Windows & Linux Dedicated Installers)
+name: Build & Release GLOOM (Windows Dedicated Installer)
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
           if ($env:GITHUB_REF -like "refs/tags/*") {
             $version = $env:GITHUB_REF_NAME -replace '^v', ''
           } else {
-            $version = "2.3.${env:GITHUB_RUN_NUMBER}"
+            $version = "2.7.${env:GITHUB_RUN_NUMBER}"
           }
           python scripts/stamp_version.py "$version"
 
@@ -86,7 +86,7 @@ jobs:
           if ($env:GITHUB_REF -like "refs/tags/*") {
             $tag = $env:GITHUB_REF_NAME
           } else {
-            $tag = "v2.3.$env:GITHUB_RUN_NUMBER"
+            $tag = "v2.7.$env:GITHUB_RUN_NUMBER"
           }
           $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
           $manifest = @{
@@ -112,171 +112,11 @@ jobs:
           retention-days: 14
 
   # ══════════════════════════════════════════════════════════════
-  # 2. LINUX DYNAMIC ISLAND DEDICATED PACKAGE (.DEB)
-  # ══════════════════════════════════════════════════════════════
-  build-linux:
-    name: Build Linux Desktop Package (DEB)
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Linux System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libasound2-dev
-
-      - name: Set up Node.js 22 (LTS)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-          cache-dependency-path: Desktop/package.json
-
-      - name: Set up Rust Stable Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
-
-      - name: Cache Cargo Dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: Desktop/src-tauri
-
-      - name: Install Node Dependencies
-        working-directory: Desktop
-        run: npm ci
-
-      - name: Stamp Release Version
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="2.3.${GITHUB_RUN_NUMBER}"
-          fi
-          python scripts/stamp_version.py "$VERSION"
-          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Run Frontend Tests & Build
-        working-directory: Desktop
-        run: |
-          npm test
-          npm run build
-
-      - name: Compile Linux Tauri Release Binary
-        run: cargo build --release --manifest-path Desktop/src-tauri/Cargo.toml
-
-      - name: Package Linux Dedicated .deb Installer
-        run: |
-          mkdir -p build-artifacts
-          VERSION="${RELEASE_VERSION:-2.3.2}"
-
-          # Native Debian / Ubuntu / Zorin OS Package (.deb)
-          DEB_DIR="deb-package"
-          mkdir -p "$DEB_DIR/usr/bin"
-          mkdir -p "$DEB_DIR/usr/share/applications"
-          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/32x32/apps"
-          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/64x64/apps"
-          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/128x128/apps"
-          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/256x256/apps"
-          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/512x512/apps"
-          mkdir -p "$DEB_DIR/usr/share/pixmaps"
-          mkdir -p "$DEB_DIR/DEBIAN"
-
-          cp Desktop/src-tauri/target/release/gloom "$DEB_DIR/usr/bin/gloom"
-          chmod 755 "$DEB_DIR/usr/bin/gloom"
-
-          cp Desktop/src-tauri/icons/32x32.png "$DEB_DIR/usr/share/icons/hicolor/32x32/apps/gloom.png"
-          cp Desktop/src-tauri/icons/64x64.png "$DEB_DIR/usr/share/icons/hicolor/64x64/apps/gloom.png"
-          cp Desktop/src-tauri/icons/128x128.png "$DEB_DIR/usr/share/icons/hicolor/128x128/apps/gloom.png"
-          cp Desktop/src-tauri/icons/256x256.png "$DEB_DIR/usr/share/icons/hicolor/256x256/apps/gloom.png"
-          cp Desktop/src-tauri/icons/512x512.png "$DEB_DIR/usr/share/icons/hicolor/512x512/apps/gloom.png"
-          cp Desktop/src-tauri/icons/512x512.png "$DEB_DIR/usr/share/pixmaps/gloom.png"
-
-          cat << 'EOF' > "$DEB_DIR/DEBIAN/postinst"
-          #!/bin/sh
-          set -e
-          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
-          fi
-          if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database -q /usr/share/applications || true
-          fi
-          exit 0
-          EOF
-          chmod 755 "$DEB_DIR/DEBIAN/postinst"
-
-          cat << 'EOF' > "$DEB_DIR/DEBIAN/postrm"
-          #!/bin/sh
-          set -e
-          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
-          fi
-          if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database -q /usr/share/applications || true
-          fi
-          exit 0
-          EOF
-          chmod 755 "$DEB_DIR/DEBIAN/postrm"
-
-          cat << EOF > "$DEB_DIR/DEBIAN/control"
-          Package: gloom
-          Version: ${VERSION}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: Nandu Vardhan <nanduvardhan@users.noreply.github.com>
-          Depends: libwebkit2gtk-4.1-0, libgtk-3-0, libayatana-appindicator3-1
-          Description: Next-Generation Dynamic Island & Fluid Dock for Linux
-           GLOOM is a glanceable activity surface and fluid island overlay
-           crafted with Apple HIG design, smooth spring physics, and media controls.
-          EOF
-
-          cat << 'EOF' > "$DEB_DIR/usr/share/applications/com.nandu.gloom.desktop"
-          [Desktop Entry]
-          Name=GLOOM
-          Comment=Next-Generation Dynamic Island & Fluid Dock for Linux
-          Exec=/usr/bin/gloom
-          Icon=gloom
-          Terminal=false
-          Type=Application
-          Categories=Utility;
-          StartupWMClass=GLOOM
-          EOF
-
-          chmod 644 "$DEB_DIR/DEBIAN/control"
-          chmod 644 "$DEB_DIR/usr/share/applications/com.nandu.gloom.desktop"
-
-          dpkg-deb --build "$DEB_DIR" "build-artifacts/gloom_${VERSION}_amd64.deb"
-          cd build-artifacts
-          sha256sum "gloom_${VERSION}_amd64.deb" > "gloom_${VERSION}_amd64.deb.sha256"
-          cd ..
-
-      - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: GLOOM-Island-Linux-Release
-          path: |
-            build-artifacts/*.deb
-            build-artifacts/*.deb.sha256
-          retention-days: 14
-
-  # ══════════════════════════════════════════════════════════════
-  # 3. PUBLISH GITHUB RELEASE (WINDOWS & LINUX DEDICATED INSTALLERS)
+  # 2. PUBLISH GITHUB RELEASE (WINDOWS DEDICATED INSTALLER)
   # ══════════════════════════════════════════════════════════════
   publish-release:
     name: Publish GitHub Release
-    needs: [build-windows, build-linux]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
@@ -291,48 +131,38 @@ jobs:
           name: GLOOM-Island-Windows-Release
           path: release-assets
 
-      - name: Download Linux Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: GLOOM-Island-Linux-Release
-          path: release-assets
-
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v2.3.{0}', github.run_number) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('GLOOM Dynamic Island Release {0}', github.ref_name) || format('GLOOM Dynamic Island Release v2.3.{0}', github.run_number) }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v2.7.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('GLOOM Dynamic Island Release {0}', github.ref_name) || format('GLOOM Dynamic Island Release v2.7.{0}', github.run_number) }}
           draft: false
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM 2.3.2 — Live Synced Karaoke Lyrics & Direct Scrubber Bar Overhaul
+            ### GLOOM v2.7.0 — Pure 1:1 Parity Clone, On-Demand Acrylic Windows & Exclusive Vector SVG Branding
 
-            #### 🎵 Live Synced Karaoke Lyrics (Apple Music Style)
-            - **Apple Music Karaoke Sheet**: Expandable synchronized lyric stream with smooth spring auto-centering, glowing bold pure-white singing line, and interactive click-to-seek timestamp jumping.
-            - **Live Ticker Pill**: Ambient phosphor lime `♪` pill in standard playback view with subtle crossfading line text.
-            - **Intelligent LRCLIB Pipeline**: Automatic query cleaning and fallback search supporting singles, remixes, and soundtrack releases.
+            #### 🏝️ Pure 1:1 Parity Dynamic Island & Fluid Dock
+            - **Complete Parity**: Ported all on-demand acrylic windows (`Calendar.tsx`, `Settings.tsx` with all 11 tabs, `Dock.tsx`, `Overlay.tsx`), all 14 dynamic notch components, and 34 Rust backend services.
+            - **100% Rebranded**: Cleanly rebranded to GLOOM with zero references to old names across code, configs, and 7 localized languages.
 
-            #### 🎛️ Apple-Grade Direct Scrubber Bar (/apple-design)
-            - **1:1 Direct Manipulation**: Powered by `setPointerCapture` for interruptible, zero-latency scrub tracking that never drops when dragging outside the island.
-            - **Tabular Monospace Timing**: Tabular numeric time formatters (`formatTime`, `formatRemaining`) eliminating jittering layout shifts.
-            - **Tactile Visual Feedback**: Frosted capsule rail with luminous white progress fill and glowing thumb indicator.
+            #### 🪟 On-Demand Acrylic Windows & Calendar Sync
+            - **Calendar Window (`calendar.html`)**: Native CalDAV and ICS calendar synchronization with Windows Credential Manager integration.
+            - **Settings Window (`settings.html`)**: Full 11-tab settings suite with real-time fuzzy search engine and instant deep linking.
+            - **Dock Window (`dock.html`)**: macOS-style fluid continuous magnification dock.
+            - **Overlay Window (`overlay.html`)**: Full-screen dynamic overlay canvas.
 
-            #### 🪟 Windows White Bar & Titlebar Eradication
-            - **Native DWM & Win32 Sanitization**: Stripped `WS_CAPTION`, `WS_THICKFRAME`, and `WS_SYSMENU`, enforced `WS_POPUP`, disabled DWM non-client rendering policy (`DWMNCRP_DISABLED`), and suppressed borders (`DWMWA_COLOR_NONE`).
+            #### 🎨 Exclusive Vector SVG Branding & Dual-Theme Contrast
+            - **100% Vector SVG**: Pure vector rendering using `assets/logo.svg` across all surfaces.
+            - **Dual-Theme Adaptation**: Automatically displays dark vector icon (`assets/logo-dark.svg` / `/gloom-dark.svg`) on light backgrounds and light vector icon (`/gloom.svg`) on dark/black OLED backgrounds.
+            - **Native Windows Icons**: Regenerated Windows PE `.ico`, taskbar icons, and installer graphics.
 
-            #### 📦 Dedicated Native Installers
-            - **Windows Dedicated Setup Wizard**: `GLOOM-Island-Setup.exe` packaged via Inno Setup with automatic start menu integration, desktop shortcuts, uninstaller, and silent update pipeline.
-            - **Linux Native Package**: `gloom_*_amd64.deb` native Debian/Ubuntu/Zorin OS package with system desktop launcher entry, hicolor icon registration, and standard package manager integration.
-
-            ---
-            *Android companion app and LiveBridge have been retired in favor of a hyper-focused desktop experience.*
+            #### 📦 Dedicated Windows Setup Wizard
+            - **Windows Dedicated Setup Wizard**: `GLOOM-Island-Setup.exe` packaged via Inno Setup with automatic start menu integration, desktop shortcuts, uninstaller, and silent auto-update pipeline.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Island-Setup.exe
             release-assets/**/GLOOM-Island-Setup.exe.sha256
-            release-assets/**/*.deb
-            release-assets/**/*.deb.sha256
             release-assets/**/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

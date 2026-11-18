@@ -1,15 +1,15 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 13:25 IST  
-> **Release Version**: 2.7.0 — Pure 1:1 Parity Clone & Exclusive Vector SVG Branding  
-> **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
+> **Last Updated**: 2026-11-18 13:45 IST  
+> **Release Version**: 2.7.0 — Pure 1:1 Parity Clone, Windows Dedicated Release & Adaptive Vector SVG Branding  
+> **Target Device**: Windows 11 & Windows 10 Dedicated (100% Standalone, Native Win32 / DirectX 11 / WASAPI / WinRT)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Completed Pure 1:1 Parity Clone & Exclusive Vector SVG Branding (`D:\Coding\GLOOM\assets\logo.svg`). Created dark SVG (`assets/logo-dark.svg`, `Desktop/public/gloom-dark.svg`) for light backgrounds and light SVG (`assets/logo.svg`, `Desktop/public/gloom.svg`) for dark/black backgrounds. Eradicated all raster PNG logos across the codebase, updated all HTML favicons to adaptive media queries, and regenerated native Windows ICO / platform icons. All 37/37 Rust tests pass, 38/38 Node tests pass, clean Vite production build across all 5 HTML entries.
+> **Release Status**: Streamlined CI/CD release pipeline exclusively for Windows (`build-windows`, Inno Setup installer wizard `GLOOM-Island-Setup.exe`, latest.json auto-updater manifest). Pure 1:1 Parity Clone & Exclusive Vector SVG Branding (`D:\Coding\GLOOM\assets\logo.svg`). Created dark SVG (`assets/logo-dark.svg`, `Desktop/public/gloom-dark.svg`) for light backgrounds and light SVG (`assets/logo.svg`, `Desktop/public/gloom.svg`) for dark/black backgrounds. Eradicated all raster PNG logos across the codebase, updated all HTML favicons to adaptive media queries, and regenerated native Windows ICO / platform icons. All 37/37 Rust tests pass, 38/38 Node tests pass, clean Vite production build across all 5 HTML entries.
 
 ---
 
 ## 1. Executive Summary & Current State
-GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and full desktop companion suite engineered for Windows 11/10 and Linux:
+GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and full desktop companion suite engineered for Windows 11 and Windows 10:
 1. **GLOOM Desktop Notch & Dynamic Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
 2. **On-Demand Acrylic Windows**: Dynamic on-demand window lifecycle management (`on_demand_windows.rs`) spawning acrylic surfaces for Calendar (`calendar.html`), Settings (`settings.html` with all 11 tabs and live search engine), Dock (`dock.html`), and Overlay (`overlay.html`).
 3. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
