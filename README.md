@@ -137,7 +137,8 @@ GLOOM/
 │       ├── src/              # App entrypoint, state, updater, audio
 │       └── src/platform/
 │           └── linux/        # Native Linux (Cairo regions, wpctl, bluetoothctl, GTK)
-├── installer/                # Inno Setup Windows Installer Configuration
+├── installer/                # NSIS installer hooks & graphics
+├── installer-app/            # Custom Tauri v2 Setup Wizard & Uninstaller App
 ├── scripts/                  # Version stamping & release automation
 └── tests/                    # Configuration and geometry test suites
 ```
@@ -148,8 +149,8 @@ GLOOM/
 
 ### 🪟 Windows 11 / 10
 
-#### 1. Dedicated Setup Wizard (.exe)
-Download **[`GLOOM-Island-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest)** from the latest GitHub Release. Run the setup wizard to install GLOOM with Start Menu integration, desktop shortcut, and seamless background auto-updating.
+#### 1. Custom Setup Wizard (`GLOOM-Setup.exe`)
+Download **[`GLOOM-Setup.exe`](https://github.com/NandiVardhan2007/GLOOM/releases/latest)** from the latest GitHub Release. Run the setup wizard to experience the custom dark glass installation UI with Start Menu integration, desktop shortcuts, admin elevation options, and seamless background auto-updating.
 
 #### 2. Quick One-Liner (PowerShell)
 Open PowerShell and run:
@@ -162,7 +163,7 @@ irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/instal
 
 ### 🧹 Clean Uninstallation
 
-To remove GLOOM and all associated caches, configurations, and shortcuts without leaving any leftovers:
+To remove GLOOM and all associated caches, configurations, and shortcuts without leaving any leftovers, simply launch `uninstall.exe` in the install directory or run:
 
 ```powershell
 irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninstall.ps1 | iex
@@ -175,21 +176,23 @@ irm https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/scripts/uninst
 ### Prerequisites
 - **Node.js**: v20 or v22
 - **Rust Toolchain**: Stable (`rustup update stable`)
-- **System Dependencies**: Visual Studio C++ Build Tools, Inno Setup 6 (optional, for `.exe` installer)
+- **System Dependencies**: Visual Studio C++ Build Tools
 
 ### Build Instructions (Windows)
 ```powershell
-# 1. Install Node dependencies & build frontend
+# 1. Install Node dependencies & build main app release executable
 cd Desktop
 npm install
 npm test
-npm run build
+npm run tauri build -- --no-bundle
 
-# 2. Compile Windows release executable
-cargo build --release --manifest-path src-tauri/Cargo.toml
-
-# 3. Optional: Compile Inno Setup installer wizard
-iscc ..\installer\gloom.iss
+# 2. Package payload and build custom setup wizard
+cd ..
+Compress-Archive -Path Desktop/src-tauri/target/release/gloom.exe -DestinationPath installer-app/src-tauri/payload.zip -Force
+cd installer-app
+npm install
+npm run tauri build -- --no-bundle
+# Output executable is at installer-app/src-tauri/target/release/gloom-installer.exe (GLOOM-Setup.exe)
 ```
 
 ---

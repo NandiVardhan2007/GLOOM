@@ -1,23 +1,42 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 13:45 IST  
-> **Release Version**: 2.7.0 — Pure 1:1 Parity Clone, Windows Dedicated Release & Adaptive Vector SVG Branding  
+> **Last Updated**: 2026-11-18 15:15 IST  
+> **Release Version**: 2.7.0 — Pure 1:1 Parity Clone, Custom Setup Wizard & Localhost Refused Fix  
 > **Target Device**: Windows 11 & Windows 10 Dedicated (100% Standalone, Native Win32 / DirectX 11 / WASAPI / WinRT)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Streamlined CI/CD release pipeline exclusively for Windows (`build-windows`, Inno Setup installer wizard `GLOOM-Island-Setup.exe`, latest.json auto-updater manifest). Pure 1:1 Parity Clone & Exclusive Vector SVG Branding (`D:\Coding\GLOOM\assets\logo.svg`). Created dark SVG (`assets/logo-dark.svg`, `Desktop/public/gloom-dark.svg`) for light backgrounds and light SVG (`assets/logo.svg`, `Desktop/public/gloom.svg`) for dark/black backgrounds. Eradicated all raster PNG logos across the codebase, updated all HTML favicons to adaptive media queries, and regenerated native Windows ICO / platform icons. All 37/37 Rust tests pass, 38/38 Node tests pass, clean Vite production build across all 5 HTML entries.
+> **Release Status**: Streamlined CI/CD release pipeline exclusively for Windows. Pure 1:1 Parity Clone with Nectar v1.10.0 custom installer architecture: ported `installer-app/` providing a dedicated dark glass setup wizard (`GLOOM-Setup.exe`) with animated vector logo, real-time extraction progress bar, elevation handling, desktop shortcuts, and registry uninstaller integration. Fixed `localhost refused to connect` / `ERR_CONNECTION_REFUSED` bug by embedding production webview bundle directly via `tauri build --no-bundle`. All 37/37 Rust tests pass, 38/38 Node tests pass, clean compilation across all modules.
 
 ---
 
 ## 1. Executive Summary & Current State
 GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and full desktop companion suite engineered for Windows 11 and Windows 10:
 1. **GLOOM Desktop Notch & Dynamic Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
-2. **On-Demand Acrylic Windows**: Dynamic on-demand window lifecycle management (`on_demand_windows.rs`) spawning acrylic surfaces for Calendar (`calendar.html`), Settings (`settings.html` with all 11 tabs and live search engine), Dock (`dock.html`), and Overlay (`overlay.html`).
-3. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
-4. **Pure 1:1 Parity & Rebranding**: 100% pure 1:1 parity with Nectar v1.10.0, cleanly rebranded to GLOOM with zero references to old names.
+2. **Dedicated Setup Wizard (`installer-app/`)**: Pure 1:1 adoption of Nectar's custom webview installer (`GLOOM-Setup.exe`), featuring dark glass acrylic backdrop, animated vector SVG logo, install path picker, user vs all-users permission elevation, real-time unzipping progress bar, and built-in uninstaller.
+3. **On-Demand Acrylic Windows**: Dynamic on-demand window lifecycle management (`on_demand_windows.rs`) spawning acrylic surfaces for Calendar (`calendar.html`), Settings (`settings.html` with all 11 tabs and live search engine), Dock (`dock.html`), and Overlay (`overlay.html`).
+4. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
 5. **Exclusive Vector SVG Branding Engine**: Uses `assets/logo.svg` exclusively across all surfaces with adaptive theme support:
    - **Dark Backgrounds / OLED Black Canvas**: Uses the light vector SVG (`/gloom.svg`, `fill="#FCFCFC"`).
    - **Light Backgrounds**: Dynamically swaps to the dark vector SVG (`/gloom-dark.svg`, `fill="#111111"`) via CSS content properties and React theme hooks.
-   - **HTML Favicons**: All 5 HTML pages use adaptive `media="(prefers-color-scheme: ...)"` vector favicons.
+
+### 🌟 Phase 19 Complete — Pure 1:1 Custom Installer Parity & Localhost Fix (2026-11-18):
+1. **Root Cause Analysis & Permanent Fix for `localhost refused to connect`**:
+   - **Root Cause**: Running `cargo build --release` directly without the Tauri CLI (`tauri build`) prevented `frontendDist` (`../dist`) from being injected into the binary, causing the Windows PE executable to fall back to `devUrl` (`http://localhost:1420`), failing at runtime with `ERR_CONNECTION_REFUSED`.
+   - **Resolution**: Both the main desktop application and the custom installer are now built with `npm run tauri build -- --no-bundle`, ensuring the compiled HTML, CSS, and JS bundles are baked into the Windows PE binary with zero dev server or network dependencies.
+2. **Custom Dark Glass Setup Wizard (`installer-app/`)**:
+   - Ported `tmp/refs/nectar/installer-app` to `installer-app/` in GLOOM.
+   - 100% rebranded to GLOOM and Nandu with zero references to old names.
+   - Embedded SVG branding (`/gloom.svg` and `/gloom-dark.svg`).
+   - Self-contained payload embedding: embeds `Desktop/src-tauri/target/release/gloom.exe` inside `payload.zip` via `include_bytes!`.
+   - Native Windows Shell Link shortcut creation (`IShellLinkW`) and `Uninstall` registry entry registration.
+   - Built-in uninstaller UI (`uninstall.exe --uninstall`).
+3. **Dedicated Windows CI/CD Release Pipeline (`.github/workflows/build.yml`)**:
+   - Removed all Linux build targets.
+   - Full automated pipeline: compiles main app (`gloom.exe`), creates `payload.zip`, builds `gloom-installer.exe` -> `GLOOM-Setup.exe` (and `GLOOM-Setup-${VERSION}.exe`), creates portable zip (`gloom-${VERSION}-portable-windows-x64.zip`), generates SHA256 checksums, and updates `latest.json`.
+4. **Quality Verification**:
+   - **Main App Rust Tests**: 37 passed, 0 failed, 1 ignored.
+   - **Installer Rust Tests**: Passed cleanly.
+   - **Desktop JS Suite**: 38/38 passed across 8 suites.
+   - **Local Compilation**: Both `Desktop` (Tauri) and `installer-app` (Tauri) compiled cleanly with zero errors.
 
 ### 🌟 Phase 18 Complete — Exclusive Vector SVG Branding & Dual-Theme Adaptation (2026-11-18):
 1. **SVG Variants Created**:

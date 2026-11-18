@@ -53,9 +53,9 @@ Write-Success "64-bit Windows architecture confirmed"
 # 2. Query GitHub for latest release asset
 Write-Step "2" "Querying latest verified release from GitHub"
 $repo = "NandiVardhan2007/GLOOM"
-$downloadUrl = "https://github.com/$repo/releases/latest/download/GLOOM-Island-Setup.exe"
+$downloadUrl = "https://github.com/$repo/releases/latest/download/GLOOM-Setup.exe"
 
-$version = "v2.3.2"
+$version = "v2.7.0"
 try {
     $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -UseBasicParsing -ErrorAction Stop
     if ($releaseInfo.tag_name) {
@@ -69,7 +69,7 @@ Write-SubInfo "Download source: $downloadUrl"
 
 # 3. Download the setup wizard
 Write-Step "3" "Downloading installer payload"
-$tempExe = Join-Path $env:TEMP "GLOOM-Island-Setup.exe"
+$tempExe = Join-Path $env:TEMP "GLOOM-Setup.exe"
 if (Test-Path $tempExe) {
     Remove-Item $tempExe -Force -ErrorAction SilentlyContinue
 }
@@ -91,7 +91,7 @@ Write-SubInfo "Configuring Start Menu shortcuts and uninstaller registration..."
 Stop-Process -Name "gloom" -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "GLOOM" -Force -ErrorAction SilentlyContinue
 
-$arguments = if ($Interactive) { "" } else { "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /FORCECLOSEAPPLICATIONS" }
+$arguments = if ($Interactive) { "" } else { "--auto-install" }
 $process = Start-Process -FilePath $tempExe -ArgumentList $arguments -PassThru
 $exited = $process.WaitForExit(90000)
 if (-not $exited) {

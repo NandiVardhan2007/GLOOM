@@ -21,10 +21,10 @@ concurrency:
 
 jobs:
   # ══════════════════════════════════════════════════════════════
-  # 1. WINDOWS DYNAMIC ISLAND EXE BUILD
+  # 1. WINDOWS DYNAMIC ISLAND EXE & CUSTOM INSTALLER BUILD
   # ══════════════════════════════════════════════════════════════
   build-windows:
-    name: Build Windows Desktop EXE
+    name: Build Windows Desktop App & Custom Installer
     runs-on: windows-latest
     steps:
       - name: Checkout Repository
@@ -34,8 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
-          cache-dependency-path: Desktop/package.json
 
       - name: Set up Rust Stable Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -45,9 +43,11 @@ jobs:
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: Desktop/src-tauri
+          workspaces: |
+            Desktop/src-tauri
+            installer-app/src-tauri
 
-      - name: Install Node Dependencies
+      - name: Install Desktop Node Dependencies
         working-directory: Desktop
         run: npm ci
 
@@ -61,33 +61,68 @@ jobs:
           }
           python scripts/stamp_version.py "$version"
 
-      - name: Build Webview Frontend
-        working-directory: Desktop
-        run: npm run build
-
-      - name: Verify Cargo Check & Compile Windows Test Suite
+      - name: Verify Main App Cargo Check & Tests
         run: |
           cargo check --manifest-path Desktop/src-tauri/Cargo.toml
           cargo test --manifest-path Desktop/src-tauri/Cargo.toml
+          npm --prefix Desktop test
 
-      - name: Compile Windows Tauri Desktop Binary (Release)
-        run: cargo build --release --manifest-path Desktop/src-tauri/Cargo.toml
+      - name: Compile Main GLOOM Binary (Embedded Production Bundle)
+        working-directory: Desktop
+        run: npm run tauri build -- --no-bundle
 
-      - name: Install Inno Setup
-        run: choco install innosetup --no-progress
+      - name: Package Installer Payload
+        shell: pwsh
+        run: |
+          $exe = "Desktop/src-tauri/target/release/gloom.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Expected main application binary not found at $exe"
+          }
+          Compress-Archive -Path $exe -DestinationPath "installer-app/src-tauri/payload.zip" -Force
+          $size = (Get-Item "installer-app/src-tauri/payload.zip").Length / 1MB
+          Write-Host "Compressed payload: $([Math]::Round($size, 2)) MB"
 
-      - name: Build Windows Setup Installer (Inno Setup)
+      - name: Install Custom Installer Dependencies
+        working-directory: installer-app
+        run: npm ci
+
+      - name: Verify Installer Tests
+        run: cargo test --manifest-path installer-app/src-tauri/Cargo.toml
+
+      - name: Compile Custom GLOOM Installer App (Embedded Webview Wizard)
+        working-directory: installer-app
+        run: npm run tauri build -- --no-bundle
+
+      - name: Stage Release Artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path build-artifacts -Force
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/gloom.iss
-          $hash = (Get-FileHash -Algorithm SHA256 -Path build-artifacts/GLOOM-Island-Setup.exe).Hash.ToLower()
-          "$hash  GLOOM-Island-Setup.exe" | Out-File -FilePath build-artifacts/GLOOM-Island-Setup.exe.sha256 -Encoding ascii
           if ($env:GITHUB_REF -like "refs/tags/*") {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
             $tag = $env:GITHUB_REF_NAME
           } else {
-            $tag = "v2.7.$env:GITHUB_RUN_NUMBER"
+            $version = "2.7.$env:GITHUB_RUN_NUMBER"
+            $tag = "v$version"
           }
+
+          $installerSrc = "installer-app/src-tauri/target/release/gloom-installer.exe"
+          $mainExe = "Desktop/src-tauri/target/release/gloom.exe"
+
+          # 1. Custom Setup Installer (with version and alias)
+          Copy-Item $installerSrc -Destination "build-artifacts/GLOOM-Setup-$version.exe" -Force
+          Copy-Item $installerSrc -Destination "build-artifacts/GLOOM-Setup.exe" -Force
+
+          # 2. Portable Windows Zip
+          Compress-Archive -Path $mainExe -DestinationPath "build-artifacts/gloom-$version-portable-windows-x64.zip" -Force
+
+          # 3. Checksums
+          $hashVersioned = (Get-FileHash -Algorithm SHA256 -Path "build-artifacts/GLOOM-Setup-$version.exe").Hash.ToLower()
+          "$hashVersioned  GLOOM-Setup-$version.exe" | Out-File -FilePath "build-artifacts/GLOOM-Setup-$version.exe.sha256" -Encoding ascii
+
+          $hashAlias = (Get-FileHash -Algorithm SHA256 -Path "build-artifacts/GLOOM-Setup.exe").Hash.ToLower()
+          "$hashAlias  GLOOM-Setup.exe" | Out-File -FilePath "build-artifacts/GLOOM-Setup.exe.sha256" -Encoding ascii
+
+          # 4. Updater Manifest
           $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
           $manifest = @{
             version = $tag
@@ -95,7 +130,7 @@ jobs:
             pub_date = $pubDate
             platforms = @{
               "windows-x86_64" = @{
-                url = "https://github.com/NandiVardhan2007/GLOOM/releases/download/$tag/GLOOM-Island-Setup.exe"
+                url = "https://github.com/NandiVardhan2007/GLOOM/releases/download/$tag/GLOOM-Setup-$version.exe"
               }
             }
           } | ConvertTo-Json -Depth 5
@@ -104,15 +139,17 @@ jobs:
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: GLOOM-Island-Windows-Release
+          name: GLOOM-Windows-Release
           path: |
-            build-artifacts/GLOOM-Island-Setup.exe
-            build-artifacts/GLOOM-Island-Setup.exe.sha256
+            build-artifacts/GLOOM-Setup-*.exe
+            build-artifacts/GLOOM-Setup.exe
+            build-artifacts/*.zip
+            build-artifacts/*.sha256
             build-artifacts/latest.json
           retention-days: 14
 
   # ══════════════════════════════════════════════════════════════
-  # 2. PUBLISH GITHUB RELEASE (WINDOWS DEDICATED INSTALLER)
+  # 2. PUBLISH GITHUB RELEASE (WINDOWS DEDICATED)
   # ══════════════════════════════════════════════════════════════
   publish-release:
     name: Publish GitHub Release
@@ -128,7 +165,7 @@ jobs:
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: GLOOM-Island-Windows-Release
+          name: GLOOM-Windows-Release
           path: release-assets
 
       - name: Create or Update GitHub Release
@@ -140,29 +177,29 @@ jobs:
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM v2.7.0 — Pure 1:1 Parity Clone, On-Demand Acrylic Windows & Exclusive Vector SVG Branding
+            ### GLOOM v2.7.0 — Pure 1:1 Parity Clone, Custom Setup Wizard & Exclusive Vector SVG Branding
 
-            #### 🏝️ Pure 1:1 Parity Dynamic Island & Fluid Dock
-            - **Complete Parity**: Ported all on-demand acrylic windows (`Calendar.tsx`, `Settings.tsx` with all 11 tabs, `Dock.tsx`, `Overlay.tsx`), all 14 dynamic notch components, and 34 Rust backend services.
-            - **100% Rebranded**: Cleanly rebranded to GLOOM with zero references to old names across code, configs, and 7 localized languages.
+            #### 🏝️ Custom Dark Glass Setup Wizard (`GLOOM-Setup.exe`)
+            - **Self-Contained Installer App**: Ported custom webview installation UI matching Nectar 1:1 with dark glass backdrop blur, animated vector logo, real-time extraction progress bar, elevation handling, desktop shortcuts, and uninstall registry registration.
+            - **No Localhost Dependency**: Embedded production webview bundle directly into the Windows PE binary (`tauri build --no-bundle`), completely resolving `localhost refused to connect` / `ERR_CONNECTION_REFUSED`.
 
-            #### 🪟 On-Demand Acrylic Windows & Calendar Sync
+            #### 🪟 On-Demand Acrylic Windows & Dynamic Island Parity
             - **Calendar Window (`calendar.html`)**: Native CalDAV and ICS calendar synchronization with Windows Credential Manager integration.
-            - **Settings Window (`settings.html`)**: Full 11-tab settings suite with real-time fuzzy search engine and instant deep linking.
+            - **Settings Window (`settings.html`)**: Full 11-tab settings suite with real-time fuzzy search engine and deep tab linking.
             - **Dock Window (`dock.html`)**: macOS-style fluid continuous magnification dock.
             - **Overlay Window (`overlay.html`)**: Full-screen dynamic overlay canvas.
+            - **14 Notch Components & 34 Rust Services**: Complete 1:1 parity with zero references to old project names.
 
             #### 🎨 Exclusive Vector SVG Branding & Dual-Theme Contrast
             - **100% Vector SVG**: Pure vector rendering using `assets/logo.svg` across all surfaces.
             - **Dual-Theme Adaptation**: Automatically displays dark vector icon (`assets/logo-dark.svg` / `/gloom-dark.svg`) on light backgrounds and light vector icon (`/gloom.svg`) on dark/black OLED backgrounds.
             - **Native Windows Icons**: Regenerated Windows PE `.ico`, taskbar icons, and installer graphics.
-
-            #### 📦 Dedicated Windows Setup Wizard
-            - **Windows Dedicated Setup Wizard**: `GLOOM-Island-Setup.exe` packaged via Inno Setup with automatic start menu integration, desktop shortcuts, uninstaller, and silent auto-update pipeline.
           generate_release_notes: true
           files: |
-            release-assets/**/GLOOM-Island-Setup.exe
-            release-assets/**/GLOOM-Island-Setup.exe.sha256
+            release-assets/**/GLOOM-Setup-*.exe
+            release-assets/**/GLOOM-Setup.exe
+            release-assets/**/*.zip
+            release-assets/**/*.sha256
             release-assets/**/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

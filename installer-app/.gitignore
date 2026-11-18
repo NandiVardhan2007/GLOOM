@@ -1,0 +1,8 @@
+# Dependencies
+node_modules/
+dist/
+
+# Rust build artifacts
+/src-tauri/target/
+/src-tauri/payload.zip
+/src-tauri/gen/schemas/
