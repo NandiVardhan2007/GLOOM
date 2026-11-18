@@ -1,6 +1,6 @@
 [package]
 name = "gloom-installer"
-version = "2.7.0"
+version = "2.7.1"
 description = "GLOOM installer"
 authors = ["Nandu"]
 edition = "2021"

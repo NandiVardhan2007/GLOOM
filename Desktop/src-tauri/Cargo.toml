@@ -1,6 +1,6 @@
 [package]
 name = "gloom"
-version = "2.7.0"
+version = "2.7.1"
 description = "GLOOM: Dynamic Island & Dock"
 authors = ["Nandu"]
 edition = "2021"
