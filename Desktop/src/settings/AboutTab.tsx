@@ -124,10 +124,12 @@ export function AboutTab({
   };
 
 
+  const isLight = typeof document !== "undefined" && document.documentElement.classList.contains("light-mode");
+
   return (
     <div className="about-tab-container">
       <div className="about-header">
-        <img src="/gloom.png" className="about-logo" alt="GLOOM Logo" />
+        <img src={isLight ? "/gloom-dark.svg" : "/gloom.svg"} className="about-logo" alt="GLOOM Logo" />
         <h1 className="about-title">GLOOM</h1>
         <p className="about-version">{t("about.version", { version: appVersion || "—" })}</p>
         <button

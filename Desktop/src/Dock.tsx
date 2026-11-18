@@ -160,7 +160,7 @@ function DockAppIcon({ src, alt, gloom }: { src: string | undefined; alt: string
 function resolveStartIcon(startIcon: string): string {
   if (startIcon === "windows") return "/windows.svg";
   if (startIcon.startsWith("custom:")) return startIcon.slice("custom:".length);
-  return "/gloom.png";
+  return "/gloom.svg";
 }
 
 // Stable module-level constants so object references never change between renders,
@@ -1805,7 +1805,7 @@ const Dock = memo(function Dock() {
                     const isGLOOMOrSettings = isGLOOMWindow(app);
                     
                     return (icon || isGLOOMOrSettings) ? (
-                      <DockAppIcon src={isGLOOMOrSettings ? "/gloom.png" : (icon ?? undefined)} alt={app.name} gloom={isGLOOMOrSettings} />
+                      <DockAppIcon src={isGLOOMOrSettings ? "/gloom.svg" : (icon ?? undefined)} alt={app.name} gloom={isGLOOMOrSettings} />
                     ) : (
                       <div className="fallback-icon">{app.name[0]}</div>
                     );
@@ -1888,7 +1888,7 @@ const Dock = memo(function Dock() {
                     const icon = customIcons[cacheKey] || (allowPathFallback && customIcons[app.path]) || iconsRef.current[cacheKey] || (allowPathFallback && iconsRef.current[app.path]) || app.icon;
                           const isGLOOMOrSettings = isGLOOMWindow(app);
                           return (icon || isGLOOMOrSettings) ? (
-                            <DockAppIcon src={isGLOOMOrSettings ? "/gloom.png" : (icon ?? undefined)} alt={app.name} gloom={isGLOOMOrSettings} />
+                            <DockAppIcon src={isGLOOMOrSettings ? "/gloom.svg" : (icon ?? undefined)} alt={app.name} gloom={isGLOOMOrSettings} />
                           ) : (
                             <div className="fallback-icon">{app.name[0]}</div>
                           );
@@ -1969,7 +1969,7 @@ const Dock = memo(function Dock() {
                     const icon = customIcons[cacheKey] || (allowPathFallback && customIcons[app.path]) || iconsRef.current[cacheKey] || (allowPathFallback && iconsRef.current[app.path]) || app.icon;
                           const isGLOOMOrSettings = isGLOOMWindow(app);
                           return (icon || isGLOOMOrSettings) ? (
-                            <DockAppIcon src={isGLOOMOrSettings ? "/gloom.png" : (icon ?? undefined)} alt={app.name} gloom={isGLOOMOrSettings} />
+                            <DockAppIcon src={isGLOOMOrSettings ? "/gloom.svg" : (icon ?? undefined)} alt={app.name} gloom={isGLOOMOrSettings} />
                           ) : (
                             <div className="fallback-icon">{app.name[0]}</div>
                           );

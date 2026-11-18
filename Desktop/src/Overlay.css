@@ -90,6 +90,11 @@ body,
     height: 100px;
     object-fit: contain;
     margin-bottom: 20px;
+    content: url("/gloom.svg");
+}
+
+.light-mode .update-splash-logo {
+    content: url("/gloom-dark.svg");
 }
 
 .update-splash-text {

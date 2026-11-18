@@ -1032,7 +1032,7 @@ function OverlayApp() {
               transition={{ duration: 2.6, times: [0, 0.3, 0.7, 1], ease: "easeInOut" }}
             />
             <motion.img
-              src="/gloom.png"
+              src="/gloom.svg"
               className="splash-logo"
               draggable={false}
               initial={{ scale: 0.82, opacity: 0, y: 10, filter: "blur(14px)" }}
@@ -1064,7 +1064,7 @@ function OverlayApp() {
             transition={{ duration: 0.3 }}
           >
             <div className="update-splash-card">
-              <img src="/gloom.png" className="update-splash-logo" alt="GLOOM" />
+              <img src="/gloom.svg" className="update-splash-logo" alt="GLOOM" />
               <p className="update-splash-text">
                 {updateStatus === 'checking' && t("overlay.update.checking")}
                 {updateStatus === 'downloading' && t("overlay.update.downloading", { percent: updateProgress })}

@@ -981,9 +981,14 @@ body {
   font-weight: 500;
 }
 
-/* Invert GLOOM logo / Settings icon in light mode */
+/* GLOOM logo / Settings icon: dark icon for light backgrounds, light icon for dark backgrounds */
+.gloom-icon-img {
+  content: url("/gloom.svg");
+}
+
 .light-mode .gloom-icon-img {
-  filter: invert(1) brightness(0.15) contrast(1.2);
+  content: url("/gloom-dark.svg");
+  filter: none;
 }
 
 /* Light mode overrides for Dock */

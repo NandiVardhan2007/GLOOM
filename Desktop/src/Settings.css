@@ -925,11 +925,22 @@ input:checked + .slider:before {
   margin-bottom: 14px;
   user-drag: none;
   -webkit-user-drag: none;
-  transition: filter 0.2s ease;
+  transition: opacity 0.2s ease;
+  content: url("/gloom.svg");
 }
 
 .light-mode .about-logo {
-  filter: invert(1);
+  content: url("/gloom-dark.svg");
+  filter: none;
+}
+
+.gloom-start-preset-icon {
+  content: url("/gloom.svg");
+}
+
+.light-mode .gloom-start-preset-icon {
+  content: url("/gloom-dark.svg");
+  filter: none;
 }
 
 .about-title {

@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 13:12 IST  
-> **Release Version**: 2.7.0 — Pure 1:1 Nectar Parity Clone (100% Rebranded to GLOOM)  
+> **Last Updated**: 2026-11-18 13:25 IST  
+> **Release Version**: 2.7.0 — Pure 1:1 Parity Clone & Exclusive Vector SVG Branding  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Completed Phase 17 Pure 1:1 Nectar Parity Clone. 100% identical UI/UX, all on-demand acrylic windows (`Calendar.tsx`, `Settings.tsx` with all 11 tabs & live search engine, `Dock.tsx`, `Overlay.tsx`, `App.tsx`), all 14 notch components, and 34 Rust backend services ported and rebranded to GLOOM. Total eradication of all `nectar`, `Nectar`, `NECTAR`, and `kua8` references across all source files, configs, and 7 locale translations. All 37/37 Rust tests pass, 38/38 Node tests pass, clean Vite production build across all 5 HTML entries.
+> **Release Status**: Completed Pure 1:1 Parity Clone & Exclusive Vector SVG Branding (`D:\Coding\GLOOM\assets\logo.svg`). Created dark SVG (`assets/logo-dark.svg`, `Desktop/public/gloom-dark.svg`) for light backgrounds and light SVG (`assets/logo.svg`, `Desktop/public/gloom.svg`) for dark/black backgrounds. Eradicated all raster PNG logos across the codebase, updated all HTML favicons to adaptive media queries, and regenerated native Windows ICO / platform icons. All 37/37 Rust tests pass, 38/38 Node tests pass, clean Vite production build across all 5 HTML entries.
 
 ---
 
@@ -13,7 +13,32 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
 1. **GLOOM Desktop Notch & Dynamic Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
 2. **On-Demand Acrylic Windows**: Dynamic on-demand window lifecycle management (`on_demand_windows.rs`) spawning acrylic surfaces for Calendar (`calendar.html`), Settings (`settings.html` with all 11 tabs and live search engine), Dock (`dock.html`), and Overlay (`overlay.html`).
 3. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
-4. **Complete Rebranding & Parity**: 100% pure 1:1 parity with Nectar v1.10.0, cleanly rebranded to GLOOM with zero references to old names.
+4. **Pure 1:1 Parity & Rebranding**: 100% pure 1:1 parity with Nectar v1.10.0, cleanly rebranded to GLOOM with zero references to old names.
+5. **Exclusive Vector SVG Branding Engine**: Uses `assets/logo.svg` exclusively across all surfaces with adaptive theme support:
+   - **Dark Backgrounds / OLED Black Canvas**: Uses the light vector SVG (`/gloom.svg`, `fill="#FCFCFC"`).
+   - **Light Backgrounds**: Dynamically swaps to the dark vector SVG (`/gloom-dark.svg`, `fill="#111111"`) via CSS content properties and React theme hooks.
+   - **HTML Favicons**: All 5 HTML pages use adaptive `media="(prefers-color-scheme: ...)"` vector favicons.
+
+### 🌟 Phase 18 Complete — Exclusive Vector SVG Branding & Dual-Theme Adaptation (2026-11-18):
+1. **SVG Variants Created**:
+   - `assets/logo.svg` & `Desktop/public/gloom.svg`: Light vector icon (`fill="#FCFCFC"`) for dark/black backgrounds.
+   - `assets/logo-dark.svg` & `Desktop/public/gloom-dark.svg`: Dark vector icon (`fill="#111111"`) for light backgrounds.
+   - `Desktop/public/logo.svg` & `Desktop/public/logo-dark.svg`: Canonical aliases for public asset references.
+2. **Complete Raster PNG Eradication**:
+   - Removed `Desktop/public/gloom.png` and `assets/logo.png`.
+   - Replaced all 8 raster PNG logo occurrences across `Dock.tsx`, `Dock.css`, `Overlay.tsx`, `Overlay.css`, `AboutTab.tsx`, `DockTab.tsx`, and `Settings.css`.
+3. **Dual-Theme Adaptive Styling**:
+   - `Settings.css` & `AboutTab.tsx`: `.about-logo` renders `/gloom.svg` on dark theme and automatically switches to `/gloom-dark.svg` when `.light-mode` is active.
+   - `DockTab.tsx`: Start button icon preset uses vector SVG with light/dark adaptation.
+   - `Dock.css` & `Dock.tsx`: `.gloom-icon-img` swaps to `/gloom-dark.svg` on light dock without filter distortion, and `/gloom.svg` on dark dock.
+   - `Overlay.css` & `Overlay.tsx`: Splash screen uses light vector logo on dark overlay canvas; auto-update modal swaps dynamically on light theme.
+   - HTML Entry Points: `index.html`, `dock.html`, `overlay.html`, `settings.html`, `calendar.html` utilize `media="(prefers-color-scheme: ...)"` for dark/light browser window icons.
+4. **Native Tauri Platform Icons**:
+   - Generated native `.ico`, multi-res `.png` bundles, and `.icns` from `assets/logo-square.svg` via `tauri icon` for native Windows PE executable titlebars and taskbar preview.
+5. **Quality Verification**:
+   - **Rust Tests**: 37 passed, 0 failed, 1 ignored (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
+   - **Node Tests**: 38 passed, 0 failed across 8 suites (`npm test --prefix Desktop`).
+   - **Vite Build**: Clean compilation across all 2,472 modules in 2.94s.
 
 ### 🌟 Phase 17 Complete — Pure 1:1 Nectar Parity Clone Rebranded to GLOOM (2026-11-18):
 1. **Full On-Demand Windows & Window Controls Architecture**:

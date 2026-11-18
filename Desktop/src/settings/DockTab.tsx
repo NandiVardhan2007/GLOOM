@@ -16,7 +16,7 @@ import { ShortcutField } from "./ShortcutField";
 const SEARCH_PROVIDERS = ["windows", "cmdpal", "ptrun", "raycast", "shortcut"];
 
 const START_ICON_PRESETS = [
-  { key: "default", src: "/gloom.png", label: "GLOOM" },
+  { key: "default", src: "/gloom.svg", label: "GLOOM" },
   { key: "windows", src: "/windows.svg", label: "Windows" },
 ];
 
@@ -470,7 +470,13 @@ export function DockTab({
                     style={startIconTileStyle(startIcon === icon.key)}
                     title={icon.label}
                   >
-                    <img src={icon.src} alt={icon.label} style={{ width: "100%", height: "100%", objectFit: "contain" }} draggable={false} />
+                    <img
+                      src={icon.src}
+                      alt={icon.label}
+                      className={icon.key === "default" ? "gloom-start-preset-icon" : ""}
+                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                      draggable={false}
+                    />
                   </div>
                 ))}
                 <div
