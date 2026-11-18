@@ -29,7 +29,7 @@ if (execSync(`git tag --list ${tag}`, { cwd: root }).toString().trim()) {
 	process.exit(1);
 }
 
-run(`bun scripts/bump-version.mjs ${version}`);
+run(`node scripts/bump-version.mjs ${version}`);
 
 const changed = execSync(`git diff --name-only -- ${versionFiles.join(" ")}`, { cwd: root })
 	.toString()

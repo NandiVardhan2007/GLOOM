@@ -21,6 +21,8 @@ import {
 export interface MediaInfo {
 	title: string;
 	artist: string;
+	subtitle?: string;
+	source_app?: string;
 	is_playing: boolean;
 	has_media: boolean;
 	artwork?: string[];
@@ -115,6 +117,20 @@ function formatRemaining(elapsed: number, duration: number): string {
 	const minutes = Math.floor(totalSeconds / 60);
 	const seconds = totalSeconds % 60;
 	return `-${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+export function getCleanSourceAppName(sourceApp?: string): string {
+	if (!sourceApp) return "Music";
+	const lower = sourceApp.toLowerCase();
+	if (lower.includes("spotify")) return "Spotify";
+	if (lower.includes("applemusic") || lower.includes("itunes")) return "Apple Music";
+	if (lower.includes("youtubemusic") || lower.includes("youtube")) return "YouTube Music";
+	if (lower.includes("cider")) return "Cider";
+	if (lower.includes("chrome")) return "Chrome";
+	if (lower.includes("edge") || lower.includes("msedge")) return "Edge";
+	if (lower.includes("brave")) return "Brave";
+	if (lower.includes("firefox")) return "Firefox";
+	return sourceApp.replace(/\.exe$/i, "").trim() || "Music";
 }
 
 /**
@@ -220,21 +236,37 @@ function AppleScrubberBar({
 function AppleKaraokeSheet({
 	lyrics,
 	activeLyricIndex,
+	activeLyric,
 	isLoading,
 	hasLyrics,
+	isStreamingFromApp,
 	title,
 	artist,
+	subtitle,
+	sourceAppName,
+	albumArtUrl,
+	palette,
+	isPlaying,
 	onSeekToLine,
-	onClose
+	onClose,
+	onRetry
 }: {
 	lyrics: LyricLine[];
 	activeLyricIndex: number;
+	activeLyric?: string | null;
 	isLoading: boolean;
 	hasLyrics: boolean;
+	isStreamingFromApp?: boolean;
 	title: string;
 	artist: string;
+	subtitle?: string;
+	sourceAppName: string;
+	albumArtUrl: string | null;
+	palette: DominantPalette;
+	isPlaying: boolean;
 	onSeekToLine: (timeMs: number) => void;
 	onClose: () => void;
+	onRetry: () => void;
 }) {
 	const activeLineRef = useRef<HTMLDivElement>(null);
 	const listContainerRef = useRef<HTMLDivElement>(null);
@@ -259,20 +291,41 @@ function AppleKaraokeSheet({
 		>
 			<div className="apple-karaoke-header">
 				<div className="apple-karaoke-meta">
-					<span className="apple-karaoke-title">{title}</span>
+					<div className="apple-karaoke-title-row">
+						{albumArtUrl && (
+							<div className="apple-karaoke-art-mini">
+								<img src={albumArtUrl} alt="" draggable={false} />
+							</div>
+						)}
+						<span className="apple-karaoke-title">{title}</span>
+						{subtitle && subtitle !== title && (
+							<span className="apple-karaoke-sub-badge">{subtitle}</span>
+						)}
+						<span className="apple-karaoke-live-badge">
+							<span className="apple-live-pulse-dot" />
+							{isStreamingFromApp ? `Live • ${sourceAppName}` : sourceAppName}
+						</span>
+					</div>
 					<span className="apple-karaoke-artist">{artist}</span>
 				</div>
-				<motion.button
-					className="apple-karaoke-close-btn"
-					onClick={(e) => {
-						e.stopPropagation();
-						onClose();
-					}}
-					whileTap={{ scale: 0.9 }}
-					title="Close Lyrics"
-				>
-					✕
-				</motion.button>
+				<div className="apple-karaoke-header-actions">
+					<Visualizer isPlaying={isPlaying} bars={3} height={14} />
+					<motion.button
+						className="apple-karaoke-close-btn"
+						onClick={(e) => {
+							e.stopPropagation();
+							onClose();
+						}}
+						whileHover={{ scale: 1.08 }}
+						whileTap={{ scale: 0.92 }}
+						title="Close Lyrics"
+					>
+						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+							<line x1="18" y1="6" x2="6" y2="18" />
+							<line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</motion.button>
+				</div>
 			</div>
 
 			<div ref={listContainerRef} className="apple-karaoke-list">
@@ -287,8 +340,46 @@ function AppleKaraokeSheet({
 					</div>
 				) : !hasLyrics ? (
 					<div className="apple-karaoke-status">
-						<MusicNoteIcon size={24} style={{ opacity: 0.4, marginBottom: 6 }} />
-						<span>Lyrics not available for this track</span>
+						<div className="apple-karaoke-status-icon-wrap">
+							<Visualizer isPlaying={isPlaying} bars={5} height={22} />
+						</div>
+						<span className="apple-karaoke-status-title">Now Playing</span>
+						<span className="apple-karaoke-status-query">{title}</span>
+						<motion.button
+							className="apple-karaoke-retry-btn"
+							onClick={(e) => {
+								e.stopPropagation();
+								playTactileSound("snap");
+								onRetry();
+							}}
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							title="Search lyrics online"
+						>
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+								<circle cx="11" cy="11" r="8" />
+								<line x1="21" y1="21" x2="16.65" y2="16.65" />
+							</svg>
+							Search Lyrics Online
+						</motion.button>
+					</div>
+				) : lyrics.length === 1 && isStreamingFromApp ? (
+					<div className="apple-karaoke-spotlight-wrap">
+						<motion.div
+							className="apple-karaoke-spotlight-line"
+							initial={{ scale: 0.96, opacity: 0 }}
+							animate={{ scale: 1, opacity: 1 }}
+							key={activeLyric || lyrics[0].text}
+							style={{
+								textShadow: `0 0 20px ${palette?.primary ? `${palette.primary}cc` : "rgba(255, 255, 255, 0.75)"}, 0 0 40px rgba(255, 255, 255, 0.35)`
+							}}
+						>
+							{activeLyric || lyrics[0].text}
+						</motion.div>
+						<span className="apple-karaoke-spotlight-hint">
+							<span className="apple-live-pulse-dot" />
+							Live from {sourceAppName}
+						</span>
 					</div>
 				) : (
 					lyrics.map((line, idx) => {
@@ -300,6 +391,13 @@ function AppleKaraokeSheet({
 								key={`${line.timeMs}-${idx}`}
 								ref={isActive ? activeLineRef : null}
 								className={`apple-karaoke-line ${proximityClass}`}
+								style={
+									isActive && palette?.primary
+										? {
+												textShadow: `0 0 16px ${palette.primary}cc, 0 0 32px rgba(255, 255, 255, 0.35)`
+										  }
+										: undefined
+								}
 								onClick={(e) => {
 									e.stopPropagation();
 									playTactileSound("snap");
@@ -385,13 +483,45 @@ export function CompactMediaPlayer({
 		return () => clearInterval(interval);
 	}, [isPlaying, durationMs]);
 
-	// Live lyrics hook with duration-based precision candidate matching
-	const { lyrics, activeLyric, activeLyricIndex, hasLyrics, isLoading } = useLyrics(
+	// Live lyrics hook with duration-based precision candidate matching & live player stream
+	const {
+		lyrics,
+		activeLyric,
+		activeLyricIndex,
+		hasLyrics,
+		isLoading,
+		isStreamingFromApp,
+		cleanTitle,
+		cleanArtist,
+		subtitle,
+		retryFetch
+	} = useLyrics(
 		mediaInfo.title,
 		mediaInfo.artist,
 		displayPosition,
-		durationMs
+		durationMs,
+		mediaInfo.subtitle
 	);
+
+	const sourceAppName = getCleanSourceAppName(mediaInfo.source_app);
+
+	const [albumHovered, setAlbumHovered] = useState(false);
+	const [albumRotation, setAlbumRotation] = useState({ x: 0, y: 0 });
+	const albumRef = useRef<HTMLDivElement>(null);
+
+	const handleAlbumPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (albumRef.current) {
+			const rect = albumRef.current.getBoundingClientRect();
+			const centerX = rect.left + rect.width / 2;
+			const centerY = rect.top + rect.height / 2;
+			const deltaX = e.clientX - centerX;
+			const deltaY = e.clientY - centerY;
+			const maxDistance = Math.sqrt(rect.width * rect.width + rect.height * rect.height) / 2 || 1;
+			const angleX = (deltaY / maxDistance) * 14;
+			const angleY = (deltaX / maxDistance) * -14;
+			setAlbumRotation({ x: angleX, y: angleY });
+		}
+	};
 
 	const handleSeek = useCallback(
 		(seekPos: number) => {
@@ -411,26 +541,80 @@ export function CompactMediaPlayer({
 		[handleSeek]
 	);
 
-	const toggleLyrics = () => {
+	const toggleLyrics = useCallback(() => {
 		playTactileSound("switch");
 		if (onLyricsExpandedChange) {
 			onLyricsExpandedChange(!lyricsExpanded);
 		}
-	};
+	}, [lyricsExpanded, onLyricsExpandedChange]);
+
+	// Apple Keyboard direct manipulation (Space = play/pause, ArrowLeft/Right = ±5s, ArrowUp/Down = volume, M = mute, L = lyrics)
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const target = e.target as HTMLElement | null;
+			if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+				return;
+			}
+			if (e.code === "Space") {
+				e.preventDefault();
+				onTogglePlayPause();
+			} else if (e.code === "ArrowLeft") {
+				e.preventDefault();
+				handleSeek(Math.max(0, displayPosition - 5000));
+			} else if (e.code === "ArrowRight") {
+				e.preventDefault();
+				handleSeek(Math.min(durationMs || Infinity, displayPosition + 5000));
+			} else if (e.code === "ArrowUp") {
+				e.preventDefault();
+				onVolumeChange(Math.min(1, volume + 0.05));
+				playTactileSound("tick");
+			} else if (e.code === "ArrowDown") {
+				e.preventDefault();
+				onVolumeChange(Math.max(0, volume - 0.05));
+				playTactileSound("tick");
+			} else if (e.code === "KeyL") {
+				e.preventDefault();
+				toggleLyrics();
+			} else if (e.code === "KeyM") {
+				e.preventDefault();
+				onVolumeChange(volume > 0 ? 0 : 0.5);
+				playTactileSound("switch");
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [displayPosition, durationMs, handleSeek, onTogglePlayPause, onVolumeChange, volume, toggleLyrics]);
 
 	// If full karaoke lyrics sheet is open, show the dedicated Apple Karaoke view
 	if (lyricsExpanded) {
 		return (
 			<div className="apple-media-container lyrics-open">
+				{albumArtUrl && (
+					<div
+						className={`apple-artwork-aura ${isPlaying ? "playing" : "paused"}`}
+						style={{
+							backgroundImage: `radial-gradient(circle at 20% 20%, ${palette.primary} 0%, transparent 65%), radial-gradient(circle at 80% 80%, ${palette.secondary} 0%, transparent 65%), url(${albumArtUrl})`
+						}}
+					/>
+				)}
 				<AppleKaraokeSheet
 					lyrics={lyrics}
 					activeLyricIndex={activeLyricIndex}
+					activeLyric={activeLyric}
 					isLoading={isLoading}
 					hasLyrics={hasLyrics}
-					title={mediaInfo.title}
-					artist={mediaInfo.artist}
+					isStreamingFromApp={isStreamingFromApp}
+					title={cleanTitle || mediaInfo.title}
+					artist={cleanArtist || mediaInfo.artist}
+					subtitle={subtitle}
+					sourceAppName={sourceAppName}
+					albumArtUrl={albumArtUrl}
+					palette={palette}
+					isPlaying={isPlaying}
 					onSeekToLine={handleSeekToLine}
 					onClose={toggleLyrics}
+					onRetry={retryFetch}
 				/>
 				{durationMs > 0 && (
 					<div className="apple-lyrics-bottom-bar">
@@ -475,16 +659,30 @@ export function CompactMediaPlayer({
 				<div className="apple-classic-main-row">
 					{/* Album Artwork Squircle */}
 					<div
+						ref={albumRef}
 						className="apple-album-art-wrap"
+						onPointerEnter={() => setAlbumHovered(true)}
+						onPointerLeave={() => {
+							setAlbumHovered(false);
+							setAlbumRotation({ x: 0, y: 0 });
+						}}
+						onPointerMove={handleAlbumPointerMove}
 						onClick={(e) => {
 							e.stopPropagation();
 							onLayoutChange("compact");
 						}}
 						title="Click to switch to Compact layout"
+						style={{ perspective: "600px" }}
 					>
 						<motion.div
 							className="apple-album-art"
-							whileHover={{ scale: 1.04 }}
+							style={{
+								transform: `perspective(600px) rotateX(${albumRotation.x}deg) rotateY(${albumRotation.y}deg) scale(${albumHovered ? 1.05 : 1})`,
+								transformStyle: "preserve-3d",
+								transition: albumHovered
+									? "transform 0.08s ease-out"
+									: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)"
+							}}
 							whileTap={{ scale: 0.96 }}
 						>
 							<AnimatePresence mode="wait" initial={false}>
@@ -519,8 +717,17 @@ export function CompactMediaPlayer({
 						{/* Top Header: Title & Actions (Visualizer + Lyrics toggle) */}
 						<div className="apple-header-row">
 							<div className="apple-meta-info">
-								<TitleMarquee title={mediaInfo.title} />
-								<span className="apple-artist">{mediaInfo.artist}</span>
+								<div className="apple-title-with-source">
+									<TitleMarquee title={cleanTitle || mediaInfo.title} />
+									<span className="apple-source-app-chip">
+										<span className="apple-source-pulse" />
+										{sourceAppName}
+									</span>
+								</div>
+								<span className="apple-artist">
+									{cleanArtist || mediaInfo.artist}
+									{subtitle ? ` • ${subtitle}` : ""}
+								</span>
 							</div>
 							<div className="apple-compact-right-actions">
 								<Visualizer isPlaying={isPlaying} bars={4} height={16} />
@@ -734,6 +941,12 @@ export function CompactMediaPlayer({
 						onLayoutChange("classic");
 					}}
 					title="Click to switch to Classic layout"
+					style={{
+						cursor: "pointer",
+						transition: "transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)"
+					}}
+					onPointerEnter={(e) => (e.currentTarget.style.transform = "scale(1.06)")}
+					onPointerLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
 				>
 					<AnimatePresence mode="wait" initial={false}>
 						{albumArtUrl ? (
@@ -756,8 +969,17 @@ export function CompactMediaPlayer({
 				</div>
 
 				<div className="apple-compact-meta">
-					<TitleMarquee title={mediaInfo.title} />
-					<span className="apple-artist">{mediaInfo.artist}</span>
+					<div className="apple-title-with-source">
+						<TitleMarquee title={cleanTitle || mediaInfo.title} />
+						<span className="apple-source-app-chip">
+							<span className="apple-source-pulse" />
+							{sourceAppName}
+						</span>
+					</div>
+					<span className="apple-artist">
+						{cleanArtist || mediaInfo.artist}
+						{subtitle ? ` • ${subtitle}` : ""}
+					</span>
 				</div>
 
 				<div className="apple-compact-right-actions">

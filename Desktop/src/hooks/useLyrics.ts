@@ -6,14 +6,6 @@ export interface LyricLine {
 	text: string;
 }
 
-interface LrcLibResponse {
-	id?: number;
-	trackName?: string;
-	artistName?: string;
-	syncedLyrics?: string;
-	plainLyrics?: string;
-	duration?: number;
-}
 
 interface RustLyricsResult {
 	id?: number;
@@ -33,6 +25,8 @@ export function cleanMediaMetadata(title = "", artist = ""): {
 	cleanTitle: string;
 	cleanArtist: string;
 	primaryArtist: string;
+	primaryTitle: string;
+	subtitle?: string;
 } {
 	let t = (title || "").trim();
 	let a = (artist || "").trim();
@@ -43,8 +37,23 @@ export function cleanMediaMetadata(title = "", artist = ""): {
 	// Strip leading track numbers like "01. ", "01 - ", "1. "
 	t = t.replace(/^\d+[\s.\-_]+/, "").trim();
 
-	// Strip common video/audio/bracket noise
-	// e.g. [Official Video], (Lyrics), (Visualizer), (Audio), (Lyric Video), [MV], (4K), (From "...")
+	// Remove soundtrack and album bracketed noise from artist
+	a = a
+		.replace(
+			/\s*[\(\[][^()\[\]]*(original motion picture soundtrack|soundtrack|ost|deluxe|remaster|edition)[^()\[\]]*[\)\]]/gi,
+			""
+		)
+		.trim();
+
+	// If artist contains " - " followed by movie/album info (e.g. "Anirudh ... - Remo (Telugu)"), strip after " - "
+	if (a.includes(" - ")) {
+		const parts = a.split(" - ");
+		if (parts[0].trim()) {
+			a = parts[0].trim();
+		}
+	}
+
+	// Strip common video/audio/bracket noise from title
 	t = t
 		.replace(
 			/\s*[\(\[][^()\[\]]*(feat|ft\.|official|video|audio|remaster|version|from|ost|soundtrack|lyrics|lyric|visualizer|prod\.|mv|hd|4k|hq|clip)[^()\[\]]*[\)\]]/gi,
@@ -83,6 +92,32 @@ export function cleanMediaMetadata(title = "", artist = ""): {
 		}
 	}
 
+	// Extract primary title & subtitle if separated by bullet / pipe / tilde
+	let primaryTitle = t;
+	let subtitle: string | undefined;
+	for (const sep of ["•", "·", "∙", "|", "~"]) {
+		if (t.includes(sep)) {
+			const parts = t.split(sep);
+			if (parts[0].trim()) {
+				primaryTitle = parts[0].trim();
+				if (parts[1]?.trim()) {
+					subtitle = parts[1].trim();
+				}
+				break;
+			}
+		}
+	}
+
+	// Strip emojis and symbols from primary title, subtitle & artist
+	const emojiRegex =
+		/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1F2FF}\u{2022}\u{00B7}\u{2219}]/gu;
+	primaryTitle = primaryTitle.replace(emojiRegex, "").trim();
+	if (subtitle) {
+		subtitle = subtitle.replace(emojiRegex, "").trim();
+	}
+	const cleanTitle = t.replace(emojiRegex, "").trim();
+	a = a.replace(emojiRegex, "").trim();
+
 	// Extract primary artist (before comma, &, /, x, feat., ft.)
 	const primaryArtist = a
 		.split(/[,&/]|(\s+feat\.?\s+)|\s+ft\.?\s+|\s+x\s+/i)[0]
@@ -90,9 +125,78 @@ export function cleanMediaMetadata(title = "", artist = ""): {
 		.trim();
 
 	return {
-		cleanTitle: t.trim(),
-		cleanArtist: a.trim(),
-		primaryArtist: primaryArtist || a.trim()
+		cleanTitle: cleanTitle || t,
+		cleanArtist: a,
+		primaryArtist: primaryArtist || a,
+		primaryTitle: primaryTitle || cleanTitle || t,
+		subtitle
+	};
+}
+
+/**
+ * Extracts any real-time lyric line being broadcast directly by the music app
+ * via media session title or subtitle (e.g. "Kathakaadhey • 🎶 ఒదిలేయవే ఒదిలేయవే").
+ */
+export function extractLiveLyricFromApp(rawTitle = "", rawSubtitle = "", rawArtist = ""): {
+	cleanTitle: string;
+	liveLyric: string | null;
+} {
+	let cleanTitle = (rawTitle || "").trim();
+	let liveLyric: string | null = null;
+
+	const emojiRegex =
+		/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1F2FF}\u{2022}\u{00B7}\u{2219}\u{266A}\u{266B}\u{266C}\u{2669}]/gu;
+	const musicSymbolRegex = /[🎶🎵🎤🎼🎧♪♫♬♩✨⭐]/u;
+
+	// 1. Check if subtitle has an active lyric line
+	if (rawSubtitle && rawSubtitle.trim()) {
+		const subClean = rawSubtitle.replace(emojiRegex, "").trim();
+		if (subClean && subClean.toLowerCase() !== (rawArtist || "").toLowerCase()) {
+			liveLyric = subClean;
+		}
+	}
+
+	// 2. Delimiter followed by music note / symbol: e.g. "Title • 🎶 Lyric", "Title - 🎵 Lyric", "Title | ♫ Lyric"
+	const matchWithSymbol = rawTitle.match(/^(.+?)\s*[•·∙|~–—\-]\s*[🎶🎵🎤🎼🎧♪♫♬♩✨⭐]\s*(.+)$/u);
+	if (matchWithSymbol) {
+		cleanTitle = matchWithSymbol[1].replace(emojiRegex, "").trim();
+		liveLyric = matchWithSymbol[2].replace(emojiRegex, "").trim();
+		return { cleanTitle: cleanTitle || rawTitle, liveLyric: liveLyric || null };
+	}
+
+	// 3. Delimiter without explicit note emoji: e.g. "Title • Lyric"
+	const bulletMatch = rawTitle.match(/^(.+?)\s*[•·∙|~]\s*(.+)$/u);
+	if (bulletMatch) {
+		const candidateTitle = bulletMatch[1].replace(emojiRegex, "").trim();
+		const candidateLyric = bulletMatch[2].replace(emojiRegex, "").trim();
+		const isArtistRepeat = candidateLyric.toLowerCase() === (rawArtist || "").toLowerCase();
+		const isKnownSuffix = /^(official|video|audio|remix|edit|single|ep|deluxe|instrumental|acoustic)$/i.test(candidateLyric);
+		if (candidateLyric && !isArtistRepeat && !isKnownSuffix) {
+			cleanTitle = candidateTitle;
+			// If contains music symbol anywhere or distinct lyric text
+			if (musicSymbolRegex.test(rawTitle) || candidateLyric.length > 1) {
+				liveLyric = candidateLyric;
+			}
+			return { cleanTitle: cleanTitle || rawTitle, liveLyric: liveLyric || null };
+		}
+	}
+
+	// 4. Bracketed or parenthesized lyric with music symbol: e.g. "Track (🎶 Lyric)" or "Track [🎶 Lyric]"
+	const bracketMatch = rawTitle.match(/^(.+?)\s*[\(\[]\s*[🎶🎵🎤🎼🎧♪♫♬♩✨⭐]\s*(.+?)[\)\]]$/u);
+	if (bracketMatch) {
+		cleanTitle = bracketMatch[1].replace(emojiRegex, "").trim();
+		liveLyric = bracketMatch[2].replace(emojiRegex, "").trim();
+		return { cleanTitle: cleanTitle || rawTitle, liveLyric: liveLyric || null };
+	}
+
+	// 5. If title itself starts with a music symbol: e.g. "🎶 Lyric"
+	if (!liveLyric && musicSymbolRegex.test(rawTitle.slice(0, 4))) {
+		liveLyric = rawTitle.replace(emojiRegex, "").trim();
+	}
+
+	return {
+		cleanTitle: cleanTitle || rawTitle,
+		liveLyric: liveLyric || null
 	};
 }
 
@@ -116,23 +220,81 @@ export function parseLrc(lrcText: string): LyricLine[] {
 	return lines.sort((a, b) => a.timeMs - b.timeMs);
 }
 
-// In-memory cache for fetched lyrics to prevent duplicate network calls
+// In-memory cache for fetched lyrics to prevent duplicate calls
 const lyricsCache = new Map<string, LyricLine[]>();
 
 export function useLyrics(
 	title?: string,
 	artist?: string,
 	positionMs = 0,
-	durationMs?: number
+	durationMs?: number,
+	subtitle?: string
 ) {
 	const [lyrics, setLyrics] = useState<LyricLine[]>([]);
 	const [activeLyric, setActiveLyric] = useState<string | null>(null);
 	const [activeLyricIndex, setActiveLyricIndex] = useState<number>(-1);
 	const [nextLyric, setNextLyric] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const [isStreamingFromApp, setIsStreamingFromApp] = useState(false);
 	const lastKeyRef = useRef<string>("");
 
+	// Stable reference to current playback position to avoid aborting effects on 100ms clock ticks
+	const positionMsRef = useRef(positionMs);
+	positionMsRef.current = positionMs;
+
+	// Dynamic live-streamed lyrics directly from the music app
+	const [appStreamedLyrics, setAppStreamedLyrics] = useState<LyricLine[]>([]);
+	const lastSongRef = useRef<string>("");
+	const lastAppLyricRef = useRef<string>("");
+
+	// 1. Extract any real-time lyric line being broadcast directly by the song app
+	const appExtraction = extractLiveLyricFromApp(title || "", subtitle || "", artist || "");
+	const appLiveLyric = appExtraction.liveLyric;
+	const appCleanTitle = appExtraction.cleanTitle;
+
+	// Reset live stream when song changes
 	useEffect(() => {
+		const songKey = `${artist || ""} - ${appCleanTitle}`.toLowerCase();
+		if (lastSongRef.current !== songKey) {
+			lastSongRef.current = songKey;
+			lastAppLyricRef.current = "";
+			setAppStreamedLyrics([]);
+		}
+	}, [appCleanTitle, artist]);
+
+	// Accumulate real-time streamed lyrics as they arrive from the playing app
+	useEffect(() => {
+		if (appLiveLyric && appLiveLyric !== lastAppLyricRef.current) {
+			lastAppLyricRef.current = appLiveLyric;
+			setAppStreamedLyrics((prev) => {
+				if (prev.length > 0 && prev[prev.length - 1].text === appLiveLyric) {
+					return prev;
+				}
+				return [...prev, { timeMs: positionMsRef.current, text: appLiveLyric }];
+			});
+		}
+	}, [appLiveLyric]);
+
+	const hasAppLyrics = Boolean(appLiveLyric || appStreamedLyrics.length > 0);
+
+	// Primary effect: manage streaming lyrics vs offline/local lyrics
+	useEffect(() => {
+		// When the song app itself has the lyrics directly, use them and DO NOT query online
+		if (hasAppLyrics) {
+			setIsStreamingFromApp(true);
+			setIsLoading(false);
+			const lines =
+				appStreamedLyrics.length > 0
+					? appStreamedLyrics
+					: appLiveLyric
+					? [{ timeMs: positionMsRef.current, text: appLiveLyric }]
+					: [];
+			setLyrics(lines);
+			return;
+		}
+
+		setIsStreamingFromApp(false);
+
 		if (!title || title === "Unknown Title") {
 			setLyrics([]);
 			setActiveLyric(null);
@@ -143,8 +305,10 @@ export function useLyrics(
 			return;
 		}
 
-		const { cleanTitle, cleanArtist, primaryArtist } = cleanMediaMetadata(title, artist);
-		const cacheKey = `${primaryArtist || cleanArtist} - ${cleanTitle}`.toLowerCase();
+		const { cleanTitle, cleanArtist, primaryArtist, primaryTitle } = cleanMediaMetadata(title, artist);
+		const targetTitle = primaryTitle || cleanTitle;
+		const targetArtist = primaryArtist || cleanArtist;
+		const cacheKey = `${targetArtist} - ${targetTitle}`.toLowerCase();
 
 		if (lastKeyRef.current === cacheKey && lyrics.length > 0) return;
 		lastKeyRef.current = cacheKey;
@@ -157,121 +321,32 @@ export function useLyrics(
 
 		let active = true;
 		setIsLoading(true);
-		const controller = new AbortController();
 
 		async function fetchLyrics() {
 			try {
-				// 1. Try native Rust backend fetch command first (bypasses browser CSP/CORS, uses pooled HTTP client)
-				try {
-					const rustResult = await invoke<RustLyricsResult>("fetch_lyrics", {
-						title: cleanTitle,
-						artist: cleanArtist || primaryArtist,
-						durationMs: durationMs && durationMs > 0 ? durationMs : undefined
-					});
-					if (rustResult && rustResult.lines && rustResult.lines.length > 0) {
-						if (!active) return;
-						const parsed = rustResult.lines.map((l) => ({
-							timeMs: l.time_ms,
-							text: l.text
-						}));
-						lyricsCache.set(cacheKey, parsed);
-						setLyrics(parsed);
-						setIsLoading(false);
-						return;
-					}
-				} catch {
-					// Fall through to client-side fetch fallback
-				}
-
-				// 2. Client-side fetch fallback (LRCLIB)
-				let data: LrcLibResponse | null = null;
-
-				// 2a. Try exact get if primary artist is known
-				if (primaryArtist && !primaryArtist.toLowerCase().includes("unknown")) {
-					try {
-						const params = new URLSearchParams({
-							track_name: cleanTitle,
-							artist_name: primaryArtist
-						});
-						const res = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
-							signal: controller.signal
-						});
-						if (res.ok) {
-							data = await res.json();
-						}
-					} catch {
-						// Fall through to search query
-					}
-				}
-
-				// 2b. Fallback to /api/search if exact get returned 404 or lacked synced lyrics
-				if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
-					const searchEndpoints = [
-						`https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(primaryArtist)}`,
-						`https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanTitle} ${primaryArtist}`.trim())}`,
-						`https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanTitle)}`
-					];
-
-					for (const endpoint of searchEndpoints) {
-						try {
-							const searchRes = await fetch(endpoint, {
-								signal: controller.signal
-							});
-							if (searchRes.ok) {
-								const searchData: LrcLibResponse[] = await searchRes.json();
-								if (Array.isArray(searchData) && searchData.length > 0) {
-									// Pick candidate with synced lyrics closest to duration, else first with synced, else first
-									if (durationMs && durationMs > 0) {
-										const targetSecs = durationMs / 1000;
-										const withSynced = searchData.filter((i) => !!i.syncedLyrics);
-										if (withSynced.length > 0) {
-											withSynced.sort((a, b) => {
-												const da = Math.abs((a.duration ?? 0) - targetSecs);
-												const db = Math.abs((b.duration ?? 0) - targetSecs);
-												return da - db;
-											});
-											data = withSynced[0];
-										} else {
-											data = searchData[0];
-										}
-									} else {
-										const withSynced = searchData.find((item) => !!item.syncedLyrics);
-										data = withSynced || searchData[0];
-									}
-									if (data && (data.syncedLyrics || data.plainLyrics)) {
-										break;
-									}
-								}
-							}
-						} catch {
-							// Continue to next endpoint variant
-						}
-					}
-				}
-
-				if (!active) return;
-				setIsLoading(false);
-
-				if (data && data.syncedLyrics) {
-					const parsed = parseLrc(data.syncedLyrics);
+				const rustResult = await invoke<RustLyricsResult>("fetch_lyrics", {
+					title: targetTitle,
+					artist: targetArtist,
+					durationMs: durationMs && durationMs > 0 ? durationMs : undefined
+				});
+				if (rustResult && rustResult.lines && rustResult.lines.length > 0) {
+					if (!active) return;
+					const parsed = rustResult.lines.map((l) => ({
+						timeMs: l.time_ms,
+						text: l.text
+					}));
 					lyricsCache.set(cacheKey, parsed);
 					setLyrics(parsed);
-				} else if (data && data.plainLyrics) {
-					const lines = data.plainLyrics
-						.split("\n")
-						.map((l) => l.trim())
-						.filter(Boolean)
-						.map((text, idx) => ({ timeMs: idx * 4000, text }));
-					lyricsCache.set(cacheKey, lines);
-					setLyrics(lines);
-				} else {
-					setLyrics([]);
+					setIsLoading(false);
+					return;
 				}
 			} catch {
-				if (active) {
-					setIsLoading(false);
-					setLyrics([]);
-				}
+				// Local / song app prioritized
+			}
+
+			if (active) {
+				setIsLoading(false);
+				setLyrics([]);
 			}
 		}
 
@@ -279,12 +354,32 @@ export function useLyrics(
 
 		return () => {
 			active = false;
-			controller.abort();
 		};
-	}, [title, artist, durationMs]);
+	}, [hasAppLyrics, appLiveLyric, appStreamedLyrics, title, artist, durationMs]);
 
-	// Match active lyric based on positionMs with binary search / fast lookup
+	const retryFetch = () => {
+		lastKeyRef.current = "";
+		setLyrics([]);
+		setIsLoading(true);
+	};
+
+	// Match active lyric based on streaming player state or positionMs
 	useEffect(() => {
+		if (isStreamingFromApp) {
+			if (appLiveLyric) {
+				setActiveLyric(appLiveLyric);
+				const idx = lyrics.findIndex((l) => l.text === appLiveLyric);
+				setActiveLyricIndex(idx >= 0 ? idx : Math.max(0, lyrics.length - 1));
+				setNextLyric(null);
+			} else if (lyrics.length > 0) {
+				const lastIdx = lyrics.length - 1;
+				setActiveLyric(lyrics[lastIdx].text);
+				setActiveLyricIndex(lastIdx);
+				setNextLyric(null);
+			}
+			return;
+		}
+
 		if (lyrics.length === 0) {
 			setActiveLyric(null);
 			setActiveLyricIndex(-1);
@@ -310,15 +405,23 @@ export function useLyrics(
 			setActiveLyricIndex(0);
 			setNextLyric(lyrics[1]?.text ?? null);
 		}
-	}, [lyrics, positionMs]);
+	}, [lyrics, positionMs, isStreamingFromApp, appLiveLyric]);
+
+	const meta = cleanMediaMetadata(title, artist);
 
 	return {
 		lyrics,
 		activeLyric,
 		activeLyricIndex,
 		nextLyric,
-		hasLyrics: lyrics.length > 0,
-		isSynced: lyrics.some((l) => l.timeMs > 0),
-		isLoading
+		hasLyrics: lyrics.length > 0 || hasAppLyrics,
+		isSynced: true,
+		isLoading,
+		isStreamingFromApp,
+		cleanTitle: appCleanTitle || meta.primaryTitle || meta.cleanTitle,
+		cleanArtist: meta.cleanArtist,
+		primaryArtist: meta.primaryArtist,
+		subtitle: appLiveLyric || meta.subtitle,
+		retryFetch
 	};
 }

@@ -19,6 +19,7 @@ import {
 	MusicNoteIcon
 } from "./icons";
 import { CompactMediaPlayer } from "./CompactMediaPlayer";
+import { extractLiveLyricFromApp } from "./hooks/useLyrics";
 import { playTactileSound } from "./utils/audioFeedback.ts";
 import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -32,17 +33,20 @@ import { NotchFlares } from "./components/NotchFlares";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import { ProductivityDrawer } from "./components/cards/ProductivityDrawer";
 import { LiveActivityBanner, type LiveActivityItem } from "./components/cards/LiveActivityBanner";
-import { WifiPanel } from "./components/WifiPanel";
-import { BluetoothPanel } from "./components/BluetoothPanel";
+import { SurfaceShape } from "./components/SurfaceShape";
+import { NotchProgressBorder } from "./components/NotchProgressBorder";
+import { NotchTour } from "./components/NotchTour";
+import { IslandNavBar, type IslandTabId } from "./components/IslandNavBar";
+import { SystemMonitorCard } from "./components/cards/SystemMonitorCard";
+import { NotchClock } from "./components/NotchClock";
+import { useStopwatch } from "./hooks/useStopwatch";
+import { ConnectionsView } from "./components/ConnectionsView";
 import {
 	Cpu,
 	MemoryStick,
 	HardDrive,
 	ArrowUpDown,
 	BellRing,
-	Play,
-	Pause,
-	RotateCcw,
 	Megaphone,
 	Type,
 	X,
@@ -69,32 +73,6 @@ type NotchPanel = "calendar" | "command-center";
 const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center"];
 const asNotchPanel = (value: unknown): NotchPanel | null =>
 	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
-
-// Pomodoro timer limit.
-const MAX_TIMER_SECONDS = 180 * 60;
-
-// Inline timer editing: digits fill from the right and the colon is inserted
-// automatically ("130" -> 1:30, "2500" -> 25:00, "45" -> 0:45).
-const timerDigitsToSeconds = (digits: string): number | null => {
-	if (!digits) return null;
-	const secs = parseInt(digits.slice(-2) || "0", 10);
-	const mins = parseInt(digits.slice(0, -2) || "0", 10);
-	const total = mins * 60 + secs;
-	return total > 0 && total <= MAX_TIMER_SECONDS ? total : null;
-};
-
-const timerSecondsToDigits = (seconds: number): string => {
-	const mins = Math.floor(seconds / 60);
-	const secs = seconds % 60;
-	return `${mins}${secs.toString().padStart(2, "0")}`.replace(/^0+(?=\d)/, "");
-};
-
-const formatTimerDigits = (digits: string): string => {
-	if (!digits) return "0:00";
-	const secs = digits.slice(-2).padStart(2, "0");
-	const mins = parseInt(digits.slice(0, -2) || "0", 10);
-	return `${mins}:${secs}`;
-};
 
 // Completion chime for the Pomodoro timer. Synthesized with the Web Audio API
 // so no audio asset is needed; created on the Start click so the webview's
@@ -474,37 +452,11 @@ const calendarMonthRows = (() => {
 	return Math.ceil((firstWeekday + daysInMonth) / 7);
 })();
 
-// Odometer-style digit for the timer clock. When the value changes the old
-// digit rolls up and out while the new one rolls in from below with a slight
-// 3D tilt — no card chrome, just the numerals.
-const RollDigit = memo(function RollDigit({
-	value,
-	compact = false
-}: {
-	value: string;
-	compact?: boolean;
-}) {
-	return (
-		<span className={`roll-digit ${compact ? "compact" : ""}`}>
-			<AnimatePresence initial={false}>
-				<motion.span
-					key={value}
-					className="roll-num"
-					initial={{ y: "72%", rotateX: -50, opacity: 0 }}
-					animate={{ y: "0%", rotateX: 0, opacity: 1 }}
-					exit={{ y: "-72%", rotateX: 50, opacity: 0 }}
-					transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-				>
-					{value}
-				</motion.span>
-			</AnimatePresence>
-		</span>
-	);
-});
-
 interface MediaInfo {
 	title: string;
 	artist: string;
+	subtitle?: string;
+	source_app?: string;
 	is_playing: boolean;
 	has_media: boolean;
 	artwork?: string[];
@@ -977,6 +929,25 @@ function App() {
 	const [classicVolumeExpanded, setClassicVolumeExpanded] = useState(false);
 	const [lyricsExpanded, setLyricsExpanded] = useState(false);
 
+	const [activeIslandTab, setActiveIslandTab] = useState<IslandTabId>("media");
+	const [connectionsDrilldown, setConnectionsDrilldown] = useState<"none" | "wifi" | "bluetooth" | "audio">("none");
+	const [tourActive, setTourActive] = useState(false);
+	const [tourStep, setTourStep] = useState(0);
+	const [tourDone, setTourDone] = useState(false);
+	const stopwatch = useStopwatch();
+
+	useEffect(() => {
+		const unlisten = listen("start-tour", () => {
+			setTourStep(0);
+			setTourDone(false);
+			setTourActive(true);
+			setIsOpen(true);
+		});
+		return () => {
+			unlisten.then((f) => f());
+		};
+	}, []);
+
 	// Weather hook
 	const {
 		temperature,
@@ -985,6 +956,22 @@ function App() {
 		cityName,
 		tempUnit
 	} = useWeather(settingsWeatherEnabled);
+
+	useEffect(() => {
+		if (!isOpen) return;
+		const handleNavKey = (e: KeyboardEvent) => {
+			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+			if (e.key === "1") setActiveIslandTab("media");
+			else if (e.key === "2") setActiveIslandTab("focus");
+			else if (e.key === "3") {
+				setActiveIslandTab("controls");
+				setConnectionsDrilldown("none");
+			} else if (e.key === "4") setActiveIslandTab("productivity");
+			else if (e.key === "5") setActiveIslandTab("system");
+		};
+		window.addEventListener("keydown", handleNavKey);
+		return () => window.removeEventListener("keydown", handleNavKey);
+	}, [isOpen]);
 
 	useEffect(() => {
 		if (!windowLabel) return;
@@ -1847,14 +1834,10 @@ function App() {
 	const [timerSeconds, setTimerSeconds] = useState(0);
 	const [isTimerRunning, setIsTimerRunning] = useState(false);
 	const [isTimerFinished, setIsTimerFinished] = useState(false);
-	const [isEditingTimer, setIsEditingTimer] = useState(false);
-	const [timerEditDigits, setTimerEditDigits] = useState("");
 	const [lastDurationSeconds, setLastDurationSeconds] = useState(() => {
 		const stored = parseInt(localStorage.getItem("gloom-timer-last-duration") || "", 10);
 		return Number.isFinite(stored) && stored > 0 ? stored : 25 * 60;
 	});
-	const timerInputRef = useRef<HTMLInputElement>(null);
-	const timerEditActiveRef = useRef(false);
 	const timerIntervalRef = useRef<any>(null);
 	const prevTimerFinishedRef = useRef(false);
 
@@ -1867,8 +1850,6 @@ function App() {
 	const startTimer = (seconds: number) => {
 		// Unlock audio here (user gesture) so the completion chime can play later.
 		getTimerChimeCtx();
-		timerEditActiveRef.current = false;
-		setIsEditingTimer(false);
 		setTimerSeconds(seconds);
 		setLastDurationSeconds(seconds);
 		localStorage.setItem("gloom-timer-last-duration", String(seconds));
@@ -1877,8 +1858,6 @@ function App() {
 	};
 
 	const resetTimer = () => {
-		timerEditActiveRef.current = false;
-		setIsEditingTimer(false);
 		setIsTimerRunning(false);
 		setTimerSeconds(0);
 		setIsTimerFinished(false);
@@ -1886,9 +1865,7 @@ function App() {
 
 	// Idle/finished play restarts the last duration; paused play resumes.
 	const handlePrimaryTimerAction = () => {
-		if (isEditingTimer) {
-			commitTimerEdit(true);
-		} else if (isTimerRunning) {
+		if (isTimerRunning) {
 			setIsTimerRunning(false);
 		} else if (timerSeconds > 0) {
 			getTimerChimeCtx();
@@ -1897,87 +1874,6 @@ function App() {
 			startTimer(lastDurationSeconds);
 		}
 	};
-
-	// Clicking the big time turns it into a masked editor. Digits fill from the
-	// right, so the colon never has to be typed.
-	const beginTimerEdit = () => {
-		if (isTimerRunning || isEditingTimer) return;
-		if (isTimerFinished) resetTimer();
-		const base = timerSeconds > 0 ? timerSeconds : lastDurationSeconds;
-		setTimerEditDigits(timerSecondsToDigits(base));
-		timerEditActiveRef.current = true;
-		setIsEditingTimer(true);
-	};
-
-	const commitTimerEdit = (start: boolean) => {
-		if (!timerEditActiveRef.current) return;
-		timerEditActiveRef.current = false;
-		setIsEditingTimer(false);
-		const total = timerDigitsToSeconds(timerEditDigits);
-		if (total === null) return;
-		const base = timerSeconds > 0 ? timerSeconds : lastDurationSeconds;
-		// A tap that changes nothing (e.g. paused timer) must not reset the state.
-		if (!start && total === base) return;
-		localStorage.setItem("gloom-timer-last-duration", String(total));
-		setLastDurationSeconds(total);
-		setTimerSeconds(start ? total : 0);
-		setIsTimerRunning(start);
-		setIsTimerFinished(false);
-		if (start) getTimerChimeCtx();
-	};
-
-	useEffect(() => {
-		if (isEditingTimer) {
-			timerInputRef.current?.focus();
-			timerInputRef.current?.select();
-		}
-	}, [isEditingTimer]);
-
-	const timerEditValid = timerDigitsToSeconds(timerEditDigits) !== null;
-
-	const timerState: "idle" | "running" | "paused" | "finished" = isEditingTimer
-		? "idle"
-		: isTimerFinished
-			? "finished"
-			: isTimerRunning
-				? "running"
-				: timerSeconds > 0
-					? "paused"
-					: "idle";
-	const timerDisplaySeconds =
-		timerSeconds > 0 || isTimerFinished ? timerSeconds : lastDurationSeconds;
-	const primaryTimerLabel = isTimerRunning
-		? "Pause"
-		: timerSeconds > 0
-			? "Resume"
-			: isTimerFinished
-				? "Restart"
-				: "Start";
-	const timerEndTime =
-		timerSeconds > 0 && !isTimerFinished
-			? new Date(Date.now() + timerSeconds * 1000).toLocaleTimeString([], {
-					hour: "2-digit",
-					minute: "2-digit",
-					hour12: !timeFormat24h
-				})
-			: null;
-
-	// Split the display time into individual flip-clock digits. Keys are counted
-	// from the right so existing digits keep their identity when minutes grow
-	// from two digits to three. While editing, the same clock renders the digits
-	// being typed so the layout never changes.
-	const clockText = isEditingTimer
-		? formatTimerDigits(timerEditDigits)
-		: formatTimerTime(timerDisplaySeconds);
-	const [clockMinutesText, clockSecondsText] = clockText.split(":");
-	const clockMinutesPadded = clockMinutesText.padStart(2, "0");
-	const clockCompact = clockMinutesPadded.length > 2;
-	const minuteDigitItems = clockMinutesPadded
-		.split("")
-		.map((digit, i, arr) => ({ digit, key: `m${arr.length - i}` }));
-	const secondDigitItems = clockSecondsText
-		.split("")
-		.map((digit, i, arr) => ({ digit, key: `s${arr.length - i}` }));
 
 	useEffect(() => {
 		if (isTimerRunning && timerSeconds > 0) {
@@ -2047,6 +1943,15 @@ function App() {
 		if (gloomMode === "announcement") return;
 		playTactileSound("snap");
 		setIsOpen(true);
+		if (view === "music") {
+			setActiveIslandTab("media");
+		} else if (view === "shelf") {
+			setActiveIslandTab("productivity");
+		} else if (view === "calendar") {
+			setActiveIslandTab("focus");
+		} else if (view === "command-center") {
+			setActiveIslandTab("controls");
+		}
 		setGloomMode(view);
 	};
 
@@ -2073,7 +1978,9 @@ function App() {
 	// resumes. The notch itself never switches views for media; the collapsed
 	// pill follows the live-activity rule below.
 	useEffect(() => {
-		const isNewTrackWhilePlaying = mediaInfo.title !== lastTrackRef.current && isPlaying;
+		const { cleanTitle } = extractLiveLyricFromApp(mediaInfo.title, mediaInfo.subtitle, mediaInfo.artist);
+		const targetTrack = cleanTitle || mediaInfo.title;
+		const isNewTrackWhilePlaying = targetTrack !== lastTrackRef.current && isPlaying;
 		const justStartedPlaying = isPlaying && !lastPlayingRef.current;
 
 		// Peek notch on media events (play start or track change)
@@ -2081,9 +1988,9 @@ function App() {
 			triggerEventPeek(3000);
 		}
 
-		lastTrackRef.current = mediaInfo.title;
+		lastTrackRef.current = targetTrack;
 		lastPlayingRef.current = isPlaying;
-	}, [isPlaying, mediaInfo.title, notchMode, triggerEventPeek]);
+	}, [isPlaying, mediaInfo.title, mediaInfo.subtitle, mediaInfo.artist, notchMode, triggerEventPeek]);
 
 	// Reset gloom mode when calendar setting is disabled
 	useEffect(() => {
@@ -2359,6 +2266,8 @@ function App() {
 				if (
 					prev.title === info.title &&
 					prev.artist === info.artist &&
+					prev.subtitle === info.subtitle &&
+					prev.source_app === info.source_app &&
 					prev.is_playing === info.is_playing &&
 					prev.has_media === info.has_media &&
 					!artChanged &&
@@ -2812,10 +2721,17 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
 		if (gloomMode === "announcement" && announcement && !announcementDismissed) return 380;
-		if (isCalendarMode) return 480;
-		if (gloomMode === "shelf") return 420;
-		if (gloomMode === "command-center" && isOpen) return 350;
-		if (gloomMode === "wifi" || gloomMode === "bluetooth") return 350;
+		if (isOpen) {
+			if (activeIslandTab === "media") {
+				if (lyricsExpanded) return 440;
+				return mediaLayout === "compact" ? 360 : 400;
+			}
+			if (activeIslandTab === "focus") return 490;
+			if (activeIslandTab === "controls") return connectionsDrilldown !== "none" ? 380 : 360;
+			if (activeIslandTab === "productivity") return 430;
+			if (activeIslandTab === "system") return 420;
+			return 380;
+		}
 		if (showMusicOnStatusHover) {
 			return 170 + (settingsVisualizerEnabled ? 30 : 0);
 		}
@@ -2824,7 +2740,7 @@ function App() {
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
 		if (isMusicMode && isOpen) {
-			if (lyricsExpanded) return 380;
+			if (lyricsExpanded) return 420;
 			return mediaLayout === "compact" ? 330 : 380;
 		}
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
@@ -2846,6 +2762,34 @@ function App() {
 		if (gloomMode === "announcement" && announcement && !announcementDismissed) {
 			return announcement.url ? 168 : 148;
 		}
+		if (isOpen) {
+			if (activeIslandTab === "media") {
+				if (lyricsExpanded) return 340;
+				const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
+				if (mediaLayout === "compact") {
+					let h = hasProgressBar ? 210 : 180;
+					if (compactVolumeExpanded) h += 34;
+					return h;
+				} else {
+					let h = hasProgressBar ? 220 : 190;
+					if (classicVolumeExpanded) h += 34;
+					return h;
+				}
+			}
+			if (activeIslandTab === "focus") {
+				return calendarMonthRows >= 6 ? 380 : 350;
+			}
+			if (activeIslandTab === "controls") {
+				return connectionsDrilldown !== "none" ? 360 : 290;
+			}
+			if (activeIslandTab === "productivity") {
+				return 280;
+			}
+			if (activeIslandTab === "system") {
+				return 340;
+			}
+			return 280;
+		}
 		// Sized to the calendar's week-row count plus the timer's fixed content.
 		if (gloomMode === "calendar") return calendarMonthRows >= 6 ? 320 : 288;
 		// Unified Productivity Drawer (Files, Clipboard History, Scratchpad)
@@ -2855,19 +2799,6 @@ function App() {
 		if (gloomMode === "command-center") return isOpen ? 230 : 36;
 		if (gloomMode === "wifi" || gloomMode === "bluetooth") return 300;
 		if (gloomMode === "status") return 36;
-		if (isMusicMode && isOpen) {
-			if (lyricsExpanded) return 260;
-			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
-			if (mediaLayout === "compact") {
-				let h = hasProgressBar ? 148 : 124;
-				if (compactVolumeExpanded) h += 34;
-				return h;
-			} else {
-				let h = hasProgressBar ? 152 : 128;
-				if (classicVolumeExpanded) h += 34;
-				return h;
-			}
-		}
 		return 36;
 	};
 
@@ -3052,7 +2983,26 @@ function App() {
 							<div className="charging-halo-glow" />
 						</div>
 					)}
+					<SurfaceShape
+						edge="top"
+						flare={!isPill && pillTargetY <= 2 ? 14 : 0}
+						radius={pillRadius}
+						edgeRadius={pillRadius}
+					/>
 					<NotchFlares visible={!isPill && isVisible && !isHidden && pillTargetY <= 2} />
+
+					<NotchProgressBorder
+						progress={
+							isMusicMode && (mediaInfo.duration_ms ?? 0) > 0
+								? Math.min(100, Math.max(0, ((mediaInfo.position_ms ?? 0) / (mediaInfo.duration_ms || 1)) * 100))
+								: (timerSeconds > 0 && lastDurationSeconds > 0 ? ((lastDurationSeconds - timerSeconds) / lastDurationSeconds) * 100 : 0)
+						}
+						topRadius={isPill ? pillRadius : 0}
+						flare={!isPill && pillTargetY <= 2 ? 14 : 0}
+						bottomRadius={pillRadius}
+						paused={isMusicMode ? !isPlaying : !isTimerRunning}
+						finished={isTimerFinished}
+					/>
 
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
@@ -3096,50 +3046,505 @@ function App() {
 									borderRadius: "inherit"
 								}}
 							>
+								{/* Segmented Island Navigation Bar with Active Badges */}
+								{isOpen && (
+									<IslandNavBar
+										activeTab={activeIslandTab}
+										onTabChange={(tab) => {
+											setActiveIslandTab(tab);
+											setConnectionsDrilldown("none");
+										}}
+										isMusicPlaying={mediaInfo.has_media && isPlaying}
+										timerActive={timerSeconds > 0}
+										timerSeconds={timerSeconds}
+										productivityCount={shelfItems.length}
+									/>
+								)}
+
 								{/* Faster Waiting Transition Area */}
 								<AnimatePresence mode="wait">
-									{isOpen && isMusicMode && !isCalendarMode ? (
+									{isOpen ? (
 										<motion.div
-											key="expanded-music"
-											className="expanded-music-container"
-											initial={{ opacity: 0, scale: 0.98 }}
-											animate={{ opacity: 1, scale: 1 }}
-											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 500, damping: 30 }}
+											key="island-expanded-view"
+											style={{
+												width: "100%",
+												display: "flex",
+												flexDirection: "column",
+												alignItems: "center"
+											}}
 										>
-											<CompactMediaPlayer
-												layout={mediaLayout}
-												mediaInfo={mediaInfo}
-												albumArtUrl={albumArtUrl}
-												albumArtKey={albumArtKey}
-												isPlaying={isPlaying}
-												volume={displayVolume}
-												volumeExpanded={mediaLayout === "compact" ? compactVolumeExpanded : classicVolumeExpanded}
-												onVolumeExpandedChange={mediaLayout === "compact" ? setCompactVolumeExpanded : setClassicVolumeExpanded}
-												lyricsExpanded={lyricsExpanded}
-												onLyricsExpandedChange={setLyricsExpanded}
-												onTogglePlayPause={togglePlayPause}
-												onVolumeChange={handleVolumeChange}
-												prevFront={prevFront}
-												prevBack={prevBack}
-												nextFront={nextFront}
-												nextBack={nextBack}
-												onAnimatePrev={animatePrev}
-												onAnimateNext={animateNext}
-												onLayoutChange={(layout) => {
-													setMediaLayout(layout);
-													localStorage.setItem("gloom-media-layout", layout);
-													invoke("save_setting", {
-														key: "gloom-media-layout",
-														value: layout
-													}).catch(console.error);
-													window.dispatchEvent(
-														new CustomEvent("settings-changed", {
-															detail: { key: "media-layout", value: layout }
-														})
-													);
-												}}
-											/>
+											{activeIslandTab === "media" && (
+												<motion.div
+													key="tab-media"
+													className="expanded-music-container"
+													initial={{ opacity: 0, scale: 0.98 }}
+													animate={{ opacity: 1, scale: 1 }}
+													exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
+													transition={{ type: "spring", stiffness: 500, damping: 30 }}
+													style={{ width: "100%" }}
+												>
+													{mediaInfo.has_media ? (
+														<CompactMediaPlayer
+															layout={mediaLayout}
+															mediaInfo={mediaInfo}
+															albumArtUrl={albumArtUrl}
+															albumArtKey={albumArtKey}
+															isPlaying={isPlaying}
+															volume={displayVolume}
+															volumeExpanded={mediaLayout === "compact" ? compactVolumeExpanded : classicVolumeExpanded}
+															onVolumeExpandedChange={mediaLayout === "compact" ? setCompactVolumeExpanded : setClassicVolumeExpanded}
+															lyricsExpanded={lyricsExpanded}
+															onLyricsExpandedChange={setLyricsExpanded}
+															onTogglePlayPause={togglePlayPause}
+															onVolumeChange={handleVolumeChange}
+															prevFront={prevFront}
+															prevBack={prevBack}
+															nextFront={nextFront}
+															nextBack={nextBack}
+															onAnimatePrev={animatePrev}
+															onAnimateNext={animateNext}
+															onLayoutChange={(layout) => {
+																setMediaLayout(layout);
+																localStorage.setItem("gloom-media-layout", layout);
+																invoke("save_setting", {
+																	key: "gloom-media-layout",
+																	value: layout
+																}).catch(console.error);
+																window.dispatchEvent(
+																	new CustomEvent("settings-changed", {
+																		detail: { key: "media-layout", value: layout }
+																	})
+																);
+															}}
+														/>
+													) : (
+														<div className="apple-no-media-card">
+															<MusicNoteIcon size={36} />
+															<div className="no-media-title">No Media Playing</div>
+															<p className="no-media-desc">Play tracks in Spotify, Apple Music, or your browser</p>
+														</div>
+													)}
+												</motion.div>
+											)}
+
+											{activeIslandTab === "focus" && (
+												<motion.div
+													key="tab-focus"
+													className="calendar-timer-content split-view"
+													onClick={(e) => e.stopPropagation()}
+													initial={{ opacity: 0 }}
+													animate={{ opacity: 1 }}
+													exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+													transition={{ type: "spring", stiffness: 400, damping: 30 }}
+													style={{ width: "100%" }}
+												>
+													{settingsCalendarEnabled && (
+														<div className="calendar-column">
+															<Calendar />
+														</div>
+													)}
+													<div className="timer-column" style={{ width: settingsCalendarEnabled ? undefined : "100%" }}>
+														<NotchClock
+															timerEnabled={true}
+															stopwatchEnabled={true}
+															solo={!settingsCalendarEnabled}
+															timerSeconds={timerSeconds}
+															isTimerRunning={isTimerRunning}
+															formatTimerTime={formatTimerTime}
+															onStartTimer={startTimer}
+															onToggleTimer={handlePrimaryTimerAction}
+															onResetTimer={resetTimer}
+															stopwatch={stopwatch}
+														/>
+													</div>
+												</motion.div>
+											)}
+
+											{activeIslandTab === "controls" && (
+												<motion.div
+													key="tab-controls"
+													initial={{ opacity: 0 }}
+													animate={{ opacity: 1 }}
+													exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+													transition={{ type: "spring", stiffness: 400, damping: 30 }}
+													style={{ width: "100%", height: "100%" }}
+													onClick={(e) => e.stopPropagation()}
+												>
+													{connectionsDrilldown !== "none" ? (
+														<ConnectionsView
+															kind={connectionsDrilldown}
+															onBack={() => setConnectionsDrilldown("none")}
+															onOpenWindowsSettings={() => invoke("open_settings_window").catch(() => {})}
+															onPinChange={setNotchPinned}
+														/>
+													) : (
+														<div className="command-center-content-minimal">
+															{/* Pills Grid */}
+															<div className="cc-pills-grid">
+																{/* Wi-Fi Pill */}
+																<div
+																	className={`cc-pill-tile ${wifiEnabled ? "active" : ""}`}
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		toggleWifi();
+																	}}
+																	onContextMenu={handleWifiRightClick}
+																	title="Left-click to toggle, Right-click for networks"
+																>
+																	<div className="cc-pill-icon-wrapper">
+																		<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
+																	</div>
+																	<div className="cc-pill-info">
+																		<span className="cc-pill-title">Wi-Fi</span>
+																		<span className="cc-pill-status">
+																			{wifiStatus === null
+																				? "…"
+																				: !wifiEnabled
+																					? "Off"
+																					: wifiConnected
+																						? (wifiStatus?.ssid ?? "Connected")
+																						: "Not connected"}
+																		</span>
+																	</div>
+																	<button
+																		className="cc-pill-more"
+																		aria-label="Wi-Fi networks"
+																		title="Wi-Fi networks"
+																		onClick={(e) => {
+																			e.stopPropagation();
+																			setConnectionsDrilldown("wifi");
+																		}}
+																	>
+																		<ChevronRight size={14} />
+																	</button>
+																</div>
+
+																{/* Platform Pill: Power on Linux, Dock Mode on Windows */}
+																{isLinux ? (
+																	<div
+																		className="cc-pill-tile"
+																		onClick={() => openBatterySaverSettings()}
+																		title="Battery / Power Status"
+																	>
+																		<div className="cc-pill-icon-wrapper">
+																			<BatterySaverIcon />
+																		</div>
+																		<div className="cc-pill-info">
+																			<span className="cc-pill-title">Power</span>
+																			<span className="cc-pill-status">
+																				{batteryLevel !== null
+																					? `${Math.round(batteryLevel)}%${isCharging ? " ⚡" : ""}`
+																					: "AC Power"}
+																			</span>
+																		</div>
+																	</div>
+																) : (
+																	<div
+																		className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
+																		onClick={toggleDockModeSetting}
+																		title="Cycle dock mode: Fixed / Smart / Peek"
+																	>
+																		<div className="cc-pill-icon-wrapper">
+																			<DockIcon />
+																		</div>
+																		<div className="cc-pill-info">
+																			<span className="cc-pill-title">Dock Mode</span>
+																			<span className="cc-pill-status">
+																				{dockMode === "fixed"
+																					? "Fixed"
+																					: dockMode === "smart"
+																						? "Smart"
+																						: "Peek"}
+																			</span>
+																		</div>
+																	</div>
+																)}
+
+																{/* Bluetooth Pill */}
+																<div
+																	className={`cc-pill-tile ${bluetoothEnabled ? "active" : ""}`}
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		toggleBluetooth();
+																	}}
+																	onContextMenu={handleBluetoothRightClick}
+																	title="Left-click to toggle, Right-click for devices"
+																>
+																	<div className="cc-pill-icon-wrapper">
+																		<BluetoothIcon />
+																	</div>
+																	<div className="cc-pill-info">
+																		<span className="cc-pill-title">Bluetooth</span>
+																		<span className="cc-pill-status">
+																			{!bluetoothEnabled
+																				? "Off"
+																				: btConnectedNames.length === 1
+																					? btConnectedNames[0]
+																					: btConnectedNames.length > 1
+																						? `${btConnectedNames.length} connected`
+																						: "On"}
+																		</span>
+																	</div>
+																	<button
+																		className="cc-pill-more"
+																		aria-label="Bluetooth devices"
+																		title="Bluetooth devices"
+																		onClick={(e) => {
+																			e.stopPropagation();
+																			setConnectionsDrilldown("bluetooth");
+																		}}
+																	>
+																		<ChevronRight size={14} />
+																	</button>
+																</div>
+
+																{/* Audio Outputs Pill */}
+																<div
+																	className="cc-pill-tile"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		setConnectionsDrilldown("audio");
+																	}}
+																	title="Audio outputs and per-app volumes"
+																>
+																	<div className="cc-pill-icon-wrapper">
+																		<VolumeLowIcon />
+																	</div>
+																	<div className="cc-pill-info">
+																		<span className="cc-pill-title">Audio</span>
+																		<span className="cc-pill-status">Outputs & Apps</span>
+																	</div>
+																	<button
+																		className="cc-pill-more"
+																		aria-label="Audio devices"
+																		title="Audio devices"
+																		onClick={(e) => {
+																			e.stopPropagation();
+																			setConnectionsDrilldown("audio");
+																		}}
+																	>
+																		<ChevronRight size={14} />
+																	</button>
+																</div>
+
+																{/* Notch Mode Pill */}
+																<div
+																	className={`cc-pill-tile ${notchMode === "fixed" ? "active" : ""}`}
+																	onClick={toggleNotchModeSetting}
+																	title="Cycle notch mode: Fixed / Smart / Peek"
+																>
+																	<div className="cc-pill-icon-wrapper">
+																		<NotchIcon />
+																	</div>
+																	<div className="cc-pill-info">
+																		<span className="cc-pill-title">Notch Mode</span>
+																		<span className="cc-pill-status">
+																			{notchMode === "fixed"
+																				? "Fixed"
+																				: notchMode === "smart"
+																					? "Smart"
+																					: "Peek"}
+																		</span>
+																	</div>
+																</div>
+															</div>
+
+															{/* Circular Actions Row */}
+															<div className="cc-circular-actions-row">
+																<button
+																	className={`cc-circular-btn ${dndActive ? "active" : ""}`}
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		setDndActive((prev) => !prev);
+																	}}
+																	title={`Focus / DND: ${dndActive ? "On" : "Off"}`}
+																>
+																	<MoonIcon />
+																</button>
+																<button
+																	className={`cc-circular-btn ${batterySaverEnabled ? "active" : ""}`}
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		openBatterySaverSettings();
+																	}}
+																	title={`Energy Saver: ${batterySaverEnabled ? "On" : "Off"} — Click to open Settings`}
+																>
+																	<BatterySaverIcon />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		openSystemTray(e);
+																	}}
+																	title="System Tray"
+																>
+																	<TrayIcon />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		invoke("open_notification_center");
+																	}}
+																	title="Notification Center"
+																>
+																	<BellIcon />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		openSettingsWindow();
+																	}}
+																	title="GLOOM Settings"
+																>
+																	<SettingsIcon />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		invoke("open_system_action", { action: "task-manager" });
+																	}}
+																	title="Task Manager"
+																>
+																	<Cpu size={14} />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		invoke("open_system_action", { action: "file-explorer" });
+																	}}
+																	title="File Explorer"
+																>
+																	<Folder size={14} />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		invoke("open_system_action", { action: "lock-screen" });
+																	}}
+																	title="Lock PC"
+																>
+																	<Lock size={14} />
+																</button>
+																<button
+																	className="cc-circular-btn"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		invoke("restart_gloom");
+																	}}
+																	title="Restart GLOOM"
+																>
+																	<ReloadIcon />
+																</button>
+															</div>
+
+															{/* Classic Sliders Area */}
+															<div className="cc-classic-sliders-area">
+																{/* Volume Slider */}
+																<div className="cc-classic-slider-row">
+																	<div className="cc-classic-slider-label">
+																		<VolumeLowIcon style={{ opacity: 0.5 }} />
+																		<span>Volume</span>
+																	</div>
+																	<div className="cc-classic-slider-track">
+																		<input
+																			type="range"
+																			min="0"
+																			max="1"
+																			step="0.01"
+																			value={displayVolume}
+																			onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+																			onPointerDown={(e) => e.stopPropagation()}
+																			onClick={(e) => e.stopPropagation()}
+																			className="cc-classic-input"
+																		/>
+																		<div
+																			className="cc-classic-fill"
+																			style={{ width: `${displayVolume * 100}%` }}
+																		/>
+																	</div>
+																	<span className="cc-classic-percentage">
+																		{Math.round(displayVolume * 100)}%
+																	</span>
+																</div>
+
+																{/* Brightness Slider */}
+																<div className="cc-classic-slider-row">
+																	<div className="cc-classic-slider-label">
+																		<BrightnessLowIcon />
+																		<span>Brightness</span>
+																	</div>
+																	<div className="cc-classic-slider-track">
+																		<input
+																			type="range"
+																			min="0"
+																			max="100"
+																			step="1"
+																			value={currentBrightness}
+																			onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
+																			onPointerDown={(e) => e.stopPropagation()}
+																			onClick={(e) => e.stopPropagation()}
+																			className="cc-classic-input"
+																		/>
+																		<div
+																			className="cc-classic-fill brightness"
+																			style={{ width: `${currentBrightness}%` }}
+																		/>
+																	</div>
+																	<span className="cc-classic-percentage">
+																		{currentBrightness}%
+																	</span>
+																</div>
+															</div>
+														</div>
+													)}
+												</motion.div>
+											)}
+
+											{activeIslandTab === "productivity" && (
+												<motion.div
+													key="tab-productivity"
+													initial={{ opacity: 0 }}
+													animate={{ opacity: 1 }}
+													exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+													transition={{ type: "spring", stiffness: 400, damping: 30 }}
+													style={{ width: "100%", height: "100%" }}
+												>
+													<ProductivityDrawer
+														shelfItems={shelfItems}
+														shelfThumbs={shelfThumbs}
+														shelfNotice={shelfNotice}
+														shelfOverflowing={shelfOverflowing}
+														shelfGridRef={shelfGridRef}
+														measureShelfOverflow={measureShelfOverflow}
+														shelfNewIdsRef={shelfNewIdsRef}
+														handleShelfPointerDown={handleShelfPointerDown}
+														handleShelfPointerMove={handleShelfPointerMove}
+														handleShelfTileClick={handleShelfTileClick}
+														removeShelfItem={removeShelfItem}
+														handleShelfWheel={handleShelfWheel}
+													/>
+												</motion.div>
+											)}
+
+											{activeIslandTab === "system" && (
+												<motion.div
+													key="tab-system"
+													initial={{ opacity: 0 }}
+													animate={{ opacity: 1 }}
+													exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+													transition={{ type: "spring", stiffness: 400, damping: 30 }}
+													style={{ width: "100%", height: "100%" }}
+													onClick={(e) => e.stopPropagation()}
+												>
+													<SystemMonitorCard />
+												</motion.div>
+											)}
 										</motion.div>
 									) : (
 										<motion.div
@@ -3405,352 +3810,6 @@ function App() {
 									)}
 								</AnimatePresence>
 
-								{/* Wi-Fi networks, opened from the controls panel's Wi-Fi tile */}
-								<AnimatePresence>
-									{gloomMode === "wifi" && (
-										<motion.div
-											key="wifi-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
-										>
-											<WifiPanel
-												enabled={wifiEnabled}
-												onToggle={toggleWifi}
-												onBack={() => setGloomMode("command-center")}
-												onPinChange={setNotchPinned}
-											/>
-										</motion.div>
-									)}
-								</AnimatePresence>
-
-								{/* Bluetooth devices, opened from the controls panel's Bluetooth tile */}
-								<AnimatePresence>
-									{gloomMode === "bluetooth" && (
-										<motion.div
-											key="bluetooth-view"
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
-										>
-											<BluetoothPanel
-												enabled={bluetoothEnabled}
-												onToggle={toggleBluetooth}
-												onBack={() => setGloomMode("command-center")}
-												onPinChange={setNotchPinned}
-											/>
-										</motion.div>
-									)}
-								</AnimatePresence>
-
-								{/* Command Center Panel */}
-								<AnimatePresence>
-									{gloomMode === "command-center" && (
-										<motion.div
-											className="command-center-content-minimal"
-											onClick={(e) => e.stopPropagation()}
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
-										>
-											{/* Pills Grid */}
-											<div className="cc-pills-grid">
-												{/* Wi-Fi Pill */}
-												<div
-													className={`cc-pill-tile ${wifiEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														toggleWifi();
-													}}
-													onContextMenu={handleWifiRightClick}
-													title="Left-click to toggle, Right-click for networks"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Wi-Fi</span>
-														<span className="cc-pill-status">
-															{wifiStatus === null
-																? "…"
-																: !wifiEnabled
-																	? "Off"
-																	: wifiConnected
-																		? (wifiStatus?.ssid ?? "Connected")
-																		: "Not connected"}
-														</span>
-													</div>
-													<button
-														className="cc-pill-more"
-														aria-label="Wi-Fi networks"
-														title="Wi-Fi networks"
-														onClick={(e) => {
-															e.stopPropagation();
-															setGloomMode("wifi");
-														}}
-													>
-														<ChevronRight />
-													</button>
-												</div>
-
-												{/* Platform Pill: Power on Linux, Dock Mode on Windows */}
-												{isLinux ? (
-													<div
-														className="cc-pill-tile"
-														onClick={() => openBatterySaverSettings()}
-														title="Battery / Power Status"
-													>
-														<div className="cc-pill-icon-wrapper">
-															<BatterySaverIcon />
-														</div>
-														<div className="cc-pill-info">
-															<span className="cc-pill-title">Power</span>
-															<span className="cc-pill-status">
-																{batteryLevel !== null
-																	? `${Math.round(batteryLevel)}%${isCharging ? " ⚡" : ""}`
-																	: "AC Power"}
-															</span>
-														</div>
-													</div>
-												) : (
-													<div
-														className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
-														onClick={toggleDockModeSetting}
-														title="Cycle dock mode: Fixed / Smart / Peek"
-													>
-														<div className="cc-pill-icon-wrapper">
-															<DockIcon />
-														</div>
-														<div className="cc-pill-info">
-															<span className="cc-pill-title">Dock Mode</span>
-															<span className="cc-pill-status">
-																{dockMode === "fixed"
-																	? "Fixed"
-																	: dockMode === "smart"
-																		? "Smart"
-																		: "Peek"}
-															</span>
-														</div>
-													</div>
-												)}
-
-												{/* Bluetooth Pill */}
-												<div
-													className={`cc-pill-tile ${bluetoothEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														toggleBluetooth();
-													}}
-													onContextMenu={handleBluetoothRightClick}
-													title="Left-click to toggle, Right-click for devices"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<BluetoothIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Bluetooth</span>
-														<span className="cc-pill-status">
-															{!bluetoothEnabled
-																? "Off"
-																: btConnectedNames.length === 1
-																	? btConnectedNames[0]
-																	: btConnectedNames.length > 1
-																		? `${btConnectedNames.length} connected`
-																		: "On"}
-														</span>
-													</div>
-													<button
-														className="cc-pill-more"
-														aria-label="Bluetooth devices"
-														title="Bluetooth devices"
-														onClick={(e) => {
-															e.stopPropagation();
-															setGloomMode("bluetooth");
-														}}
-													>
-														<ChevronRight />
-													</button>
-												</div>
-
-												{/* Notch Mode Pill */}
-												<div
-													className={`cc-pill-tile ${notchMode === "fixed" ? "active" : ""}`}
-													onClick={toggleNotchModeSetting}
-													title="Cycle notch mode: Fixed / Smart / Peek"
-												>
-													<div className="cc-pill-icon-wrapper">
-														<NotchIcon />
-													</div>
-													<div className="cc-pill-info">
-														<span className="cc-pill-title">Notch Mode</span>
-														<span className="cc-pill-status">
-															{notchMode === "fixed"
-																? "Fixed"
-																: notchMode === "smart"
-																	? "Smart"
-																	: "Peek"}
-														</span>
-													</div>
-												</div>
-											</div>
-
-											{/* Circular Actions Row */}
-											<div className="cc-circular-actions-row">
-												<button
-													className={`cc-circular-btn ${dndActive ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														setDndActive((prev) => !prev);
-													}}
-													title={`Focus / DND: ${dndActive ? "On" : "Off"}`}
-												>
-													<MoonIcon />
-												</button>
-												<button
-													className={`cc-circular-btn ${batterySaverEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														openBatterySaverSettings();
-													}}
-													title={`Energy Saver: ${batterySaverEnabled ? "On" : "Off"} — Click to open Settings`}
-												>
-													<BatterySaverIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														openSystemTray(e);
-													}}
-													title="System Tray"
-												>
-													<TrayIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_notification_center");
-													}}
-													title="Notification Center"
-												>
-													<BellIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														openSettingsWindow();
-													}}
-													title="GLOOM Settings"
-												>
-													<SettingsIcon />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_system_action", { action: "task-manager" });
-													}}
-													title="Task Manager"
-												>
-													<Cpu size={14} />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_system_action", { action: "file-explorer" });
-													}}
-													title="File Explorer"
-												>
-													<Folder size={14} />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("open_system_action", { action: "lock-screen" });
-													}}
-													title="Lock PC"
-												>
-													<Lock size={14} />
-												</button>
-												<button
-													className="cc-circular-btn"
-													onClick={(e) => {
-														e.stopPropagation();
-														invoke("restart_gloom");
-													}}
-													title="Restart GLOOM"
-												>
-													<ReloadIcon />
-												</button>
-											</div>
-
-											{/* Classic Sliders Area */}
-											<div className="cc-classic-sliders-area">
-												{/* Volume Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<VolumeLowIcon style={{ opacity: 0.5 }} />
-														<span>Volume</span>
-													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="1"
-															step="0.01"
-															value={displayVolume}
-															onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${displayVolume * 100}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">
-														{Math.round(displayVolume * 100)}%
-													</span>
-												</div>
-
-												{/* Brightness Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<BrightnessLowIcon />
-														<span>Brightness</span>
-													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="100"
-															step="1"
-															value={currentBrightness}
-															onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${currentBrightness}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">{currentBrightness}%</span>
-												</div>
-											</div>
-										</motion.div>
-									)}
-								</AnimatePresence>
-
 								{/* Announcement Card */}
 								<AnimatePresence>
 									{gloomMode === "announcement" && announcement && !announcementDismissed && (
@@ -3794,139 +3853,31 @@ function App() {
 									)}
 								</AnimatePresence>
 
-								{/* Calendar & Timer Split View */}
-								<AnimatePresence>
-									{settingsCalendarEnabled && isCalendarMode && (
-										<motion.div
-											className="calendar-timer-content split-view"
-											onClick={(e) =>
-												e.stopPropagation()
-											} /* Block mode switches when clicking inside */
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
-											transition={{ type: "spring", stiffness: 400, damping: 30 }}
-										>
-											<div className="calendar-column">
-												<Calendar />
-											</div>
-
-											<div className="timer-column">
-												<div className={`timer-section-new state-${timerState}`}>
-													<div className="timer-main">
-														<div className="timer-status">
-															{isEditingTimer
-																? "Set duration"
-																: isTimerFinished
-																	? "Time's up"
-																	: timerEndTime
-																		? `${timerState === "paused" ? "Paused · " : ""}ends ${timerEndTime}`
-																		: "Click to edit"}
-														</div>
-
-														<div className={`timer-clock-row ${isEditingTimer ? "editing" : ""}`}>
-															<div
-																className={`timer-clock ${isEditingTimer && !timerEditValid ? "invalid" : ""}`}
-																onClick={beginTimerEdit}
-																title={isTimerRunning ? undefined : "Click to set a duration"}
-															>
-																{minuteDigitItems.map(({ digit, key }) => (
-																	<RollDigit key={key} value={digit} compact={clockCompact} />
-																))}
-																<span className="timer-colon">:</span>
-																{secondDigitItems.map(({ digit, key }) => (
-																	<RollDigit key={key} value={digit} compact={clockCompact} />
-																))}
-															</div>
-															<span className="timer-edit-underline" aria-hidden="true" />
-															{isEditingTimer && (
-																<input
-																	ref={timerInputRef}
-																	className="timer-edit-input"
-																	type="text"
-																	inputMode="numeric"
-																	aria-label="Set timer duration"
-																	value={formatTimerDigits(timerEditDigits)}
-																	onChange={(e) =>
-																		setTimerEditDigits(
-																			e.target.value.replace(/\D/g, "").slice(0, 5)
-																		)
-																	}
-																	onKeyDown={(e) => {
-																		if (e.key === "Enter") commitTimerEdit(true);
-																	}}
-																	onBlur={() => commitTimerEdit(false)}
-																	onWheel={(e) => e.stopPropagation()}
-																/>
-															)}
-														</div>
-													</div>
-
-													<div className="timer-controls-row">
-														<span className="timer-controls-spacer" aria-hidden="true" />
-														<button
-															onClick={handlePrimaryTimerAction}
-															onMouseDown={(e) => e.preventDefault()}
-															className="timer-btn-play"
-															title={primaryTimerLabel}
-														>
-															{isTimerRunning ? (
-																<Pause size={14} strokeWidth={2} fill="currentColor" />
-															) : (
-																<Play size={14} strokeWidth={2} fill="currentColor" />
-															)}
-															<span>{primaryTimerLabel}</span>
-														</button>
-														<button
-															onClick={resetTimer}
-															className="timer-btn-reset"
-															disabled={timerSeconds === 0 && !isTimerFinished}
-															title="Reset"
-														>
-															<RotateCcw size={14} strokeWidth={2.5} />
-														</button>
-													</div>
-
-													<div className="timer-preset-group">
-														{[5, 15, 25, 50].map((mins) => (
-															<button
-																key={mins}
-																onClick={() => startTimer(mins * 60)}
-																className={`timer-preset-segment ${lastDurationSeconds === mins * 60 && !isTimerFinished ? "active" : ""}`}
-															>
-																{mins}m
-															</button>
-														))}
-													</div>
-												</div>
-											</div>
-										</motion.div>
-									)}
-								</AnimatePresence>
-
-								{/* Unified Productivity Drawer (Files, Clipboard History, Scratchpad) */}
-								<AnimatePresence>
-									{gloomMode === "shelf" && (
-										<ProductivityDrawer
-											shelfItems={shelfItems}
-											shelfThumbs={shelfThumbs}
-											shelfNotice={shelfNotice}
-											shelfOverflowing={shelfOverflowing}
-											shelfGridRef={shelfGridRef}
-											measureShelfOverflow={measureShelfOverflow}
-											shelfNewIdsRef={shelfNewIdsRef}
-											handleShelfPointerDown={handleShelfPointerDown}
-											handleShelfPointerMove={handleShelfPointerMove}
-											handleShelfTileClick={handleShelfTileClick}
-											removeShelfItem={removeShelfItem}
-											handleShelfWheel={handleShelfWheel}
-										/>
-									)}
-								</AnimatePresence>
 							</motion.div>
 						)}
 					</AnimatePresence>
 				</motion.div>
+
+				{/* Interactive Feature Tour */}
+				{tourActive && (
+					<NotchTour
+						step={tourStep}
+						done={tourDone}
+						dockEnabled={dockEnabled}
+						onStep={(next) => {
+							setTourStep(next);
+							setTourDone(false);
+						}}
+						onClose={() => setTourActive(false)}
+						onAction={(action) => {
+							if (action === "control-center") {
+								setActiveIslandTab("controls");
+							} else if (action === "settings") {
+								openSettingsWindow();
+							}
+						}}
+					/>
+				)}
 				{/* The shelf's items, as a bubble on the left of the collapsed pill */}
 				<AnimatePresence onExitComplete={() => reportNotchRect.current()}>
 					{showShelfBubble && (

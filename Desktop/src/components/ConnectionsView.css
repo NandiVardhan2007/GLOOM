@@ -1,0 +1,245 @@
+/* Connections View Styles */
+.connections-view {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.cv-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: 0;
+  color: #0a84ff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.cv-back-btn:hover {
+  background: rgba(10, 132, 255, 0.15);
+}
+
+.cv-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.cv-settings-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cv-settings-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.cv-content-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cv-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.05);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 12px;
+  transition: background 0.15s ease;
+  gap: 8px;
+}
+
+.cv-row:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.cv-row.connected {
+  border-color: rgba(48, 209, 88, 0.3);
+  background: rgba(48, 209, 88, 0.08);
+}
+
+.cv-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cv-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cv-status-connected {
+  font-size: 10px;
+  color: #30d158;
+  font-weight: 600;
+}
+
+.cv-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cv-signal {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.cv-signal i {
+  width: 2.5px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 1px;
+}
+
+.cv-signal i.on {
+  background: #30d158;
+}
+
+.cv-action-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 0;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cv-action-btn:hover {
+  background: #0a84ff;
+}
+
+.cv-password-drawer {
+  width: 100%;
+  display: flex;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.cv-password-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 0.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #ffffff;
+  font-size: 11.5px;
+  outline: none;
+}
+
+.cv-join-btn {
+  background: #0a84ff;
+  border: 0;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cv-bt-icon {
+  color: #0a84ff;
+}
+
+/* App Volumes */
+.cv-app-volumes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cv-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cv-app-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cv-app-row .cv-name {
+  width: 85px;
+  flex-shrink: 0;
+}
+
+.cv-app-row .cc-classic-slider-track {
+  flex: 1;
+}
+
+.cv-vol-pct {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.7);
+  width: 32px;
+  text-align: right;
+}
+
+.cv-hint {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 12px 0;
+}

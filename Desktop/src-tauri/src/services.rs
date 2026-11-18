@@ -1270,7 +1270,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
             let mut manager: Option<GlobalSystemMediaTransportControlsSessionManager> = None;
-            let mut last_emitted_info: Option<(String, String, bool, bool, Option<String>, i64, i64)> = None;
+            let mut last_emitted_info: Option<(String, String, Option<String>, bool, bool, Option<String>, i64, i64)> = None;
 
             loop {
                 if SHUTTING_DOWN.load(Ordering::Relaxed) {
@@ -1297,11 +1297,14 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                     let title = props.Title().unwrap_or_default().to_string();
                                     if !title.is_empty() {
                                         let artist = props.Artist().unwrap_or_default().to_string();
+                                        let subtitle = props.Subtitle().ok().map(|s| s.to_string()).filter(|s| !s.is_empty());
+                                        let source_app = session.SourceAppUserModelId().ok().map(|s| s.to_string()).filter(|s| !s.is_empty());
                                         let mut artwork = None;
                                         let mut got_art_from_cache = false;
                                         if let Some((
                                             ref last_title,
                                             ref last_artist,
+                                            _,
                                             _,
                                             _,
                                             ref last_art,
@@ -1358,6 +1361,8 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                         let info = MediaInfo {
                                             title,
                                             artist,
+                                            subtitle,
+                                            source_app,
                                             is_playing,
                                             has_media: true,
                                             artwork,
@@ -1381,6 +1386,8 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 let current = best_info.unwrap_or(MediaInfo {
                     title: "".into(),
                     artist: "".into(),
+                    subtitle: None,
+                    source_app: None,
                     is_playing: false,
                     has_media: false,
                     artwork: None,
@@ -1390,15 +1397,16 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     position_updated_at: 0,
                 });
                 let art_str = current.artwork.as_ref().and_then(|a| a.first()).cloned();
-                if last_emitted_info.as_ref().is_none_or(|(t, a, p, h, art, pos, _dur)| {
-                    t != &current.title || a != &current.artist || p != &current.is_playing || h != &current.has_media || art != &art_str ||
+                if last_emitted_info.as_ref().is_none_or(|(t, a, sub, p, h, art, pos, _dur)| {
+                    t != &current.title || a != &current.artist || sub != &current.subtitle || p != &current.is_playing || h != &current.has_media || art != &art_str ||
                     (*pos - current.position_ms).abs() > 1000
                 }) {
                     let _ = handle_media.emit("media-update", current.clone());
                     ANY_MEDIA_PLAYING.store(current.is_playing, Ordering::Relaxed);
-                    last_emitted_info = Some((current.title, current.artist, current.is_playing, current.has_media, art_str, current.position_ms, current.duration_ms));
+                    last_emitted_info = Some((current.title, current.artist, current.subtitle.clone(), current.is_playing, current.has_media, art_str, current.position_ms, current.duration_ms));
                 }
-                std::thread::sleep(std::time::Duration::from_millis(2000));
+                let sleep_ms = if current.is_playing { 250 } else { 1000 };
+                std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
             }
         }
     });

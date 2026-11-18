@@ -1,0 +1,119 @@
+/* Island Nav Bar: Apple-Style Segmented Pill Bar */
+.island-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 14px 4px;
+  box-sizing: border-box;
+  z-index: 20;
+}
+
+.island-nav-track {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 4px 16px rgba(0, 0, 0, 0.25);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  gap: 2px;
+}
+
+.island-nav-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  outline: none;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 0.18s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.island-nav-tab:hover {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.island-nav-tab.active {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.island-nav-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  z-index: 1;
+}
+
+.island-nav-tab-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.island-nav-icon {
+  opacity: 0.85;
+  transition: transform 0.15s ease;
+}
+
+.island-nav-tab:hover .island-nav-icon {
+  transform: scale(1.08);
+}
+
+.island-nav-tab.active .island-nav-icon {
+  opacity: 1;
+  color: #ffffff;
+}
+
+.island-nav-label {
+  font-size: 11.5px;
+}
+
+.island-nav-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 8px #30d158;
+  animation: apple-live-dot-pulse 1.6s infinite ease-in-out;
+}
+
+.island-nav-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 999px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.island-nav-badge.timer-badge {
+  background: rgba(255, 159, 10, 0.25);
+  color: #ff9f0a;
+  border: 0.5px solid rgba(255, 159, 10, 0.4);
+}
+
+.island-nav-badge.count-badge {
+  background: rgba(10, 132, 255, 0.25);
+  color: #64d2ff;
+  border: 0.5px solid rgba(10, 132, 255, 0.4);
+}

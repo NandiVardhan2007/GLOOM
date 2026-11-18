@@ -3795,6 +3795,63 @@ pub fn get_ram_usage() -> Result<f32, String> {
 }
 
 #[tauri::command]
+pub fn get_ram_details() -> Result<crate::types::RamDetails, String> {
+    unsafe {
+        let mut mem = windows::Win32::System::SystemInformation::MEMORYSTATUSEX::default();
+        mem.dwLength =
+            std::mem::size_of::<windows::Win32::System::SystemInformation::MEMORYSTATUSEX>() as u32;
+        windows::Win32::System::SystemInformation::GlobalMemoryStatusEx(&mut mem)
+            .map_err(|e| format!("GlobalMemoryStatusEx failed: {e}"))?;
+        let total_mb = mem.ullTotalPhys / (1024 * 1024);
+        let free_mb = mem.ullAvailPhys / (1024 * 1024);
+        let used_mb = total_mb.saturating_sub(free_mb);
+        Ok(crate::types::RamDetails {
+            percent: mem.dwMemoryLoad as f32,
+            total_mb,
+            used_mb,
+            free_mb,
+        })
+    }
+}
+
+#[tauri::command]
+pub fn get_system_overview() -> Result<crate::types::SystemOverview, String> {
+    let cpu_percent = get_cpu_usage().unwrap_or(0);
+    let ram = get_ram_details()?;
+
+    let (disk_free_gb, disk_total_gb) = unsafe {
+        let mut free_bytes = 0u64;
+        let mut total_bytes = 0u64;
+        let mut total_free = 0u64;
+        let res = windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(
+            windows::core::w!("C:\\"),
+            Some(&mut free_bytes),
+            Some(&mut total_bytes),
+            Some(&mut total_free),
+        );
+        if res.is_ok() {
+            (
+                free_bytes / (1024 * 1024 * 1024),
+                total_bytes / (1024 * 1024 * 1024),
+            )
+        } else {
+            (0, 0)
+        }
+    };
+
+    let (net_out_bps, net_in_bps) = get_network_speed().unwrap_or((0, 0));
+
+    Ok(crate::types::SystemOverview {
+        cpu_percent,
+        ram,
+        disk_free_gb,
+        disk_total_gb,
+        net_in_bps,
+        net_out_bps,
+    })
+}
+
+#[tauri::command]
 pub fn get_disk_space() -> Result<u64, String> {
     unsafe {
         let mut free_bytes = 0u64;
@@ -4773,6 +4830,34 @@ pub fn clear_clipboard_history() -> Result<(), String> {
     crate::services::clear_clipboard_items();
     Ok(())
 }
+
+#[cfg(test)]
+mod system_overview_tests {
+    use super::*;
+
+    #[test]
+    fn test_ram_details_execution() {
+        let ram = get_ram_details();
+        assert!(ram.is_ok(), "get_ram_details should succeed on supported platform");
+        if let Ok(info) = ram {
+            assert!(info.percent >= 0.0 && info.percent <= 100.0, "RAM percent must be bounded 0-100");
+            assert!(info.total_mb > 0, "total_mb must be positive");
+            assert!(info.used_mb <= info.total_mb, "used_mb must not exceed total_mb");
+        }
+    }
+
+    #[test]
+    fn test_system_overview_serialization() {
+        let overview = get_system_overview();
+        assert!(overview.is_ok(), "get_system_overview should succeed");
+        if let Ok(data) = overview {
+            assert!(data.cpu_percent <= 100, "CPU percent must be <= 100");
+            let json = serde_json::to_string(&data);
+            assert!(json.is_ok(), "SystemOverview must serialize cleanly to JSON");
+        }
+    }
+}
+
 
 
 

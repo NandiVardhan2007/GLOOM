@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+@import "./surfaces.css";
 
 html,
 body {
@@ -1603,44 +1604,36 @@ img {
 	filter: blur(1px);
 }
 
-/* Ambient Glow Behind Notch content */
+/* Ambient Artwork Glow Bloom Behind Dynamic Island */
 .notch-ambient-glow {
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	inset: 0;
 	overflow: hidden;
 	pointer-events: none;
 	z-index: 0;
-	border-radius: 0 0 18px 18px;
+	border-radius: inherit;
 }
 
 .notch-ambient-glow img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	filter: blur(52px) saturate(3.5) contrast(1.1) brightness(1.4);
-	transform: scale(1.8);
-	opacity: 0.85;
-	transition:
-		opacity 0.6s ease,
-		filter 0.8s ease;
+	filter: blur(56px) saturate(210%) brightness(0.65);
+	transform: scale(1.4);
+	opacity: 0.38;
+	transition: opacity 0.6s ease, filter 0.8s ease, transform 0.6s ease;
 }
 
-/* Gradient overlay to smoothly fade the image to the notch's background color without using buggy WebView2 mask-image */
+/* Apple-style deep OLED scrim: keeps center text crisp and dark while diffusing vibrant artwork around the perimeter */
 .notch-ambient-glow::after {
 	content: "";
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	inset: 0;
 	background: radial-gradient(
 		ellipse at center,
-		transparent 20%,
-		rgba(0, 0, 0, 0.25) 50%,
-		var(--notch-bg) 85%
+		rgba(0, 0, 0, 0.90) 15%,
+		rgba(0, 0, 0, 0.65) 55%,
+		rgba(0, 0, 0, 0.15) 100%
 	);
 	pointer-events: none;
 	z-index: 1;
@@ -2877,30 +2870,44 @@ img {
 }
 
 .apple-media-container.lyrics-open {
-	padding: 6px 10px;
+	padding: 10px 14px 8px 14px;
+	height: 100%;
+	width: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	position: relative;
+	overflow: hidden;
+	background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 75%), rgba(8, 8, 8, 0.88);
+	backdrop-filter: blur(40px) saturate(200%);
+	-webkit-backdrop-filter: blur(40px) saturate(200%);
+	border-radius: inherit;
 }
 
 /* Ambient Artwork Glow Aura with Dynamic Breathing Bloom */
 .apple-artwork-aura {
 	position: absolute;
-	inset: -38px;
+	inset: -24px;
 	background-size: cover;
 	background-position: center;
-	filter: blur(48px) saturate(230%) opacity(0.32);
+	filter: blur(48px) saturate(210%);
 	pointer-events: none;
 	z-index: 0;
+	mask-image: radial-gradient(ellipse at center, transparent 30%, black 90%);
+	-webkit-mask-image: radial-gradient(ellipse at center, transparent 30%, black 90%);
 	transform: translateZ(0);
 	transition: opacity 0.4s ease, filter 0.4s ease, transform 0.4s ease;
 }
 
 .apple-artwork-aura.playing {
-	opacity: 0.42;
+	opacity: 0.35;
 	animation: apple-aura-breathe 4.5s ease-in-out infinite alternate;
 }
 
 .apple-artwork-aura.paused {
-	opacity: 0.18;
-	filter: blur(44px) saturate(160%);
+	opacity: 0.14;
+	filter: blur(44px) saturate(150%);
 	transform: scale(0.96);
 }
 
@@ -3289,6 +3296,63 @@ img {
 	opacity: 0;
 }
 
+/* Source App Chip (Pillar Reference) */
+.apple-title-with-source {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.apple-source-app-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 6px;
+	border-radius: 9999px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 0.5px solid rgba(255, 255, 255, 0.14);
+	font-size: 9.5px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.82);
+	white-space: nowrap;
+	flex-shrink: 0;
+	letter-spacing: -0.01em;
+	backdrop-filter: blur(10px);
+}
+
+.apple-source-pulse {
+	width: 4.5px;
+	height: 4.5px;
+	border-radius: 50%;
+	background: #30D158;
+	box-shadow: 0 0 5px #30D158;
+}
+
+/* Dynamic Island Subtle Contour Progress Border (Nectar / Bloom Reference) */
+.dynamic-island-progress-border {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 1.5px;
+	pointer-events: none;
+	z-index: 10;
+	overflow: hidden;
+	border-bottom-left-radius: inherit;
+	border-bottom-right-radius: inherit;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.dynamic-island-progress-fill {
+	height: 100%;
+	border-radius: inherit;
+	background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 30%, #ffffff 100%);
+	box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+	transition: width 0.25s linear;
+}
+
 /* Apple Karaoke Lyrics Sheet */
 .apple-karaoke-sheet {
 	display: flex;
@@ -3305,8 +3369,8 @@ img {
 	align-items: center;
 	justify-content: space-between;
 	width: 100%;
-	padding-bottom: 6px;
-	border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+	padding-bottom: 7px;
+	border-bottom: 0.5px solid rgba(255, 255, 255, 0.10);
 	flex-shrink: 0;
 }
 
@@ -3314,11 +3378,37 @@ img {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
+	flex: 1;
 	text-align: left;
+	padding-right: 8px;
+}
+
+.apple-karaoke-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.apple-karaoke-art-mini {
+	width: 22px;
+	height: 22px;
+	border-radius: 6px;
+	overflow: hidden;
+	flex-shrink: 0;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	border: 0.5px solid rgba(255, 255, 255, 0.15);
+}
+
+.apple-karaoke-art-mini img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
 }
 
 .apple-karaoke-title {
-	font-size: 13px;
+	font-size: 13.5px;
 	font-weight: 600;
 	color: #FFFFFF;
 	white-space: nowrap;
@@ -3327,29 +3417,134 @@ img {
 	letter-spacing: -0.015em;
 }
 
+.apple-karaoke-sub-badge {
+	background: rgba(255, 255, 255, 0.12);
+	border: 0.5px solid rgba(255, 255, 255, 0.18);
+	border-radius: 9999px;
+	padding: 1.5px 7px;
+	font-size: 10px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.90);
+	letter-spacing: -0.01em;
+	max-width: 130px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 0;
+	backdrop-filter: blur(8px);
+}
+
+.apple-karaoke-live-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4.5px;
+	background: rgba(48, 209, 88, 0.16);
+	border: 0.5px solid rgba(48, 209, 88, 0.35);
+	border-radius: 9999px;
+	padding: 1.5px 7px;
+	font-size: 10px;
+	font-weight: 600;
+	color: #30D158;
+	letter-spacing: -0.01em;
+	flex-shrink: 0;
+	backdrop-filter: blur(8px);
+	box-shadow: 0 0 8px rgba(48, 209, 88, 0.2);
+}
+
+.apple-live-pulse-dot {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: #30D158;
+	box-shadow: 0 0 6px #30D158;
+	animation: apple-live-dot-pulse 1.6s ease-in-out infinite;
+	flex-shrink: 0;
+}
+
+@keyframes apple-live-dot-pulse {
+	0%, 100% {
+		transform: scale(0.85);
+		opacity: 0.65;
+	}
+	50% {
+		transform: scale(1.25);
+		opacity: 1;
+	}
+}
+
+/* Single Live Line Spotlight in Karaoke Sheet */
+.apple-karaoke-spotlight-wrap {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	padding: 16px 14px;
+	text-align: center;
+	gap: 10px;
+	user-select: none;
+}
+
+.apple-karaoke-spotlight-line {
+	font-size: 17px;
+	font-weight: 700;
+	color: #FFFFFF;
+	line-height: 1.35;
+	max-width: 92%;
+	letter-spacing: -0.015em;
+	background: rgba(255, 255, 255, 0.08);
+	border: 0.5px solid rgba(255, 255, 255, 0.14);
+	padding: 12px 18px;
+	border-radius: 14px;
+	backdrop-filter: blur(16px);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+	transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.25s ease;
+}
+
+.apple-karaoke-spotlight-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 11px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.55);
+	letter-spacing: -0.01em;
+}
+
 .apple-karaoke-artist {
 	font-size: 11px;
 	font-weight: 400;
 	color: rgba(255, 255, 255, 0.55);
+	letter-spacing: -0.01em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.apple-karaoke-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
 }
 
 .apple-karaoke-close-btn {
 	background: rgba(255, 255, 255, 0.12);
-	border: none;
+	border: 0.5px solid rgba(255, 255, 255, 0.15);
 	color: rgba(255, 255, 255, 0.85);
-	width: 22px;
-	height: 22px;
+	width: 24px;
+	height: 24px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 11px;
 	cursor: pointer;
-	transition: background 0.15s ease;
+	backdrop-filter: blur(8px);
+	transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease, transform 0.15s ease;
 }
 
 .apple-karaoke-close-btn:hover {
-	background: rgba(255, 255, 255, 0.25);
+	background: rgba(255, 255, 255, 0.22);
 	color: #FFFFFF;
 }
 
@@ -3416,6 +3611,61 @@ img {
 	color: rgba(255, 255, 255, 0.5);
 	font-size: 12px;
 	gap: 6px;
+	padding: 16px 20px;
+	text-align: center;
+}
+
+.apple-karaoke-status-icon-wrap {
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.08);
+	border: 0.5px solid rgba(255, 255, 255, 0.14);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.7);
+	margin-bottom: 2px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.apple-karaoke-status-title {
+	font-size: 12.5px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.88);
+	letter-spacing: -0.01em;
+}
+
+.apple-karaoke-status-query {
+	font-size: 10.5px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.45);
+	max-width: 280px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.apple-karaoke-retry-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(255, 255, 255, 0.12);
+	border: 0.5px solid rgba(255, 255, 255, 0.20);
+	border-radius: 9999px;
+	padding: 5px 14px;
+	font-size: 11.5px;
+	font-weight: 500;
+	color: #FFFFFF;
+	cursor: pointer;
+	margin-top: 6px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+	transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
+}
+
+.apple-karaoke-retry-btn:hover {
+	background: rgba(255, 255, 255, 0.22);
+	border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* Apple-style Shimmering Lyrics Loading Skeleton */
@@ -3494,7 +3744,8 @@ img {
 
 .apple-lyrics-bottom-bar {
 	width: 100%;
-	padding-top: 4px;
+	padding-top: 6px;
+	border-top: 0.5px solid rgba(255, 255, 255, 0.08);
 	flex-shrink: 0;
 }
 
@@ -3550,4 +3801,196 @@ img {
 	align-items: center;
 	gap: 6px;
 	flex-shrink: 0;
+}
+
+/* ── Apple Media Empty State ── */
+.apple-no-media-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 32px 24px;
+	gap: 10px;
+	color: rgba(255, 255, 255, 0.65);
+	text-align: center;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.apple-no-media-card svg {
+	color: var(--gloom-accent, #007aff);
+	filter: drop-shadow(0 0 12px rgba(0, 122, 255, 0.4));
+	opacity: 0.85;
+}
+
+.apple-no-media-card .no-media-title {
+	font-size: 14.5px;
+	font-weight: 600;
+	color: #ffffff;
+	letter-spacing: -0.01em;
+}
+
+.apple-no-media-card .no-media-desc {
+	font-size: 11.5px;
+	color: rgba(255, 255, 255, 0.45);
+	margin: 0;
+	max-width: 260px;
+	line-height: 1.4;
+}
+
+/* ── Notch Clock (Timer + Precision Stopwatch) ── */
+.notch-clock-panel {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	gap: 10px;
+}
+
+.clock-tab-bar {
+	display: flex;
+	gap: 3px;
+	width: 100%;
+	padding: 2.5px;
+	border-radius: 9px;
+	background: rgba(255, 255, 255, 0.07);
+	box-sizing: border-box;
+}
+
+.clock-tab {
+	flex: 1;
+	height: 22px;
+	background: transparent;
+	border: none;
+	border-radius: 7px;
+	color: rgba(255, 255, 255, 0.65);
+	font-size: 11px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.clock-tab:hover {
+	color: #ffffff;
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.clock-tab.active {
+	background: var(--gloom-accent, #007aff);
+	color: #ffffff;
+	font-weight: 600;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.timer-view, .stopwatch-view {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+}
+
+.clock-digits-hero {
+	font-size: 32px;
+	font-weight: 600;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
+	color: #ffffff;
+	text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.timer-presets-row {
+	display: flex;
+	gap: 6px;
+	width: 100%;
+	justify-content: center;
+}
+
+.timer-preset-btn {
+	background: rgba(255, 255, 255, 0.07);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 999px;
+	padding: 4px 10px;
+	font-size: 11px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.85);
+	cursor: pointer;
+	transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.timer-preset-btn:hover {
+	background: var(--gloom-accent, #007aff);
+	color: #ffffff;
+	transform: translateY(-1px);
+}
+
+.timer-actions-row, .stopwatch-actions-row {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	justify-content: center;
+}
+
+.timer-action-btn, .stopwatch-action-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	border: none;
+	background: rgba(255, 255, 255, 0.1);
+	color: #ffffff;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.timer-action-btn:hover, .stopwatch-action-btn:hover {
+	background: rgba(255, 255, 255, 0.2);
+	transform: scale(1.05);
+}
+
+.timer-action-btn.primary, .stopwatch-action-btn.primary {
+	background: var(--gloom-accent, #007aff);
+	color: #ffffff;
+	box-shadow: 0 2px 8px rgba(0, 122, 255, 0.4);
+}
+
+.timer-action-btn.primary:hover, .stopwatch-action-btn.primary:hover {
+	background: #0071e3;
+	box-shadow: 0 4px 14px rgba(0, 122, 255, 0.55);
+}
+
+.sw-laps {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	width: 100%;
+	max-height: 72px;
+	overflow-y: auto;
+	scrollbar-width: none;
+}
+
+.sw-laps::-webkit-scrollbar {
+	display: none;
+}
+
+.sw-lap {
+	display: flex;
+	justify-content: space-between;
+	font-size: 10.5px;
+	font-variant-numeric: tabular-nums;
+	padding: 3px 8px;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.05);
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.sw-lap span:first-child {
+	color: rgba(255, 255, 255, 0.45);
+	font-weight: 500;
 }

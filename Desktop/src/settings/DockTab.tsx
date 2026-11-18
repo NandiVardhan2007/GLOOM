@@ -18,7 +18,10 @@ import {
 	FolderOpen,
 	FolderPlus,
 	Plus,
-	X
+	X,
+	BellDot,
+	SquareTerminal,
+	Search
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import {
@@ -135,6 +138,18 @@ interface DockTabProps {
 	handleRemoveDockExtraFolder: (path: string) => void;
 	startIcon: string;
 	handleStartIconChange: (icon: string) => void;
+	dockAttentionEnabled?: boolean;
+	toggleDockAttention?: () => void;
+	dockConsoleWindows?: boolean;
+	toggleDockConsoleWindows?: () => void;
+	dockSearchEnabled?: boolean;
+	toggleDockSearch?: () => void;
+	dockSearchProvider?: string;
+	handleDockSearchProviderChange?: (provider: string) => void;
+	dockPreviewDelay?: number;
+	handleDockPreviewDelayChange?: (val: number) => void;
+	dockHideDelay?: number;
+	handleDockHideDelayChange?: (val: number) => void;
 }
 
 export function DockTab({
@@ -170,7 +185,19 @@ export function DockTab({
 	handleAddDockExtraFolder,
 	handleRemoveDockExtraFolder,
 	startIcon,
-	handleStartIconChange
+	handleStartIconChange,
+	dockAttentionEnabled = true,
+	toggleDockAttention,
+	dockConsoleWindows = false,
+	toggleDockConsoleWindows,
+	dockSearchEnabled = true,
+	toggleDockSearch,
+	dockSearchProvider = "windows",
+	handleDockSearchProviderChange,
+	dockPreviewDelay = 200,
+	handleDockPreviewDelayChange,
+	dockHideDelay = 300,
+	handleDockHideDelayChange
 }: DockTabProps) {
 	const handleStartIconUpload = (e: ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -240,6 +267,107 @@ export function DockTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
+
+						{dockPreviewEnabled && handleDockPreviewDelayChange && (
+							<SettingRow
+								icon={Timer}
+								label="Preview Delay"
+								desc={`Hover duration before showing preview (${dockPreviewDelay}ms)`}
+							>
+								<input
+									type="range"
+									min="0"
+									max="1000"
+									step="50"
+									value={dockPreviewDelay}
+									onChange={(e) => handleDockPreviewDelayChange(parseInt(e.target.value))}
+									className="settings-slider"
+								/>
+							</SettingRow>
+						)}
+
+						{dockMode !== "fixed" && handleDockHideDelayChange && (
+							<SettingRow
+								icon={Timer}
+								label="Hide Delay"
+								desc={`Delay before dock auto-hides (${dockHideDelay}ms)`}
+							>
+								<input
+									type="range"
+									min="0"
+									max="1500"
+									step="50"
+									value={dockHideDelay}
+									onChange={(e) => handleDockHideDelayChange(parseInt(e.target.value))}
+									className="settings-slider"
+								/>
+							</SettingRow>
+						)}
+
+						{toggleDockAttention && (
+							<SettingRow
+								icon={BellDot}
+								label="Attention Indicators"
+								desc="Show pulsing attention indicators when an app needs focus"
+							>
+								<label className="toggle-switch">
+									<input
+										type="checkbox"
+										checked={dockAttentionEnabled}
+										onChange={toggleDockAttention}
+									/>
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						)}
+
+						{toggleDockConsoleWindows && (
+							<SettingRow
+								icon={SquareTerminal}
+								label="Show Console Windows"
+								desc="Display terminal and command prompt windows in the dock"
+							>
+								<label className="toggle-switch">
+									<input
+										type="checkbox"
+										checked={dockConsoleWindows}
+										onChange={toggleDockConsoleWindows}
+									/>
+									<span className="slider"></span>
+								</label>
+							</SettingRow>
+						)}
+
+						{toggleDockSearch && (
+							<SettingRow
+								icon={Search}
+								label="Search Widget"
+								desc="Quick search launcher in the dock"
+							>
+								<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+									{dockSearchEnabled && handleDockSearchProviderChange && (
+										<select
+											className="settings-select"
+											value={dockSearchProvider}
+											onChange={(e) => handleDockSearchProviderChange(e.target.value)}
+										>
+											<option value="windows">Windows Search</option>
+											<option value="ptrun">PowerToys Run</option>
+											<option value="raycast">Raycast</option>
+											<option value="shortcut">Custom Shortcut</option>
+										</select>
+									)}
+									<label className="toggle-switch">
+										<input
+											type="checkbox"
+											checked={dockSearchEnabled}
+											onChange={toggleDockSearch}
+										/>
+										<span className="slider"></span>
+									</label>
+								</div>
+							</SettingRow>
+						)}
 
 						<SettingRow icon={Circle} label="Icon Only" desc="Remove icon background and padding">
 							<label className="toggle-switch">

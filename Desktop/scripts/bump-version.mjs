@@ -35,9 +35,20 @@ function updateCargoLock() {
 	);
 }
 
+function updateInnoSetup() {
+	const path = resolve(root, "../installer/gloom.iss");
+	try {
+		const content = readFileSync(path, "utf8");
+		writeFileSync(path, content.replace(/#define MyAppVersion "[^"]*"/, `#define MyAppVersion "${version}"`));
+	} catch {
+		// Ignore if not present
+	}
+}
+
 updateJson("package.json");
 updateJson("src-tauri/tauri.conf.json");
 updateCargoToml();
 updateCargoLock();
+updateInnoSetup();
 
-console.log(`Bumped package.json, tauri.conf.json, Cargo.toml and Cargo.lock to ${version}`);
+console.log(`Bumped package.json, tauri.conf.json, Cargo.toml, Cargo.lock and gloom.iss to ${version}`);

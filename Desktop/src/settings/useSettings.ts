@@ -5,7 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import type { UpdateCheckResult } from "../updater";
 import { useSettingsSync } from "../hooks/useSettingsSync";
 import { reloadIfMirrorWasStale } from "../hooks/settingsMirror";
-import { hexToHsl } from "../theme";
+import { hexToHsl, type ThemePreset, STYLE_OPACITY } from "../theme";
 import {
 	addCustomFolder,
 	removeCustomFolder,
@@ -127,6 +127,26 @@ export function useSettings() {
 		const val = localStorage.getItem("gloom-dock-edge-delay");
 		return val !== null ? parseInt(val) : 200;
 	});
+	const [dockAttentionEnabled, setDockAttentionEnabled] = useState(
+		() => localStorage.getItem("gloom-dock-attention-enabled") !== "false"
+	);
+	const [dockConsoleWindows, setDockConsoleWindows] = useState(
+		() => localStorage.getItem("gloom-dock-console-windows") === "true"
+	);
+	const [dockSearchEnabled, setDockSearchEnabled] = useState(
+		() => localStorage.getItem("gloom-dock-search-enabled") !== "false"
+	);
+	const [dockSearchProvider, setDockSearchProvider] = useState(
+		() => localStorage.getItem("gloom-dock-search-provider") || "windows"
+	);
+	const [dockPreviewDelay, setDockPreviewDelay] = useState(() => {
+		const val = localStorage.getItem("gloom-dock-preview-delay");
+		return val !== null ? parseInt(val) : 200;
+	});
+	const [dockHideDelay, setDockHideDelay] = useState(() => {
+		const val = localStorage.getItem("gloom-dock-hide-delay");
+		return val !== null ? parseInt(val) : 300;
+	});
 	const [notchMode, setNotchMode] = useState("fixed");
 	const [notchEdgeDelay, setNotchEdgeDelay] = useState(() => {
 		const val = localStorage.getItem("gloom-notch-edge-delay");
@@ -169,6 +189,9 @@ export function useSettings() {
 		const val = localStorage.getItem("gloom-theme-brightness");
 		return val !== null ? parseFloat(val) : 0.15;
 	});
+	const [themeStyle, setThemeStyle] = useState(
+		() => localStorage.getItem("gloom-theme-style") || "frosted"
+	);
 	const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "success" | "error">(
 		"idle"
 	);
@@ -242,6 +265,12 @@ export function useSettings() {
 			apply(getVal("gloom-island-style"), setIslandStyle, (v) => (v === "pill" ? "pill" : "notch"));
 			apply(getVal("gloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("gloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
+			apply(getVal("gloom-dock-attention-enabled"), setDockAttentionEnabled, readBool);
+			apply(getVal("gloom-dock-console-windows"), setDockConsoleWindows, readBool);
+			apply(getVal("gloom-dock-search-enabled"), setDockSearchEnabled, readBool);
+			apply(getVal("gloom-dock-search-provider"), setDockSearchProvider, (v) => v);
+			apply(getVal("gloom-dock-preview-delay"), setDockPreviewDelay, parseInt);
+			apply(getVal("gloom-dock-hide-delay"), setDockHideDelay, parseInt);
 
 			const savedCity = getVal("gloom-weather-city");
 			if (savedCity) setCityName(savedCity);
@@ -251,6 +280,7 @@ export function useSettings() {
 			apply(getVal("gloom-theme-opacity"), setThemeOpacity, parseFloat);
 			apply(getVal("gloom-theme-saturation"), setThemeSaturation, parseFloat);
 			apply(getVal("gloom-theme-brightness"), setThemeBrightness, parseFloat);
+			apply(getVal("gloom-theme-style"), setThemeStyle, (v) => v);
 
 			const widgetsVal = getVal("gloom-status-widgets");
 			if (widgetsVal) {
@@ -398,6 +428,13 @@ export function useSettings() {
 		"gloom-theme-opacity": setThemeOpacity,
 		"gloom-theme-saturation": setThemeSaturation,
 		"gloom-theme-brightness": setThemeBrightness,
+		"gloom-theme-style": setThemeStyle,
+		"gloom-dock-attention-enabled": (v) => setDockAttentionEnabled(readBool(v)),
+		"gloom-dock-console-windows": (v) => setDockConsoleWindows(readBool(v)),
+		"gloom-dock-search-enabled": (v) => setDockSearchEnabled(readBool(v)),
+		"gloom-dock-search-provider": setDockSearchProvider,
+		"gloom-dock-preview-delay": (v) => setDockPreviewDelay(parseInt(v) || 200),
+		"gloom-dock-hide-delay": (v) => setDockHideDelay(parseInt(v) || 300),
 		"gloom-weather-city": (v) => setCityName(v || "")
 	});
 
@@ -864,6 +901,59 @@ export function useSettings() {
 		saveSetting("gloom-theme-brightness", String(value));
 	};
 
+	const handleThemeStyleChange = (style: string) => {
+		setThemeStyle(style);
+		saveSetting("gloom-theme-style", style);
+		if (STYLE_OPACITY[style] !== undefined) {
+			setThemeOpacity(STYLE_OPACITY[style]);
+			saveSetting("gloom-theme-opacity", String(STYLE_OPACITY[style]));
+		}
+	};
+
+	const applyThemePreset = (preset: ThemePreset) => {
+		setThemeMode("custom");
+		saveSetting("gloom-theme-mode", "custom");
+		setThemeColor(preset.color);
+		saveSetting("gloom-theme-color", preset.color);
+		setThemeSaturation(preset.saturation);
+		saveSetting("gloom-theme-saturation", String(preset.saturation));
+		setThemeBrightness(preset.brightness);
+		saveSetting("gloom-theme-brightness", String(preset.brightness));
+	};
+
+	const toggleDockAttention = () => {
+		const next = !dockAttentionEnabled;
+		setDockAttentionEnabled(next);
+		saveSetting("gloom-dock-attention-enabled", String(next));
+	};
+
+	const toggleDockConsoleWindows = () => {
+		const next = !dockConsoleWindows;
+		setDockConsoleWindows(next);
+		saveSetting("gloom-dock-console-windows", String(next));
+	};
+
+	const toggleDockSearch = () => {
+		const next = !dockSearchEnabled;
+		setDockSearchEnabled(next);
+		saveSetting("gloom-dock-search-enabled", String(next));
+	};
+
+	const handleDockSearchProviderChange = (provider: string) => {
+		setDockSearchProvider(provider);
+		saveSetting("gloom-dock-search-provider", provider);
+	};
+
+	const handleDockPreviewDelayChange = (val: number) => {
+		setDockPreviewDelay(val);
+		saveSetting("gloom-dock-preview-delay", String(val));
+	};
+
+	const handleDockHideDelayChange = (val: number) => {
+		setDockHideDelay(val);
+		saveSetting("gloom-dock-hide-delay", String(val));
+	};
+
 	// ── City search ──
 	const selectCity = async (city: {
 		name: string;
@@ -991,6 +1081,9 @@ export function useSettings() {
 		handleSaturationChange,
 		themeBrightness,
 		handleBrightnessChange,
+		themeStyle,
+		handleThemeStyleChange,
+		applyThemePreset,
 
 		// Notch
 		notchMode,
@@ -1046,6 +1139,18 @@ export function useSettings() {
 		setDockModeValue,
 		dockEdgeDelay,
 		handleDockEdgeDelayChange,
+		dockAttentionEnabled,
+		toggleDockAttention,
+		dockConsoleWindows,
+		toggleDockConsoleWindows,
+		dockSearchEnabled,
+		toggleDockSearch,
+		dockSearchProvider,
+		handleDockSearchProviderChange,
+		dockPreviewDelay,
+		handleDockPreviewDelayChange,
+		dockHideDelay,
+		handleDockHideDelayChange,
 		dockPreviewEnabled,
 		toggleDockPreview,
 		dockIconOnly,

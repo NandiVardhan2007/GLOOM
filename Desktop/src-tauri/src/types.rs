@@ -24,6 +24,10 @@ pub struct AudioVisualizationData {
 pub struct MediaInfo {
     pub title: String,
     pub artist: String,
+    #[serde(default)]
+    pub subtitle: Option<String>,
+    #[serde(default)]
+    pub source_app: Option<String>,
     pub is_playing: bool,
     pub has_media: bool,
     pub artwork: Option<Vec<String>>,
@@ -129,5 +133,24 @@ pub struct LyricsResult {
     pub lines: Vec<LyricLineDto>,
     pub is_synced: bool,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RamDetails {
+    pub percent: f32,
+    pub total_mb: u64,
+    pub used_mb: u64,
+    pub free_mb: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct SystemOverview {
+    pub cpu_percent: u32,
+    pub ram: RamDetails,
+    pub disk_free_gb: u64,
+    pub disk_total_gb: u64,
+    pub net_in_bps: u64,
+    pub net_out_bps: u64,
+}
+
 
 

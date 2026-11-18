@@ -1,18 +1,107 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 09:00 IST  
-> **Release Version**: 2.5.0 (versionCode 250) — Native Rust Lyrics Engine & Apple Design Sensory Polish  
+> **Last Updated**: 2026-11-18 12:18 IST  
+> **Release Version**: 2.6.0 (versionCode 260) — Mesmerizing Dynamic Island Redesign & Full Nectar Parity  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.5.0. Completed Phase 13 Native Rust Lyrics Engine (multi-tier LRCLIB waterfall resolution, candidate duration matching, CSP network permission) and Phase 14 In-App Updater Live Download Progress Bar & Metric Streaming (`AboutTab.tsx`, `updater.rs`, `useSettings.ts`, `Settings.css`, `updaterUtils.ts`). Resolved Linux CI compilation by routing `lyrics::fetch_lyrics` directly in `main.rs`'s `tauri::generate_handler!` and isolating Windows-only dependencies in `Cargo.toml`. All 77/77 Rust unit tests pass, all 26/26 Node tests pass, clean Vite production bundle.
+> **Release Status**: Completed Phase 16 Complete Dynamic Island Visual Redesign and Nectar Parity (`kua8/Nectar`, `bloom`, `pillar`, `ripple`, `d-island`, `rajsriv`) per `/apple-design`, `/apple-ui-designer`, `/rust-skills`, and `/design-taste-frontend`. Released v2.6.0. All 83/83 Rust tests pass, all 38/38 Node tests pass, clean Vite production build.
 
 ---
 
 ## 1. Executive Summary & Current State
 GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for Windows 11/10 and Linux (Zorin OS, Ubuntu, Debian):
 1. **GLOOM Desktop Notch & Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
-2. **Modular Island Card Engine**: Multi-mode visualizers, dynamic album art glow aura, Web Audio tactile transients, live LRCLIB lyrics, unified productivity drawer (Files, Clipboard history, Scratchpad notes), and real-time Live Activities (browser download watcher).
+2. **Modular Island Card Engine**: Multi-mode visualizers, dynamic album art glow aura, Web Audio tactile transients, live lyrics streaming directly from player app, unified productivity drawer (Files, Clipboard history, Scratchpad notes), and real-time Live Activities (browser download watcher).
 3. **Fluid macOS-Style Dock**: Windows taskbar replacement with continuous magnification, running/minimized window indicators, launch bounce, and high-DPI icon extraction.
+
+### 🌟 Phase 16 Complete — Mesmerizing Dynamic Island Overhaul & Full Nectar Parity (2026-11-18):
+1. **Segmented Multi-Panel Island Navigation (`IslandNavBar.tsx`, `IslandNavBar.css`)**:
+   - Replaced old single-panel cycle arrows with Apple-style segmented top navigation bar offering 5 instant-access card surfaces:
+     - **Media (Tab 1 / Key 1)**: Now Playing, lyrics karaoke view, 3D artwork tilt on hover (from Ripple reference), direct playback scrubber, source-app indicator badge.
+     - **Focus (Tab 2 / Key 2)**: Combined monthly calendar matrix and modular Pomodoro/stopwatch clock with countdown presets and lap recording.
+     - **Controls (Tab 3 / Key 3)**: Frosted glass quick action tiles (Wi-Fi, Bluetooth, Dock Mode, Notch Mode, Energy Saver, System Tray, Action Center, Task Manager, File Explorer, Lock PC, Restart) and 1:1 direct manipulation sliders.
+     - **Productivity (Tab 4 / Key 4)**: Unified drawer with drop-target file stash, real-time clipboard history, and auto-saving scratchpad.
+     - **System (Tab 5 / Key 5)**: Real-time hardware telemetry dashboard (CPU usage, RAM breakdown in MB, disk space, network upload/download speeds).
+   - Dynamic geometry tracking adjusts window bounding box automatically:
+     - Media: 360-440px width / 180-340px height.
+     - Focus: 490px width / 350-380px height.
+     - Controls: 360-380px width / 290-360px height.
+     - Productivity: 430px width / 280px height.
+     - System: 420px width / 340px height.
+   - Click pass-through window regions are dynamically synced on every tab switch without titlebar bugs or OS chrome clipping.
+
+2. **Nectar Dynamic Surface Styling Engine (`surfaces.css`, `SurfaceShape.tsx`, `NotchProgressBorder.tsx`)**:
+   - Implemented 4 high-end surface rendering styles modeled after Nectar:
+     - `solid`: OLED deep pure black `#000000` with subtle hairline edge border.
+     - `frosted`: High-diffusion glass backdrop blur (`backdrop-filter: blur(28px) saturate(180%)`).
+     - `liquid`: Translucent liquid glass with vibrant color refractive specular rim lighting.
+     - `material`: Adaptive tint blending dynamically with wallpaper and accent colors.
+   - Added continuous animated neon progress border (`.notch-progress`) contouring along the bottom of the Dynamic Island during music playback.
+
+3. **High-Performance Rust System Telemetry (`types.rs`, `commands.rs`, `platform/linux/commands.rs`)**:
+   - Implemented `get_ram_details()` and `get_system_overview()` in Rust:
+     - Win32: `GlobalMemoryStatusEx`, `GetDiskFreeSpaceExW`, `GetSystemTimes`, `GetIfTable2`.
+     - Linux: `/proc/meminfo`, `/proc/stat`, `/proc/net/dev`, `statvfs`.
+   - Zero-panic guarantees with safe fallbacks and zero `.unwrap()` in production per `/rust-skills`.
+   - Unit tests in `commands::system_overview_tests` verify JSON serialization and memory accuracy.
+
+4. **Modular Notch Clock & Dual World Clock (`NotchClock.tsx`, `clockFormat.ts`, `dualClock.ts`, `DualClockPicker.tsx`)**:
+   - Stopwatch with millisecond precision, pause/resume, and lap logging.
+   - Flexible countdown timer supporting plain minutes, `mm:ss`, and `hh:mm:ss` syntax.
+   - Dual world time picker supporting 12 global cities with daylight saving offset calculations.
+
+5. **Connections Drilldown & Notch Pinning (`ConnectionsView.tsx`, `ConnectionsView.css`)**:
+   - Detailed Wi-Fi network scanner with signal strength bars and passphrase dialog.
+   - Bluetooth paired and discovered device toggles.
+   - Per-app audio output session sliders and mute buttons.
+   - Automatic notch pinning prevents accidental hover collapse while typing passphrases.
+
+6. **Comprehensive Settings & Interactive Feature Tour (`AppearanceTab.tsx`, `DockTab.tsx`, `AboutTab.tsx`, `NotchTour.tsx`)**:
+   - **Appearance**: 4 surface style radio tiles, 9 theme preset color swatches (Graphite, Midnight, Ocean, Forest, Plum, Rose, Ember, Latte, Mist), opacity, saturation, and brightness sliders.
+   - **Dock Settings (Nectar Parity)**: Unread notification attention dot toggle, console window grouping toggle, launcher provider selection (Windows Start, PowerToys Run, Raycast, Custom Shortcut), and hover/hide delay sliders.
+   - **Interactive Tour (`NotchTour.tsx`)**: 7-step guided interactive walkthrough explaining multi-card navigation, sliders, Control Center, Productivity Drawer, Dock magnification, and personalization options.
+
+7. **Quality Verification**:
+   - **Rust Test Suite**: 82/82 tests passing (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
+   - **Desktop JS Suite**: 38/38 tests passing (`npm test --prefix Desktop`).
+   - **Vite Production Bundle**: Clean compilation in 3.09s with zero errors or warnings.
+1. **Direct Player Stream over Online Scraping**:
+   - Resolved user issue where music player broadcast the live lyric line in the title (e.g. `"Kathakaadhey • 🎶 ఒదిలేయవే ఒదిలేయవే"`), but Gloom made online LRCLIB requests that returned 404/0 results and displayed `"Lyrics not available for this track"`.
+   - Engineered `extractLiveLyricFromApp(title, subtitle, artist)` in `Desktop/src/hooks/useLyrics.ts` supporting all note symbols (`🎶`, `🎵`, `🎤`, `🎼`, `🎧`, `♪`, `♫`, `♬`, `♩`, `✨`, `⭐`), brackets, delimiters (`•`, `·`, `∙`, `|`, `~`, `–`, `—`, `-`), subtitle fallback, and delimiter-only cases where the candidate text is not the artist.
+   - Bypasses online network lookups entirely when the playing app supplies lyrics, eliminating latency and API failures.
+   - Decoupled `positionMs` via `positionMsRef` so 100ms clock ticks do not abort active asynchronous operations.
+2. **Anti-Flicker Track Change Detection (`App.tsx`)**:
+   - `lastTrackRef.current` and `isNewTrackWhilePlaying` now check against `cleanTitle`, preventing the Dynamic Island from erratically peeking on every single sung lyric line.
+   - Updated `media-update` comparison in `App.tsx` to monitor `subtitle` and `source_app`.
+3. **High-Frequency Rust Media Listener (`services.rs`, `types.rs`)**:
+   - Added `subtitle: Option<String>` and `source_app: Option<String>` to `MediaInfo`.
+   - Tuned media polling frequency from 2000ms down to 250ms when playing, catching real-time lyric line transitions within 1/4 second.
+   - Added unit tests for emoji/symbol stripping and multilingual track metadata cleaning.
+4. **Mesmerizing Apple Dynamic Island Redesign (`App.css`, `App.tsx`, `CompactMediaPlayer.tsx`)**:
+   - **Eliminated Muddy Center Blob**: Replaced transparent-center ambient filter with Apple-style deep velvet OLED scrim (`radial-gradient(ellipse at center, rgba(0, 0, 0, 0.90) 15%, rgba(0, 0, 0, 0.65) 55%, rgba(0, 0, 0, 0.15) 100%)`), diffusing vibrant album art only around the island perimeter while preserving pure black contrast behind text.
+   - **420px Dynamic Geometry**: Updated `getDynamicWidth()` to 420px and `getDynamicHeight()` to 280px when `lyricsExpanded`, matching references `d-island` and `bloom` for unclipped typography and breathing room.
+   - **Apple Karaoke Sheet**:
+     - Squircle Mini Artwork (22x22px) with subtle 0.5px rim border.
+     - Pulsing green live indicator badge (`Live • [Source App]`) with `@keyframes apple-live-dot-pulse`.
+     - Radiant singing line glow colored by the album's primary dominant hue (`palette.primary`).
+     - Spotlight mode for single-line live streaming with breathing text aura.
+     - Smooth scrubber bar with tabular numbers (`0:41` / `-3:24`) and 1:1 pointer capture scrub tracking.
+     - Ambient instrumental state when lyrics are unavailable (no ugly error blocks or failed queries).
+   - **Source App Indicator Chip (Pillar Reference)**:
+     - Detects and cleans active music player name (Spotify, Apple Music, YouTube Music, Cider, Chrome, Edge, etc.).
+     - Displays `.apple-source-app-chip` with glowing green pulse dot in Classic, Compact, and Karaoke views.
+   - **Keyboard Direct Manipulation (Apple Design / Pillar)**:
+     - Space: Play/Pause.
+     - ArrowLeft / ArrowRight: Seek ±5 seconds with tactile audio tick.
+     - ArrowUp / ArrowDown: Adjust volume ±5% with tactile audio tick.
+     - M: Mute / Unmute.
+     - L: Toggle Lyrics Sheet.
+   - **Luminous Contour Progress Border (Nectar / Bloom Reference)**:
+     - Hairline 1.5px gradient neon progress border (`.dynamic-island-progress-border`) tracing along the bottom curve of the Dynamic Island when music is playing, giving a mesmerizing, subtle indicator of track progress.
+5. **Verification Quality Gate**:
+   - **Rust Test Suite**: 80/80 tests passing (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
+   - **Desktop JS Suite**: 33/33 tests passing (`npm test --prefix Desktop`).
+   - **Vite Production Bundle**: Clean compilation in 2.33s with 0 warnings/errors.
 
 ### 🌟 Phase 14 Complete — In-App Updater Live Download Progress Bar & Metric Streaming (2026-11-18):
 1. **Root Cause Analysis of Missing Progress Bar**:

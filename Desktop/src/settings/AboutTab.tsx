@@ -1,5 +1,6 @@
-import { Download, RefreshCw, FileDown, Upload, CheckCircle2, Sparkles } from "lucide-react";
+import { Download, RefreshCw, FileDown, Upload, CheckCircle2, Sparkles, Compass } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { emit } from "@tauri-apps/api/event";
 import { GithubIcon } from "../icons";
 import { SettingRow } from "./SettingRow";
 import { formatUpdateProgressMeta } from "./updaterUtils";
@@ -175,6 +176,13 @@ export function AboutTab({
 
 			<div className="setting-group-label setting-group-label--spaced">Data</div>
 			<div className="setting-group">
+				<SettingRow
+					icon={Compass}
+					label="Interactive Feature Tour"
+					desc="Replay the walkthrough guide of Dynamic Island, panels and dock"
+					action
+					onClick={() => emit("start-tour")}
+				/>
 				<SettingRow
 					icon={FileDown}
 					label={getExportLabel()}

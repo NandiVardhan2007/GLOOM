@@ -22,7 +22,7 @@ fn get_lyrics_client() -> Option<&'static reqwest::Client> {
     LYRICS_CLIENT
         .get_or_init(|| {
             reqwest::Client::builder()
-                .user_agent("GLOOM-Desktop/2.5.0 (https://github.com/nandub/gloom)")
+                .user_agent("GLOOM-Desktop/2.6.0 (https://github.com/nandub/gloom)")
                 .timeout(std::time::Duration::from_secs(4))
                 .connect_timeout(std::time::Duration::from_secs(3))
                 .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
@@ -74,6 +74,183 @@ fn parse_plain_content(plain_text: &str) -> Vec<crate::types::LyricLineDto> {
         .collect()
 }
 
+pub fn strip_emojis_and_symbols(input: &str) -> String {
+    input
+        .chars()
+        .filter(|&c| {
+            !matches!(
+                c,
+                '\u{1F300}'..='\u{1F9FF}' | // Misc Symbols and Pictographs, Emoticons, Transport, Alchemical
+                '\u{2600}'..='\u{26FF}'   | // Misc symbols
+                '\u{2700}'..='\u{27BF}'   | // Dingbats
+                '\u{FE00}'..='\u{FE0F}'   | // Variation Selectors
+                '\u{1F000}'..='\u{1F02F}' | // Mahjong
+                '\u{1F0A0}'..='\u{1F0FF}' | // Playing Cards
+                '\u{1F100}'..='\u{1F2FF}' | // Enclosed Alphanumeric
+                '\u{2300}'..='\u{23FF}'   | // Misc Technical
+                '\u{2B50}'                | // Star
+                '\u{2022}' | '\u{00B7}' | '\u{2219}' // Bullets
+            )
+        })
+        .collect::<String>()
+}
+
+pub fn remove_noise_case_insensitive(mut text: String, noise: &str) -> String {
+    let noise_lower = noise.to_lowercase();
+    while let Some(pos) = text.to_lowercase().find(&noise_lower) {
+        text.replace_range(pos..pos + noise_lower.len(), "");
+    }
+    text.trim().to_string()
+}
+
+pub fn sanitize_lyrics_metadata(title: &str, artist: &str) -> (Vec<String>, Vec<String>) {
+    let raw_t = title.trim();
+    let raw_a = artist.trim();
+
+    // 1. Clean noise from artist
+    let mut clean_a = raw_a.to_string();
+    let bracket_noise = [
+        "[original motion picture soundtrack]", "(original motion picture soundtrack)",
+        "[motion picture soundtrack]", "(motion picture soundtrack)",
+        "[soundtrack]", "(soundtrack)", "[ost]", "(ost)",
+        "[deluxe edition]", "(deluxe edition)", "[deluxe]", "(deluxe)",
+        "[expanded edition]", "(expanded edition)", "[remastered]", "(remastered)",
+    ];
+    for noise in bracket_noise {
+        clean_a = remove_noise_case_insensitive(clean_a, noise);
+    }
+
+    // Strip "- Topic" suffix from artist
+    if clean_a.to_lowercase().ends_with("- topic") {
+        clean_a = clean_a[..clean_a.len() - 7].trim().to_string();
+    }
+
+    // If artist contains " - " followed by movie/album info (e.g. "Anirudh ... - Remo (Telugu)"), strip after " - "
+    if let Some((main_artist, _album_part)) = clean_a.split_once(" - ") {
+        if !main_artist.trim().is_empty() {
+            clean_a = main_artist.trim().to_string();
+        }
+    }
+
+    // Check if artist is a generic browser/platform name
+    let is_generic_artist = clean_a.is_empty()
+        || clean_a.eq_ignore_ascii_case("youtube")
+        || clean_a.eq_ignore_ascii_case("youtube music")
+        || clean_a.eq_ignore_ascii_case("google chrome")
+        || clean_a.eq_ignore_ascii_case("chrome")
+        || clean_a.eq_ignore_ascii_case("brave")
+        || clean_a.eq_ignore_ascii_case("firefox")
+        || clean_a.eq_ignore_ascii_case("edge")
+        || clean_a.eq_ignore_ascii_case("spotify free")
+        || clean_a.eq_ignore_ascii_case("unknown artist");
+
+    let mut clean_t = raw_t.to_string();
+
+    // If artist is generic, try splitting "Artist - Title" from clean_t
+    if is_generic_artist {
+        for sep in [" - ", " – ", " — ", " : "] {
+            if let Some((detected_artist, detected_track)) = clean_t.split_once(sep) {
+                if !detected_artist.trim().is_empty() && !detected_track.trim().is_empty() {
+                    clean_a = detected_artist.trim().to_string();
+                    clean_t = detected_track.trim().to_string();
+                    break;
+                }
+            }
+        }
+    }
+
+    // 2. Clean noise from title
+    let title_noise = [
+        "(official video)", "[official video]", "(official audio)", "[official audio]",
+        "(official music video)", "[official music video]", "(music video)", "[music video]",
+        "(lyrics)", "[lyrics]", "(lyric video)", "[lyric video]", "(audio)", "[audio]",
+        "(visualizer)", "[visualizer]", "(full song)", "[full song]", "(remastered)", "[remastered]",
+        "(video)", "[video]", "(hd)", "[hd]", "(4k)", "[4k]", "(mv)", "[mv]", "(hq)", "[hq]",
+    ];
+    for noise in title_noise {
+        clean_t = remove_noise_case_insensitive(clean_t, noise);
+    }
+
+    // Strip file extensions like .mp3, .wav, .m4a
+    for ext in [".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".wma", ".opus"] {
+        if clean_t.to_lowercase().ends_with(ext) {
+            clean_t = clean_t[..clean_t.len() - ext.len()].trim().to_string();
+        }
+    }
+
+    // Strip leading track numbers like "01. ", "01 - "
+    if let Some(first_space) = clean_t.find(' ') {
+        let prefix = &clean_t[..first_space];
+        if prefix.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-') {
+            clean_t = clean_t[first_space + 1..].trim().to_string();
+        }
+    }
+
+    // 3. Extract primary title (before bullets •, ·, ∙, pipe |, tilde ~)
+    let primary_title_segment = clean_t
+        .split(|c| c == '•' || c == '·' || c == '∙' || c == '|' || c == '~')
+        .next()
+        .unwrap_or(&clean_t)
+        .trim();
+
+    let primary_title_no_emojis = strip_emojis_and_symbols(primary_title_segment)
+        .trim()
+        .to_string();
+
+    let clean_title_no_emojis = strip_emojis_and_symbols(&clean_t)
+        .trim()
+        .to_string();
+
+    // 4. Candidate Titles
+    let mut candidate_titles = Vec::with_capacity(3);
+    if !primary_title_no_emojis.is_empty() {
+        candidate_titles.push(primary_title_no_emojis);
+    }
+    if !clean_title_no_emojis.is_empty() && !candidate_titles.contains(&clean_title_no_emojis) {
+        candidate_titles.push(clean_title_no_emojis);
+    }
+    if !raw_t.is_empty() && !candidate_titles.iter().any(|t| t.eq_ignore_ascii_case(raw_t)) {
+        candidate_titles.push(raw_t.to_string());
+    }
+
+    // 5. Candidate Artists
+    let primary_artist = clean_a
+        .split(|c| c == ',' || c == '&' || c == '/')
+        .next()
+        .unwrap_or(&clean_a)
+        .trim();
+
+    // Strip "feat." or "ft." in primary artist
+    let primary_artist = if let Some((lead, _)) = primary_artist.split_once(" feat. ") {
+        lead.trim()
+    } else if let Some((lead, _)) = primary_artist.split_once(" feat ") {
+        lead.trim()
+    } else if let Some((lead, _)) = primary_artist.split_once(" ft. ") {
+        lead.trim()
+    } else if let Some((lead, _)) = primary_artist.split_once(" ft ") {
+        lead.trim()
+    } else {
+        primary_artist
+    };
+
+    let primary_artist_no_emojis = strip_emojis_and_symbols(primary_artist)
+        .trim()
+        .to_string();
+    let clean_a_no_emojis = strip_emojis_and_symbols(&clean_a)
+        .trim()
+        .to_string();
+
+    let mut candidate_artists = Vec::with_capacity(2);
+    if !primary_artist_no_emojis.is_empty() && !primary_artist_no_emojis.eq_ignore_ascii_case("unknown artist") {
+        candidate_artists.push(primary_artist_no_emojis);
+    }
+    if !clean_a_no_emojis.is_empty() && !candidate_artists.contains(&clean_a_no_emojis) && !clean_a_no_emojis.eq_ignore_ascii_case("unknown artist") {
+        candidate_artists.push(clean_a_no_emojis);
+    }
+
+    (candidate_titles, candidate_artists)
+}
+
 #[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct LrcLibItem {
@@ -95,102 +272,52 @@ pub async fn fetch_lyrics(
         return Err("Lyrics HTTP client unavailable".into());
     };
 
-    // Clean title and artist
-    let mut clean_title = title.trim().to_string();
-    let mut clean_artist = artist.trim().to_string();
-
-    // Remove common bracketed/parenthetical video and audio markers
-    let noise_patterns = [
-        "(official video)", "[official video]", "(official audio)", "[official audio]",
-        "(official music video)", "[official music video]", "(music video)", "[music video]",
-        "(lyrics)", "[lyrics]", "(lyric video)", "[lyric video]", "(audio)", "[audio]",
-        "(visualizer)", "[visualizer]", "(full song)", "[full song]", "(remastered)", "[remastered]",
-        "(video)", "[video]", "(hd)", "[hd]", "(4k)", "[4k]"
-    ];
-    let lower_title = clean_title.to_lowercase();
-    for noise in noise_patterns {
-        if lower_title.contains(noise) {
-            clean_title = clean_title
-                .replace(noise, "")
-                .replace(&noise.to_uppercase(), "")
-                .trim()
-                .to_string();
-        }
+    let (candidate_titles, candidate_artists) = sanitize_lyrics_metadata(&title, &artist);
+    if candidate_titles.is_empty() {
+        return Err("Empty track title".into());
     }
 
-    // Strip "- Topic" suffix from artist (YouTube autogen channels)
-    if clean_artist.ends_with("- Topic") {
-        clean_artist = clean_artist.trim_end_matches("- Topic").trim().to_string();
-    }
+    let primary_title = candidate_titles.first().cloned().unwrap_or_else(|| title.clone());
+    let primary_artist = candidate_artists.first().cloned().unwrap_or_else(|| artist.clone());
 
-    // Check if artist is empty or a browser/platform placeholder
-    let is_generic_artist = clean_artist.is_empty()
-        || clean_artist.eq_ignore_ascii_case("youtube")
-        || clean_artist.eq_ignore_ascii_case("youtube music")
-        || clean_artist.eq_ignore_ascii_case("google chrome")
-        || clean_artist.eq_ignore_ascii_case("chrome")
-        || clean_artist.eq_ignore_ascii_case("brave")
-        || clean_artist.eq_ignore_ascii_case("firefox")
-        || clean_artist.eq_ignore_ascii_case("edge")
-        || clean_artist.eq_ignore_ascii_case("spotify free")
-        || clean_artist.eq_ignore_ascii_case("unknown artist");
+    // 1. Waterfall Tier 1: Exact GET for candidate combinations
+    for c_title in &candidate_titles {
+        for c_artist in &candidate_artists {
+            let exact_url = format!(
+                "https://lrclib.net/api/get?track_name={}&artist_name={}",
+                url_encode(c_title),
+                url_encode(c_artist)
+            );
 
-    // If artist is generic, try splitting "Artist - Title" from clean_title
-    if is_generic_artist {
-        for sep in [" - ", " – ", " — ", " : "] {
-            if let Some((detected_artist, detected_track)) = clean_title.split_once(sep) {
-                if !detected_artist.trim().is_empty() && !detected_track.trim().is_empty() {
-                    clean_artist = detected_artist.trim().to_string();
-                    clean_title = detected_track.trim().to_string();
-                    break;
-                }
-            }
-        }
-    }
-
-    // Take primary artist if multiple are comma-separated or joined by &
-    let primary_artist = clean_artist
-        .split(|c| c == ',' || c == '&' || c == '/')
-        .next()
-        .unwrap_or(&clean_artist)
-        .trim();
-
-    // 1. Try exact get first if primary artist is known
-    if !primary_artist.is_empty() && !primary_artist.eq_ignore_ascii_case("unknown artist") {
-        let exact_url = format!(
-            "https://lrclib.net/api/get?track_name={}&artist_name={}",
-            url_encode(&clean_title),
-            url_encode(primary_artist)
-        );
-
-        if let Ok(resp) = client.get(&exact_url).send().await {
-            if resp.status().is_success() {
-                if let Ok(item) = resp.json::<LrcLibItem>().await {
-                    if let Some(ref synced) = item.synced_lyrics {
-                        if !synced.trim().is_empty() {
-                            let lines = parse_lrc_content(synced);
-                            return Ok(crate::types::LyricsResult {
-                                id: item.id,
-                                track_name: item.track_name.or(Some(clean_title)),
-                                artist_name: item.artist_name.or(Some(clean_artist)),
-                                synced_lyrics: item.synced_lyrics,
-                                plain_lyrics: item.plain_lyrics,
-                                lines,
-                                is_synced: true,
-                            });
-                        }
-                    } else if let Some(ref plain) = item.plain_lyrics {
-                        if !plain.trim().is_empty() {
-                            let lines = parse_plain_content(plain);
-                            return Ok(crate::types::LyricsResult {
-                                id: item.id,
-                                track_name: item.track_name.or(Some(clean_title)),
-                                artist_name: item.artist_name.or(Some(clean_artist)),
-                                synced_lyrics: None,
-                                plain_lyrics: item.plain_lyrics,
-                                lines,
-                                is_synced: false,
-                            });
+            if let Ok(resp) = client.get(&exact_url).send().await {
+                if resp.status().is_success() {
+                    if let Ok(item) = resp.json::<LrcLibItem>().await {
+                        if let Some(ref synced) = item.synced_lyrics {
+                            if !synced.trim().is_empty() {
+                                let lines = parse_lrc_content(synced);
+                                return Ok(crate::types::LyricsResult {
+                                    id: item.id,
+                                    track_name: item.track_name.or(Some(primary_title)),
+                                    artist_name: item.artist_name.or(Some(primary_artist)),
+                                    synced_lyrics: item.synced_lyrics,
+                                    plain_lyrics: item.plain_lyrics,
+                                    lines,
+                                    is_synced: true,
+                                });
+                            }
+                        } else if let Some(ref plain) = item.plain_lyrics {
+                            if !plain.trim().is_empty() {
+                                let lines = parse_plain_content(plain);
+                                return Ok(crate::types::LyricsResult {
+                                    id: item.id,
+                                    track_name: item.track_name.or(Some(primary_title)),
+                                    artist_name: item.artist_name.or(Some(primary_artist)),
+                                    synced_lyrics: None,
+                                    plain_lyrics: item.plain_lyrics,
+                                    lines,
+                                    is_synced: false,
+                                });
+                            }
                         }
                     }
                 }
@@ -198,78 +325,131 @@ pub async fn fetch_lyrics(
         }
     }
 
-    // 2. Fallback to /api/search with multiple fallback query variants
-    let search_queries = [
-        format!(
-            "https://lrclib.net/api/search?track_name={}&artist_name={}",
-            url_encode(&clean_title),
-            url_encode(primary_artist)
-        ),
-        format!(
-            "https://lrclib.net/api/search?q={}",
-            url_encode(&format!("{} {}", clean_title, primary_artist).trim())
-        ),
-        format!(
-            "https://lrclib.net/api/search?track_name={}",
-            url_encode(&clean_title)
-        ),
-    ];
+    // Helper to evaluate search candidates with duration proximity
+    let evaluate_search_items = |items: Vec<LrcLibItem>| -> Option<crate::types::LyricsResult> {
+        if items.is_empty() {
+            return None;
+        }
 
-    for search_url in search_queries {
+        let best = if let Some(target_dur) = duration_ms {
+            let target_secs = (target_dur as f64) / 1000.0;
+            items
+                .iter()
+                .filter(|i| i.synced_lyrics.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false))
+                .min_by(|a, b| {
+                    let da = (a.duration.unwrap_or(0.0) - target_secs).abs();
+                    let db = (b.duration.unwrap_or(0.0) - target_secs).abs();
+                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .or_else(|| items.iter().find(|i| i.synced_lyrics.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false)))
+                .or_else(|| items.first())
+        } else {
+            items
+                .iter()
+                .find(|i| i.synced_lyrics.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false))
+                .or_else(|| items.first())
+        };
+
+        if let Some(item) = best {
+            if let Some(ref synced) = item.synced_lyrics {
+                if !synced.trim().is_empty() {
+                    let lines = parse_lrc_content(synced);
+                    return Some(crate::types::LyricsResult {
+                        id: item.id,
+                        track_name: item.track_name.clone().or_else(|| Some(primary_title.clone())),
+                        artist_name: item.artist_name.clone().or_else(|| Some(primary_artist.clone())),
+                        synced_lyrics: item.synced_lyrics.clone(),
+                        plain_lyrics: item.plain_lyrics.clone(),
+                        lines,
+                        is_synced: true,
+                    });
+                }
+            }
+            if let Some(ref plain) = item.plain_lyrics {
+                if !plain.trim().is_empty() {
+                    let lines = parse_plain_content(plain);
+                    return Some(crate::types::LyricsResult {
+                        id: item.id,
+                        track_name: item.track_name.clone().or_else(|| Some(primary_title.clone())),
+                        artist_name: item.artist_name.clone().or_else(|| Some(primary_artist.clone())),
+                        synced_lyrics: None,
+                        plain_lyrics: item.plain_lyrics.clone(),
+                        lines,
+                        is_synced: false,
+                    });
+                }
+            }
+        }
+        None
+    };
+
+    // 2. Waterfall Tier 2: Search with track_name & artist_name
+    for c_title in &candidate_titles {
+        for c_artist in &candidate_artists {
+            let search_url = format!(
+                "https://lrclib.net/api/search?track_name={}&artist_name={}",
+                url_encode(c_title),
+                url_encode(c_artist)
+            );
+            if let Ok(resp) = client.get(&search_url).send().await {
+                if resp.status().is_success() {
+                    if let Ok(items) = resp.json::<Vec<LrcLibItem>>().await {
+                        if let Some(result) = evaluate_search_items(items) {
+                            return Ok(result);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Waterfall Tier 3: Search with combined query `q={title} {artist}`
+    for c_title in &candidate_titles {
+        for c_artist in &candidate_artists {
+            let search_url = format!(
+                "https://lrclib.net/api/search?q={}",
+                url_encode(&format!("{} {}", c_title, c_artist).trim())
+            );
+            if let Ok(resp) = client.get(&search_url).send().await {
+                if resp.status().is_success() {
+                    if let Ok(items) = resp.json::<Vec<LrcLibItem>>().await {
+                        if let Some(result) = evaluate_search_items(items) {
+                            return Ok(result);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Waterfall Tier 4: Search with track_name alone
+    for c_title in &candidate_titles {
+        let search_url = format!(
+            "https://lrclib.net/api/search?track_name={}",
+            url_encode(c_title)
+        );
         if let Ok(resp) = client.get(&search_url).send().await {
             if resp.status().is_success() {
                 if let Ok(items) = resp.json::<Vec<LrcLibItem>>().await {
-                    if !items.is_empty() {
-                        // Pick candidate with synced lyrics closest to duration, else first with synced, else first with plain
-                        let best = if let Some(target_dur) = duration_ms {
-                            let target_secs = (target_dur as f64) / 1000.0;
-                            items
-                                .iter()
-                                .filter(|i| i.synced_lyrics.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false))
-                                .min_by(|a, b| {
-                                    let da = (a.duration.unwrap_or(0.0) - target_secs).abs();
-                                    let db = (b.duration.unwrap_or(0.0) - target_secs).abs();
-                                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                                })
-                                .or_else(|| items.iter().find(|i| i.synced_lyrics.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false)))
-                                .or_else(|| items.first())
-                        } else {
-                            items
-                                .iter()
-                                .find(|i| i.synced_lyrics.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false))
-                                .or_else(|| items.first())
-                        };
+                    if let Some(result) = evaluate_search_items(items) {
+                        return Ok(result);
+                    }
+                }
+            }
+        }
+    }
 
-                        if let Some(item) = best {
-                            if let Some(ref synced) = item.synced_lyrics {
-                                if !synced.trim().is_empty() {
-                                    let lines = parse_lrc_content(synced);
-                                    return Ok(crate::types::LyricsResult {
-                                        id: item.id,
-                                        track_name: item.track_name.clone().or(Some(clean_title)),
-                                        artist_name: item.artist_name.clone().or(Some(clean_artist)),
-                                        synced_lyrics: item.synced_lyrics.clone(),
-                                        plain_lyrics: item.plain_lyrics.clone(),
-                                        lines,
-                                        is_synced: true,
-                                    });
-                                }
-                            }
-                            if let Some(ref plain) = item.plain_lyrics {
-                                if !plain.trim().is_empty() {
-                                    let lines = parse_plain_content(plain);
-                                    return Ok(crate::types::LyricsResult {
-                                        id: item.id,
-                                        track_name: item.track_name.clone().or(Some(clean_title)),
-                                        artist_name: item.artist_name.clone().or(Some(clean_artist)),
-                                        synced_lyrics: None,
-                                        plain_lyrics: item.plain_lyrics.clone(),
-                                        lines,
-                                        is_synced: false,
-                                    });
-                                }
-                            }
-                        }
+    // 5. Waterfall Tier 5: Search with `q={title}` alone
+    for c_title in &candidate_titles {
+        let search_url = format!(
+            "https://lrclib.net/api/search?q={}",
+            url_encode(c_title)
+        );
+        if let Ok(resp) = client.get(&search_url).send().await {
+            if resp.status().is_success() {
+                if let Ok(items) = resp.json::<Vec<LrcLibItem>>().await {
+                    if let Some(result) = evaluate_search_items(items) {
+                        return Ok(result);
                     }
                 }
             }
@@ -324,5 +504,34 @@ mod lyrics_tests {
         assert_eq!(lines[1].time_ms, 4000);
         assert_eq!(lines[2].text, "Line three");
         assert_eq!(lines[2].time_ms, 8000);
+    }
+
+    #[test]
+    fn test_strip_emojis_and_symbols() {
+        let dirty = "Kathakaadhey • 🎶 ఒదిలేయవే ఒదిలేయవే 🔥";
+        let stripped = strip_emojis_and_symbols(dirty);
+        assert_eq!(stripped.trim(), "Kathakaadhey   ఒదిలేయవే ఒదిలేయవే");
+    }
+
+    #[test]
+    fn test_sanitize_lyrics_metadata_multilingual_track() {
+        let title = "Kathakaadhey • 🎶 ఒదిలేయవే ఒదిలేయవే";
+        let artist = "Anirudh Ravichander, Ajesh, Srinidhi Venkatesh - Remo (Telugu) [Original Motion Picture Soundtrack]";
+        let (candidates_t, candidates_a) = sanitize_lyrics_metadata(title, artist);
+        
+        assert!(!candidates_t.is_empty());
+        assert_eq!(candidates_t[0], "Kathakaadhey");
+        assert!(!candidates_a.is_empty());
+        assert_eq!(candidates_a[0], "Anirudh Ravichander");
+    }
+
+    #[test]
+    fn test_sanitize_lyrics_metadata_youtube_topic() {
+        let title = "The Weeknd - Blinding Lights (Official Audio)";
+        let artist = "YouTube";
+        let (candidates_t, candidates_a) = sanitize_lyrics_metadata(title, artist);
+        
+        assert_eq!(candidates_t[0], "Blinding Lights");
+        assert_eq!(candidates_a[0], "The Weeknd");
     }
 }

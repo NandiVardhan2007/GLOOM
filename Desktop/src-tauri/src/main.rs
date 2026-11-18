@@ -291,6 +291,8 @@ fn main() {
             get_system_accent_color,
             get_cpu_usage,
             get_ram_usage,
+            get_ram_details,
+            get_system_overview,
             get_disk_space,
             get_network_speed,
             export_settings_to_file,

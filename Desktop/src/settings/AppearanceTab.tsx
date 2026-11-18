@@ -1,5 +1,10 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2 } from "lucide-react";
+import { Palette, Droplet, Contrast, Droplets, Sun, Maximize2, Layers, SwatchBook } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { THEME_PRESETS, hexToHsl, hslToHex, type ThemePreset, THEME_STYLES } from "../theme";
+
+function presetBackground(preset: ThemePreset): string {
+	return hslToHex(hexToHsl(preset.color).h, preset.saturation * 100, preset.brightness * 100);
+}
 
 interface AppearanceTabProps {
 	themeMode: string;
@@ -14,6 +19,9 @@ interface AppearanceTabProps {
 	handleBrightnessChange: (val: number) => void;
 	scale: number;
 	handleScaleChange: (val: number) => void;
+	themeStyle?: string;
+	handleThemeStyleChange?: (style: string) => void;
+	applyThemePreset?: (preset: ThemePreset) => void;
 }
 
 export function AppearanceTab({
@@ -28,14 +36,55 @@ export function AppearanceTab({
 	themeBrightness,
 	handleBrightnessChange,
 	scale,
-	handleScaleChange
+	handleScaleChange,
+	themeStyle = "frosted",
+	handleThemeStyleChange,
+	applyThemePreset
 }: AppearanceTabProps) {
+	const isMaterial = themeStyle === "material";
 	const showCustomColor = themeMode === "custom";
-	const showAdvancedSliders = themeMode === "custom" || themeMode === "adaptive";
+	const showAdvancedSliders = !isMaterial && (themeMode === "custom" || themeMode === "adaptive");
+
+	const isActivePreset = (preset: ThemePreset) =>
+		themeMode === "custom" &&
+		themeColor.toLowerCase() === preset.color.toLowerCase() &&
+		Math.abs(themeSaturation - preset.saturation) < 0.03 &&
+		Math.abs(themeBrightness - preset.brightness) < 0.03;
 
 	return (
 		<>
-			<div className="setting-group-label">Theme</div>
+			{/* Surface Styling Architecture */}
+			<div className="setting-group-label">Surface Style</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={Layers}
+					label="Island & Dock Surface"
+					desc="Glass refraction and outline material"
+					divider={false}
+				/>
+				<div className="style-tiles" role="radiogroup" aria-label="Surface Style">
+					{THEME_STYLES.map((style) => (
+						<button
+							key={style}
+							type="button"
+							role="radio"
+							aria-checked={themeStyle === style}
+							className={`style-tile${themeStyle === style ? " active" : ""}`}
+							onClick={() => handleThemeStyleChange?.(style)}
+						>
+							<span className={`style-tile-preview style-preview-${style}`}>
+								<span className="style-tile-pill">
+									<i />
+									<i />
+								</span>
+							</span>
+							<span className="style-tile-label">{style}</span>
+						</button>
+					))}
+				</div>
+			</div>
+
+			<div className="setting-group-label">Theme & Presets</div>
 			<div className="setting-group">
 				<SettingRow icon={Palette} label="Theme Mode" desc="Configure visual styling">
 					<select
@@ -50,6 +99,30 @@ export function AppearanceTab({
 						<option value="adaptive">Adaptive Accent</option>
 					</select>
 				</SettingRow>
+
+				{applyThemePreset && (
+					<SettingRow
+						icon={SwatchBook}
+						label="Curated Presets"
+						desc="Calm, balanced Apple-style palettes"
+					>
+						<div className="preset-swatches">
+							{THEME_PRESETS.map((preset) => (
+								<button
+									key={preset.name}
+									type="button"
+									className={`preset-swatch${isActivePreset(preset) ? " active" : ""}`}
+									style={{ background: presetBackground(preset) }}
+									onClick={() => applyThemePreset(preset)}
+									title={preset.name}
+									aria-label={preset.name}
+								>
+									<span style={{ background: preset.accent }} />
+								</button>
+							))}
+						</div>
+					</SettingRow>
+				)}
 
 				{showCustomColor && (
 					<SettingRow
@@ -126,7 +199,6 @@ export function AppearanceTab({
 
 			<div className="setting-group-label">Display</div>
 			<div className="setting-group">
-
 				<SettingRow
 					icon={Maximize2}
 					label="UI & Font Scale"

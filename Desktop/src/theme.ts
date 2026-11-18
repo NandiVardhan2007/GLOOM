@@ -63,7 +63,7 @@ export function hexToHsl(hex: string): HSL {
 }
 
 // Convert HSL back to Hex color string
-function hslToHex(h: number, s: number, l: number): string {
+export function hslToHex(h: number, s: number, l: number): string {
 	s /= 100;
 	l /= 100;
 	const c = (1 - Math.abs(2 * l - 1)) * s;
@@ -107,14 +107,48 @@ function hslToHex(h: number, s: number, l: number): string {
 	return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+export interface ThemePreset {
+	name: string;
+	color: string;
+	saturation: number;
+	brightness: number;
+	accent: string;
+}
+
+// Background hue comes from `color`, kept low in saturation so surfaces stay calm; the accent is picked by eye.
+export const THEME_PRESETS: ThemePreset[] = [
+	{ name: "Graphite", color: "#8e8e93", saturation: 0.04, brightness: 0.09, accent: "#0a84ff" },
+	{ name: "Midnight", color: "#5e8bff", saturation: 0.4, brightness: 0.1, accent: "#7aa2ff" },
+	{ name: "Ocean", color: "#2ec4d6", saturation: 0.45, brightness: 0.09, accent: "#35d0e0" },
+	{ name: "Forest", color: "#34c77b", saturation: 0.28, brightness: 0.09, accent: "#4ade80" },
+	{ name: "Plum", color: "#c77dff", saturation: 0.3, brightness: 0.11, accent: "#c58bff" },
+	{ name: "Rose", color: "#ff5e8a", saturation: 0.3, brightness: 0.11, accent: "#ff6b95" },
+	{ name: "Ember", color: "#ff7a45", saturation: 0.32, brightness: 0.1, accent: "#ff8a5c" },
+	{ name: "Latte", color: "#c0742d", saturation: 0.18, brightness: 0.95, accent: "#b8641c" },
+	{ name: "Mist", color: "#0a84ff", saturation: 0.2, brightness: 0.95, accent: "#0a6ee0" }
+];
+
+export const THEME_STYLES = ["solid", "frosted", "liquid", "material"] as const;
+
+export const STYLE_OPACITY: Record<string, number> = {
+	solid: 0.8,
+	frosted: 0.6,
+	liquid: 0.45,
+	material: 0.96
+};
+
 export async function applyTheme(
 	mode: string,
 	customColor: string,
 	opacity?: number,
 	saturation?: number,
-	brightness?: number
+	brightness?: number,
+	style?: string
 ) {
 	const root = document.documentElement;
+	const activeStyle = style || localStorage.getItem("gloom-theme-style") || "frosted";
+	root.classList.remove("style-solid", "style-frosted", "style-liquid", "style-material");
+	root.classList.add(`style-${activeStyle}`);
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("gloom-theme-opacity");
@@ -307,7 +341,8 @@ export function initTheme() {
 		const opacity = parseFloat(localStorage.getItem("gloom-theme-opacity") || "0.80");
 		const saturation = parseFloat(localStorage.getItem("gloom-theme-saturation") || "0.50");
 		const brightness = parseFloat(localStorage.getItem("gloom-theme-brightness") || "0.15");
-		applyTheme(mode, color, opacity, saturation, brightness);
+		const style = localStorage.getItem("gloom-theme-style") || "frosted";
+		applyTheme(mode, color, opacity, saturation, brightness, style);
 	};
 
 	const gloomThemeKeys = [
@@ -315,7 +350,8 @@ export function initTheme() {
 		"gloom-theme-color",
 		"gloom-theme-opacity",
 		"gloom-theme-saturation",
-		"gloom-theme-brightness"
+		"gloom-theme-brightness",
+		"gloom-theme-style"
 	];
 
 	// Listen to setting changes broadcasted from settings window

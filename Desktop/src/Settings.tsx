@@ -165,6 +165,9 @@ function SettingsApp() {
 							handleBrightnessChange={settings.handleBrightnessChange}
 							scale={settings.scale}
 							handleScaleChange={settings.handleScaleChange}
+							themeStyle={settings.themeStyle}
+							handleThemeStyleChange={settings.handleThemeStyleChange}
+							applyThemePreset={settings.applyThemePreset}
 						/>
 					)}
 					{activeTab === "notch" && (
@@ -247,6 +250,18 @@ function SettingsApp() {
 							handleRemoveDockExtraFolder={settings.handleRemoveDockExtraFolder}
 							startIcon={settings.startIcon}
 							handleStartIconChange={settings.handleStartIconChange}
+							dockAttentionEnabled={settings.dockAttentionEnabled}
+							toggleDockAttention={settings.toggleDockAttention}
+							dockConsoleWindows={settings.dockConsoleWindows}
+							toggleDockConsoleWindows={settings.toggleDockConsoleWindows}
+							dockSearchEnabled={settings.dockSearchEnabled}
+							toggleDockSearch={settings.toggleDockSearch}
+							dockSearchProvider={settings.dockSearchProvider}
+							handleDockSearchProviderChange={settings.handleDockSearchProviderChange}
+							dockPreviewDelay={settings.dockPreviewDelay}
+							handleDockPreviewDelayChange={settings.handleDockPreviewDelayChange}
+							dockHideDelay={settings.dockHideDelay}
+							handleDockHideDelayChange={settings.handleDockHideDelayChange}
 						/>
 					)}
 					{activeTab === "overlays" && (
