@@ -3,4 +3,5 @@ export interface UpdateCheckResult {
   version?: string;
   date?: string;
   body?: string;
+  download_url?: string;
 }

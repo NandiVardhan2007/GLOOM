@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 15:15 IST  
-> **Release Version**: 2.7.0 — Pure 1:1 Parity Clone, Custom Setup Wizard & Localhost Refused Fix  
+> **Last Updated**: 2026-11-18 16:10 IST  
+> **Release Version**: 2.7.1 — Resilient GitHub Releases Auto-Updater Engine  
 > **Target Device**: Windows 11 & Windows 10 Dedicated (100% Standalone, Native Win32 / DirectX 11 / WASAPI / WinRT)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Streamlined CI/CD release pipeline exclusively for Windows. Pure 1:1 Parity Clone with Nectar v1.10.0 custom installer architecture: ported `installer-app/` providing a dedicated dark glass setup wizard (`GLOOM-Setup.exe`) with animated vector logo, real-time extraction progress bar, elevation handling, desktop shortcuts, and registry uninstaller integration. Fixed `localhost refused to connect` / `ERR_CONNECTION_REFUSED` bug by embedding production webview bundle directly via `tauri build --no-bundle`. All 37/37 Rust tests pass, 38/38 Node tests pass, clean compilation across all modules.
+> **Release Status**: Streamlined CI/CD release pipeline exclusively for Windows. Successfully implemented Phase 1: resilient, signature-independent GitHub Releases update checking and auto-installation mechanism (`Desktop/src-tauri/src/updater.rs`). Replaced minisign signature requirement with direct GitHub Releases API parser and `latest.json` fallback. Downloads installer (`GLOOM-Setup.exe`) via chunk streaming with real-time percentage progress events (`auto-update-status`), executes `--auto-install` with Windows breakaway flags (`CREATE_BREAKAWAY_FROM_JOB`), and triggers seamless installer completion. All 41/41 Rust tests pass, 38/38 Node tests pass, clean Vite production compilation.
 
 ---
 
@@ -14,9 +14,28 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
 2. **Dedicated Setup Wizard (`installer-app/`)**: Pure 1:1 adoption of Nectar's custom webview installer (`GLOOM-Setup.exe`), featuring dark glass acrylic backdrop, animated vector SVG logo, install path picker, user vs all-users permission elevation, real-time unzipping progress bar, and built-in uninstaller.
 3. **On-Demand Acrylic Windows**: Dynamic on-demand window lifecycle management (`on_demand_windows.rs`) spawning acrylic surfaces for Calendar (`calendar.html`), Settings (`settings.html` with all 11 tabs and live search engine), Dock (`dock.html`), and Overlay (`overlay.html`).
 4. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
-5. **Exclusive Vector SVG Branding Engine**: Uses `assets/logo.svg` exclusively across all surfaces with adaptive theme support:
-   - **Dark Backgrounds / OLED Black Canvas**: Uses the light vector SVG (`/gloom.svg`, `fill="#FCFCFC"`).
-   - **Light Backgrounds**: Dynamically swaps to the dark vector SVG (`/gloom-dark.svg`, `fill="#111111"`) via CSS content properties and React theme hooks.
+5. **Exclusive Vector SVG Branding Engine**: Uses `assets/logo.svg` exclusively across all surfaces with adaptive theme support.
+6. **Resilient GitHub Releases Auto-Updater Engine**: Native Rust updater (`updater.rs`) operating without external signature keys, fetching directly from GitHub Releases API with raw manifest fallback, chunk streaming progress, and detached `--auto-install` launch.
+
+### 🌟 Phase 20 Complete — Resilient Signature-Free Update Checker & In-App Installer Engine (2026-11-18):
+1. **Signature-Independent GitHub Releases Engine**:
+   - Replaced `tauri_plugin_updater::check()` which crashed with `signature not found` due to missing CI minisign private keys.
+   - Built native GitHub Releases API query engine (`/repos/NandiVardhan2007/GLOOM/releases/latest` and `/releases?per_page=10` for prereleases) with custom `GLOOM/<version>` user-agent.
+   - Built automatic failover to `raw.githubusercontent.com/.../latest.json` in case GitHub REST API returns 403 or rate-limiting.
+2. **Semantic Version Comparison & Asset Resolution**:
+   - Implemented `parse_version_tuple()` and `is_newer_version()` handling `v` prefixes, prerelease suffixes, and variable segment counts.
+   - Intelligent asset matching prioritizes `GLOOM-Setup.exe`, `GLOOM-Setup-*.exe`, and non-portable `.exe` installers.
+3. **Streaming Download & Silent Execution**:
+   - Enabled reqwest streaming (`chunk().await`) emitting real-time percentage progress events (`auto-update-status` `{ "status": "downloading", "progress": percent }`) matching `Overlay.tsx` and `AboutTab.tsx`.
+   - Downloads directly to `%TEMP%\GLOOM-Setup-Update.exe`.
+   - Spawns installer with `--auto-install`, `--install-dir=...`, and optional `--all-users`.
+   - Employs Windows process creation flag `CREATE_BREAKAWAY_FROM_JOB` (0x01000000) so the installer survives the application's graceful exit.
+   - Enhanced `installer-app/src/App.tsx` with `autoFinish` timeout to automatically launch updated GLOOM and close upon completion.
+4. **Verification & Quality**:
+   - Added unit tests for version comparison, parsing GitHub payloads, and parsing `latest.json` manifests.
+   - 41/41 Rust tests pass (1 ignored public network feed test).
+   - 38/38 Node frontend tests pass across 8 test suites.
+   - Clean production build: Vite compiled all 2,472 modules in 6.32s; installer Vite built in 3.56s.
 
 ### 🌟 Phase 19 Complete — Pure 1:1 Custom Installer Parity & Localhost Fix (2026-11-18):
 1. **Root Cause Analysis & Permanent Fix for `localhost refused to connect`**:

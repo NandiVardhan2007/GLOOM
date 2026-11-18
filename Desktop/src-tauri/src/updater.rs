@@ -1,28 +1,30 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_updater::{UpdaterBuilder, UpdaterExt};
 
 /// Minimum time between background update checks. Manual checks bypass this.
 const CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
-/// Network timeout for a single manifest request.
-const CHECK_TIMEOUT_SECS: u64 = 10;
+/// Network timeout for a single manifest or release request.
+const CHECK_TIMEOUT_SECS: u64 = 15;
 /// A release must be at least this old before auto-update installs it, so a
 /// broken release cannot reach everyone within minutes of being published.
 const MIN_AUTO_INSTALL_AGE_SECS: i64 = 24 * 60 * 60;
 const STATE_FILE: &str = "update-state.json";
-const RELEASES_API: &str = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases?per_page=10";
+const GITHUB_LATEST_API: &str = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest";
+const GITHUB_ALL_RELEASES_API: &str = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases?per_page=10";
+const RAW_LATEST_JSON: &str = "https://raw.githubusercontent.com/NandiVardhan2007/GLOOM/main/build-artifacts/latest.json";
+const RELEASES_PAGE: &str = "https://github.com/NandiVardhan2007/GLOOM/releases/latest";
 
 /// Serializes manifest requests so concurrent callers share a single network hit.
 static CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static UPDATE_BUSY: AtomicBool = AtomicBool::new(false);
 static LAST_CHECK: Mutex<Option<UpdateCheckResult>> = Mutex::new(None);
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]
 pub struct UpdateCheckResult {
     pub available: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -31,6 +33,8 @@ pub struct UpdateCheckResult {
     pub date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -41,6 +45,135 @@ struct PersistedUpdateState {
     date: String,
     #[serde(default)]
     channel: String,
+    #[serde(default)]
+    download_url: Option<String>,
+}
+
+/// Parses a semver-like version string into a (major, minor, patch) tuple.
+pub fn parse_version_tuple(v: &str) -> Option<(u64, u64, u64)> {
+    let clean = v.trim().trim_start_matches(|c| c == 'v' || c == 'V');
+    let mut parts = clean.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next().unwrap_or("0").parse().ok()?;
+    let patch_part = parts.next().unwrap_or("0");
+    let patch_digits: String = patch_part.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let patch = if patch_digits.is_empty() {
+        0
+    } else {
+        patch_digits.parse().ok()?
+    };
+    Some((major, minor, patch))
+}
+
+/// Returns true if candidate is strictly newer than current version.
+pub fn is_newer_version(current: &str, candidate: &str) -> bool {
+    let Some(curr) = parse_version_tuple(current) else {
+        return false;
+    };
+    let Some(cand) = parse_version_tuple(candidate) else {
+        return false;
+    };
+    cand > curr
+}
+
+/// Parses either a GitHub API release object/array or a latest.json manifest.
+pub fn parse_release_json(val: &serde_json::Value, current_version: &str) -> Option<UpdateCheckResult> {
+    if let Some(arr) = val.as_array() {
+        for item in arr {
+            if let Some(res) = parse_single_release_json(item, current_version) {
+                if res.available {
+                    return Some(res);
+                }
+            }
+        }
+        return Some(UpdateCheckResult::default());
+    }
+    parse_single_release_json(val, current_version)
+}
+
+fn parse_single_release_json(val: &serde_json::Value, current_version: &str) -> Option<UpdateCheckResult> {
+    // 1. GitHub API format (release object)
+    if let Some(tag) = val.get("tag_name").and_then(|v| v.as_str()) {
+        let is_draft = val.get("draft").and_then(|v| v.as_bool()).unwrap_or(false);
+        if is_draft {
+            return None;
+        }
+
+        let newer = is_newer_version(current_version, tag);
+        let date = val.get("published_at").and_then(|v| v.as_str()).map(ToString::to_string);
+        let body = val.get("body").and_then(|v| v.as_str()).map(ToString::to_string);
+
+        let mut download_url = None;
+        if let Some(assets) = val.get("assets").and_then(|v| v.as_array()) {
+            // First priority: GLOOM-Setup.exe
+            for asset in assets {
+                let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                if name.eq_ignore_ascii_case("GLOOM-Setup.exe") {
+                    if let Some(url) = asset.get("browser_download_url").and_then(|v| v.as_str()) {
+                        download_url = Some(url.to_string());
+                        break;
+                    }
+                }
+            }
+            // Second priority: GLOOM-Setup-*.exe
+            if download_url.is_none() {
+                for asset in assets {
+                    let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                    if name.starts_with("GLOOM-Setup") && name.ends_with(".exe") {
+                        if let Some(url) = asset.get("browser_download_url").and_then(|v| v.as_str()) {
+                            download_url = Some(url.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+            // Third priority: any installer .exe (excluding portable and uninstaller)
+            if download_url.is_none() {
+                for asset in assets {
+                    let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                    if name.ends_with(".exe") && !name.contains("portable") && !name.contains("uninstall") {
+                        if let Some(url) = asset.get("browser_download_url").and_then(|v| v.as_str()) {
+                            download_url = Some(url.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let clean_version = tag.trim_start_matches(|c| c == 'v' || c == 'V').to_string();
+        return Some(UpdateCheckResult {
+            available: newer,
+            version: Some(clean_version),
+            date,
+            body,
+            download_url,
+        });
+    }
+
+    // 2. latest.json format
+    if let Some(version) = val.get("version").and_then(|v| v.as_str()) {
+        let newer = is_newer_version(current_version, version);
+        let date = val.get("pub_date").and_then(|v| v.as_str()).map(ToString::to_string);
+        let body = val.get("notes").and_then(|v| v.as_str()).map(ToString::to_string);
+        let download_url = val
+            .get("platforms")
+            .and_then(|p| p.get("windows-x86_64"))
+            .and_then(|w| w.get("url"))
+            .and_then(|u| u.as_str())
+            .map(ToString::to_string);
+
+        let clean_version = version.trim_start_matches(|c| c == 'v' || c == 'V').to_string();
+        return Some(UpdateCheckResult {
+            available: newer,
+            version: Some(clean_version),
+            date,
+            body,
+            download_url,
+        });
+    }
+
+    None
 }
 
 fn prerelease_channel(app: &AppHandle) -> bool {
@@ -49,40 +182,6 @@ fn prerelease_channel(app: &AppHandle) -> bool {
 
 fn channel_name(app: &AppHandle) -> &'static str {
     if prerelease_channel(app) { "prerelease" } else { "stable" }
-}
-
-/// Manifest of the newest release, pre-releases included (GitHub's `latest` skips them).
-async fn newest_release_manifest() -> Option<tauri::Url> {
-    let client = reqwest::Client::builder()
-        .user_agent("GLOOM")
-        .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
-        .build()
-        .ok()?;
-    let body = client.get(RELEASES_API).send().await.ok()?.text().await.ok()?;
-    let releases: Vec<serde_json::Value> = serde_json::from_str(&body).ok()?;
-    releases
-        .iter()
-        .filter(|release| release["draft"] != true)
-        .find_map(|release| {
-            release["assets"].as_array()?.iter().find_map(|asset| {
-                (asset["name"] == "latest.json")
-                    .then(|| asset["browser_download_url"].as_str())
-                    .flatten()
-                    .and_then(|url| url.parse().ok())
-            })
-        })
-}
-
-/// Updater for the chosen channel, falling back to stable if the release list cannot be read.
-async fn channel_updater(app: &AppHandle) -> UpdaterBuilder {
-    let builder = app.updater_builder();
-    if !prerelease_channel(app) {
-        return builder;
-    }
-    match newest_release_manifest().await {
-        Some(url) => builder.endpoints(vec![url]).unwrap_or_else(|_| app.updater_builder()),
-        None => builder,
-    }
 }
 
 fn now_secs() -> i64 {
@@ -126,6 +225,7 @@ fn result_from_state(state: &PersistedUpdateState) -> UpdateCheckResult {
         version: Some(state.version.clone()),
         date: (!state.date.is_empty()).then(|| state.date.clone()),
         body: None,
+        download_url: state.download_url.clone(),
     }
 }
 
@@ -150,8 +250,7 @@ pub fn release_is_old_enough(result: &UpdateCheckResult) -> bool {
 }
 
 /// Checks for an update at most once per `CHECK_INTERVAL_SECS` unless `force`
-/// is set. Development builds skip the automatic network check because their
-/// version never tracks releases; manual checks still work.
+/// is set. Queries GitHub Releases API directly with raw manifest fallback.
 pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, String> {
     if !force {
         if let Some(cached) = cached_result(app) {
@@ -172,45 +271,68 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
         }
     }
 
-    let updater = channel_updater(app).await.build().map_err(|e| e.to_string())?;
-    let update = tokio::time::timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), updater.check())
-        .await
-        .map_err(|_| "update check timed out".to_string())?
-        .map_err(|e| e.to_string())?;
+    let current_version = app.package_info().version.to_string();
+    let is_prerelease = prerelease_channel(app);
 
-    let result = match &update {
-        Some(update) => UpdateCheckResult {
-            available: true,
-            version: Some(update.version.clone()),
-            date: update
-                .raw_json
-                .get("pub_date")
-                .and_then(|value| value.as_str())
-                .map(str::to_string),
-            body: update.body.clone(),
-        },
-        None => UpdateCheckResult::default(),
+    let client = reqwest::Client::builder()
+        .user_agent(format!("GLOOM/{}", current_version))
+        .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+
+    let url = if is_prerelease {
+        GITHUB_ALL_RELEASES_API
+    } else {
+        GITHUB_LATEST_API
     };
+
+    let response = client.get(url).send().await;
+
+    let body = match response {
+        Ok(res) if res.status().is_success() => res.text().await.ok(),
+        _ => {
+            crate::diagnostics::log("update: github api rate limit or error, falling back to raw latest.json");
+            if let Ok(fallback_res) = client.get(RAW_LATEST_JSON).send().await {
+                if fallback_res.status().is_success() {
+                    fallback_res.text().await.ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+    };
+
+    let Some(raw_text) = body else {
+        return Err("failed to fetch release information from GitHub".to_string());
+    };
+
+    let val: serde_json::Value = serde_json::from_str(&raw_text)
+        .map_err(|e| format!("failed to parse update JSON: {e}"))?;
+
+    let result = parse_release_json(&val, &current_version).unwrap_or_default();
 
     write_state(
         app,
         &PersistedUpdateState {
             last_check: now_secs(),
-            app_version: app.package_info().version.to_string(),
-            version: result.version.clone().unwrap_or_default(),
-            date: result.date.clone().unwrap_or_default(),
+            app_version: current_version,
+            version: if result.available { result.version.clone().unwrap_or_default() } else { String::new() },
+            date: if result.available { result.date.clone().unwrap_or_default() } else { String::new() },
             channel: channel_name(app).to_string(),
+            download_url: result.download_url.clone(),
         },
     );
+
     if let Ok(mut cached) = LAST_CHECK.lock() {
         *cached = Some(result.clone());
     }
+
     Ok(result)
 }
 
-/// Downloads and installs the available update. On Windows the updater plugin
-/// launches the NSIS installer and terminates this process, which then
-/// relaunches the app; on other platforms this returns after restarting.
+/// Downloads and installs the available update via custom setup wizard.
 pub async fn install(app: &AppHandle) -> Result<(), String> {
     if !is_installed_copy() {
         crate::diagnostics::log("update: this copy is not installed (portable or development build), opening the release page instead of running the installer");
@@ -229,22 +351,11 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
     result
 }
 
-const RELEASES_PAGE: &str = "https://github.com/NandiVardhan2007/GLOOM/releases/latest";
-
 fn is_installed_copy() -> bool {
     std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(PathBuf::from))
         .is_some_and(|dir| crate::uninstall_registry::install_scope(&dir).is_some())
-}
-
-fn installer_scope_args() -> Vec<String> {
-    let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)) else { return Vec::new() };
-    let Some(all_users) = crate::uninstall_registry::install_scope(&dir) else { return Vec::new() };
-    vec![
-        if all_users { "/ALLUSERS" } else { "/CURRENTUSER" }.to_string(),
-        format!("/D={}", dir.display()),
-    ]
 }
 
 fn install_needs_unavailable_elevation() -> bool {
@@ -253,61 +364,115 @@ fn install_needs_unavailable_elevation() -> bool {
 }
 
 async fn install_inner(app: &AppHandle) -> Result<(), String> {
-    // Hold the check lock so a concurrent check cannot mutate state mid-install.
     let _guard = CHECK_LOCK.lock().await;
 
-    let hook_handle = app.clone();
-    let updater = channel_updater(app)
-        .await
-        .installer_args(installer_scope_args())
-        .on_before_exit(move || {
-            crate::state::SHUTTING_DOWN.store(true, Ordering::Relaxed);
-            let _ = hook_handle.emit("auto-update-status", serde_json::json!({ "status": "installing" }));
-            hook_handle.cleanup_before_exit();
-        })
-        .build()
-        .map_err(|e| e.to_string())?;
+    let update_info = {
+        let cached = LAST_CHECK.lock().ok().and_then(|c| c.clone());
+        match cached {
+            Some(res) if res.available && res.download_url.is_some() => res,
+            _ => check(app, true).await?,
+        }
+    };
 
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "no update available".to_string())?;
+    if !update_info.available {
+        return Err("no update available".to_string());
+    }
 
-    let _ = app.emit("auto-update-status", serde_json::json!({ "status": "downloading", "progress": 0 }));
-
-    let progress_handle = app.clone();
-    let downloaded = Arc::new(AtomicU64::new(0));
-    let downloaded_cb = downloaded.clone();
-    update
-        .download_and_install(
-            move |chunk_len, total| {
-                let current = downloaded_cb.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
-                if let Some(total) = total {
-                    if total > 0 {
-                        let progress = (current.saturating_mul(100) / total) as u32;
-                        let _ = progress_handle.emit(
-                            "auto-update-status",
-                            serde_json::json!({ "status": "downloading", "progress": progress }),
-                        );
-                    }
-                }
-            },
-            || {},
+    let version = update_info.version.unwrap_or_else(|| "latest".to_string());
+    let download_url = update_info.download_url.unwrap_or_else(|| {
+        format!(
+            "https://github.com/NandiVardhan2007/GLOOM/releases/download/v{}/GLOOM-Setup.exe",
+            version
         )
-        .await
-        .map_err(|e| e.to_string())?;
+    });
 
-    // Windows: `download_and_install` launches the installer and exits inside
-    // the plugin, so this is only reached on other platforms.
-    #[cfg(not(windows))]
-    {
-        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
-        app.restart()
+    crate::diagnostics::log(&format!("update: downloading installer from {download_url}"));
+
+    let client = reqwest::Client::builder()
+        .user_agent(format!("GLOOM/{}", app.package_info().version))
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("failed to build download client: {e}"))?;
+
+    let mut response = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| format!("failed to connect to download URL: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("download failed with status {}", response.status()));
+    }
+
+    let total_size = response.content_length();
+    let temp_dir = std::env::temp_dir();
+    let temp_installer = temp_dir.join("GLOOM-Setup-Update.exe");
+
+    let mut file = std::fs::File::create(&temp_installer)
+        .map_err(|e| format!("failed to create temp installer file at {}: {e}", temp_installer.display()))?;
+
+    let _ = app.emit("auto-update-status", serde_json::json!({
+        "status": "downloading",
+        "progress": 0
+    }));
+
+    let mut downloaded: u64 = 0;
+    let mut last_percent: u32 = 0;
+
+    while let Some(chunk) = response.chunk().await.map_err(|e| format!("stream error: {e}"))? {
+        use std::io::Write;
+        file.write_all(&chunk)
+            .map_err(|e| format!("failed to write installer chunk: {e}"))?;
+        downloaded += chunk.len() as u64;
+
+        if let Some(total) = total_size {
+            if total > 0 {
+                let percent = ((downloaded as f64 / total as f64) * 100.0).clamp(0.0, 100.0) as u32;
+                if percent != last_percent {
+                    last_percent = percent;
+                    let _ = app.emit("auto-update-status", serde_json::json!({
+                        "status": "downloading",
+                        "progress": percent
+                    }));
+                }
+            }
+        }
+    }
+
+    use std::io::Write;
+    file.flush().map_err(|e| format!("failed to flush installer: {e}"))?;
+    drop(file);
+
+    crate::diagnostics::log("update: download complete, launching installer");
+
+    let _ = app.emit("auto-update-status", serde_json::json!({
+        "status": "installing",
+        "progress": 100
+    }));
+
+    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let install_dir = current_exe.parent().unwrap_or(std::path::Path::new(""));
+    let all_users = crate::uninstall_registry::install_scope(install_dir).unwrap_or(false);
+
+    let mut cmd = std::process::Command::new(&temp_installer);
+    cmd.arg("--auto-install");
+    cmd.arg(format!("--install-dir={}", install_dir.display()));
+    if all_users {
+        cmd.arg("--all-users");
     }
 
     #[cfg(windows)]
-    Ok(())
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x01000000;
+        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
+    }
+
+    cmd.spawn().map_err(|e| format!("failed to spawn installer: {e}"))?;
+
+    crate::state::SHUTTING_DOWN.store(true, Ordering::Relaxed);
+    app.cleanup_before_exit();
+    std::process::exit(0);
 }
 
 /// Startup entry point: always checks so the UI can show an update badge, and
@@ -347,7 +512,6 @@ pub async fn run_startup_check(app: AppHandle) {
         crate::diagnostics::log("auto-update: skipping silent install, all-users install needs elevation this process doesn't have; leaving update available for manual install");
         let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
     } else if auto_update && ready_to_install(&result) {
-        // On Windows this never returns: the installer exits the process.
         if install(&app).await.is_err() {
             let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
         }
@@ -412,7 +576,7 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{days_from_civil, parse_rfc3339_utc};
+    use super::*;
 
     #[test]
     fn parses_tauri_action_pub_date() {
@@ -432,5 +596,71 @@ mod tests {
     fn computes_civil_days() {
         assert_eq!(days_from_civil(1970, 1, 1), 0);
         assert_eq!(days_from_civil(2026, 9, 13), 20_709);
+    }
+
+    #[test]
+    fn parses_version_tuples_correctly() {
+        assert_eq!(parse_version_tuple("2.7.0"), Some((2, 7, 0)));
+        assert_eq!(parse_version_tuple("v2.7.1"), Some((2, 7, 1)));
+        assert_eq!(parse_version_tuple("V3.0.12-beta.1"), Some((3, 0, 12)));
+        assert_eq!(parse_version_tuple("1.0"), Some((1, 0, 0)));
+        assert_eq!(parse_version_tuple("invalid"), None);
+    }
+
+    #[test]
+    fn compares_versions_correctly() {
+        assert!(is_newer_version("2.7.0", "2.7.1"));
+        assert!(is_newer_version("2.7.0", "v2.7.1"));
+        assert!(is_newer_version("2.7.1", "2.8.0"));
+        assert!(is_newer_version("2.7.1", "3.0.0"));
+        assert!(!is_newer_version("2.7.1", "2.7.1"));
+        assert!(!is_newer_version("2.7.1", "v2.7.1"));
+        assert!(!is_newer_version("2.7.1", "2.7.0"));
+        assert!(!is_newer_version("3.0.0", "2.9.9"));
+    }
+
+    #[test]
+    fn parses_github_release_payload() {
+        let json = serde_json::json!({
+            "tag_name": "v2.8.0",
+            "published_at": "2026-11-20T12:00:00Z",
+            "body": "Awesome update notes",
+            "draft": false,
+            "assets": [
+                {
+                    "name": "GLOOM-2.8.0-portable.zip",
+                    "browser_download_url": "https://example.com/portable.zip"
+                },
+                {
+                    "name": "GLOOM-Setup.exe",
+                    "browser_download_url": "https://example.com/GLOOM-Setup.exe"
+                }
+            ]
+        });
+
+        let res = parse_release_json(&json, "2.7.1").expect("should parse");
+        assert!(res.available);
+        assert_eq!(res.version.as_deref(), Some("2.8.0"));
+        assert_eq!(res.download_url.as_deref(), Some("https://example.com/GLOOM-Setup.exe"));
+        assert_eq!(res.body.as_deref(), Some("Awesome update notes"));
+    }
+
+    #[test]
+    fn parses_latest_json_manifest() {
+        let json = serde_json::json!({
+            "version": "v2.8.0",
+            "pub_date": "2026-11-20T12:00:00Z",
+            "notes": "Manifest update notes",
+            "platforms": {
+                "windows-x86_64": {
+                    "url": "https://example.com/GLOOM-Setup-2.8.0.exe"
+                }
+            }
+        });
+
+        let res = parse_release_json(&json, "2.7.1").expect("should parse");
+        assert!(res.available);
+        assert_eq!(res.version.as_deref(), Some("2.8.0"));
+        assert_eq!(res.download_url.as_deref(), Some("https://example.com/GLOOM-Setup-2.8.0.exe"));
     }
 }

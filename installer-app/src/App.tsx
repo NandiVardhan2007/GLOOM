@@ -201,7 +201,7 @@ export default function App() {
       if (s.autoInstall && !autoStarted.current) {
         autoStarted.current = true;
         setScreen("installing");
-        runInstall(dir, s.prefillAllUsers, s.prefillDesktopShortcut);
+        runInstall(dir, s.prefillAllUsers, s.prefillDesktopShortcut, true);
       } else {
         setScreen("welcome");
       }
@@ -226,12 +226,23 @@ export default function App() {
     }
   };
 
-  const runInstall = async (dir: string, forAllUsers: boolean, withDesktopShortcut: boolean) => {
+  const runInstall = async (
+    dir: string,
+    forAllUsers: boolean,
+    withDesktopShortcut: boolean,
+    autoFinish?: boolean
+  ) => {
     const unlisten = await onInstallProgress((p) => setProgress(p));
     try {
       const exe = await startInstall(dir, forAllUsers, withDesktopShortcut);
       setExePath(exe);
       setScreen("finish");
+      if (autoFinish) {
+        setTimeout(async () => {
+          if (exe) await launchApp(exe).catch(() => {});
+          closeWindow();
+        }, 1500);
+      }
     } catch (err) {
       setErrorMsg(String(err));
       setScreen("error");
