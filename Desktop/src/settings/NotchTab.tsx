@@ -1,387 +1,576 @@
+import { AgentSounds } from "./AgentSounds";
+import { AgentIntro } from "./AgentIntro";
+import { NotchEdgeDelay } from "./NotchEdgeDelay";
+import { EdgeArea } from "./EdgeArea";
+import { NetWidgetMode } from "./NetWidgetMode";
+import { NotchHotkey } from "./NotchHotkey";
 import {
-	Gamepad2,
-	PanelTop,
-	Calendar,
-	BellRing,
-	Music,
-	Minimize2,
-	LayoutList,
-	Sparkles,
-	Circle,
-	CloudSun,
-	Timer,
-	Archive,
-	X
+  PanelTop,
+  Calendar,
+  Music,
+  Pin,
+  Sparkle,
+  Activity,
+  Bot,
+  CalendarDays,
+  Inbox,
+  History,
+  ListOrdered,
+  ArrowDownUp,
+  SlidersHorizontal,
+  Minimize2,
+  LayoutList,
+  Palette,
+  Sparkles,
+  Circle,
+  CloudSun,
+  X,
+  Monitor,
+  MonitorCheck,
+  CloudCog,
+  ChevronRight,
+  Hourglass,
+  Timer,
+  BellRing,
+  Globe,
+  Volume2,
 } from "lucide-react";
+import { DEFAULT_PANEL_ORDER, type CcLayout, type PanelId } from "../panelOrder";
+import { ControlCenterConfig } from "../components/ControlCenterConfig";
+import { OrderList } from "./OrderList";
+import type { ComponentType } from "react";
+
+const PANEL_ICONS: Record<string, ComponentType<{ size?: number; strokeWidth?: number }>> = {
+  "command-center": SlidersHorizontal,
+  status: Activity,
+  music: Music,
+  calendar: CalendarDays,
+  shelf: Inbox,
+};
 import { SettingRow } from "./SettingRow";
+import { SettingSection } from "./SettingSection";
+import { Dropdown } from "./Dropdown";
+import { useCaldav } from "../hooks/useCaldav";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
-import type { WidgetConfig } from "./types";
+import { DualClockPicker } from "../components/DualClockPicker";
+import { zoneOffsetLabel } from "../dualClock";
+import type { WidgetConfig, MonitorInfo, MonitorMode } from "./types";
+import { usePerMonitor } from "./usePerMonitor";
+import { useT } from "../i18n";
 
 interface NotchTabProps {
-	islandStyle: "notch" | "pill";
-	handleIslandStyleChange: (style: "notch" | "pill") => void;
-	notchMode: string;
-	setNotchModeValue: (mode: string) => void;
-	avoidFullscreenGames: boolean;
-	toggleAvoidFullscreenGames: () => void;
-	notchEdgeDelay: number;
-	handleNotchEdgeDelayChange: (val: number) => void;
-	calendarEnabled: boolean;
-	toggleCalendar: () => void;
-	notchRememberPanel: boolean;
-	toggleNotchRememberPanel: () => void;
-	notchDefaultPanel: "calendar" | "command-center";
-	changeNotchDefaultPanel: (panel: "calendar" | "command-center") => void;
-	timerSoundEnabled: boolean;
-	toggleTimerSound: () => void;
-	musicModeEnabled: boolean;
-	toggleMusicMode: () => void;
-	musicCompactNotch: boolean;
-	toggleMusicCompactNotch: () => void;
-	shelfPersist: boolean;
-	toggleShelfPersist: () => void;
-	mediaLayout: "classic" | "compact";
-	toggleMediaLayout: (layout: "classic" | "compact") => void;
-	mediaAmbienceEnabled: boolean;
-	toggleAmbience: () => void;
-	mediaCompactGlowEnabled: boolean;
-	toggleCompactGlow: () => void;
-	weatherEnabled: boolean;
-	toggleWeather: () => void;
-	tempUnitFahrenheit: boolean;
-	toggleTempUnit: () => void;
-	cityName: string;
-	setCityName: (name: string) => void;
-	citySearchResults: Array<{ name: string; country: string; latitude: number; longitude: number }>;
-	showCityDropdown: boolean;
-	setShowCityDropdown: (show: boolean) => void;
-	selectCity: (city: {
-		name: string;
-		country: string;
-		latitude: number;
-		longitude: number;
-	}) => void;
-	handleCityClear: () => void;
-	statusWidgets: WidgetConfig;
-	handleWidgetsChange: (config: WidgetConfig) => void;
+  notchMode: string;
+  setNotchModeValue: (mode: string) => void;
+  monitors: MonitorInfo[];
+  notchMonitorMode: MonitorMode;
+  setNotchMonitorModeValue: (mode: MonitorMode) => void;
+  notchMonitorId: string;
+  setNotchMonitorIdValue: (id: string) => void;
+  notchModeByMonitor: Record<string, string>;
+  setNotchModeForMonitor: (monitorId: string, mode: string | null) => void;
+  replaceNotchModes: (next: Record<string, string>) => void;
+  calendarEnabled: boolean;
+  toggleCalendar: () => void;
+  timerEnabled: boolean;
+  toggleTimerEnabled: () => void;
+  timerSoundEnabled: boolean;
+  toggleTimerSound: () => void;
+  notchTimerProgress: boolean;
+  toggleNotchTimerProgress: () => void;
+  stopwatchEnabled: boolean;
+  toggleStopwatchEnabled: () => void;
+  legacyMode: boolean;
+  dualClockEnabled: boolean;
+  toggleDualClock: () => void;
+  dualClockZone: string;
+  dualClockLabel: string;
+  selectDualClockZone: (option: { label: string; zone: string }) => void;
+  musicModeEnabled: boolean;
+  toggleMusicMode: () => void;
+  musicCompactNotch: boolean;
+  toggleMusicCompactNotch: () => void;
+  mediaLayout: "classic" | "compact";
+  toggleMediaLayout: (layout: "classic" | "compact") => void;
+  mediaAmbienceEnabled: boolean;
+  toggleAmbience: () => void;
+  mediaCompactGlowEnabled: boolean;
+  toggleCompactGlow: () => void;
+  artworkThemeEnabled: boolean;
+  toggleArtworkTheme: () => void;
+  agentApi: boolean;
+  toggleAgentApi: () => void;
+  panelScrollDirection: string;
+  changePanelScrollDirection: (value: string) => void;
+  notchScrollVolume: boolean;
+  toggleNotchScrollVolume: () => void;
+  shelfPersist: boolean;
+  toggleShelfPersist: () => void;
+  rememberMode: boolean;
+  toggleRememberMode: () => void;
+  panelControlCenter: boolean;
+  togglePanelControlCenter: () => void;
+  panelShelf: boolean;
+  togglePanelShelf: () => void;
+  panelStatus: boolean;
+  togglePanelStatus: () => void;
+  panelOrder: PanelId[] | null;
+  reorderPanels: (order: PanelId[]) => void;
+  resetPanelOrder: () => void;
+  ccLayout: CcLayout;
+  changeCcLayout: (layout: CcLayout) => void;
+  resetCcLayout: () => void;
+  weatherEnabled: boolean;
+  toggleWeather: () => void;
+  tempUnitFahrenheit: boolean;
+  toggleTempUnit: () => void;
+  cityName: string;
+  cityQuery: string;
+  setCityQuery: (query: string) => void;
+  citySearchResults: Array<{ name: string; country: string; latitude: number; longitude: number }>;
+  showCityDropdown: boolean;
+  setShowCityDropdown: (show: boolean) => void;
+  selectCity: (city: { name: string; country: string; latitude: number; longitude: number }) => void;
+  handleCityClear: () => void;
+  statusWidgets: WidgetConfig;
+  handleWidgetsChange: (config: WidgetConfig) => void;
+  hasBattery: boolean;
+  onOpenCalendarSync: () => void;
 }
 
 export function NotchTab({
-	islandStyle,
-	handleIslandStyleChange,
-	notchMode,
-	setNotchModeValue,
-	avoidFullscreenGames,
-	toggleAvoidFullscreenGames,
-	notchEdgeDelay,
-	handleNotchEdgeDelayChange,
-	calendarEnabled,
-	toggleCalendar,
-	notchRememberPanel,
-	toggleNotchRememberPanel,
-	notchDefaultPanel,
-	changeNotchDefaultPanel,
-	timerSoundEnabled,
-	toggleTimerSound,
-	musicModeEnabled,
-	toggleMusicMode,
-	musicCompactNotch,
-	toggleMusicCompactNotch,
-	shelfPersist,
-	toggleShelfPersist,
-	mediaLayout,
-	toggleMediaLayout,
-	mediaAmbienceEnabled,
-	toggleAmbience,
-	mediaCompactGlowEnabled,
-	toggleCompactGlow,
-	weatherEnabled,
-	toggleWeather,
-	tempUnitFahrenheit,
-	toggleTempUnit,
-	cityName,
-	setCityName,
-	citySearchResults,
-	showCityDropdown,
-	setShowCityDropdown,
-	selectCity,
-	handleCityClear,
-	statusWidgets,
-	handleWidgetsChange
+  notchMode,
+  setNotchModeValue,
+  monitors,
+  notchMonitorMode,
+  setNotchMonitorModeValue,
+  notchMonitorId,
+  setNotchMonitorIdValue,
+  notchModeByMonitor,
+  setNotchModeForMonitor,
+  replaceNotchModes,
+  calendarEnabled,
+  toggleCalendar,
+  timerEnabled,
+  toggleTimerEnabled,
+  timerSoundEnabled,
+  toggleTimerSound,
+  notchTimerProgress,
+  toggleNotchTimerProgress,
+  stopwatchEnabled,
+  toggleStopwatchEnabled,
+  legacyMode,
+  dualClockEnabled,
+  toggleDualClock,
+  dualClockZone,
+  dualClockLabel,
+  selectDualClockZone,
+  musicModeEnabled,
+  toggleMusicMode,
+  musicCompactNotch,
+  toggleMusicCompactNotch,
+  mediaLayout,
+  toggleMediaLayout,
+  mediaAmbienceEnabled,
+  toggleAmbience,
+  mediaCompactGlowEnabled,
+  toggleCompactGlow,
+  artworkThemeEnabled,
+  toggleArtworkTheme,
+  agentApi,
+  toggleAgentApi,
+  panelScrollDirection,
+  changePanelScrollDirection,
+  notchScrollVolume,
+  toggleNotchScrollVolume,
+  shelfPersist,
+  toggleShelfPersist,
+  rememberMode,
+  toggleRememberMode,
+  panelControlCenter,
+  togglePanelControlCenter,
+  panelShelf,
+  togglePanelShelf,
+  panelStatus,
+  togglePanelStatus,
+  panelOrder,
+  reorderPanels,
+  resetPanelOrder,
+  ccLayout,
+  changeCcLayout,
+  resetCcLayout,
+  weatherEnabled,
+  toggleWeather,
+  tempUnitFahrenheit,
+  toggleTempUnit,
+  cityName,
+  cityQuery,
+  setCityQuery,
+  citySearchResults,
+  showCityDropdown,
+  setShowCityDropdown,
+  selectCity,
+  handleCityClear,
+  statusWidgets,
+  handleWidgetsChange,
+  hasBattery,
+  onOpenCalendarSync,
 }: NotchTabProps) {
-	return (
-		<>
-			<div className="setting-group-label">Notch & Pill</div>
-			<div className="setting-group">
-				<SettingRow icon={Circle} label="Display Style" desc="Choose between attached Notch or floating Pill">
-					<select
-						className="settings-select"
-						value={islandStyle}
-						onChange={(e) => handleIslandStyleChange(e.target.value as "notch" | "pill")}
-					>
-						<option value="notch">Notch (Attached)</option>
-						<option value="pill">Pill (Floating)</option>
-					</select>
-				</SettingRow>
+  const t = useT();
+  const caldav = useCaldav();
+  const sources = (caldav.account ? 1 : 0) + caldav.links.length;
+  const perMonitor = usePerMonitor(notchMode, notchModeByMonitor, replaceNotchModes, monitors);
+  const multiMonitor = notchMonitorMode === "all" && monitors.length > 1;
+  const showPerMonitor = multiMonitor && perMonitor.enabled;
+  return (
+    <>
+      <SettingSection id="notch-display" title={t("notch.section.display")} defaultOpen>
+        {!showPerMonitor && (
+          <SettingRow icon={PanelTop} label={t("notch.behavior")} desc={t("notch.behavior.desc")}>
+            <Dropdown
+              value={notchMode}
+              onChange={setNotchModeValue}
+              options={[
+                { value: "fixed", label: t("common.fixed") },
+                { value: "smart", label: t("common.smart") },
+                { value: "peek", label: t("common.peek") },
+              ]}
+            />
+          </SettingRow>
+        )}
 
-				<SettingRow
-					icon={Gamepad2}
-					label="Avoid Fullscreen Games"
-					desc="Step aside and tuck the notch away during 3D games and presentations"
-				>
-					<label className="toggle-switch">
-						<input
-							type="checkbox"
-							checked={avoidFullscreenGames}
-							onChange={toggleAvoidFullscreenGames}
-						/>
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+        {notchMode !== "fixed" && <NotchEdgeDelay />}
+        {notchMode !== "fixed" && <EdgeArea settingKey="gloom-notch-edge-area" />}
 
-				<SettingRow icon={PanelTop} label="Notch Behavior" desc="Choose how the notch appears">
-					<select
-						className="settings-select"
-						value={notchMode}
-						onChange={(e) => setNotchModeValue(e.target.value)}
-					>
-						<option value="fixed">Fixed</option>
-						<option value="smart">Smart</option>
-						<option value="peek">Peek</option>
-					</select>
-				</SettingRow>
+        <SettingRow icon={MonitorCheck} label={t("common.showOn")} desc={t("notch.showOn.desc")}>
+          <Dropdown
+            value={notchMonitorMode}
+            onChange={(v) => setNotchMonitorModeValue(v as MonitorMode)}
+            options={[
+              { value: "primary", label: t("common.monitors.primary") },
+              { value: "all", label: t("common.monitors.all") },
+              { value: "specific", label: t("common.monitors.specific") },
+            ]}
+          />
+        </SettingRow>
 
-				{notchMode !== "fixed" && (
-					<SettingRow
-						icon={Timer}
-						label="Peek Delay"
-						desc={
-							notchEdgeDelay === 0
-								? "Reveal instantly on top-edge contact"
-								: `Rest on the top edge for ${notchEdgeDelay}ms to reveal`
-						}
-					>
-						<input
-							type="range"
-							min="0"
-							max="800"
-							step="50"
-							value={notchEdgeDelay}
-							onChange={(e) => handleNotchEdgeDelayChange(parseInt(e.target.value))}
-							className="settings-slider"
-						/>
-					</SettingRow>
-				)}
+        {notchMonitorMode === "specific" && (
+          <SettingRow icon={Monitor} label={t("common.monitor")} desc={t("notch.monitor.desc")}>
+            <Dropdown
+              value={notchMonitorId}
+              onChange={setNotchMonitorIdValue}
+              placeholder={monitors.length === 0 ? t("common.loading") : undefined}
+              options={monitors.map((m) => ({
+                value: m.id,
+                label: `${m.label}${m.is_primary ? ` (${t("common.primary")})` : ""}`,
+              }))}
+            />
+          </SettingRow>
+        )}
 
-				<SettingRow
-					icon={PanelTop}
-					label="Remember Last Panel"
-					desc="Reopen the panel you last used; turn off to choose a fixed default"
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={notchRememberPanel} onChange={toggleNotchRememberPanel} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+        {multiMonitor && (
+          <SettingRow icon={Monitor} label={t("common.perMonitor")} desc={t("common.perMonitor.desc")}>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={perMonitor.enabled} onChange={perMonitor.toggle} />
+              <span className="slider"></span>
+            </label>
+          </SettingRow>
+        )}
 
-				{!notchRememberPanel && (
-					<SettingRow icon={PanelTop} label="Default Panel" desc="Open this panel when you click the notch">
-						<select
-							className="settings-select"
-							value={calendarEnabled ? notchDefaultPanel : "command-center"}
-							onChange={(e) =>
-								changeNotchDefaultPanel(e.target.value as "calendar" | "command-center")
-							}
-						>
-							<option value="calendar" disabled={!calendarEnabled}>Calendar</option>
-							<option value="command-center">Command Center</option>
-						</select>
-					</SettingRow>
-				)}
+        {showPerMonitor && monitors.map((m) => (
+          <SettingRow key={m.id} icon={Monitor} label={t("common.monitorBehavior", { name: m.label })} desc={m.is_primary ? t("common.primaryMonitor") : undefined}>
+            <Dropdown
+              value={notchModeByMonitor[m.id] || notchMode}
+              onChange={(v) => setNotchModeForMonitor(m.id, v)}
+              options={[
+                { value: "fixed", label: t("common.fixed") },
+                { value: "smart", label: t("common.smart") },
+                { value: "peek", label: t("common.peek") },
+              ]}
+            />
+          </SettingRow>
+        ))}
 
-				<SettingRow icon={Calendar} label="Calendar & Timer" desc="Enable productivity split-view">
-					<label className="toggle-switch">
-						<input type="checkbox" checked={calendarEnabled} onChange={toggleCalendar} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+      </SettingSection>
 
-				{calendarEnabled && (
-					<SettingRow
-						icon={BellRing}
-						label="Timer Sound"
-						desc="Play a chime when the timer finishes"
-					>
-						<label className="toggle-switch">
-							<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
-							<span className="slider"></span>
-						</label>
-					</SettingRow>
-				)}
+      <SettingSection id="notch-calendar" title={t("notch.section.calendar")}>
+        <SettingRow icon={Calendar} label={t("notch.calendar")} desc={t("notch.calendar.desc")}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={calendarEnabled} onChange={toggleCalendar} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
 
-				<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget">
-					<label className="toggle-switch">
-						<input type="checkbox" checked={musicModeEnabled} onChange={toggleMusicMode} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+        {calendarEnabled && (
+          <SettingRow
+            icon={CloudCog}
+            label={t("notch.calendarSync")}
+            desc={sources ? t(sources === 1 ? "notch.calendarSync.connectedOne" : "notch.calendarSync.connectedMany", { count: sources }) : t("notch.calendarSync.desc")}
+            action
+            onClick={onOpenCalendarSync}
+          >
+            <ChevronRight size={14} strokeWidth={1.5} />
+          </SettingRow>
+        )}
 
-				{musicModeEnabled && (
-					<>
-						<SettingRow
-							icon={Minimize2}
-							label="Compact Mode"
-							desc="Show visualizer & artwork when collapsed"
-						>
-							<label className="toggle-switch">
-								<input
-									type="checkbox"
-									checked={musicCompactNotch}
-									onChange={toggleMusicCompactNotch}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
+        <SettingRow icon={Hourglass} label={t("notch.timer")} desc={t("notch.timer.desc")}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={timerEnabled} onChange={toggleTimerEnabled} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
 
-						<SettingRow icon={LayoutList} label="Media Layout" desc="Choose expanded player style">
-							<div className="unit-toggle-minimal wide">
-								<span
-									className={mediaLayout === "classic" ? "active" : ""}
-									onClick={() => toggleMediaLayout("classic")}
-								>
-									Classic
-								</span>
-								<span
-									className={mediaLayout === "compact" ? "active" : ""}
-									onClick={() => toggleMediaLayout("compact")}
-								>
-									Compact
-								</span>
-							</div>
-						</SettingRow>
+        {timerEnabled && (
+          <SettingRow icon={BellRing} label={t("notch.timerSound")} desc={t("notch.timerSound.desc")}>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
+              <span className="slider"></span>
+            </label>
+          </SettingRow>
+        )}
 
-						<SettingRow
-							icon={Sparkles}
-							label="Ambient Glow"
-							desc="Colored glow behind expanded album art"
-						>
-							<label className="toggle-switch">
-								<input type="checkbox" checked={mediaAmbienceEnabled} onChange={toggleAmbience} />
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
+        {timerEnabled && (
+          <SettingRow icon={Timer} label={t("notch.timerProgress")} desc={t("notch.timerProgress.desc")}>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={notchTimerProgress} onChange={toggleNotchTimerProgress} />
+              <span className="slider"></span>
+            </label>
+          </SettingRow>
+        )}
 
-						<SettingRow
-							icon={Circle}
-							label="Compact Glow"
-							desc="Glow around collapsed thumbnail"
-							divider={false}
-						>
-							<label className="toggle-switch">
-								<input
-									type="checkbox"
-									checked={mediaCompactGlowEnabled}
-									onChange={toggleCompactGlow}
-								/>
-								<span className="slider"></span>
-							</label>
-						</SettingRow>
-					</>
-				)}
-			</div>
+        <SettingRow icon={Timer} label={t("notch.stopwatch")} desc={t("notch.stopwatch.desc")}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={stopwatchEnabled} onChange={toggleStopwatchEnabled} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
 
-			<div className="setting-group-label">Shelf</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={Archive}
-					label="Keep Items"
-					desc="Keep shelf items after GLOOM closes"
-					divider={false}
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-			</div>
+        {!legacyMode && (
+          <>
+            <SettingRow
+              icon={Globe}
+              label={t("notch.dualClock")}
+              desc={dualClockEnabled ? [dualClockLabel, zoneOffsetLabel(dualClockZone)].filter(Boolean).join(" · ") : t("notch.dualClock.desc")}
+            >
+              <label className="toggle-switch">
+                <input type="checkbox" checked={dualClockEnabled} onChange={toggleDualClock} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
 
-			<div className="setting-group-label">Weather</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={CloudSun}
-					label="Weather Status"
-					desc={cityName || "Auto-detect location"}
-				>
-					<div className="weather-controls">
-						<div className="unit-toggle-minimal" onClick={toggleTempUnit}>
-							<span className={!tempUnitFahrenheit ? "active" : ""}>C</span>
-							<span className={tempUnitFahrenheit ? "active" : ""}>F</span>
-						</div>
-						<label className="toggle-switch">
-							<input type="checkbox" checked={weatherEnabled} onChange={toggleWeather} />
-							<span className="slider"></span>
-						</label>
-					</div>
-				</SettingRow>
+            {dualClockEnabled && (
+              <>
+                <DualClockPicker onSelect={selectDualClockZone} />
+                <div className="setting-divider" />
+              </>
+            )}
+          </>
+        )}
 
-				{weatherEnabled && (
-					<div className="manual-city-input">
-						<div className="city-input-row">
-							<input
-								type="text"
-								placeholder="Search city..."
-								value={cityName}
-								onChange={(e) => setCityName(e.target.value)}
-								onFocus={() => citySearchResults.length > 0 && setShowCityDropdown(true)}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && citySearchResults.length > 0) {
-										e.preventDefault();
-										selectCity(citySearchResults[0]);
-									}
-									if (e.key === "Escape") {
-										setShowCityDropdown(false);
-									}
-								}}
-								onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
-							/>
-							{cityName && (
-								<button
-									className="city-clear-btn"
-									onMouseDown={(e) => {
-										e.preventDefault();
-										handleCityClear();
-									}}
-									title="Clear city"
-								>
-									<X size={10} strokeWidth={2.5} />
-								</button>
-							)}
-						</div>
-						{showCityDropdown && citySearchResults.length > 0 && (
-							<div className="city-dropdown">
-								{citySearchResults.map((city) => (
-									<button
-										key={`${city.name}-${city.latitude}`}
-										className="city-dropdown-item"
-										onMouseDown={(e) => {
-											e.preventDefault();
-											selectCity(city);
-										}}
-									>
-										<span className="city-dropdown-name">{city.name}</span>
-										<span className="city-dropdown-country">{city.country}</span>
-									</button>
-								))}
-							</div>
-						)}
-					</div>
-				)}
-			</div>
+      </SettingSection>
 
-			<div className="setting-group-label">Widgets</div>
-			<div className="setting-group">
-				<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
-			</div>
-		</>
-	);
+      <SettingSection id="notch-music" title={t("notch.section.music")}>
+        <SettingRow icon={Music} label={t("notch.musicMode")} desc={t("notch.musicMode.desc")}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={musicModeEnabled} onChange={toggleMusicMode} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
+
+        {musicModeEnabled && (
+          <>
+            <SettingRow icon={Minimize2} label={t("notch.compactMode")} desc={t("notch.compactMode.desc")}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={musicCompactNotch} onChange={toggleMusicCompactNotch} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+
+            <SettingRow icon={LayoutList} label={t("notch.mediaLayout")} desc={t("notch.mediaLayout.desc")}>
+              <div className="unit-toggle-minimal wide">
+                <span className={mediaLayout === "classic" ? "active" : ""} onClick={() => toggleMediaLayout("classic")}>
+                  {t("notch.mediaLayout.classic")}
+                </span>
+                <span className={mediaLayout === "compact" ? "active" : ""} onClick={() => toggleMediaLayout("compact")}>
+                  {t("notch.mediaLayout.compact")}
+                </span>
+              </div>
+            </SettingRow>
+
+            <SettingRow icon={Palette} label={t("notch.artworkTheme")} desc={t("notch.artworkTheme.desc")}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={artworkThemeEnabled} onChange={toggleArtworkTheme} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+
+            <SettingRow icon={Sparkles} label={t("notch.ambientGlow")} desc={t("notch.ambientGlow.desc")}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={mediaAmbienceEnabled} onChange={toggleAmbience} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+
+            <SettingRow icon={Sparkle} label={t("notch.compactGlow")} desc={t("notch.compactGlow.desc")}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={mediaCompactGlowEnabled} onChange={toggleCompactGlow} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+          </>
+        )}
+      </SettingSection>
+
+      <SettingSection id="notch-panels" title={t("notch.section.panels")}>
+        <SettingRow icon={History} label={t("notch.rememberMode")} desc={t("notch.rememberMode.desc")}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={rememberMode} onChange={toggleRememberMode} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+
+        <SettingRow icon={ArrowDownUp} label={t("notch.scrollDirection")} desc={t("notch.scrollDirection.desc")}>
+          <Dropdown
+            value={panelScrollDirection}
+            options={[
+              { value: "down", label: t("notch.scrollDirection.down") },
+              { value: "up", label: t("notch.scrollDirection.up") },
+            ]}
+            onChange={changePanelScrollDirection}
+          />
+        </SettingRow>
+
+        <SettingRow icon={ListOrdered} label={t("notch.panelOrder")} desc={t("notch.panelOrder.desc")} divider={false} stacked>
+          <OrderList
+            ids={panelOrder ?? DEFAULT_PANEL_ORDER}
+            label={(id) => t(`panel.${id}`)}
+            icon={(id) => {
+              const Icon = PANEL_ICONS[id] ?? Circle;
+              return <Icon size={14} strokeWidth={2} />;
+            }}
+            onReorder={(order) => reorderPanels(order as PanelId[])}
+            enabled={(id) => ({ "command-center": panelControlCenter, status: panelStatus, shelf: panelShelf, music: musicModeEnabled, calendar: calendarEnabled } as Record<string, boolean>)[id] ?? true}
+            onToggle={(id) => ({ "command-center": togglePanelControlCenter, status: togglePanelStatus, shelf: togglePanelShelf, music: toggleMusicMode, calendar: toggleCalendar } as Record<string, () => void>)[id]?.()}
+            onReset={panelOrder ? resetPanelOrder : undefined}
+            resetLabel={t("notch.panelOrder.reset")}
+          />
+        </SettingRow>
+      </SettingSection>
+
+      <SettingSection id="notch-cc" title={t("notch.section.cc")}>
+        <ControlCenterConfig
+          value={ccLayout}
+          onChange={changeCcLayout}
+          onReset={resetCcLayout}
+          customized={Boolean(ccLayout.tiles || ccLayout.buttons || ccLayout.sliders)}
+        />
+      </SettingSection>
+
+      <SettingSection id="notch-agents" title={t("notch.section.agents")}>
+        <SettingRow icon={Bot} label={t("notch.agentApi")} desc={t("notch.agentApi.desc")} divider={false}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={agentApi} onChange={toggleAgentApi} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
+        <AgentIntro enabled={agentApi} />
+        <AgentSounds />
+      </SettingSection>
+
+      <SettingSection id="notch-controls" title={t("notch.section.controls")}>
+        <SettingRow icon={Volume2} label={t("notch.scrollVolume")} desc={t("notch.scrollVolume.desc")}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={notchScrollVolume} onChange={toggleNotchScrollVolume} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+
+        <SettingRow icon={Pin} label={t("notch.shelfPersist")} desc={t("notch.shelfPersist.desc")} divider={false}>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
+                <span className="slider"></span>
+              </label>
+            </SettingRow>
+      </SettingSection>
+
+      <SettingSection id="notch-weather" title={t("notch.weather.group")}>
+        <SettingRow icon={CloudSun} label={t("notch.weather")} desc={cityName || t("notch.weather.auto")}>
+          <div className="weather-controls">
+            <div className="unit-toggle-minimal" onClick={toggleTempUnit}>
+              <span className={!tempUnitFahrenheit ? "active" : ""}>C</span>
+              <span className={tempUnitFahrenheit ? "active" : ""}>F</span>
+            </div>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={weatherEnabled} onChange={toggleWeather} />
+              <span className="slider"></span>
+            </label>
+          </div>
+        </SettingRow>
+
+        {weatherEnabled && (
+          <div className="manual-city-input">
+            <div className="city-input-row">
+              <input
+                type="text"
+                placeholder={t("notch.weather.search")}
+                value={cityQuery}
+                onChange={(e) => setCityQuery(e.target.value)}
+                onFocus={() => citySearchResults.length > 0 && setShowCityDropdown(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && citySearchResults.length > 0) {
+                    e.preventDefault();
+                    selectCity(citySearchResults[0]);
+                  }
+                  if (e.key === "Escape") {
+                    setShowCityDropdown(false);
+                  }
+                }}
+                onBlur={() => setTimeout(() => {
+                  setShowCityDropdown(false);
+                  if (cityQuery !== cityName && citySearchResults.length > 0) selectCity(citySearchResults[0]);
+                }, 150)}
+              />
+              {(cityName || cityQuery) && (
+                <button
+                  className="city-clear-btn"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleCityClear();
+                  }}
+                  title={t("notch.weather.clear")}
+                >
+                  <X size={10} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+            {showCityDropdown && citySearchResults.length > 0 && (
+              <div className="city-dropdown">
+                {citySearchResults.map((city) => (
+                  <button
+                    key={`${city.name}-${city.latitude}`}
+                    className="city-dropdown-item"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectCity(city);
+                    }}
+                  >
+                    <span className="city-dropdown-name">{city.name}</span>
+                    <span className="city-dropdown-country">{city.country}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </SettingSection>
+
+      <SettingSection id="notch-hotkey" title={t("notch.hotkey.group")}>
+        <NotchHotkey />
+      </SettingSection>
+
+      <SettingSection id="notch-widgets" title={t("notch.widgets.group")}>
+        <StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} hasBattery={hasBattery} />
+        <NetWidgetMode />
+      </SettingSection>
+    </>
+  );
 }

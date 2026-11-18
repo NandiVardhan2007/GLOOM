@@ -5,10 +5,7 @@ export function formatStopwatch(ms: number, precise: boolean): string {
   const hours = Math.floor(total / 3600);
   const mins = Math.floor((total % 3600) / 60);
   const secs = total % 60;
-  const base =
-    hours > 0
-      ? `${hours}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
-      : `${mins}:${String(secs).padStart(2, "0")}`;
+  const base = hours > 0 ? `${hours}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${mins}:${String(secs).padStart(2, "0")}`;
   if (!precise) return base;
   return `${base}.${String(Math.floor((ms % 1000) / 10)).padStart(2, "0")}`;
 }

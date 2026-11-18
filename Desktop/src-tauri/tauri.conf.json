@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "",
+        "title": "GLOOM",
         "width": 1920,
         "height": 420,
         "x": 0,
@@ -29,28 +29,8 @@
         "focus": false,
         "skipTaskbar": true,
         "shadow": false,
-        "visible": true,
-        "dragDropEnabled": true
-      },
-      {
-        "label": "settings",
-        "title": "GLOOM Settings",
-        "url": "settings.html",
-        "width": 620,
-        "height": 480,
-        "decorations": false,
-        "transparent": true,
-        "resizable": true,
-        "maximizable": false,
-        "minimizable": false,
-        "closable": false,
-        "alwaysOnTop": false,
-        "visibleOnAllWorkspaces": false,
-        "focus": true,
-        "skipTaskbar": false,
-        "shadow": true,
         "visible": false,
-        "center": true
+        "dragDropEnabled": true
       },
       {
         "label": "overlay",
@@ -96,44 +76,41 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ipc: http://ipc.localhost https://lrclib.net https://api.open-meteo.com https://geocoding-api.open-meteo.com https://ipapi.co http://ip-api.com https://api.github.com https://github.com https://raw.githubusercontent.com https://objects.githubusercontent.com"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ipc: http://ipc.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://ipapi.co https://freeipapi.com https://ipwho.is https://get.geojs.io https://lrclib.net https://api.github.com https://github.com https://raw.githubusercontent.com"
     }
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "targets": "all",
-    "publisher": "Nandu",
-    "copyright": "Copyright © 2026 Nandu",
-    "category": "Utility",
-    "shortDescription": "GLOOM Dynamic Island and Fluid Dock for Windows & Linux",
-    "longDescription": "GLOOM brings next-generation Apple Dynamic Island and fluid dock surfaces to Windows and Linux with smooth spring physics, media controls, and status.",
-    "windows": {
-      "webviewInstallMode": {
-        "type": "embedBootstrapper"
-      },
-      "nsis": {
-        "installMode": "currentUser",
-        "languages": [
-          "English"
-        ],
-        "startMenuFolder": "GLOOM"
-      }
-    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "headerImage": "../installer/assets/header.bmp",
+        "sidebarImage": "../installer/assets/sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "../installer/build/installer.nsh"
+      }
+    }
   },
   "plugins": {
     "updater": {
+      "active": true,
+      "windows": {
+        "installMode": "quiet"
+      },
       "endpoints": [
         "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzQTAzNTlBRUFFODRFMDUKUldRRlR1anFtaldnUThWRExWQ2ZDVmxhNGlFREFPYWZoV1BWbGdQNUxxdHpnbzZPbGh4SWxVMk0K"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzQTAzNTlBMjY4NkIyRTQKUlVTY052R3B3Rk9vU1A5c0l1QjZlY3pXeVhQeU1rUlpwL2JjR1Juc3NzbkpmbFVRM0k4U2E1R3AK"
     }
   }
 }

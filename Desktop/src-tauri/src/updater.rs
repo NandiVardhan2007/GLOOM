@@ -1,378 +1,26 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_updater::{UpdaterBuilder, UpdaterExt};
 
 /// Minimum time between background update checks. Manual checks bypass this.
 const CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
 /// Network timeout for a single manifest request.
-const CHECK_TIMEOUT_SECS: u64 = 4;
+const CHECK_TIMEOUT_SECS: u64 = 10;
 /// A release must be at least this old before auto-update installs it, so a
 /// broken release cannot reach everyone within minutes of being published.
 const MIN_AUTO_INSTALL_AGE_SECS: i64 = 24 * 60 * 60;
-/// Minimum time before an auto-install retries a version whose installer was
-/// already launched. Without it, a failed install would re-download and exit
-/// on every startup, because the process exits from inside the install path.
-const AUTO_INSTALL_RETRY_SECS: i64 = 24 * 60 * 60;
 const STATE_FILE: &str = "update-state.json";
+const RELEASES_API: &str = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases?per_page=10";
 
 /// Serializes manifest requests so concurrent callers share a single network hit.
 static CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static UPDATE_BUSY: AtomicBool = AtomicBool::new(false);
 static LAST_CHECK: Mutex<Option<UpdateCheckResult>> = Mutex::new(None);
-static GITHUB_DOWNLOAD_URL: Mutex<Option<String>> = Mutex::new(None);
-
-fn is_newer_semver(candidate: &str, current: &str) -> bool {
-    let parse = |s: &str| -> Vec<u32> {
-        s.trim()
-            .trim_start_matches('v')
-            .trim_start_matches('V')
-            .split('-')
-            .next()
-            .unwrap_or("")
-            .split('.')
-            .map(|p| p.parse::<u32>().unwrap_or(0))
-            .collect()
-    };
-    let cand = parse(candidate);
-    let curr = parse(current);
-    let max_len = cand.len().max(curr.len());
-    for i in 0..max_len {
-        let c = *cand.get(i).unwrap_or(&0);
-        let cur = *curr.get(i).unwrap_or(&0);
-        if c != cur {
-            return c > cur;
-        }
-    }
-    false
-}
-
-#[derive(Clone, Debug)]
-struct ManifestInfo {
-    version: String,
-    pub_date: Option<String>,
-    notes: Option<String>,
-    download_url: Option<String>,
-}
-
-fn get_updater_client() -> Option<&'static reqwest::Client> {
-    static CLIENT: std::sync::OnceLock<Option<reqwest::Client>> = std::sync::OnceLock::new();
-    CLIENT
-        .get_or_init(|| {
-            reqwest::Client::builder()
-                .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
-                .user_agent("GLOOM-Desktop-Updater")
-                .build()
-                .ok()
-        })
-        .as_ref()
-}
-
-async fn check_latest_manifest() -> Option<ManifestInfo> {
-    let client = get_updater_client()?;
-
-    let endpoint = "https://github.com/NandiVardhan2007/GLOOM/releases/latest/download/latest.json";
-    let resp = client.get(endpoint).send().await.ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-
-    let json: serde_json::Value = resp.json().await.ok()?;
-    let tag_name = json
-        .get("version")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    if tag_name.is_empty() {
-        return None;
-    }
-
-    let pub_date = json
-        .get("pub_date")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let notes = json
-        .get("notes")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-
-    let mut download_url = None;
-    if let Some(platforms) = json.get("platforms").and_then(|p| p.as_object()) {
-        #[cfg(windows)]
-        let target_key = "windows-x86_64";
-        #[cfg(not(windows))]
-        let target_key = "linux-x86_64";
-
-        if let Some(plat) = platforms
-            .get(target_key)
-            .or_else(|| platforms.get("windows-x86_64"))
-        {
-            if let Some(url) = plat.get("url").and_then(|u| u.as_str()) {
-                download_url = Some(url.to_string());
-            }
-        }
-    }
-
-    Some(ManifestInfo {
-        version: tag_name,
-        pub_date,
-        notes,
-        download_url,
-    })
-}
-
-async fn check_github_releases() -> Option<ManifestInfo> {
-    let client = get_updater_client()?;
-
-    let endpoint = "https://api.github.com/repos/NandiVardhan2007/GLOOM/releases/latest";
-    let resp = client.get(endpoint).send().await.ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-
-    let json: serde_json::Value = resp.json().await.ok()?;
-    let tag_name = json.get("tag_name")?.as_str()?.to_string();
-    let pub_date = json
-        .get("published_at")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let notes = json
-        .get("body")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-
-    let mut download_url = None;
-    #[cfg(windows)]
-    let target_ext = ".exe";
-    #[cfg(not(windows))]
-    let target_ext = ".deb";
-
-    if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
-        for asset in assets {
-            if let Some(name) = asset.get("name").and_then(|n| n.as_str()) {
-                if name.ends_with(target_ext) && !name.ends_with(".sha256") {
-                    if let Some(url) =
-                        asset.get("browser_download_url").and_then(|u| u.as_str())
-                    {
-                        download_url = Some(url.to_string());
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    Some(ManifestInfo {
-        version: tag_name,
-        pub_date,
-        notes,
-        download_url,
-    })
-}
-
-async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
-    use futures_util::StreamExt;
-
-    let client = reqwest::Client::builder()
-        .user_agent("GLOOM-Desktop-Updater")
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let res = match client.get(url).send().await {
-        Ok(resp) => resp,
-        Err(e) => {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "error" }),
-            );
-            return Err(e.to_string());
-        }
-    };
-
-    if !res.status().is_success() {
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "error" }),
-        );
-        return Err(format!("Download failed with status: {}", res.status()));
-    }
-
-    let total_size = res.content_length().unwrap_or(0);
-    let temp_dir = std::env::temp_dir();
-    #[cfg(windows)]
-    let installer_name = "GLOOM-Island-Setup.exe";
-    #[cfg(not(windows))]
-    let installer_name = "gloom-latest.deb";
-
-    let installer_path = temp_dir.join(installer_name);
-    let mut file = match tokio::fs::File::create(&installer_path).await {
-        Ok(f) => f,
-        Err(e) => {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "error" }),
-            );
-            return Err(e.to_string());
-        }
-    };
-
-    let _ = app.emit(
-        "auto-update-status",
-        serde_json::json!({
-            "status": "downloading",
-            "progress": 0,
-            "downloaded_bytes": 0,
-            "total_bytes": total_size
-        }),
-    );
-
-    let mut stream = res.bytes_stream();
-    let mut downloaded: u64 = 0;
-    let mut last_progress: i32 = 0;
-    let mut last_emitted_downloaded: u64 = 0;
-
-    use tokio::io::AsyncWriteExt;
-    while let Some(chunk_res) = stream.next().await {
-        let chunk = match chunk_res {
-            Ok(c) => c,
-            Err(e) => {
-                let _ = app.emit(
-                    "auto-update-status",
-                    serde_json::json!({ "status": "error" }),
-                );
-                return Err(e.to_string());
-            }
-        };
-
-        if let Err(e) = file.write_all(&chunk).await {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "error" }),
-            );
-            return Err(e.to_string());
-        }
-
-        downloaded += chunk.len() as u64;
-
-        if total_size > 0 {
-            let progress = (downloaded.saturating_mul(100) / total_size).min(100) as u32;
-            if progress as i32 != last_progress || downloaded >= total_size {
-                last_progress = progress as i32;
-                let _ = app.emit(
-                    "auto-update-status",
-                    serde_json::json!({
-                        "status": "downloading",
-                        "progress": progress,
-                        "downloaded_bytes": downloaded,
-                        "total_bytes": total_size
-                    }),
-                );
-            }
-        } else if downloaded.saturating_sub(last_emitted_downloaded) >= 256 * 1024 || downloaded == chunk.len() as u64 {
-            last_emitted_downloaded = downloaded;
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({
-                    "status": "downloading",
-                    "progress": null,
-                    "downloaded_bytes": downloaded,
-                    "total_bytes": 0
-                }),
-            );
-        }
-    }
-
-    if let Err(e) = file.flush().await {
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "error" }),
-        );
-        return Err(e.to_string());
-    }
-
-    // Verify SHA-256 integrity if sidecar is available
-    let sha256_url = format!("{}.sha256", url);
-    if let Ok(resp) = client.get(&sha256_url).send().await {
-        if resp.status().is_success() {
-            if let Ok(text) = resp.text().await {
-                let expected_hash = text
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("")
-                    .to_lowercase();
-                if expected_hash.len() == 64 {
-                    use sha2::{Digest, Sha256};
-                    if let Ok(bytes) = tokio::fs::read(&installer_path).await {
-                        let actual_hash = format!("{:x}", Sha256::digest(&bytes));
-                        if actual_hash != expected_hash {
-                            return Err(format!(
-                                "SHA-256 integrity check failed: expected {}, got {}",
-                                expected_hash, actual_hash
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let _ = app.emit(
-        "auto-update-status",
-        serde_json::json!({
-            "status": "installing",
-            "progress": 100,
-            "downloaded_bytes": downloaded,
-            "total_bytes": downloaded
-        }),
-    );
-
-    #[cfg(windows)]
-    {
-        crate::state::SHUTTING_DOWN.store(true, Ordering::Relaxed);
-        crate::commands::release_appbars(app);
-        crate::utils::set_taskbar_visibility(true, true);
-        crate::services::set_native_osd_suppressed(false);
-        app.cleanup_before_exit();
-
-        use windows::Win32::UI::Shell::ShellExecuteW;
-        use windows::Win32::UI::WindowsAndMessaging::SW_SHOW;
-        use windows_core::HSTRING;
-
-        let path_h = HSTRING::from(installer_path.to_string_lossy().as_ref());
-        let args_h = HSTRING::from("/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /FORCECLOSEAPPLICATIONS");
-        let op_h = HSTRING::from("open");
-
-        unsafe {
-            ShellExecuteW(
-                None,
-                &op_h,
-                &path_h,
-                &args_h,
-                None,
-                SW_SHOW,
-            );
-        }
-
-        std::process::exit(0);
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let deb_path = installer_path.to_string_lossy().to_string();
-        let _ = std::process::Command::new("pkexec")
-            .args(["dpkg", "-i", &deb_path])
-            .spawn();
-        app.cleanup_before_exit();
-        std::process::exit(0);
-    }
-
-    #[cfg(not(any(windows, target_os = "linux")))]
-    Ok(())
-}
 
 #[derive(Clone, Default, Serialize)]
 pub struct UpdateCheckResult {
@@ -392,15 +40,49 @@ struct PersistedUpdateState {
     version: String,
     date: String,
     #[serde(default)]
-    download_url: Option<String>,
-    #[serde(default)]
-    body: Option<String>,
-    /// Version whose installer was last launched, auto or manual.
-    #[serde(default)]
-    attempted_version: String,
-    /// Unix seconds of the last install attempt.
-    #[serde(default)]
-    attempted_at: i64,
+    channel: String,
+}
+
+fn prerelease_channel(app: &AppHandle) -> bool {
+    crate::utils::get_setting_str(app, "gloom-update-channel").as_deref() == Some("prerelease")
+}
+
+fn channel_name(app: &AppHandle) -> &'static str {
+    if prerelease_channel(app) { "prerelease" } else { "stable" }
+}
+
+/// Manifest of the newest release, pre-releases included (GitHub's `latest` skips them).
+async fn newest_release_manifest() -> Option<tauri::Url> {
+    let client = reqwest::Client::builder()
+        .user_agent("GLOOM")
+        .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
+        .build()
+        .ok()?;
+    let body = client.get(RELEASES_API).send().await.ok()?.text().await.ok()?;
+    let releases: Vec<serde_json::Value> = serde_json::from_str(&body).ok()?;
+    releases
+        .iter()
+        .filter(|release| release["draft"] != true)
+        .find_map(|release| {
+            release["assets"].as_array()?.iter().find_map(|asset| {
+                (asset["name"] == "latest.json")
+                    .then(|| asset["browser_download_url"].as_str())
+                    .flatten()
+                    .and_then(|url| url.parse().ok())
+            })
+        })
+}
+
+/// Updater for the chosen channel, falling back to stable if the release list cannot be read.
+async fn channel_updater(app: &AppHandle) -> UpdaterBuilder {
+    let builder = app.updater_builder();
+    if !prerelease_channel(app) {
+        return builder;
+    }
+    match newest_release_manifest().await {
+        Some(url) => builder.endpoints(vec![url]).unwrap_or_else(|_| app.updater_builder()),
+        None => builder,
+    }
 }
 
 fn now_secs() -> i64 {
@@ -443,15 +125,8 @@ fn result_from_state(state: &PersistedUpdateState) -> UpdateCheckResult {
         available: true,
         version: Some(state.version.clone()),
         date: (!state.date.is_empty()).then(|| state.date.clone()),
-        body: state.body.clone(),
+        body: None,
     }
-}
-
-/// Persisted state only describes the version that wrote it: after an update it
-/// still names the old version and the update it found, which must never be
-/// shown against the newly installed one.
-fn state_is_current(state: &PersistedUpdateState, current_version: &str) -> bool {
-    state.app_version == current_version
 }
 
 /// Returns a cached result only when the last check is recent and was made
@@ -461,13 +136,8 @@ fn cached_result(app: &AppHandle) -> Option<UpdateCheckResult> {
     if state.last_check == 0 || now_secs() - state.last_check >= CHECK_INTERVAL_SECS {
         return None;
     }
-    if !state_is_current(&state, &app.package_info().version.to_string()) {
+    if state.app_version != app.package_info().version.to_string() || state.channel != channel_name(app) {
         return None;
-    }
-    if let Some(ref url) = state.download_url {
-        if let Ok(mut g_url) = GITHUB_DOWNLOAD_URL.lock() {
-            *g_url = Some(url.clone());
-        }
     }
     Some(result_from_state(&state))
 }
@@ -477,15 +147,6 @@ pub fn release_is_old_enough(result: &UpdateCheckResult) -> bool {
         Some(published) => now_secs() - published >= MIN_AUTO_INSTALL_AGE_SECS,
         None => false,
     }
-}
-
-/// True when an installer was already launched for this exact version recently.
-/// On Windows the process exits from inside the install path, so without this
-/// a failed install would relaunch the installer on every startup.
-fn install_attempted_recently(state: &PersistedUpdateState, version: &str, now: i64) -> bool {
-    state.attempted_version == version
-        && state.attempted_at > 0
-        && now - state.attempted_at < AUTO_INSTALL_RETRY_SECS
 }
 
 /// Checks for an update at most once per `CHECK_INTERVAL_SECS` unless `force`
@@ -511,44 +172,26 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
         }
     }
 
-    let current_version = app.package_info().version.to_string();
-    let manifest = match check_latest_manifest().await {
-        Some(found) => Some(found),
-        None => check_github_releases().await,
+    let updater = channel_updater(app).await.build().map_err(|e| e.to_string())?;
+    let update = tokio::time::timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), updater.check())
+        .await
+        .map_err(|_| "update check timed out".to_string())?
+        .map_err(|e| e.to_string())?;
+
+    let result = match &update {
+        Some(update) => UpdateCheckResult {
+            available: true,
+            version: Some(update.version.clone()),
+            date: update
+                .raw_json
+                .get("pub_date")
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+            body: update.body.clone(),
+        },
+        None => UpdateCheckResult::default(),
     };
 
-    let (result, download_url_to_save) = match manifest {
-        Some(info) => {
-            let is_newer = is_newer_semver(&info.version, &current_version);
-            if is_newer {
-                if let Ok(mut g_url) = GITHUB_DOWNLOAD_URL.lock() {
-                    *g_url = info.download_url.clone();
-                }
-                (
-                    UpdateCheckResult {
-                        available: true,
-                        version: Some(info.version),
-                        date: info.pub_date,
-                        body: info.notes,
-                    },
-                    info.download_url,
-                )
-            } else {
-                (
-                    UpdateCheckResult {
-                        available: false,
-                        version: Some(info.version),
-                        date: info.pub_date,
-                        body: info.notes,
-                    },
-                    None,
-                )
-            }
-        }
-        None => (UpdateCheckResult::default(), None),
-    };
-
-    let previous = read_state(app);
     write_state(
         app,
         &PersistedUpdateState {
@@ -556,134 +199,168 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
             app_version: app.package_info().version.to_string(),
             version: result.version.clone().unwrap_or_default(),
             date: result.date.clone().unwrap_or_default(),
-            download_url: download_url_to_save,
-            body: result.body.clone(),
-            attempted_version: previous.attempted_version,
-            attempted_at: previous.attempted_at,
+            channel: channel_name(app).to_string(),
         },
     );
     if let Ok(mut cached) = LAST_CHECK.lock() {
         *cached = Some(result.clone());
     }
-    // Report the outcome (including "no update") so the UI can clear a stale
-    // badge after this version replaced one that had an update pending.
-    let _ = app.emit("update-available", &result);
     Ok(result)
 }
 
-/// Downloads and installs the available update. Launches the Inno Setup
-/// installer silently and cleanly terminates this process.
+/// Downloads and installs the available update. On Windows the updater plugin
+/// launches the NSIS installer and terminates this process, which then
+/// relaunches the app; on other platforms this returns after restarting.
 pub async fn install(app: &AppHandle) -> Result<(), String> {
+    if !is_installed_copy() {
+        crate::diagnostics::log("update: this copy is not installed (portable or development build), opening the release page instead of running the installer");
+        let _ = tauri_plugin_opener::open_url(RELEASES_PAGE, None::<&str>);
+        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
+        return Ok(());
+    }
     if UPDATE_BUSY.swap(true, Ordering::SeqCst) {
         return Err("an update is already in progress".to_string());
     }
     let result = install_inner(app).await;
     UPDATE_BUSY.store(false, Ordering::SeqCst);
+    if let Err(e) = &result {
+        crate::diagnostics::log(&format!("update install failed: {e}"));
+    }
     result
+}
+
+const RELEASES_PAGE: &str = "https://github.com/NandiVardhan2007/GLOOM/releases/latest";
+
+fn is_installed_copy() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(PathBuf::from))
+        .is_some_and(|dir| crate::uninstall_registry::install_scope(&dir).is_some())
+}
+
+fn installer_scope_args() -> Vec<String> {
+    let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)) else { return Vec::new() };
+    let Some(all_users) = crate::uninstall_registry::install_scope(&dir) else { return Vec::new() };
+    vec![
+        if all_users { "/ALLUSERS" } else { "/CURRENTUSER" }.to_string(),
+        format!("/D={}", dir.display()),
+    ]
+}
+
+fn install_needs_unavailable_elevation() -> bool {
+    let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)) else { return false };
+    crate::uninstall_registry::install_scope(&dir) == Some(true) && !crate::native_uninstall::is_elevated()
 }
 
 async fn install_inner(app: &AppHandle) -> Result<(), String> {
     // Hold the check lock so a concurrent check cannot mutate state mid-install.
     let _guard = CHECK_LOCK.lock().await;
 
-    let download_url = {
-        let g_url = GITHUB_DOWNLOAD_URL.lock().ok().and_then(|g| g.clone());
-        match g_url {
-            Some(u) => u,
-            None => {
-                let state = read_state(app);
-                if let Some(u) = state.download_url {
-                    u
-                } else {
-                    let check_res = check(app, true).await?;
-                    if !check_res.available {
-                        return Err("no update available".to_string());
-                    }
-                    GITHUB_DOWNLOAD_URL
-                        .lock()
-                        .ok()
-                        .and_then(|g| g.clone())
-                        .ok_or_else(|| "no update download URL available".to_string())?
-                }
-            }
-        }
-    };
+    let hook_handle = app.clone();
+    let updater = channel_updater(app)
+        .await
+        .installer_args(installer_scope_args())
+        .on_before_exit(move || {
+            crate::state::SHUTTING_DOWN.store(true, Ordering::Relaxed);
+            let _ = hook_handle.emit("auto-update-status", serde_json::json!({ "status": "installing" }));
+            hook_handle.cleanup_before_exit();
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
 
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "no update available".to_string())?;
+
+    let _ = app.emit("auto-update-status", serde_json::json!({ "status": "downloading", "progress": 0 }));
+
+    let progress_handle = app.clone();
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let downloaded_cb = downloaded.clone();
+    update
+        .download_and_install(
+            move |chunk_len, total| {
+                let current = downloaded_cb.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
+                if let Some(total) = total {
+                    if total > 0 {
+                        let progress = (current.saturating_mul(100) / total) as u32;
+                        let _ = progress_handle.emit(
+                            "auto-update-status",
+                            serde_json::json!({ "status": "downloading", "progress": progress }),
+                        );
+                    }
+                }
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Windows: `download_and_install` launches the installer and exits inside
+    // the plugin, so this is only reached on other platforms.
+    #[cfg(not(windows))]
     {
-        let mut state = read_state(app);
-        if let Some(ref ver) = LAST_CHECK
-            .lock()
-            .ok()
-            .and_then(|c| c.as_ref().and_then(|r| r.version.clone()))
-        {
-            state.attempted_version = ver.clone();
-        }
-        state.attempted_at = now_secs();
-        write_state(app, &state);
+        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
+        app.restart()
     }
 
-    install_from_url(app, &download_url).await
+    #[cfg(windows)]
+    Ok(())
 }
 
 /// Startup entry point: always checks so the UI can show an update badge, and
 /// auto-installs only when the user enabled it and the release has aged.
 pub async fn run_startup_check(app: AppHandle) {
-    let auto_update =
-        crate::utils::get_setting_str(&app, "gloom-auto-update").as_deref() == Some("true");
+    let auto_update = crate::utils::get_setting_str(&app, "gloom-auto-update").as_deref() == Some("true");
 
     if auto_update {
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "checking" }),
-        );
+        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "checking" }));
     }
+
+    let ready_to_install = |result: &UpdateCheckResult| prerelease_channel(&app) || release_is_old_enough(result);
 
     let result = match check(&app, false).await {
         Ok(result) => result,
         Err(_) => {
             if auto_update {
-                let _ = app.emit(
-                    "auto-update-status",
-                    serde_json::json!({ "status": "done" }),
-                );
+                let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
             }
             return;
         }
     };
 
+    let _ = app.emit("update-available", &result);
+
     if !result.available {
         if auto_update {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "done" }),
-            );
+            let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
         }
         return;
     }
 
-    let attempted_version = result.version.clone().unwrap_or_default();
-    let attempted_recently =
-        install_attempted_recently(&read_state(&app), &attempted_version, now_secs());
-
-    if auto_update && release_is_old_enough(&result) && !attempted_recently {
+    if auto_update && ready_to_install(&result) && !is_installed_copy() {
+        crate::diagnostics::log("auto-update: skipping silent install, this copy is not installed (portable or development build); leaving update available");
+        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
+    } else if auto_update && ready_to_install(&result) && install_needs_unavailable_elevation() {
+        crate::diagnostics::log("auto-update: skipping silent install, all-users install needs elevation this process doesn't have; leaving update available for manual install");
+        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
+    } else if auto_update && ready_to_install(&result) {
         // On Windows this never returns: the installer exits the process.
         if install(&app).await.is_err() {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "done" }),
-            );
+            let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
         }
     } else if auto_update {
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "done" }),
-        );
+        let _ = app.emit("auto-update-status", serde_json::json!({ "status": "done" }));
     }
 }
 
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateCheckResult, String> {
-    check(&app, force).await
+    let result = check(&app, force).await?;
+    let _ = app.emit("update-available", &result);
+    Ok(result)
 }
 
 #[tauri::command]
@@ -698,11 +375,7 @@ pub fn get_update_state(app: AppHandle) -> UpdateCheckResult {
             return result.clone();
         }
     }
-    let state = read_state(&app);
-    if !state_is_current(&state, &app.package_info().version.to_string()) {
-        return UpdateCheckResult::default();
-    }
-    result_from_state(&state)
+    result_from_state(&read_state(&app))
 }
 
 fn parse_rfc3339_utc(value: &str) -> Option<i64> {
@@ -719,12 +392,7 @@ fn parse_rfc3339_utc(value: &str) -> Option<i64> {
     let hour: i64 = value.get(11..13)?.parse().ok()?;
     let minute: i64 = value.get(14..16)?.parse().ok()?;
     let second: i64 = value.get(17..19)?.parse().ok()?;
-    if !(1..=12).contains(&month)
-        || !(1..=31).contains(&day)
-        || hour > 23
-        || minute > 59
-        || second > 60
-    {
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) || hour > 23 || minute > 59 || second > 60 {
         return None;
     }
     let days = days_from_civil(year, month, day);
@@ -744,41 +412,13 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        days_from_civil, install_attempted_recently, is_newer_semver, parse_rfc3339_utc,
-        state_is_current, PersistedUpdateState,
-    };
+    use super::{days_from_civil, parse_rfc3339_utc};
 
     #[test]
     fn parses_tauri_action_pub_date() {
         assert_eq!(parse_rfc3339_utc("1970-01-01T00:00:00Z"), Some(0));
-        assert_eq!(
-            parse_rfc3339_utc("2026-09-13T18:14:46Z"),
-            Some(1_789_323_286)
-        );
-        assert_eq!(
-            parse_rfc3339_utc("2026-09-13T18:14:46.123Z"),
-            Some(1_789_323_286)
-        );
-    }
-
-    #[test]
-    fn semver_comparison_works() {
-        assert!(is_newer_semver("1.8.0", "1.7.0"));
-        assert!(is_newer_semver("v1.8.0", "1.7.0"));
-        assert!(is_newer_semver("v2.0.0", "1.9.9"));
-        assert!(is_newer_semver("v2.4.0", "2.3.3"));
-        assert!(is_newer_semver("v2.5.0", "2.4.0"));
-        assert!(is_newer_semver("v2.6.0", "2.5.0"));
-        assert!(is_newer_semver("1.7.1", "1.7.0"));
-        assert!(!is_newer_semver("1.7.0", "1.7.0"));
-        assert!(!is_newer_semver("v1.7.0", "1.7.0"));
-        assert!(!is_newer_semver("v2.4.0", "2.4.0"));
-        assert!(!is_newer_semver("2.4.0", "2.4.0"));
-        assert!(!is_newer_semver("v2.5.0", "2.5.0"));
-        assert!(!is_newer_semver("2.4.0", "2.5.0"));
-        assert!(!is_newer_semver("2.3.3", "2.4.0"));
-        assert!(!is_newer_semver("1.6.9", "1.7.0"));
+        assert_eq!(parse_rfc3339_utc("2026-09-13T18:14:46Z"), Some(1_789_323_286));
+        assert_eq!(parse_rfc3339_utc("2026-09-13T18:14:46.123Z"), Some(1_789_323_286));
     }
 
     #[test]
@@ -792,58 +432,5 @@ mod tests {
     fn computes_civil_days() {
         assert_eq!(days_from_civil(1970, 1, 1), 0);
         assert_eq!(days_from_civil(2026, 9, 13), 20_709);
-    }
-
-    #[test]
-    fn parses_legacy_update_state_without_attempt_fields() {
-        let state: PersistedUpdateState = serde_json::from_str(
-            r#"{"last_check":1,"app_version":"3.8.7","version":"3.8.8","date":"2026-09-13T18:14:46Z"}"#,
-        )
-        .expect("legacy state parses");
-        assert_eq!(state.attempted_version, "");
-        assert_eq!(state.attempted_at, 0);
-        assert!(state.download_url.is_none());
-    }
-
-    #[test]
-    fn parses_update_state_with_download_url() {
-        let state: PersistedUpdateState = serde_json::from_str(
-            r#"{"last_check":1,"app_version":"1.7.0","version":"1.8.0","date":"2026-09-13T18:14:46Z","download_url":"https://example.com/setup.exe"}"#,
-        )
-        .expect("state parses");
-        assert_eq!(state.version, "1.8.0");
-        assert_eq!(state.download_url.as_deref(), Some("https://example.com/setup.exe"));
-    }
-
-    #[test]
-    fn skips_recent_install_attempts_only() {
-        let state = PersistedUpdateState {
-            attempted_version: "3.8.8".into(),
-            attempted_at: 1_000,
-            ..Default::default()
-        };
-
-        assert!(install_attempted_recently(&state, "3.8.8", 1_000 + 3_600));
-        assert!(!install_attempted_recently(
-            &state,
-            "3.8.8",
-            1_000 + 24 * 60 * 60
-        ));
-        assert!(!install_attempted_recently(&state, "3.8.9", 1_000 + 3_600));
-
-        let empty = PersistedUpdateState::default();
-        assert!(!install_attempted_recently(&empty, "3.8.8", 1_000));
-    }
-
-    #[test]
-    fn persisted_state_only_applies_to_the_version_that_wrote_it() {
-        let state = PersistedUpdateState {
-            app_version: "3.8.7".into(),
-            version: "3.9.1".into(),
-            ..Default::default()
-        };
-
-        assert!(state_is_current(&state, "3.8.7"));
-        assert!(!state_is_current(&state, "3.9.1"));
     }
 }

@@ -1,476 +1,799 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
+/* Never start native image drags from the notch/player UI */
+img {
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 * {
-	margin: 0;
-	padding: 0;
-	box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 html,
 body,
 #root {
-	width: 100%;
-	height: 100%;
-	overflow: hidden;
-	background: transparent;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
 }
 
 /* ─── Container ─────────────────────────────────────────────────────────── */
 
 .overlay-container {
-	width: 100%;
-	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: flex-start;
-	pointer-events: auto;
-	position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    pointer-events: auto;
+    position: relative;
 }
 
 /* ─── Splash Screen ─────────────────────────────────────────────────────── */
 
 .splash-screen {
-	position: fixed;
-	inset: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: transparent;
-	z-index: 9999;
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    z-index: 9999;
 }
 
 .splash-logo {
-	width: 120px;
-	height: 120px;
-	object-fit: contain;
+    position: relative;
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+}
+
+.splash-glow {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 68%);
+    pointer-events: none;
 }
 
 /* ─── Auto-Update Splash ─────────────────────────────────────────────────── */
 
 .update-splash {
-	position: fixed;
-	inset: 0;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	background: transparent;
-	z-index: 9999;
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    z-index: 9999;
+}
+
+.update-splash-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 36px;
+    background: var(--gloom-bg, rgba(0, 0, 0, 0.8));
+    border: 1px solid var(--gloom-border, rgba(255, 255, 255, 0.1));
+    border-radius: 20px;
 }
 
 .update-splash-logo {
-	width: 100px;
-	height: 100px;
-	object-fit: contain;
-	margin-bottom: 20px;
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    margin-bottom: 20px;
 }
 
 .update-splash-text {
-	color: var(--gloom-text, rgba(255, 255, 255, 0.9));
-	font-family:
-		"Inter",
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		sans-serif;
-	font-size: 14px;
-	font-weight: 500;
-	margin-bottom: 16px;
-	text-align: center;
+    color: var(--gloom-text, rgba(255, 255, 255, 0.9));
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    text-align: center;
 }
 
 .update-progress-bar {
-	width: 200px;
-	height: 4px;
-	background: var(--gloom-border, rgba(255, 255, 255, 0.1));
-	border-radius: 2px;
-	overflow: hidden;
+    width: 200px;
+    height: 4px;
+    background: var(--gloom-border, rgba(255, 255, 255, 0.1));
+    border-radius: 2px;
+    overflow: hidden;
 }
 
 .update-progress-fill {
-	height: 100%;
-	background: var(--gloom-text, rgba(255, 255, 255, 0.9));
-	border-radius: 2px;
-	transition: width 0.3s ease;
+    height: 100%;
+    background: var(--gloom-highlight, var(--gloom-text, rgba(255, 255, 255, 0.9)));
+    border-radius: 2px;
+    transition: width 0.3s ease;
 }
 
 /* ─── Volume Notch (Left Edge) ──────────────────────────────────────────── */
 
 .volume-notch-wrapper {
-	position: fixed;
-	left: 0;
-	top: 50%;
-	transform: translateY(-50%);
-	overflow: visible;
-	transform-origin: left center;
-	--surface-bg: var(--gloom-bg, rgba(0, 0, 0, 0.8));
-	isolation: isolate;
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  overflow: visible;
+  transform-origin: left center;
 }
 
 .volume-notch {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: space-between;
-	padding: 16px 0 14px;
-	border-radius: 0 18px 18px 0;
-	width: 42px;
-	height: 196px;
-	position: relative;
-	pointer-events: auto;
-	overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 14px;
+  background: var(--gloom-bg, rgba(0, 0, 0, 0.8));
+  border-radius: 0 18px 18px 0;
+  border: 1px solid var(--gloom-border, rgba(255, 255, 255, 0.1));
+  border-left: none;
+  border-top: none;
+  border-bottom: none;
+  width: 42px;
+  height: 196px;
+  position: relative;
+  pointer-events: auto;
+  overflow: hidden;
 }
 
-/* The card and its flares are painted by the EdgeSurface in the wrapper
-   (see components/EdgeSurface.css), outside the card so its
-   `overflow: hidden` can clip the mixer while the card grows. */
-.volume-notch-wrapper > .edge-surface {
-	border-radius: 0 18px 18px 0;
+/* Concave flares where the card meets the screen edge. Kept outside the card
+   so its `overflow: hidden` can clip the mixer while the card grows. */
+.volume-notch-flares {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 13px;
+  pointer-events: none;
+}
+
+.volume-notch-flares::before,
+.volume-notch-flares::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 13px;
+  height: 13px;
+  background: var(--gloom-bg, rgba(0, 0, 0, 0.8));
+  pointer-events: none;
+}
+
+.volume-notch-flares::before {
+  top: -13px;
+  -webkit-mask-image: radial-gradient(circle at 13px 0px, transparent 12px, black 13px);
+  mask-image: radial-gradient(circle at 13px 0px, transparent 12px, black 13px);
+  background:
+    radial-gradient(
+      circle at 13px 0px,
+      transparent 12px,
+      var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px,
+      var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px,
+      transparent 14px
+    ),
+    var(--gloom-bg, rgba(0, 0, 0, 0.8));
+}
+
+.volume-notch-flares::after {
+  bottom: -13px;
+  -webkit-mask-image: radial-gradient(circle at 13px 13px, transparent 12px, black 13px);
+  mask-image: radial-gradient(circle at 13px 13px, transparent 12px, black 13px);
+  background:
+    radial-gradient(
+      circle at 13px 13px,
+      transparent 12px,
+      var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px,
+      var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px,
+      transparent 14px
+    ),
+    var(--gloom-bg, rgba(0, 0, 0, 0.8));
 }
 
 .volume-notch-content-group {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: space-between;
-	height: 100%;
-	width: 42px;
-	align-self: flex-start;
-	flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  width: 42px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+/* Output device picker, mirrors the mixer button at the other end of the bar. */
+.volume-notch-device {
+  width: 100%;
+  height: 20px;
+  margin-bottom: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gloom-text, white);
+  opacity: 0.6;
+  cursor: pointer;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.volume-notch-device:hover,
+.volume-notch-device.active {
+  opacity: 1;
+}
+
+.volume-notch-device:active {
+  transform: scale(0.92);
 }
 
 .volume-notch-bar {
-	width: 10px;
-	flex: 1;
-	min-height: 0;
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 20px;
-	position: relative;
-	overflow: hidden;
+  width: 10px;
+  flex: 1;
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
 }
 
 .volume-notch-fill {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	background: var(--gloom-text, white);
-	border-radius: 20px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--gloom-highlight, var(--gloom-text, white));
+  border-radius: 20px;
 }
 
 .volume-notch-action {
-	position: relative;
-	width: 100%;
-	height: 20px;
-	margin-top: 2px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0;
-	border: none;
-	background: transparent;
-	color: var(--gloom-text, white);
-	cursor: pointer;
+  position: relative;
+  width: 100%;
+  height: 20px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gloom-text, white);
+  cursor: pointer;
 }
 
 .volume-notch-action-icon,
 .volume-notch-action-mixer,
 .volume-notch-action-percent {
-	position: absolute;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0;
-	transition:
-		opacity 0.16s ease,
-		transform 0.16s ease;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
 }
 
 .volume-notch-action-icon {
-	opacity: 0.8;
+  opacity: 0.8;
 }
 
 .volume-notch-action-mixer {
-	transform: scale(0.82);
+  transform: scale(0.82);
 }
 
 .volume-notch-action-percent {
-	font-size: 10px;
-	font-weight: 700;
-	font-family:
-		"Inter",
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		sans-serif;
-	letter-spacing: -0.02em;
+  font-size: 10px;
+  font-weight: 700;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .volume-notch-action:hover .volume-notch-action-icon {
-	opacity: 0;
-	transform: scale(0.82);
+  opacity: 0;
+  transform: scale(0.82);
 }
 
 .volume-notch-action:hover .volume-notch-action-mixer,
 .volume-notch-action.active .volume-notch-action-mixer {
-	opacity: 1;
-	transform: scale(1);
+  opacity: 1;
+  transform: scale(1);
 }
 
 .volume-notch-action.active .volume-notch-action-icon {
-	opacity: 0;
+  opacity: 0;
 }
 
 .volume-notch-action.showing-percent .volume-notch-action-icon,
 .volume-notch-action.showing-percent .volume-notch-action-mixer {
-	opacity: 0;
+  opacity: 0;
 }
 
 .volume-notch-action.showing-percent .volume-notch-action-percent {
-	opacity: 1;
+  opacity: 1;
 }
 
 /* ─── App Volume Mixer ──────────────────────────────────────────────────── */
 
 .volume-mixer-panel {
-	position: absolute;
-	left: 42px;
-	top: 0;
-	bottom: 0;
-	/* Overridden inline with the dynamic width (grows with the app count). */
-	width: 204px;
-	display: flex;
-	flex-direction: column;
-	pointer-events: auto;
-	overflow: hidden;
-	z-index: 2;
+  position: absolute;
+  left: 42px;
+  top: 0;
+  bottom: 0;
+  /* Overridden inline with the dynamic width (grows with the app count). */
+  width: 204px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  overflow: hidden;
+  z-index: 2;
 }
 
 .volume-mixer-list {
-	display: grid;
-	/* Columns are set inline from the app count. */
-	grid-template-columns: repeat(4, 1fr);
-	/* Rows share the height until they hit the tile minimum, then the list scrolls. */
-	grid-auto-rows: minmax(70px, 1fr);
-	gap: 4px;
-	width: 100%;
-	flex: 1;
-	min-height: 0;
-	/* Aligns the tile sliders with the main bar (17px from the card top) and
-	   the tile logos with the main action button. */
-	padding: 16px 8px 14px;
-	overflow-y: auto;
-	overflow-x: hidden;
-	scrollbar-width: thin;
-	scrollbar-color: var(--gloom-border, rgba(255, 255, 255, 0.2)) transparent;
+  display: grid;
+  /* Columns are set inline from the app count. */
+  grid-template-columns: repeat(4, 1fr);
+  /* Rows share the height until they hit the tile minimum, then the list scrolls. */
+  grid-auto-rows: minmax(70px, 1fr);
+  gap: 4px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  /* The header above takes the output button's row, so the tile sliders line
+     up with the main bar and the tile logos with the main action button. */
+  padding: 0 8px 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gloom-border, rgba(255, 255, 255, 0.2)) transparent;
+}
+
+/* Same height and offset as .volume-notch-device so both rows line up. */
+.volume-panel-header {
+  height: 20px;
+  margin: 16px 8px 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gloom-text-muted, rgba(255, 255, 255, 0.6));
+  font-size: 10px;
+  font-weight: 600;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  text-align: left;
+  min-width: 0;
+}
+
+.volume-panel-header.clickable {
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.volume-panel-header.clickable:hover {
+  background: var(--gloom-group-bg, rgba(255, 255, 255, 0.06));
+  color: var(--gloom-text, white);
+}
+
+.volume-panel-header svg {
+  flex-shrink: 0;
+}
+
+.volume-panel-header-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volume-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gloom-border, rgba(255, 255, 255, 0.2)) transparent;
+}
+
+.volume-device-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 26px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gloom-text, white);
+  font-size: 11px;
+  font-weight: 500;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.volume-device-row:hover {
+  background: var(--gloom-group-bg, rgba(255, 255, 255, 0.06));
+}
+
+.volume-device-row.selected {
+  background: var(--gloom-border, rgba(255, 255, 255, 0.12));
+  font-weight: 600;
+  cursor: default;
+}
+
+.volume-device-row.busy {
+  opacity: 0.6;
+}
+
+.volume-device-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volume-device-list .volume-mixer-empty {
+  flex: 1;
 }
 
 .volume-mixer-empty {
-	color: var(--gloom-text-muted, rgba(255, 255, 255, 0.6));
-	font-size: 11px;
-	font-weight: 500;
-	font-family:
-		"Inter",
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		sans-serif;
-	text-align: center;
-	grid-column: 1 / -1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+  color: var(--gloom-text-muted, rgba(255, 255, 255, 0.6));
+  font-size: 11px;
+  font-weight: 500;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  text-align: center;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .volume-mixer-tile {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: flex-end;
-	width: 100%;
-	min-width: 0;
-	height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 /* Mirrors the main volume bar: thin rounded track with a fill from the bottom. */
 .volume-mixer-bar {
-	position: relative;
-	width: 10px;
-	flex: 1;
-	min-height: 48px;
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 20px;
-	overflow: hidden;
+  position: relative;
+  width: 10px;
+  flex: 1;
+  min-height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  overflow: hidden;
 }
 
 .volume-mixer-fill {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	background: var(--gloom-text, white);
-	border-radius: 20px;
-	pointer-events: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--gloom-highlight, var(--gloom-text, white));
+  border-radius: 20px;
+  pointer-events: none;
 }
 
 /* The app logo sits at the bottom, like the main notch action, and swaps to
    the percentage while the volume is being changed. */
 .volume-mixer-action {
-	position: relative;
-	width: 100%;
-	height: 20px;
-	margin-top: 2px;
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0;
-	border: none;
-	background: transparent;
-	color: var(--gloom-text, white);
-	cursor: pointer;
+  position: relative;
+  width: 100%;
+  height: 20px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gloom-text, white);
+  cursor: pointer;
 }
 
 .volume-mixer-action img {
-	width: 18px;
-	height: 18px;
-	object-fit: contain;
-	transition: opacity 0.16s ease;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  transition: opacity 0.16s ease;
 }
 
 .volume-mixer-action-fallback {
-	width: 18px;
-	height: 18px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: 5px;
-	background: var(--gloom-border, rgba(255, 255, 255, 0.15));
-	color: var(--gloom-text, white);
-	font-size: 9px;
-	font-weight: 700;
-	font-family:
-		"Inter",
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		sans-serif;
-	transition: opacity 0.16s ease;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: var(--gloom-border, rgba(255, 255, 255, 0.15));
+  color: var(--gloom-text, white);
+  font-size: 9px;
+  font-weight: 700;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  transition: opacity 0.16s ease;
 }
 
 .volume-mixer-action.muted img,
 .volume-mixer-action.muted .volume-mixer-action-fallback {
-	opacity: 0.35;
+  opacity: 0.35;
 }
 
 .volume-mixer-action:active {
-	transform: scale(0.94);
+  transform: scale(0.94);
 }
 
 .volume-mixer-action-pct {
-	position: absolute;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 9px;
-	font-weight: 700;
-	font-variant-numeric: tabular-nums;
-	letter-spacing: -0.02em;
-	font-family:
-		"Inter",
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		sans-serif;
-	opacity: 0;
-	transition: opacity 0.16s ease;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  opacity: 0;
+  transition: opacity 0.16s ease;
 }
 
 .volume-mixer-action.showing-percent img,
 .volume-mixer-action.showing-percent .volume-mixer-action-fallback {
-	opacity: 0;
+  opacity: 0;
 }
 
 .volume-mixer-action.showing-percent .volume-mixer-action-pct {
-	opacity: 1;
+  opacity: 1;
 }
 
 /* ─── Brightness Notch (Right Edge) ─────────────────────────────────────── */
 
 .brightness-notch-wrapper {
-	position: fixed;
-	right: 0;
-	top: 50%;
-	transform: translateY(-50%);
-	overflow: visible;
-	transform-origin: right center;
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    overflow: visible;
+    transform-origin: right center;
 }
 
 .brightness-notch {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: space-between;
-	padding: 16px 0;
-	border-radius: 18px 0 0 18px;
-	width: 42px;
-	height: 196px;
-	position: relative;
-	pointer-events: auto;
-	/* Painted by its EdgeSurface child (see components/EdgeSurface.css). */
-	--surface-bg: var(--gloom-bg, rgba(0, 0, 0, 0.8));
-	isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    background: var(--gloom-bg, rgba(0, 0, 0, 0.8));
+    border-radius: 18px 0 0 18px;
+    border: 1px solid var(--gloom-border, rgba(255, 255, 255, 0.1));
+    border-right: none;
+    width: 42px;
+    height: 196px;
+    position: relative;
+    pointer-events: auto;
+}
+
+.brightness-notch::before,
+.brightness-notch::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    width: 13px;
+    height: 13px;
+    background: var(--gloom-bg, rgba(0, 0, 0, 0.8));
+    pointer-events: none;
+}
+
+.brightness-notch::before {
+    top: -13px;
+    -webkit-mask-image: radial-gradient(circle at 0px 0px, transparent 12px, black 13px);
+    mask-image: radial-gradient(circle at 0px 0px, transparent 12px, black 13px);
+    background:
+        radial-gradient(circle at 0px 0px, transparent 12px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px, transparent 14px),
+        var(--gloom-bg, rgba(0, 0, 0, 0.8));
+}
+
+.brightness-notch::after {
+    bottom: -13px;
+    -webkit-mask-image: radial-gradient(circle at 0px 13px, transparent 12px, black 13px);
+    mask-image: radial-gradient(circle at 0px 13px, transparent 12px, black 13px);
+    background:
+        radial-gradient(circle at 0px 13px, transparent 12px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px, transparent 14px),
+        var(--gloom-bg, rgba(0, 0, 0, 0.8));
 }
 
 .brightness-notch-content-group {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: space-between;
-	height: 100%;
-	width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    width: 100%;
 }
 
 .brightness-notch-bar {
-	width: 10px;
-	height: 136px;
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 20px;
-	position: relative;
-	overflow: hidden;
-	margin-top: 4px;
+    width: 10px;
+    height: 136px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    margin-top: 4px;
 }
 
 .brightness-notch-fill {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	background: var(--gloom-text, white);
-	border-radius: 20px;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: var(--gloom-highlight, var(--gloom-text, white));
+    border-radius: 20px;
 }
 
 .brightness-notch-icon {
-	width: 20px;
-	height: 20px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--gloom-text, rgba(255, 255, 255, 0.95));
-	margin-top: 10px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gloom-text, rgba(255, 255, 255, 0.95));
+    margin-top: 10px;
 }
 
 .brightness-icon-container {
-	width: 20px;
-	height: 20px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ─── Light Mode ────────────────────────────────────────────────────────── */
 
 .light-mode .volume-notch-bar,
 .light-mode .brightness-notch-bar {
-	background: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.volume-notch-wrapper.side-right {
+  left: auto;
+  right: 0;
+}
+
+.side-right .volume-notch {
+  border-radius: 18px 0 0 18px;
+  border: 1px solid var(--gloom-border, rgba(255, 255, 255, 0.1));
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+}
+
+.side-right .volume-notch-flares {
+  left: auto;
+  right: 0;
+}
+
+.side-right .volume-notch-flares::before,
+.side-right .volume-notch-flares::after {
+  left: auto;
+  right: 0;
+}
+
+.side-right .volume-notch-flares::before {
+  -webkit-mask-image: radial-gradient(circle at 0px 0px, transparent 12px, black 13px);
+  mask-image: radial-gradient(circle at 0px 0px, transparent 12px, black 13px);
+  background:
+    radial-gradient(circle at 0px 0px, transparent 12px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px, transparent 14px),
+    var(--gloom-bg, rgba(0, 0, 0, 0.8));
+}
+
+.side-right .volume-notch-flares::after {
+  -webkit-mask-image: radial-gradient(circle at 0px 13px, transparent 12px, black 13px);
+  mask-image: radial-gradient(circle at 0px 13px, transparent 12px, black 13px);
+  background:
+    radial-gradient(circle at 0px 13px, transparent 12px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px, transparent 14px),
+    var(--gloom-bg, rgba(0, 0, 0, 0.8));
+}
+
+.side-right .volume-notch-content-group {
+  align-self: flex-end;
+}
+
+.side-right .volume-mixer-panel {
+  left: auto;
+  right: 42px;
+}
+
+.brightness-notch-wrapper.side-left {
+  right: auto;
+  left: 0;
+}
+
+.side-left .brightness-notch {
+  border-radius: 0 18px 18px 0;
+  border: 1px solid var(--gloom-border, rgba(255, 255, 255, 0.1));
+  border-left: none;
+}
+
+.side-left .brightness-notch::before,
+.side-left .brightness-notch::after {
+  right: auto;
+  left: 0;
+}
+
+.side-left .brightness-notch::before {
+  -webkit-mask-image: radial-gradient(circle at 13px 0px, transparent 12px, black 13px);
+  mask-image: radial-gradient(circle at 13px 0px, transparent 12px, black 13px);
+  background:
+    radial-gradient(circle at 13px 0px, transparent 12px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px, transparent 14px),
+    var(--gloom-bg, rgba(0, 0, 0, 0.8));
+}
+
+.side-left .brightness-notch::after {
+  -webkit-mask-image: radial-gradient(circle at 13px 13px, transparent 12px, black 13px);
+  mask-image: radial-gradient(circle at 13px 13px, transparent 12px, black 13px);
+  background:
+    radial-gradient(circle at 13px 13px, transparent 12px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 12.7px, var(--gloom-border, rgba(255, 255, 255, 0.1)) 13.3px, transparent 14px),
+    var(--gloom-bg, rgba(0, 0, 0, 0.8));
 }

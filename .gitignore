@@ -20,6 +20,8 @@ secrets/
 # Build Outputs & Binaries
 dist/
 build/
+!installer/build/
+!Desktop/installer/build/
 target/
 Desktop/dist/
 Desktop/src-tauri/target/

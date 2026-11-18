@@ -1,0 +1,134 @@
+import { useSyncExternalStore } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import en from "./locales/en.json";
+
+type Messages = Record<string, string>;
+
+export const LANGUAGES: Record<string, { name: string }> = {
+  en: { name: "English" },
+  tr: { name: "Türkçe" },
+  de: { name: "Deutsch" },
+  ar: { name: "العربية" },
+  es: { name: "Español" },
+  fr: { name: "Français" },
+  pl: { name: "Polski" },
+};
+
+const RTL_LANGUAGES = new Set(["ar"]);
+const MIRRORED_PAGES = ["settings", "calendar"];
+
+function applyDirection(lang: string) {
+  const root = document.documentElement;
+  root.lang = lang;
+  const mirrored = RTL_LANGUAGES.has(lang) && MIRRORED_PAGES.some((p) => location.pathname.includes(p));
+  root.dir = mirrored ? "rtl" : "ltr";
+}
+
+const LAZY_LOCALES: Record<string, () => Promise<{ default: Messages }>> = {
+  tr: () => import("./locales/tr.json"),
+  de: () => import("./locales/de.json"),
+  ar: () => import("./locales/ar.json"),
+  es: () => import("./locales/es.json"),
+  fr: () => import("./locales/fr.json"),
+  pl: () => import("./locales/pl.json"),
+};
+
+const loaded: Record<string, Messages> = { en: en as Messages };
+let loadedVersion = 0;
+
+function loadIfNeeded(lang: string) {
+  applyDirection(lang);
+  if (loaded[lang] || !LAZY_LOCALES[lang]) return;
+  loaded[lang] = {};
+  LAZY_LOCALES[lang]()
+    .then((mod) => {
+      loaded[lang] = mod.default as Messages;
+      loadedVersion++;
+      listeners.forEach((l) => l());
+    })
+    .catch(() => {
+    });
+}
+
+const STORAGE_KEY = "gloom-language";
+const listeners = new Set<() => void>();
+
+function readPreference(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || "system";
+  } catch {
+    return "system";
+  }
+}
+
+function resolve(preference: string): string {
+  if (preference in LANGUAGES) return preference;
+  const system = (navigator.language || "en").toLowerCase().split("-")[0];
+  return system in LANGUAGES ? system : "en";
+}
+
+export function getLanguagePreference(): string {
+  return readPreference();
+}
+
+export function setLanguagePreference(value: string) {
+  localStorage.setItem(STORAGE_KEY, value);
+  invoke("save_setting", { key: STORAGE_KEY, value }).catch(console.error);
+  loadIfNeeded(resolve(value));
+  listeners.forEach((l) => l());
+}
+
+export function t(key: string, params?: Record<string, string | number>): string {
+  const lang = resolve(readPreference());
+  if (lang !== "en") loadIfNeeded(lang);
+  const messages = loaded[lang];
+  const text = messages?.[key] ?? (en as Messages)[key] ?? key;
+  if (!params) return text;
+  return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m));
+}
+
+/** Locale for dates and times, so they match the chosen UI language. */
+export function dateLocale(): string {
+  return resolve(readPreference());
+}
+
+/** Weekday names starting on the given day (0 is Sunday). */
+export function weekdayNames(width: "short" | "narrow", weekStart = 0): string[] {
+  return Array.from({ length: 7 }, (_, i) => new Date(2023, 0, 1 + ((i + weekStart) % 7)).toLocaleDateString(dateLocale(), { weekday: width }));
+}
+
+export function timeAgo(ms: number | null, translate: (key: string, params?: Record<string, string | number>) => string): string {
+  if (!ms) return translate("common.ago.never");
+  const mins = Math.round((Date.now() - ms) / 60000);
+  if (mins < 1) return translate("common.ago.now");
+  if (mins < 60) return translate("common.ago.minutes", { count: mins });
+  const hours = Math.round(mins / 60);
+  return hours < 24
+    ? translate("common.ago.hours", { count: hours })
+    : translate("common.ago.days", { count: Math.round(hours / 24) });
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  loadIfNeeded(resolve(readPreference()));
+  // Other windows change the setting through localStorage.
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY || e.key === null) {
+      loadIfNeeded(resolve(readPreference()));
+      listener();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+/** Re-renders the calling component when the language changes; returns the translate function. */
+export function useT() {
+  useSyncExternalStore(subscribe, () => `${readPreference()}:${loadedVersion}`);
+  return t;
+}
+
+export type TFunction = typeof t;

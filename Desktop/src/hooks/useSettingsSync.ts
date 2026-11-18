@@ -2,11 +2,10 @@ import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 function convertSettingValue(value: any): any {
-	if (value === "true") return true;
-	if (value === "false") return false;
-	if (typeof value === "string" && value.trim() !== "" && !isNaN(Number(value)))
-		return Number(value);
-	return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (typeof value === "string" && !isNaN(Number(value))) return Number(value);
+  return value;
 }
 
 /**
@@ -25,54 +24,46 @@ function convertSettingValue(value: any): any {
  * @param deps - Optional additional dependency array
  */
 export function useSettingsSync(
-	handlers: Record<string, (value: any) => void>,
-	deps?: React.DependencyList
+  handlers: Record<string, (value: any) => void>,
+  deps?: React.DependencyList
 ) {
-	const handlersRef = useRef(handlers);
-	handlersRef.current = handlers;
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
-	useEffect(() => {
-		const unlistenSC = listen<{ key: string; value: any }>("settings-changed", (event) => {
-			const { key, value } = event.payload;
+  useEffect(() => {
+    const unlistenSC = listen<{ key: string; value: any }>(
+      "settings-changed",
+      (event) => {
+        const { key, value } = event.payload;
+        const handler = handlersRef.current[key];
+        if (handler && value !== null && value !== undefined) {
+          handler(convertSettingValue(value));
+        }
+      }
+    );
 
-			if (key === "gloom-weather-lat" || key === "gloom-weather-lon") {
-				localStorage.removeItem(key);
-			} else if (value !== null && value !== undefined) {
-				localStorage.setItem(key, String(value));
-			} else {
-				localStorage.removeItem(key);
-			}
+    const unlistenSEC = listen<{ key: string; value: any }>(
+      "settings-external-changed",
+      (event) => {
+        const { key, value } = event.payload;
 
-			const handler = handlersRef.current[key];
-			if (handler && value !== null && value !== undefined) {
-				handler(convertSettingValue(value));
-			}
-		});
+        if (value !== null) {
+          localStorage.setItem(key, String(value));
+        } else {
+          localStorage.removeItem(key);
+        }
 
-		const unlistenSEC = listen<{ key: string; value: any }>(
-			"settings-external-changed",
-			(event) => {
-				const { key, value } = event.payload;
+        const handler = handlersRef.current[key];
+        if (handler && value !== null && value !== undefined) {
+          handler(convertSettingValue(value));
+        }
+      }
+    );
 
-				if (key === "gloom-weather-lat" || key === "gloom-weather-lon") {
-					localStorage.removeItem(key);
-				} else if (value !== null && value !== undefined) {
-					localStorage.setItem(key, String(value));
-				} else {
-					localStorage.removeItem(key);
-				}
-
-				const handler = handlersRef.current[key];
-				if (handler && value !== null && value !== undefined) {
-					handler(convertSettingValue(value));
-				}
-			}
-		);
-
-		return () => {
-			unlistenSC.then((fn) => fn());
-			unlistenSEC.then((fn) => fn());
-		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, deps ?? []);
+    return () => {
+      unlistenSC.then((fn) => fn());
+      unlistenSEC.then((fn) => fn());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps ?? []);
 }

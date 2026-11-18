@@ -18,21 +18,11 @@ interface Props {
 
 const INSET = 0.5;
 
-/**
- * Computes the silhouette path for the surface shape including C1-continuous ear flares,
- * corner arcs, and outlines.
- */
-function silhouette(
-  edge: SurfaceEdge,
-  w: number,
-  h: number,
-  f: number,
-  r: number,
-  er: number,
-  i: number,
-  ox: number,
-  oy: number
-): { d: string; closed: boolean } {
+// The surface's whole silhouette, flares included, as one path. It is both the clip of the fill
+// layer (glass, texture, wallpaper) and the line drawn around it, so the flares can never differ
+// from the body. Coordinates are the surface's own box; (ox, oy) shifts them into the fill layer,
+// which reaches `flare` px past the box on the flare sides.
+function silhouette(edge: SurfaceEdge, w: number, h: number, f: number, r: number, er: number, i: number, ox: number, oy: number): { d: string; closed: boolean } {
   const X = (x: number) => x + ox;
   const Y = (y: number) => y + oy;
   const P = (x: number, y: number) => `${X(x)} ${Y(y)}`;
@@ -43,54 +33,33 @@ function silhouette(
     const rr = clamp(r, Math.min(w / 2, h));
     const a = Math.max(0, rr - i);
     if (f > 0) {
-      return {
-        closed: false,
-        d: `M ${P(-f, 0)} ${arc(f, 1, i, f)} V ${Y(h - rr)} ${arc(a, 0, rr, h - i)} H ${X(w - rr)} ${arc(a, 0, w - i, h - rr)} V ${Y(f)} ${arc(f, 1, w + f, 0)}`,
-      };
+      return { closed: false, d: `M ${P(-f, 0)} ${arc(f, 1, i, f)} V ${Y(h - rr)} ${arc(a, 0, rr, h - i)} H ${X(w - rr)} ${arc(a, 0, w - i, h - rr)} V ${Y(f)} ${arc(f, 1, w + f, 0)}` };
     }
     const te = clamp(er, Math.min(w / 2, h));
     const ta = Math.max(0, te - i);
-    return {
-      closed: true,
-      d: `M ${P(i, h - rr)} V ${Y(te)} ${arc(ta, 1, te, i)} H ${X(w - te)} ${arc(ta, 1, w - i, te)} V ${Y(h - rr)} ${arc(a, 1, w - rr, h - i)} H ${X(rr)} ${arc(a, 1, i, h - rr)} Z`,
-    };
+    return { closed: true, d: `M ${P(i, h - rr)} V ${Y(te)} ${arc(ta, 1, te, i)} H ${X(w - te)} ${arc(ta, 1, w - i, te)} V ${Y(h - rr)} ${arc(a, 1, w - rr, h - i)} H ${X(rr)} ${arc(a, 1, i, h - rr)} Z` };
   }
 
   if (edge === "bottom") {
     const rr = clamp(r, Math.min(w / 2, h));
     const a = Math.max(0, rr - i);
     if (f > 0) {
-      return {
-        closed: false,
-        d: `M ${P(-f, h)} ${arc(f, 0, i, h - f)} V ${Y(rr)} ${arc(a, 1, rr, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h - f)} ${arc(f, 0, w + f, h)}`,
-      };
+      return { closed: false, d: `M ${P(-f, h)} ${arc(f, 0, i, h - f)} V ${Y(rr)} ${arc(a, 1, rr, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h - f)} ${arc(f, 0, w + f, h)}` };
     }
     const be = clamp(er, Math.min(w / 2, h));
     if (be > 0) {
       const ba = Math.max(0, be - i);
-      return {
-        closed: true,
-        d: `M ${P(i, h - be)} V ${Y(rr)} ${arc(a, 1, rr, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h - be)} ${arc(ba, 1, w - be, h - i)} H ${X(be)} ${arc(ba, 1, i, h - be)} Z`,
-      };
+      return { closed: true, d: `M ${P(i, h - be)} V ${Y(rr)} ${arc(a, 1, rr, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h - be)} ${arc(ba, 1, w - be, h - i)} H ${X(be)} ${arc(ba, 1, i, h - be)} Z` };
     }
-    return {
-      closed: false,
-      d: `M ${P(i, h)} V ${Y(rr)} ${arc(a, 1, rr, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h)}`,
-    };
+    return { closed: false, d: `M ${P(i, h)} V ${Y(rr)} ${arc(a, 1, rr, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h)}` };
   }
 
   const rr = clamp(r, Math.min(w, h / 2));
   const a = Math.max(0, rr - i);
   if (edge === "left") {
-    return {
-      closed: false,
-      d: `M ${P(0, -f)} ${arc(f, 0, f, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h - rr)} ${arc(a, 1, w - rr, h - i)} H ${X(f)} ${arc(f, 0, 0, h + f)}`,
-    };
+    return { closed: false, d: `M ${P(0, -f)} ${arc(f, 0, f, i)} H ${X(w - rr)} ${arc(a, 1, w - i, rr)} V ${Y(h - rr)} ${arc(a, 1, w - rr, h - i)} H ${X(f)} ${arc(f, 0, 0, h + f)}` };
   }
-  return {
-    closed: false,
-    d: `M ${P(w, -f)} ${arc(f, 1, w - f, i)} H ${X(rr)} ${arc(a, 0, i, rr)} V ${Y(h - rr)} ${arc(a, 0, rr, h - i)} H ${X(w - f)} ${arc(f, 1, w, h + f)}`,
-  };
+  return { closed: false, d: `M ${P(w, -f)} ${arc(f, 1, w - f, i)} H ${X(rr)} ${arc(a, 0, i, rr)} V ${Y(h - rr)} ${arc(a, 0, rr, h - i)} H ${X(w - f)} ${arc(f, 1, w, h + f)}` };
 }
 
 export function SurfaceShape({ edge, flare, radius, edgeRadius = 0, children, settling = false }: Props) {
@@ -100,10 +69,7 @@ export function SurfaceShape({ edge, flare, radius, edgeRadius = 0, children, se
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () =>
-      setSize((prev) =>
-        prev.w === el.clientWidth && prev.h === el.clientHeight ? prev : { w: el.clientWidth, h: el.clientHeight }
-      );
+    const measure = () => setSize((prev) => (prev.w === el.clientWidth && prev.h === el.clientHeight ? prev : { w: el.clientWidth, h: el.clientHeight }));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
@@ -129,9 +95,7 @@ export function SurfaceShape({ edge, flare, radius, edgeRadius = 0, children, se
 
   return (
     <>
-      <div className="surface-fill" style={fillStyle} aria-hidden="true">
-        {children}
-      </div>
+      <div className="surface-fill" style={fillStyle} aria-hidden="true">{children}</div>
       <svg ref={ref} className={`edge-outline${settling ? " settling" : ""}`} aria-hidden>
         {line && <path d={line.d} />}
       </svg>

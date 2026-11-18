@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { X, Globe } from "lucide-react";
-import { isValidZone, searchZones, type ZoneOption } from "../dualClock";
+import { X } from "lucide-react";
+import { isValidZone, searchZones, zoneOffsetLabel, type ZoneOption } from "../dualClock";
+import { useT } from "../i18n";
 
 interface Props {
   onSelect: (option: { label: string; zone: string }) => void;
@@ -9,6 +10,7 @@ interface Props {
 const MAX_RESULTS = 6;
 
 export function DualClockPicker({ onSelect }: Props) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [cities, setCities] = useState<ZoneOption[]>([]);
   const [open, setOpen] = useState(false);
@@ -54,43 +56,56 @@ export function DualClockPicker({ onSelect }: Props) {
   return (
     <div className="manual-city-input">
       <div className="city-input-row">
-        <Globe size={13} style={{ opacity: 0.5, marginLeft: 6 }} />
         <input
           type="text"
-          className="city-search-input"
-          placeholder="Search city or time zone..."
+          placeholder={t("dualClock.search")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && results.length > 0) {
+              e.preventDefault();
+              pick(results[0]);
+            }
+            if (e.key === "Escape") {
+              setOpen(false);
+            }
+          }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          spellCheck={false}
+          aria-label={t("dualClock.zone")}
         />
         {query && (
           <button
-            type="button"
             className="city-clear-btn"
-            onClick={() => {
+            onMouseDown={(e) => {
+              e.preventDefault();
               setQuery("");
-              setOpen(false);
             }}
+            title={t("dualClock.clear")}
           >
-            <X size={12} />
+            <X size={10} strokeWidth={2.5} />
           </button>
         )}
       </div>
-
       {open && results.length > 0 && (
-        <div className="city-dropdown-menu">
-          {results.map((opt) => (
+        <div className="city-dropdown">
+          {results.map((option) => (
             <button
-              key={`${opt.zone}-${opt.label}`}
-              type="button"
+              key={`${option.label}-${option.zone}-${option.detail}`}
               className="city-dropdown-item"
-              onClick={() => pick(opt)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(option);
+              }}
             >
-              <span className="city-name">{opt.label}</span>
-              <span className="city-country">{opt.detail || opt.zone}</span>
+              <span className="city-dropdown-name">{option.label}</span>
+              <span className="city-dropdown-country">
+                {[option.detail, zoneOffsetLabel(option.zone)].filter(Boolean).join(" · ")}
+              </span>
             </button>
           ))}
         </div>

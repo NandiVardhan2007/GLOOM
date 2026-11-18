@@ -1,29 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Play, Pause, RotateCcw, Flag } from "lucide-react";
 import type { Stopwatch } from "../hooks/useStopwatch";
 import { formatStopwatch, parseDuration } from "../clockFormat";
-import { playTactileSound } from "../utils/audioFeedback";
+import { useT } from "../i18n";
+import { setVisibleInterval } from "../hooks/visibleInterval";
 
 type Tab = "timer" | "stopwatch";
 
 const TAB_KEY = "gloom-clock-tab";
 const PRESETS = [5, 15, 25, 50];
 
-export function StopwatchReadout({
-  base,
-  startedAt,
-  precise,
-}: {
-  base: number;
-  startedAt: number | null;
-  precise: boolean;
-}) {
+export function StopwatchReadout({ base, startedAt, precise }: { base: number; startedAt: number | null; precise: boolean }) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (startedAt === null) return;
-    const id = setInterval(() => setNow(Date.now()), precise ? 50 : 250);
+    const id = setVisibleInterval(() => setNow(Date.now()), precise ? 50 : 250);
     return () => clearInterval(id);
   }, [startedAt, precise]);
 
@@ -49,8 +41,8 @@ function readTab(): Tab {
 
 interface Props {
   timerEnabled: boolean;
-  stopwatchEnabled?: boolean;
-  solo?: boolean;
+  stopwatchEnabled: boolean;
+  solo: boolean;
   timerSeconds: number;
   isTimerRunning: boolean;
   formatTimerTime: (seconds: number) => string;
@@ -62,8 +54,8 @@ interface Props {
 
 export function NotchClock({
   timerEnabled,
-  stopwatchEnabled = true,
-  solo = false,
+  stopwatchEnabled,
+  solo,
   timerSeconds,
   isTimerRunning,
   formatTimerTime,
@@ -72,16 +64,18 @@ export function NotchClock({
   onResetTimer,
   stopwatch,
 }: Props) {
+  const t = useT();
   const [savedTab, setSavedTab] = useState<Tab>(readTab);
   const [custom, setCustom] = useState("");
   const [invalid, setInvalid] = useState(false);
   const customRef = useRef<HTMLInputElement>(null);
 
-  const tab: Tab =
-    savedTab === "stopwatch" && stopwatchEnabled ? "stopwatch" : timerEnabled ? "timer" : "stopwatch";
+  const setKeyboardFocus = (enabled: boolean) => invoke("set_window_keyboard_focus", { enabled }).catch(() => {});
+  useEffect(() => () => void setKeyboardFocus(false), []);
+
+  const tab: Tab = savedTab === "stopwatch" && stopwatchEnabled ? "stopwatch" : timerEnabled ? "timer" : "stopwatch";
 
   const pickTab = (next: Tab) => {
-    playTactileSound("switch");
     setSavedTab(next);
     remember(TAB_KEY, next);
   };
@@ -95,7 +89,6 @@ export function NotchClock({
     }
     setInvalid(false);
     setCustom("");
-    playTactileSound("snap");
     onStartTimer(seconds);
   };
 
@@ -106,157 +99,99 @@ export function NotchClock({
   });
 
   return (
-    <div className={`notch-clock-panel ${solo ? "solo" : ""}`} onClick={(e) => e.stopPropagation()}>
-      {timerEnabled && stopwatchEnabled && (
-        <div className="clock-tab-bar" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "timer"}
-            className={`clock-tab ${tab === "timer" ? "active" : ""}`}
-            onClick={() => pickTab("timer")}
-          >
-            Timer
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "stopwatch"}
-            className={`clock-tab ${tab === "stopwatch" ? "active" : ""}`}
-            onClick={() => pickTab("stopwatch")}
-          >
-            Stopwatch
-          </button>
-        </div>
-      )}
+    <div className={`timer-column${solo ? " solo" : ""}`}>
+      <div className="timer-section-new">
+        {timerEnabled && stopwatchEnabled && (
+          <div className="clock-tabs" role="tablist">
+            <button role="tab" aria-selected={tab === "timer"} className={tab === "timer" ? "active" : ""} onClick={() => pickTab("timer")}>
+              {t("clock.timer")}
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "stopwatch"}
+              className={tab === "stopwatch" ? "active" : ""}
+              onClick={() => pickTab("stopwatch")}
+            >
+              {t("clock.stopwatch")}
+            </button>
+          </div>
+        )}
 
-      {tab === "timer" ? (
-        <div className="timer-view">
-          <div className="clock-digits-hero">{formatTimerTime(timerSeconds)}</div>
-          <div className="timer-presets-row">
-            {PRESETS.map((mins) => (
-              <button
-                key={mins}
-                type="button"
-                className={`preset-pill ${timerSeconds === mins * 60 && isTimerRunning ? "active" : ""}`}
-                onClick={() => {
-                  playTactileSound("snap");
-                  onStartTimer(mins * 60);
-                }}
-              >
-                {mins}m
+        {tab === "timer" ? (
+          <>
+            <div className="timer-display-large">
+              <span className="timer-time-large">{formatTimerTime(timerSeconds)}</span>
+            </div>
+
+            <div className="timer-controls-new">
+              <button onClick={onToggleTimer} className="timer-btn primary">
+                {isTimerRunning ? t("clock.pause") : t("clock.start")}
               </button>
-            ))}
-          </div>
+              <button onClick={onResetTimer} className="timer-btn secondary">
+                {t("clock.reset")}
+              </button>
+            </div>
 
-          <form onSubmit={submitCustom} className="timer-custom-form">
-            <input
-              ref={customRef}
-              type="text"
-              className={`timer-custom-input ${invalid ? "invalid" : ""}`}
-              placeholder="Custom: 12, 1:30 or 25:00"
-              value={custom}
-              onChange={(e) => {
-                setCustom(e.target.value);
-                setInvalid(false);
-              }}
-              onFocus={() => invoke("request_notch_keyboard_focus", { focus: true }).catch(() => {})}
-              onBlur={() => invoke("request_notch_keyboard_focus", { focus: false }).catch(() => {})}
-            />
-            <button type="submit" className="timer-go-btn" disabled={!custom.trim()}>
-              Set
-            </button>
-          </form>
+            <div className="timer-presets-new">
+              {PRESETS.map((mins) => (
+                <button key={mins} onClick={() => onStartTimer(mins * 60)} className="preset-btn-small">
+                  {mins}m
+                </button>
+              ))}
+            </div>
 
-          <div className="clock-controls-row">
-            <button
-              type="button"
-              className={`clock-main-btn ${isTimerRunning ? "running" : ""}`}
-              onClick={() => {
-                playTactileSound("snap");
-                onToggleTimer();
-              }}
-              title={isTimerRunning ? "Pause" : "Start"}
-            >
-              {isTimerRunning ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-              <span>{isTimerRunning ? "Pause" : "Start"}</span>
-            </button>
-            <button
-              type="button"
-              className="clock-reset-btn"
-              onClick={() => {
-                playTactileSound("tick");
-                onResetTimer();
-              }}
-              title="Reset"
-              disabled={timerSeconds === 0 && !isTimerRunning}
-            >
-              <RotateCcw size={14} strokeWidth={2.4} />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="stopwatch-view">
-          <div className="clock-digits-hero">
-            <StopwatchReadout base={stopwatch.base} startedAt={stopwatch.startedAt} precise />
-          </div>
+            <form className={`timer-custom${invalid ? " invalid" : ""}`} onSubmit={submitCustom}>
+              <input
+                ref={customRef}
+                onMouseDown={() => setKeyboardFocus(true).finally(() => customRef.current?.focus())}
+                onBlur={() => setKeyboardFocus(false)}
+                value={custom}
+                onChange={(e) => {
+                  setCustom(e.target.value.replace(/[^\d:]/g, ""));
+                  setInvalid(false);
+                }}
+                inputMode="numeric"
+                placeholder={t("clock.custom.placeholder")}
+                spellCheck={false}
+                aria-label={t("clock.custom.label")}
+              />
+              <button type="submit" disabled={!custom.trim()}>
+                {t("clock.go")}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="timer-display-large">
+              <span className="timer-time-large timer-time-precise">
+                <StopwatchReadout base={stopwatch.base} startedAt={stopwatch.startedAt} precise />
+              </span>
+            </div>
 
-          <div className="stopwatch-laps-box">
-            {recentLaps.length === 0 ? (
-              <span className="laps-empty-text">Laps will appear here</span>
-            ) : (
-              recentLaps.map((lap) => (
-                <div key={lap.number} className="lap-item">
-                  <span className="lap-index">Lap {lap.number}</span>
-                  <span className="lap-split">+{formatStopwatch(lap.split, true)}</span>
+            <div className="timer-controls-new">
+              <button onClick={stopwatch.toggle} className="timer-btn primary">
+                {stopwatch.running ? t("clock.pause") : t("clock.start")}
+              </button>
+              <button onClick={stopwatch.lap} className="timer-btn secondary" disabled={!stopwatch.running && stopwatch.base === 0}>
+                {t("clock.lap")}
+              </button>
+              <button onClick={stopwatch.reset} className="timer-btn secondary">
+                {t("clock.reset")}
+              </button>
+            </div>
+
+            <div className="sw-laps">
+              {recentLaps.length === 0 && <span className="sw-hint">{t("clock.laps.empty")}</span>}
+              {recentLaps.map((lap) => (
+                <div key={lap.number} className="sw-lap">
+                  <span>{t("clock.lapNumber", { number: lap.number })}</span>
+                  <span>{formatStopwatch(lap.split, true)}</span>
                 </div>
-              ))
-            )}
-          </div>
-
-          <div className="clock-controls-row">
-            <button
-              type="button"
-              className={`clock-main-btn ${stopwatch.running ? "running" : ""}`}
-              onClick={() => {
-                playTactileSound("snap");
-                stopwatch.toggle();
-              }}
-              title={stopwatch.running ? "Pause" : "Start"}
-            >
-              {stopwatch.running ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-              <span>{stopwatch.running ? "Pause" : "Start"}</span>
-            </button>
-            {stopwatch.running ? (
-              <button
-                type="button"
-                className="clock-lap-btn"
-                onClick={() => {
-                  playTactileSound("tick");
-                  stopwatch.lap();
-                }}
-                title="Lap"
-              >
-                <Flag size={13} strokeWidth={2.4} />
-                <span>Lap</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="clock-reset-btn"
-                onClick={() => {
-                  playTactileSound("tick");
-                  stopwatch.reset();
-                }}
-                title="Reset"
-                disabled={stopwatch.base === 0 && stopwatch.startedAt === null}
-              >
-                <RotateCcw size={14} strokeWidth={2.4} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

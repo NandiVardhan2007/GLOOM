@@ -7,27 +7,15 @@ pub struct WmiMonitorBrightness {
     pub current_brightness: u8,
 }
 
-/// Raised by Windows whenever a display's brightness changes, by any means.
-#[derive(Deserialize, Debug)]
-#[serde(rename = "WmiMonitorBrightnessEvent")]
-#[serde(rename_all = "PascalCase")]
-pub struct WmiMonitorBrightnessEvent {
-    pub brightness: u8,
-}
-
-#[derive(Clone, Serialize, Debug, PartialEq)]
+#[derive(Clone, Serialize)]
 pub struct AudioVisualizationData {
     pub frequencies: Vec<f32>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone)]
 pub struct MediaInfo {
     pub title: String,
     pub artist: String,
-    #[serde(default)]
-    pub subtitle: Option<String>,
-    #[serde(default)]
-    pub source_app: Option<String>,
     pub is_playing: bool,
     pub has_media: bool,
     pub artwork: Option<Vec<String>>,
@@ -39,18 +27,25 @@ pub struct MediaInfo {
     pub seek_enabled: bool,
     #[serde(default)]
     pub position_updated_at: u64,
+    #[serde(default)]
+    pub source_id: String,
 }
 
 pub enum SystemCommand {
+    VolumeMute,
+    VolumeUp,
+    VolumeDown,
     SetVolume(f32),
     MediaPlayPause,
     MediaNext,
     MediaPrevious,
     MediaSeek(i64),
     ToggleVisibility(bool),
+    BrightnessUp,
+    BrightnessDown,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, Debug)]
 pub struct IntRect {
     pub x: i32,
     pub y: i32,
@@ -58,7 +53,41 @@ pub struct IntRect {
     pub height: i32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MonitorMode {
+    Primary,
+    All,
+    Specific,
+}
+
+impl MonitorMode {
+    pub fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("all") => MonitorMode::All,
+            Some("specific") => MonitorMode::Specific,
+            _ => MonitorMode::Primary,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WindowKind {
+    Dock,
+    Notch,
+}
+
+#[derive(Clone, Serialize, Debug)]
+pub struct MonitorInfo {
+    pub id: String,
+    pub label: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub is_primary: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppInfo {
     pub name: String,
     pub path: String,
@@ -67,30 +96,28 @@ pub struct AppInfo {
     pub hwnd: Option<isize>,
     pub executable: Option<String>,
     pub all_hwnds: Option<Vec<(isize, String)>>, // (hwnd, title)
-    #[serde(default)]
-    pub is_minimized: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<String>,
 }
 
-#[derive(Clone, Serialize, Debug, PartialEq)]
+#[derive(Clone, Serialize)]
 pub struct BrightnessChangeEvent {
     pub brightness: u32,
 }
 
-#[derive(Clone, Serialize, Debug, PartialEq)]
+#[derive(Clone, Serialize)]
+pub struct WifiStatus {
+    pub enabled: bool,
+    pub connected: bool,
+}
+
+#[derive(Clone, Serialize)]
 pub struct VolumeChangeEvent {
     pub volume: f32,
     pub is_muted: bool,
 }
 
-#[derive(Clone, Serialize, Debug, PartialEq)]
-pub struct WifiStatus {
-    pub enabled: bool,
-    pub connected: bool,
-    /// The connected network's name, for the controls tile.
-    pub ssid: Option<String>,
-}
-
-#[derive(Clone, Serialize, Debug, PartialEq)]
+#[derive(Clone, Serialize)]
 pub struct AudioSessionInfo {
     pub pid: u32,
     pub name: String,
@@ -98,59 +125,3 @@ pub struct AudioSessionInfo {
     pub volume: f32,
     pub is_muted: bool,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct ClipboardItem {
-    pub id: String,
-    pub text: String,
-    pub timestamp: u64,
-    pub char_count: usize,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct LiveActivityItem {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub activity_type: String,
-    pub title: String,
-    pub progress: Option<f32>,
-    pub detail: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct LyricLineDto {
-    pub time_ms: i64,
-    pub text: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct LyricsResult {
-    pub id: Option<i64>,
-    pub track_name: Option<String>,
-    pub artist_name: Option<String>,
-    pub synced_lyrics: Option<String>,
-    pub plain_lyrics: Option<String>,
-    pub lines: Vec<LyricLineDto>,
-    pub is_synced: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct RamDetails {
-    pub percent: f32,
-    pub total_mb: u64,
-    pub used_mb: u64,
-    pub free_mb: u64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct SystemOverview {
-    pub cpu_percent: u32,
-    pub ram: RamDetails,
-    pub disk_free_gb: u64,
-    pub disk_total_gb: u64,
-    pub net_in_bps: u64,
-    pub net_out_bps: u64,
-}
-
-
-

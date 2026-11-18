@@ -1,204 +1,206 @@
-import { Download, RefreshCw, FileDown, Upload, CheckCircle2, Sparkles, Compass } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { emit } from "@tauri-apps/api/event";
-import { GithubIcon } from "../icons";
+import { Compass, Download, FlaskConical, RefreshCw, FileDown, Upload, RotateCcw, Trash2 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
-import { formatUpdateProgressMeta } from "./updaterUtils";
+import { useT } from "../i18n";
 
 interface AboutTabProps {
-	appVersion: string;
-	autoUpdate: boolean;
-	toggleAutoUpdate: () => void;
-	updateStatus: string;
-	updateVersion: string;
-	checkForUpdates: () => void;
-	installUpdate: () => void;
-	exportStatus: string;
-	importStatus: string;
-	handleExportSettings: () => void;
-	handleImportSettings: () => void;
-	updateProgress?: number;
-	updateDownloadedBytes?: number;
-	updateTotalBytes?: number;
+  appVersion: string;
+  autoUpdate: boolean;
+  toggleAutoUpdate: () => void;
+  prereleaseChannel: boolean;
+  togglePrereleaseChannel: () => void;
+  updateStatus: string;
+  updateVersion: string;
+  checkForUpdates: () => void;
+  installUpdate: () => void;
+  exportStatus: string;
+  importStatus: string;
+  handleExportSettings: () => void;
+  handleImportSettings: () => void;
+  resetStatus: string;
+  handleResetSettings: () => void;
+  uninstallStatus: string;
+  uninstallError?: string;
+  handleUninstallGLOOM: () => void;
 }
 
 export function AboutTab({
-	appVersion,
-	autoUpdate,
-	toggleAutoUpdate,
-	updateStatus,
-	updateVersion,
-	checkForUpdates,
-	installUpdate,
-	exportStatus,
-	importStatus,
-	handleExportSettings,
-	handleImportSettings,
-	updateProgress = 0,
-	updateDownloadedBytes = 0,
-	updateTotalBytes = 0
+  appVersion,
+  autoUpdate,
+  toggleAutoUpdate,
+  prereleaseChannel,
+  togglePrereleaseChannel,
+  updateStatus,
+  updateVersion,
+  checkForUpdates,
+  installUpdate,
+  exportStatus,
+  importStatus,
+  handleExportSettings,
+  handleImportSettings,
+  resetStatus,
+  handleResetSettings,
+  uninstallStatus,
+  uninstallError,
+  handleUninstallGLOOM,
 }: AboutTabProps) {
-	const isDownloading = updateStatus === "downloading";
-	const isInstalling = updateStatus === "installing";
-	const isChecking = updateStatus === "checking";
-	const isAvailable = updateStatus === "available";
-	const isUpToDate = updateStatus === "uptodate";
-	const isBusy = isDownloading || isInstalling || isChecking;
+  const t = useT();
 
-	const getUpdateIcon = () => {
-		if (isUpToDate) return CheckCircle2;
-		if (isAvailable) return Sparkles;
-		return RefreshCw;
-	};
+  const getUpdateLabel = () => {
+    switch (updateStatus) {
+      case "checking":
+        return t("about.update.checking");
+      case "available":
+        return t("about.update.available", { version: updateVersion });
+      case "uptodate":
+        return t("about.update.uptodate");
+      case "downloading":
+        return t("about.update.downloading");
+      case "installing":
+        return t("about.update.installing");
+      case "error":
+        return t("about.update.error");
+      default:
+        return t("about.update.check");
+    }
+  };
 
-	const getUpdateLabel = () => {
-		if (isChecking) return "Checking for Updates...";
-		if (isAvailable) return `Update Available (v${updateVersion})`;
-		if (isUpToDate) return "GLOOM is Up to Date";
-		if (isDownloading) return "Downloading Update...";
-		if (isInstalling) return "Installing Update...";
-		if (updateStatus === "error") return "Check for Updates";
-		return "Check for Updates";
-	};
+  const getUpdateDesc = () =>
+    updateStatus === "available" ? t("about.update.available.desc") : t("about.update.current", { version: appVersion });
 
-	const getUpdateDesc = () => {
-		if (isDownloading || isInstalling) {
-			const meta = formatUpdateProgressMeta(
-				updateStatus,
-				updateProgress,
-				updateDownloadedBytes,
-				updateTotalBytes
-			);
+  const getPillLabel = () => {
+    switch (updateStatus) {
+      case "checking":
+        return t("about.update.checking");
+      case "available":
+        return t("about.pill.update", { version: updateVersion });
+      case "uptodate":
+        return t("about.pill.uptodate");
+      case "downloading":
+        return t("about.pill.downloading");
+      case "installing":
+        return t("about.update.installing");
+      case "error":
+        return t("about.pill.error");
+      default:
+        return t("about.pill.check");
+    }
+  };
 
-			return (
-				<div className="update-progress-container">
-					<div className="update-progress-meta">
-						<span className="update-progress-subtext">{meta.text}</span>
-						<span className="update-progress-pct tabular-nums">{meta.pct}%</span>
-					</div>
-					<div className="about-progress-track">
-						<div
-							className={`about-progress-fill ${meta.isIndeterminate ? "indeterminate" : ""}`}
-							style={{ width: `${meta.pct}%` }}
-						/>
-					</div>
-				</div>
-			);
-		}
+  const pillBusy = ["checking", "downloading", "installing"].includes(updateStatus);
 
-		if (isAvailable) {
-			return "A new release is ready to download and install";
-		}
+  const getExportLabel = () => {
+    if (exportStatus === "exporting") return t("about.export.working");
+    if (exportStatus === "success") return t("about.export.done");
+    return t("about.export");
+  };
 
-		if (isUpToDate) {
-			return `Version ${appVersion} is the latest version`;
-		}
+  const getImportLabel = () => {
+    if (importStatus === "importing") return t("about.import.working");
+    if (importStatus === "success") return t("about.import.done");
+    return t("about.import");
+  };
 
-		if (updateStatus === "error") {
-			return `No updates found • Running v${appVersion}`;
-		}
+  const getResetLabel = () => {
+    if (resetStatus === "resetting") return t("about.reset.working");
+    if (resetStatus === "confirm") return t("about.confirmAgain");
+    return t("about.reset");
+  };
 
-		return `Currently running v${appVersion}`;
-	};
+  const getResetDesc = () =>
+    resetStatus === "confirm" ? t("about.reset.confirm.desc") : t("about.reset.desc");
 
-	const getExportLabel = () => {
-		if (exportStatus === "exporting") return "Exporting...";
-		if (exportStatus === "success") return "Exported!";
-		if (exportStatus === "error") return "Export failed. Try again.";
-		return "Export Settings";
-	};
+  const getUninstallLabel = () => {
+    if (uninstallStatus === "uninstalling") return t("about.uninstall.working");
+    if (uninstallStatus === "confirm") return t("about.confirmAgain");
+    if (uninstallStatus === "error") return t("about.uninstall.error");
+    return t("about.uninstall");
+  };
 
-	const getImportLabel = () => {
-		if (importStatus === "importing") return "Importing...";
-		if (importStatus === "success") return "Imported!";
-		if (importStatus === "error") return "Import failed. Check the file and try again.";
-		return "Import Settings";
-	};
+  const getUninstallDesc = () => {
+    if (uninstallStatus === "confirm") return t("about.uninstall.confirm.desc");
+    if (uninstallStatus === "error") return uninstallError || t("about.uninstall.error.desc");
+    return t("about.uninstall.desc");
+  };
 
-	return (
-		<div className="about-tab-container">
-			<div className="about-header">
-				<img src="/gloom.svg" className="about-logo" alt="GLOOM Logo" draggable={false} />
-				<h1 className="about-title">GLOOM</h1>
-				<p className="about-version">Version {appVersion}</p>
-				<p className="about-credit">
-					Made with <span className="about-heart">❤️</span> by{" "}
-					<button
-						className="about-author"
-						onClick={() => openUrl("https://github.com/NandiVardhan2007")}
-						title="Nandu on GitHub"
-					>
-						<GithubIcon size={12} />
-						<span>Nandu</span>
-					</button>
-				</p>
-			</div>
 
-			<div className="setting-group-label">Software Updates</div>
-			<div className="setting-group">
-				<SettingRow icon={Download} label="Auto Update" desc="Update automatically on startup">
-					<label className="toggle-switch">
-						<input type="checkbox" checked={autoUpdate} onChange={toggleAutoUpdate} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+  return (
+    <div className="about-tab-container">
+      <div className="about-header">
+        <img src="/gloom.png" className="about-logo" alt="GLOOM Logo" />
+        <h1 className="about-title">GLOOM</h1>
+        <p className="about-version">{t("about.version", { version: appVersion || "—" })}</p>
+        <button
+          className={`update-pill update-pill--${updateStatus || "idle"}`}
+          disabled={pillBusy}
+          onClick={() => (updateStatus === "available" ? installUpdate() : checkForUpdates())}
+        >
+          {getPillLabel()}
+        </button>
+      </div>
 
-				<SettingRow
-					icon={getUpdateIcon()}
-					iconClassName={isBusy ? "setting-icon--spin" : ""}
-					label={getUpdateLabel()}
-					desc={getUpdateDesc()}
-					action={!isBusy}
-					divider={false}
-					onClick={() => {
-						if (isBusy) return;
-						if (isAvailable) {
-							installUpdate();
-						} else {
-							checkForUpdates();
-						}
-					}}
-				>
-					{isAvailable && (
-						<button
-							className="update-action-btn"
-							onClick={(e) => {
-								e.stopPropagation();
-								installUpdate();
-							}}
-						>
-							<Download size={12} strokeWidth={2.2} />
-							<span>Update Now</span>
-						</button>
-					)}
-				</SettingRow>
-			</div>
+      <div className="setting-group-label">{t("about.updates.group")}</div>
+      <div className="setting-group">
+        <SettingRow icon={Download} label={t("about.autoUpdate")} desc={t("about.autoUpdate.desc")}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={autoUpdate} onChange={toggleAutoUpdate} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
 
-			<div className="setting-group-label setting-group-label--spaced">Data</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={Compass}
-					label="Interactive Feature Tour"
-					desc="Replay the walkthrough guide of Dynamic Island, panels and dock"
-					action
-					onClick={() => emit("start-tour")}
-				/>
-				<SettingRow
-					icon={FileDown}
-					label={getExportLabel()}
-					desc="Save settings to a file"
-					action
-					onClick={handleExportSettings}
-				/>
-				<SettingRow
-					icon={Upload}
-					label={getImportLabel()}
-					desc="Load settings from a file"
-					action
-					divider={false}
-					onClick={handleImportSettings}
-				/>
-			</div>
-		</div>
-	);
+        <SettingRow icon={FlaskConical} label={t("about.prerelease")} desc={t("about.prerelease.desc")}>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={prereleaseChannel} onChange={togglePrereleaseChannel} />
+            <span className="slider"></span>
+          </label>
+        </SettingRow>
+
+        <SettingRow
+          icon={RefreshCw}
+          label={getUpdateLabel()}
+          desc={getUpdateDesc()}
+          action
+          divider={false}
+          onClick={() => (updateStatus === "available" ? installUpdate() : checkForUpdates())}
+        />
+      </div>
+
+      <div className="setting-group-label setting-group-label--spaced">
+        {t("about.data.group")}
+      </div>
+      <div className="setting-group">
+        <SettingRow icon={Compass} label={t("about.tour")} desc={t("about.tour.desc")} action onClick={() => emit("start-tour")} />
+        <SettingRow icon={FileDown} label={getExportLabel()} desc={t("about.export.desc")} action onClick={handleExportSettings} />
+        <SettingRow icon={Upload} label={getImportLabel()} desc={t("about.import.desc")} action onClick={handleImportSettings} />
+        <SettingRow
+          icon={RotateCcw}
+          label={getResetLabel()}
+          desc={getResetDesc()}
+          action
+          divider={false}
+          danger={resetStatus === "confirm"}
+          onClick={handleResetSettings}
+        />
+      </div>
+
+      <div className="setting-group-label setting-group-label--spaced">
+        {t("about.danger.group")}
+      </div>
+      <div className="setting-group">
+        <SettingRow
+          icon={Trash2}
+          label={getUninstallLabel()}
+          desc={getUninstallDesc()}
+          action
+          divider={false}
+          danger={uninstallStatus === "confirm" || uninstallStatus === "error"}
+          onClick={handleUninstallGLOOM}
+        />
+      </div>
+
+      <div className="about-footer">
+        <p>{t("about.footer")}</p>
+      </div>
+    </div>
+  );
 }

@@ -1,69 +1,44 @@
-use base64::{engine::general_purpose, Engine as _};
+use windows::Win32::Foundation::{HWND, HGLOBAL};
+use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL, IPersistFile, CLSCTX_INPROC_SERVER};
+use windows::Win32::System::Com::StructuredStorage::{CreateStreamOnHGlobal, GetHGlobalFromStream};
+use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+use windows::core::Interface;
+use windows::Win32::UI::WindowsAndMessaging::HICON;
+use windows::Win32::Graphics::Imaging::{IWICImagingFactory, CLSID_WICImagingFactory, GUID_ContainerFormatPng, WICBitmapEncoderNoCache, GUID_WICPixelFormat32bppPBGRA};
+use base64::{Engine as _, engine::general_purpose};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri::Manager;
-use windows::core::Interface;
-use windows::Win32::Foundation::{HGLOBAL, HWND};
-use windows::Win32::Graphics::Imaging::{
-    CLSID_WICImagingFactory, GUID_ContainerFormatPng, GUID_WICPixelFormat32bppPBGRA,
-    IWICImagingFactory, WICBitmapEncoderNoCache,
-};
-use windows::Win32::System::Com::StructuredStorage::{CreateStreamOnHGlobal, GetHGlobalFromStream};
-use windows::Win32::System::Com::{
-    CoCreateInstance, IPersistFile, CLSCTX_ALL, CLSCTX_INPROC_SERVER,
-};
-use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
-use windows::Win32::UI::WindowsAndMessaging::HICON;
 
 pub fn resolve_shortcut(path: &str) -> Option<(String, String)> {
     unsafe {
         let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_ALL).ok()?;
         let persist_file: IPersistFile = shell_link.cast().ok()?;
-
+        
         let wide_path: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
-        persist_file
-            .Load(
-                windows::core::PCWSTR(wide_path.as_ptr()),
-                windows::Win32::System::Com::STGM(0),
-            )
-            .ok()?;
-
-        let _ = shell_link.Resolve(HWND(std::ptr::null_mut()), 1 | 16 | 32);
-
+        persist_file.Load(windows::core::PCWSTR(wide_path.as_ptr()), windows::Win32::System::Com::STGM(0)).ok()?;
+        
+        let _ = shell_link.Resolve(HWND(std::ptr::null_mut()), 1 | 16 | 32); 
+        
         let mut buffer = [0u16; 260];
         let mut data = windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW::default();
         shell_link.GetPath(&mut buffer, &mut data, 0).ok()?;
-
+        
         let mut arg_buffer = [0u16; 1024];
         let _ = shell_link.GetArguments(&mut arg_buffer);
 
-        let target = String::from_utf16_lossy(&buffer)
-            .trim_matches(char::from(0))
-            .to_string();
-        let args = String::from_utf16_lossy(&arg_buffer)
-            .trim_matches(char::from(0))
-            .to_string();
-
-        if target.trim().is_empty() {
-            None
-        } else {
-            Some((target, args))
-        }
+        let target = String::from_utf16_lossy(&buffer).trim_matches(char::from(0)).to_string();
+        let args = String::from_utf16_lossy(&arg_buffer).trim_matches(char::from(0)).to_string();
+        
+        if target.trim().is_empty() { None } else { Some((target, args)) }
     }
 }
 
-pub static ORIGINAL_TRAY_RECT: std::sync::Mutex<Option<windows::Win32::Foundation::RECT>> =
-    std::sync::Mutex::new(None);
-static ORIGINAL_SEC_TRAY_RECTS: std::sync::Mutex<
-    Option<std::collections::HashMap<isize, windows::Win32::Foundation::RECT>>,
-> = std::sync::Mutex::new(None);
+pub static ORIGINAL_TRAY_RECT: std::sync::Mutex<Option<windows::Win32::Foundation::RECT>> = std::sync::Mutex::new(None);
+static ORIGINAL_SEC_TRAY_RECTS: std::sync::Mutex<Vec<(isize, windows::Win32::Foundation::RECT)>> = std::sync::Mutex::new(Vec::new());
 static ORIGINAL_TASKBAR_STATE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
-static ORIGINAL_TASKBAR_AUTOHIDE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
-static TASKBAR_OWNER_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-static TASKBAR_OWNER_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
 static TASKBAR_MARKER: OnceLock<PathBuf> = OnceLock::new();
-static TASKBAR_WATCHDOG_STARTED: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
 
 /// Point the crash-recovery marker at this user's app config dir (called from setup).
 pub fn init_taskbar_marker(app: &tauri::AppHandle) {
@@ -72,599 +47,179 @@ pub fn init_taskbar_marker(app: &tauri::AppHandle) {
     }
 }
 
-/// A separate Gloom process restores Explorer's taskbar when this process is
-/// terminated without running Tauri's exit handlers.
-pub fn start_taskbar_watchdog() -> std::io::Result<()> {
-    let mut started = TASKBAR_WATCHDOG_STARTED
-        .lock()
-        .map_err(|_| std::io::Error::other("taskbar watchdog lock poisoned"))?;
-    if *started {
-        return Ok(());
-    }
-    let marker = TASKBAR_MARKER.get().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "taskbar marker path unavailable",
-        )
-    })?;
-    if let Some(dir) = marker.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    std::process::Command::new(std::env::current_exe()?)
-        .arg("--taskbar-watchdog")
-        .arg(std::process::id().to_string())
-        .arg(marker)
-        .spawn()?;
-    *started = true;
-    Ok(())
-}
-
-pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
-    use windows::Win32::Foundation::{
-        CloseHandle, GetLastError, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0,
-    };
-    use windows::Win32::System::Threading::{
-        OpenProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE,
-    };
-    // Only treat a missing PID as an already-exited parent. Access denied or
-    // another wait failure must not restore the taskbar over a live Gloom.
-    unsafe {
-        match OpenProcess(PROCESS_SYNCHRONIZE, false, parent_pid) {
-            Ok(parent) => {
-                let result = WaitForSingleObject(parent, INFINITE);
-                let _ = CloseHandle(parent);
-                if result != WAIT_OBJECT_0 {
-                    return;
-                }
-            }
-            Err(_) if GetLastError() == ERROR_INVALID_PARAMETER => {}
-            Err(_) => {
-                return;
-            }
-        }
-    }
-    let _ = TASKBAR_MARKER.set(marker.clone());
-    // Explorer can be restarting at the same time. Retry briefly, but never
-    // act on a marker owned by a replacement Gloom process.
-    for _ in 0..120 {
-        if std::fs::read_to_string(&marker)
-            .ok()
-            .and_then(|contents| parse_marker_pid(&contents))
-            != Some(parent_pid)
-        {
-            return;
-        }
-        restore_taskbar_after_crash();
-        if !marker.exists() {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(250));
-    }
-}
-
-/// True if a previous Gloom session died without restoring the native taskbar.
 pub fn taskbar_marker_exists() -> bool {
     TASKBAR_MARKER.get().is_some_and(|p| p.exists())
 }
 
-/// The marker records the user's own taskbar state (`ABM_GETSTATE`) from
-/// before Gloom forced auto-hide, so a crash can't lose it. Markers written by
-/// older versions only contain "1" and carry no state.
-fn marker_contents(
-    original_state: i32,
-    pid: u32,
-    primary: Option<windows::Win32::Foundation::RECT>,
-    secondaries: &std::collections::HashMap<isize, windows::Win32::Foundation::RECT>,
-) -> String {
-    let mut contents = format!("abstate={original_state}\npid={pid}\n");
-    if let Some(rect) = primary {
-        contents.push_str(&format!(
-            "primary={},{},{},{}\n",
-            rect.left, rect.top, rect.right, rect.bottom
-        ));
+fn rect_is_on_screen(r: &windows::Win32::Foundation::RECT) -> bool {
+    r.left > -5000 && r.top > -5000
+}
+
+unsafe fn monitor_rects() -> Vec<(windows::Win32::Foundation::RECT, bool)> {
+    use windows::Win32::Foundation::{LPARAM, RECT};
+    use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO};
+
+    unsafe extern "system" fn collect(hmon: HMONITOR, _: HDC, _: *mut RECT, lparam: LPARAM) -> windows::core::BOOL {
+        let list = &mut *(lparam.0 as *mut Vec<(RECT, bool)>);
+        let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if GetMonitorInfoW(hmon, &mut mi).as_bool() {
+            list.push((mi.rcMonitor, mi.dwFlags & 1 != 0));
+        }
+        windows::core::BOOL(1)
     }
-    // One line per secondary taskbar, keyed by its window, for every monitor.
-    let mut secondaries: Vec<_> = secondaries.iter().collect();
-    secondaries.sort_by_key(|(hwnd, _)| **hwnd);
-    for (hwnd, rect) in secondaries {
-        contents.push_str(&format!(
-            "secondary={hwnd},{},{},{},{}\n",
-            rect.left, rect.top, rect.right, rect.bottom
-        ));
+    let mut monitors: Vec<(RECT, bool)> = Vec::new();
+    let _ = EnumDisplayMonitors(None, None, Some(collect), LPARAM(&mut monitors as *mut _ as isize));
+    monitors
+}
+
+fn taskbar_monitor(monitors: &[(windows::Win32::Foundation::RECT, bool)], primary: bool, taskbar: &windows::Win32::Foundation::RECT) -> Option<windows::Win32::Foundation::RECT> {
+    if primary {
+        monitors.iter().find(|(_, is_primary)| *is_primary).map(|(r, _)| *r)
+    } else {
+        let width = taskbar.right - taskbar.left;
+        monitors.iter().find(|(r, is_primary)| !*is_primary && r.left == taskbar.left && r.right == taskbar.right)
+            .or_else(|| monitors.iter().find(|(r, is_primary)| !*is_primary && r.right - r.left == width))
+            .or_else(|| monitors.iter().find(|(_, is_primary)| !*is_primary))
+            .map(|(r, _)| *r)
     }
-    contents
+}
+
+unsafe fn park_below_monitor(hwnd: windows::Win32::Foundation::HWND, primary: bool) {
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER};
+    let mut cur = RECT::default();
+    let _ = GetWindowRect(hwnd, &mut cur);
+    let (x, y) = match taskbar_monitor(&monitor_rects(), primary, &cur) {
+        Some(m) => (m.left, m.bottom),
+        None => (-10000, -10000),
+    };
+    let _ = SetWindowPos(hwnd, None, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+unsafe fn restore_tray_position(hwnd: windows::Win32::Foundation::HWND, primary: bool, saved: Option<windows::Win32::Foundation::RECT>) {
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER};
+
+    if let Some(r) = saved {
+        if rect_is_on_screen(&r) {
+            let _ = SetWindowPos(hwnd, None, r.left, r.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            return;
+        }
+    }
+
+    let mut cur = RECT::default();
+    let _ = GetWindowRect(hwnd, &mut cur);
+    let h = cur.bottom - cur.top;
+    let monitors = monitor_rects();
+    let inside_a_monitor = monitors.iter().any(|(m, _)| cur.left >= m.left && cur.top >= m.top && cur.right <= m.right && cur.bottom <= m.bottom);
+    if inside_a_monitor { return; }
+
+    if let Some(mon) = taskbar_monitor(&monitors, primary, &cur) {
+        let _ = SetWindowPos(hwnd, None, mon.left, mon.bottom - h, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
+/// The marker stores the user's own taskbar state from before we forced auto-hide,
+/// so a crash can't lose it. Old markers just have "1".
+fn marker_contents(original_state: i32) -> String {
+    format!("abstate={original_state}")
 }
 
 fn parse_marker_state(contents: &str) -> Option<i32> {
-    contents
-        .lines()
-        .next()?
-        .strip_prefix("abstate=")?
-        .parse()
-        .ok()
+    contents.trim().strip_prefix("abstate=")?.parse().ok()
 }
 
-fn parse_marker_pid(contents: &str) -> Option<u32> {
-    contents
-        .lines()
-        .find_map(|line| line.strip_prefix("pid=")?.parse().ok())
-}
-
-fn parse_rect<'a>(
-    mut parts: impl Iterator<Item = &'a str>,
-) -> Option<windows::Win32::Foundation::RECT> {
-    let mut next = || parts.next()?.parse::<i32>().ok();
-    let rect = windows::Win32::Foundation::RECT {
-        left: next()?,
-        top: next()?,
-        right: next()?,
-        bottom: next()?,
-    };
-    parts.next().is_none().then_some(rect)
-}
-
-fn parse_marker_rect(contents: &str, key: &str) -> Option<windows::Win32::Foundation::RECT> {
-    parse_rect(
-        contents
-            .lines()
-            .find_map(|line| line.strip_prefix(key))?
-            .split(','),
-    )
-}
-
-fn parse_marker_secondaries(
-    contents: &str,
-) -> std::collections::HashMap<isize, windows::Win32::Foundation::RECT> {
-    contents
-        .lines()
-        .filter_map(|line| {
-            let mut parts = line.strip_prefix("secondary=")?.split(',');
-            let hwnd = parts.next()?.parse::<isize>().ok()?;
-            Some((hwnd, parse_rect(parts)?))
-        })
-        .collect()
-}
-
-/// Restores the native taskbar after a previous session died with it hidden.
-/// The state saved in the marker becomes the original to restore; without it,
-/// the current state would be captured instead, and that is Gloom's own
-/// auto-hide.
+/// Restores the taskbar after a session died with it hidden, using the state saved in the marker.
 pub fn restore_taskbar_after_crash() {
     let saved = TASKBAR_MARKER
         .get()
-        .and_then(|p| std::fs::read_to_string(p).ok());
-    if let Some(contents) = saved {
-        if let Some(state) = parse_marker_state(&contents) {
-            ORIGINAL_TASKBAR_STATE.store(state, std::sync::atomic::Ordering::Relaxed);
-            ORIGINAL_TASKBAR_AUTOHIDE.store(
-                if (state & 1) != 0 { 1 } else { 0 },
-                std::sync::atomic::Ordering::Relaxed,
-            );
-        }
-        // An unplaced rectangle would park the taskbar in the screen's corner.
-        if let Some(rect) = parse_marker_rect(&contents, "primary=").filter(is_placed_rect) {
-            if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
-                *guard = Some(rect);
-            }
-        }
-        let mut secondaries = parse_marker_secondaries(&contents);
-        secondaries.retain(|_, rect| is_placed_rect(rect));
-        if !secondaries.is_empty() {
-            if let Ok(mut guard) = ORIGINAL_SEC_TRAY_RECTS.lock() {
-                guard
-                    .get_or_insert_with(std::collections::HashMap::new)
-                    .extend(secondaries);
-            }
-        }
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|contents| parse_marker_state(&contents));
+    if let Some(state) = saved {
+        ORIGINAL_TASKBAR_STATE.store(state, std::sync::atomic::Ordering::Relaxed);
     }
     set_taskbar_visibility(true, true);
 }
 
-pub fn secondary_taskbar_windows() -> Vec<windows::Win32::Foundation::HWND> {
-    use windows::core::BOOL;
-    use windows::Win32::Foundation::{HWND, LPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetClassNameA};
-
-    unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let windows = &mut *(lparam.0 as *mut Vec<HWND>);
-        let mut class = [0u8; 64];
-        let length = GetClassNameA(hwnd, &mut class);
-        if &class[..length as usize] == b"Shell_SecondaryTrayWnd" {
-            windows.push(hwnd);
-        }
-        BOOL(1)
-    }
-
-    let mut windows = Vec::new();
-    unsafe {
-        let _ = EnumWindows(
-            Some(collect),
-            LPARAM(&mut windows as *mut Vec<HWND> as isize),
-        );
-    }
-    windows
-}
-
-pub fn any_native_taskbar_visible() -> bool {
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, IsWindowVisible};
-    unsafe {
-        let primary = windows::core::PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
-        FindWindowA(primary, windows::core::PCSTR::null())
-            .is_ok_and(|hwnd| IsWindowVisible(hwnd).as_bool() && placed_taskbar_rect(hwnd).is_some())
-            || secondary_taskbar_windows()
-                .into_iter()
-                .any(|hwnd| IsWindowVisible(hwnd).as_bool() && placed_taskbar_rect(hwnd).is_some())
-    }
-}
-
-/// Quietly enforces that the native taskbar is hidden and positioned offscreen
-/// without broadcasting WM_SETTINGCHANGE or rewriting registry keys.
-pub fn enforce_taskbar_hidden() {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowA, SetWindowPos, ShowWindow, SW_HIDE, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
-    };
-    unsafe {
-        let tray_class = windows::core::PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
-        if let Ok(tray_hwnd) = FindWindowA(tray_class, windows::core::PCSTR::null()) {
-            if placed_taskbar_rect(tray_hwnd).is_some() {
-                let _ = ShowWindow(tray_hwnd, SW_HIDE);
-                let _ = SetWindowPos(
-                    tray_hwnd,
-                    None,
-                    -10000,
-                    -10000,
-                    0,
-                    0,
-                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                );
+pub fn secondary_taskbars() -> Vec<windows::Win32::Foundation::HWND> {
+    use windows::Win32::UI::WindowsAndMessaging::FindWindowExA;
+    let mut taskbars = Vec::new();
+    let mut previous = None;
+    loop {
+        let next = unsafe {
+            FindWindowExA(None, previous, windows::core::PCSTR(c"Shell_SecondaryTrayWnd".as_ptr() as *const u8), windows::core::PCSTR::null())
+        };
+        match next {
+            Ok(hwnd) if !hwnd.0.is_null() => {
+                taskbars.push(hwnd);
+                previous = Some(hwnd);
             }
-        }
-        for secondary_tray_hwnd in secondary_taskbar_windows() {
-            if placed_taskbar_rect(secondary_tray_hwnd).is_some() {
-                let _ = ShowWindow(secondary_tray_hwnd, SW_HIDE);
-                let _ = SetWindowPos(
-                    secondary_tray_hwnd,
-                    None,
-                    -10000,
-                    -10000,
-                    0,
-                    0,
-                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                );
-            }
+            _ => break,
         }
     }
+    taskbars
 }
 
-fn reset_taskbar_rects_after_shell_restart() {
-    if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
-        *guard = None;
+pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) {
+    if visible {
+        crate::state::NATIVE_TASKBAR_HIDDEN.store(false, std::sync::atomic::Ordering::SeqCst);
     }
-    if let Ok(mut guard) = ORIGINAL_SEC_TRAY_RECTS.lock() {
-        *guard = None;
-    }
-}
 
-/// Explorer can recreate the tray windows while Gloom remains active. A new
-/// owner or primary HWND invalidates the saved tray rectangles; a DPI broadcast
-/// with the same HWND must not discard them while the taskbar is parked offscreen.
-pub fn refresh_taskbar_owner() -> bool {
-    use std::sync::atomic::Ordering;
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, GetWindowThreadProcessId};
     unsafe {
-        let class = windows::core::PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
-        let Ok(hwnd) = FindWindowA(class, windows::core::PCSTR::null()) else {
-            return false;
-        };
-        let mut pid = 0;
-        GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        if pid == 0 {
-            return false;
-        }
-        let previous = TASKBAR_OWNER_PID.swap(pid, Ordering::Relaxed);
-        let previous_hwnd = TASKBAR_OWNER_HWND.swap(hwnd.0 as isize, Ordering::Relaxed);
-        if (previous != 0 && previous != pid)
-            || (previous_hwnd != 0 && previous_hwnd != hwnd.0 as isize)
-        {
-            reset_taskbar_rects_after_shell_restart();
-            return true;
-        }
-        false
-    }
-}
+        use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, ShowWindow, SW_HIDE, SW_SHOW, GetWindowRect};
+        use windows::Win32::UI::Shell::{SHAppBarMessage, APPBARDATA, ABM_SETSTATE, ABM_GETSTATE};
 
-/// A taskbar window's rectangle, if Explorer has placed it on screen. Right
-/// after Explorer restarts, a new taskbar can still report an empty rectangle;
-/// saving that would restore the taskbar to the screen's corner later, so it
-/// is left unsaved and restoring asks Explorer for the position instead.
-fn placed_taskbar_rect(
-    hwnd: windows::Win32::Foundation::HWND,
-) -> Option<windows::Win32::Foundation::RECT> {
-    let mut rect = windows::Win32::Foundation::RECT::default();
-    unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect) }.ok()?;
-    is_placed_rect(&rect).then_some(rect)
-}
-
-fn is_placed_rect(rect: &windows::Win32::Foundation::RECT) -> bool {
-    rect.right > rect.left && rect.bottom > rect.top && rect.left > -9000 && rect.top > -9000
-}
-
-/// Reads whether Windows taskbar auto-hide is enabled in the StuckRects3 registry key.
-pub fn get_taskbar_autohide_registry() -> Option<bool> {
-    unsafe {
-        use windows::Win32::System::Registry::{
-            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ,
-            REG_BINARY,
-        };
-        let subkey = windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StuckRects3");
-        let mut hkey = HKEY::default();
-        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey, Some(0), KEY_READ, &mut hkey).is_ok() {
-            let mut value_type = REG_BINARY;
-            let mut settings = [0u8; 64];
-            let mut value_size = settings.len() as u32;
-            let val_name = windows::core::w!("Settings");
-            let res = RegQueryValueExW(
-                hkey,
-                val_name,
-                None,
-                Some(&mut value_type),
-                Some(settings.as_mut_ptr()),
-                Some(&mut value_size),
-            );
-            let _ = RegCloseKey(hkey);
-            if res.is_ok() && value_size > 8 {
-                return Some((settings[8] & 0x01) != 0);
-            }
-        }
-        None
-    }
-}
-
-/// Sets Windows taskbar auto-hide bit in the StuckRects3 registry key.
-pub fn set_taskbar_autohide_registry(enable_autohide: bool) -> bool {
-    unsafe {
-        use windows::Win32::System::Registry::{
-            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
-            KEY_READ, KEY_WRITE, REG_BINARY,
-        };
-        let subkey = windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StuckRects3");
-        let mut hkey = HKEY::default();
-        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey, Some(0), KEY_READ | KEY_WRITE, &mut hkey).is_ok() {
-            let mut value_type = REG_BINARY;
-            let mut settings = [0u8; 64];
-            let mut value_size = settings.len() as u32;
-            let val_name = windows::core::w!("Settings");
-            if RegQueryValueExW(
-                hkey,
-                val_name,
-                None,
-                Some(&mut value_type),
-                Some(settings.as_mut_ptr()),
-                Some(&mut value_size),
-            )
-            .is_ok()
-                && value_size > 8
-            {
-                if enable_autohide {
-                    settings[8] |= 0x01;
-                } else {
-                    settings[8] &= !0x01;
-                }
-                let write_res = RegSetValueExW(
-                    hkey,
-                    val_name,
-                    Some(0),
-                    REG_BINARY,
-                    Some(&settings[..value_size as usize]),
-                );
-                let _ = RegCloseKey(hkey);
-                return write_res.is_ok();
-            }
-            let _ = RegCloseKey(hkey);
-        }
-        false
-    }
-}
-
-static LAST_APPLIED_TASKBAR_VISIBILITY: std::sync::atomic::AtomicI32 =
-    std::sync::atomic::AtomicI32::new(-1);
-
-pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
-    // Delayed AppBar and tray callbacks cannot hide Windows' taskbar after the
-    // dock has been disabled or while its tray is in use.
-    if !visible
-        && (!dock_enabled()
-            || crate::state::TRAY_INTERACTION_ACTIVE.load(std::sync::atomic::Ordering::Relaxed))
-    {
-        return false;
-    }
-    let prev_vis = LAST_APPLIED_TASKBAR_VISIBILITY.swap(
-        if visible { 1 } else { 0 },
-        std::sync::atomic::Ordering::Relaxed,
-    );
-    if !visible && prev_vis == 0 {
-        enforce_taskbar_hidden();
-        return true;
-    }
-    refresh_taskbar_owner();
-    unsafe {
-        use windows::Win32::UI::Shell::{
-            SHAppBarMessage, ABM_GETSTATE, ABM_GETTASKBARPOS, ABM_SETSTATE, APPBARDATA,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::{
-            FindWindowA, GetWindowRect, IsWindowVisible, ShowWindow, SW_HIDE, SW_SHOW,
-        };
-
-        // Startup retries and display/AppBar handlers can still try to hide the
-        // taskbar after shutdown restored it, leaving the user without one.
+        // Startup retries and display handlers can try to hide the taskbar after shutdown restored it.
         if !visible && crate::state::SHUTTING_DOWN.load(std::sync::atomic::Ordering::Relaxed) {
-            return false;
+            return;
         }
 
         let tray_class = windows::core::PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
-        let Ok(tray_hwnd) = FindWindowA(tray_class, windows::core::PCSTR::null()) else {
-            return false;
-        };
-        // Every secondary taskbar, including third and later monitors.
-        let secondary_trays = secondary_taskbar_windows();
-
-        // Legacy crash markers did not save the original window rectangle.
-        // Explorer's AppBar position can still recover it after Gloom moved the
-        // taskbar window off-screen.
-        if visible {
-            if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
-                if guard.is_none() {
-                    let mut position = APPBARDATA {
-                        cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                        hWnd: tray_hwnd,
-                        ..Default::default()
-                    };
-                    if SHAppBarMessage(ABM_GETTASKBARPOS, &mut position) != 0
-                        && is_placed_rect(&position.rc)
-                    {
-                        *guard = Some(position.rc);
-                    }
-                }
-            }
-        }
-
-        if !visible {
-            if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
-                if guard.is_none() {
-                    *guard = placed_taskbar_rect(tray_hwnd);
-                }
-            }
-            if let Ok(mut guard) = ORIGINAL_SEC_TRAY_RECTS.lock() {
-                let rects = guard.get_or_insert_with(std::collections::HashMap::new);
-                for hwnd in &secondary_trays {
-                    if let Some(rect) = placed_taskbar_rect(*hwnd) {
-                        rects.entry(hwnd.0 as isize).or_insert(rect);
-                    }
-                }
-            }
-        }
 
         // Save original taskbar state before modifying
         if ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed) == -1 {
-            let mut get_abd = APPBARDATA {
-                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                hWnd: tray_hwnd,
-                ..Default::default()
-            };
+            let mut get_abd = APPBARDATA { cbSize: std::mem::size_of::<APPBARDATA>() as u32, ..Default::default() };
             let original_state = SHAppBarMessage(ABM_GETSTATE, &mut get_abd);
-            ORIGINAL_TASKBAR_STATE
-                .store(original_state as i32, std::sync::atomic::Ordering::Relaxed);
-        }
-        if ORIGINAL_TASKBAR_AUTOHIDE.load(std::sync::atomic::Ordering::Relaxed) == -1 {
-            let reg_autohide = get_taskbar_autohide_registry().unwrap_or(false);
-            ORIGINAL_TASKBAR_AUTOHIDE.store(
-                if reg_autohide { 1 } else { 0 },
-                std::sync::atomic::Ordering::Relaxed,
-            );
+            ORIGINAL_TASKBAR_STATE.store(original_state as i32, std::sync::atomic::Ordering::Relaxed);
         }
 
-        // Persist the original state and placement before hiding. The watchdog
-        // restores it if this process is force-killed, and startup is a fallback.
-        // Written after the original state is known, so the marker can carry it.
-        if !visible {
-            if start_taskbar_watchdog().is_err() {
-                return false;
+        // Crash marker: written when hidden so the next launch can undo it after a force kill.
+        // Written after the original state is known so it can carry it.
+        if visible {
+            if let Some(p) = TASKBAR_MARKER.get() {
+                let _ = std::fs::remove_file(p);
             }
-            let Some(p) = TASKBAR_MARKER.get() else {
-                return false;
-            };
-            let original = ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed);
-            let primary = ORIGINAL_TRAY_RECT.lock().ok().and_then(|guard| *guard);
-            let secondaries = ORIGINAL_SEC_TRAY_RECTS
-                .lock()
-                .ok()
-                .and_then(|guard| guard.clone())
-                .unwrap_or_default();
-            let contents = marker_contents(original, std::process::id(), primary, &secondaries);
-            let existing = std::fs::read_to_string(p).ok();
-            // Never take over a marker that another Gloom process owns.
-            if (existing.is_some() || p.exists())
-                && existing.as_deref().and_then(parse_marker_pid) != Some(std::process::id())
-            {
-                return false;
+        } else if let Some(p) = TASKBAR_MARKER.get() {
+            if !p.exists() {
+                let original = ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed);
+                let _ = std::fs::write(p, marker_contents(original));
             }
-            // Rewritten when a monitor added since the last hide brings another
-            // taskbar, so the watchdog can restore it as well.
-            if existing.as_deref() != Some(contents.as_str()) {
-                use std::io::Write;
-                let written = std::fs::File::create(p).and_then(|mut file| {
-                    file.write_all(contents.as_bytes())?;
-                    file.sync_all()
-                });
-                if written.is_err() {
-                    return false;
-                }
-            }
-        }
-
-        // Synchronize Windows taskbar auto-hide setting in registry and notify shell
-        if !visible {
-            let _ = set_taskbar_autohide_registry(true);
-        } else {
-            let orig_autohide =
-                ORIGINAL_TASKBAR_AUTOHIDE.load(std::sync::atomic::Ordering::Relaxed);
-            if orig_autohide != -1 {
-                let _ = set_taskbar_autohide_registry(orig_autohide == 1);
-            }
-        }
-        {
-            use windows::Win32::UI::WindowsAndMessaging::{
-                SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
-            };
-            let tray_settings = windows::core::w!("TraySettings");
-            let mut msg_res = 0usize;
-            let _ = SendMessageTimeoutW(
-                tray_hwnd,
-                WM_SETTINGCHANGE,
-                windows::Win32::Foundation::WPARAM(0),
-                windows::Win32::Foundation::LPARAM(tray_settings.as_ptr() as isize),
-                SMTO_ABORTIFHUNG,
-                200,
-                Some(&mut msg_res),
-            );
         }
 
         let state_val = if visible {
-            let orig_autohide =
-                ORIGINAL_TASKBAR_AUTOHIDE.load(std::sync::atomic::Ordering::Relaxed);
-            if orig_autohide == 1 {
-                1
+            let orig = ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed);
+            if orig != -1 {
+                orig as isize
+            } else if always_on_top {
+                2
             } else {
-                let orig = ORIGINAL_TASKBAR_STATE.load(std::sync::atomic::Ordering::Relaxed);
-                if orig != -1 && (orig & 1) == 0 {
-                    orig as isize
-                } else if always_on_top {
-                    2
-                } else {
-                    0
-                }
+                1
             }
         } else {
-            1 // Force Auto-hide when dock is enabled
+            1
         };
 
         // 1. Set the taskbar state (Auto-hide or Always-on-top)
-        let mut abd = APPBARDATA {
-            cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-            hWnd: tray_hwnd,
-            lParam: windows::Win32::Foundation::LPARAM(state_val),
-            ..Default::default()
+        let mut abd = APPBARDATA { 
+            cbSize: std::mem::size_of::<APPBARDATA>() as u32, 
+            lParam: windows::Win32::Foundation::LPARAM(state_val), 
+            ..Default::default() 
         };
         SHAppBarMessage(ABM_SETSTATE, &mut abd);
 
         // 2. Control visibility of the primary taskbar
-        let mut primary_positioned = true;
-        {
-            use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongA, SetLayeredWindowAttributes, SetWindowLongA, SetWindowPos,
-                GWL_EXSTYLE, LWA_ALPHA, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED,
-                WS_EX_TRANSPARENT,
-            };
+        if let Ok(tray_hwnd) = FindWindowA(tray_class, windows::core::PCSTR::null()) {
+            use windows::Win32::UI::WindowsAndMessaging::{IsWindowVisible, GetWindowLongA, SetWindowLongA, GWL_EXSTYLE, WS_EX_LAYERED, WS_EX_TRANSPARENT, SetLayeredWindowAttributes, LWA_ALPHA};
             if visible {
                 // Revert any lingering WS_EX_LAYERED / WS_EX_TRANSPARENT left by
                 // open_system_tray if the user quit before the tray thread cleaned up.
@@ -672,176 +227,538 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
                 let cleaned = ex & !(WS_EX_LAYERED.0 as i32) & !(WS_EX_TRANSPARENT.0 as i32);
                 if cleaned != ex {
                     let _ = SetWindowLongA(tray_hwnd, GWL_EXSTYLE, cleaned);
-                    let _ = SetLayeredWindowAttributes(
-                        tray_hwnd,
-                        windows::Win32::Foundation::COLORREF(0),
-                        255,
-                        LWA_ALPHA,
-                    );
+                    let _ = SetLayeredWindowAttributes(tray_hwnd, windows::Win32::Foundation::COLORREF(0), 255, LWA_ALPHA);
                 }
-                if let Ok(guard) = ORIGINAL_TRAY_RECT.lock() {
-                    let target = guard.as_ref().copied().filter(is_placed_rect).unwrap_or_else(|| {
-                        use windows::Win32::UI::WindowsAndMessaging::{
-                            GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
-                        };
-                        let sw = GetSystemMetrics(SM_CXSCREEN);
-                        let sh = GetSystemMetrics(SM_CYSCREEN);
-                        windows::Win32::Foundation::RECT {
-                            left: 0,
-                            top: sh - 48,
-                            right: sw,
-                            bottom: sh,
-                        }
-                    });
-                    primary_positioned = SetWindowPos(
-                        tray_hwnd,
-                        None,
-                        target.left,
-                        target.top,
-                        0,
-                        0,
-                        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                    )
-                    .is_ok();
-                }
+                let saved = ORIGINAL_TRAY_RECT.lock().ok().and_then(|g| *g);
+                restore_tray_position(tray_hwnd, true, saved);
                 let _ = ShowWindow(tray_hwnd, SW_SHOW);
+
+                {
+                    use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_INVALIDATE, RDW_ALLCHILDREN, RDW_UPDATENOW, RDW_FRAME, RDW_ERASE};
+                    let _ = RedrawWindow(Some(tray_hwnd), None, None, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME | RDW_ERASE);
+
+                    use windows::Win32::UI::WindowsAndMessaging::{SendMessageTimeoutA, HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG};
+                    use windows::Win32::Foundation::{WPARAM, LPARAM};
+                    let param = c"TraySettings";
+                    let mut result: usize = 0;
+                    let _ = SendMessageTimeoutA(HWND_BROADCAST, WM_SETTINGCHANGE, WPARAM(0), LPARAM(param.as_ptr() as isize), SMTO_ABORTIFHUNG, 100, Some(&mut result));
+                }
             } else {
-                if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
-                    if guard.is_none() {
-                        *guard = placed_taskbar_rect(tray_hwnd);
+                let has_rect = ORIGINAL_TRAY_RECT.lock().map(|g| g.is_some()).unwrap_or(false);
+                if !has_rect {
+                    let mut rect = windows::Win32::Foundation::RECT::default();
+                    let _ = GetWindowRect(tray_hwnd, &mut rect);
+                    if rect_is_on_screen(&rect) && IsWindowVisible(tray_hwnd).as_bool() {
+                        if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
+                            *guard = Some(rect);
+                        }
                     }
                 }
                 let _ = ShowWindow(tray_hwnd, SW_HIDE);
                 // Move it far off-screen to prevent any "thin line" artifacts or flashes
-                let _ = SetWindowPos(
-                    tray_hwnd,
-                    None,
-                    -10000,
-                    -10000,
-                    0,
-                    0,
-                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                );
+                park_below_monitor(tray_hwnd, true);
             }
         }
 
-        // 3. Control every secondary taskbar (multi-monitor)
-        let mut secondary_positioned = true;
-        for &secondary_tray_hwnd in &secondary_trays {
-            use windows::Win32::UI::WindowsAndMessaging::{
-                SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
-            };
+        // 3. Control visibility of secondary taskbars (multi-monitor)
+        for secondary_tray_hwnd in secondary_taskbars() {
+            use windows::Win32::UI::WindowsAndMessaging::{IsWindowVisible};
+            let key = secondary_tray_hwnd.0 as isize;
             if visible {
-                let saved = ORIGINAL_SEC_TRAY_RECTS.lock().ok().and_then(|guard| {
-                    guard
-                        .as_ref()
-                        .and_then(|rects| rects.get(&(secondary_tray_hwnd.0 as isize)).copied())
-                });
-                if let Some(rect) = saved {
-                    secondary_positioned &= SetWindowPos(
-                        secondary_tray_hwnd,
-                        None,
-                        rect.left,
-                        rect.top,
-                        0,
-                        0,
-                        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                    )
-                    .is_ok();
-                }
+                let saved = ORIGINAL_SEC_TRAY_RECTS.lock().ok().and_then(|g| g.iter().find(|(k, _)| *k == key).map(|(_, r)| *r));
+                restore_tray_position(secondary_tray_hwnd, false, saved);
                 let _ = ShowWindow(secondary_tray_hwnd, SW_SHOW);
-            } else {
-                let _ = ShowWindow(secondary_tray_hwnd, SW_HIDE);
-                let _ = SetWindowPos(
-                    secondary_tray_hwnd,
-                    None,
-                    -10000,
-                    -10000,
-                    0,
-                    0,
-                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-                );
-            }
-        }
-        let on_screen = |hwnd| {
-            let mut rect = windows::Win32::Foundation::RECT::default();
-            GetWindowRect(hwnd, &mut rect).is_ok() && rect.left > -9000 && rect.top > -9000
-        };
-        let primary_matches = primary_positioned
-            && IsWindowVisible(tray_hwnd).as_bool() == visible
-            && (!visible || on_screen(tray_hwnd));
-        let secondary_matches = secondary_positioned
-            && secondary_trays.iter().all(|&hwnd| {
-                IsWindowVisible(hwnd).as_bool() == visible && (!visible || on_screen(hwnd))
-            });
-        if visible && primary_matches && secondary_matches {
-            if let Some(p) = TASKBAR_MARKER.get() {
-                if p.exists() && std::fs::remove_file(p).is_err() {
-                    return false;
+                {
+                    use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_INVALIDATE, RDW_ALLCHILDREN, RDW_UPDATENOW, RDW_FRAME, RDW_ERASE};
+                    let _ = RedrawWindow(Some(secondary_tray_hwnd), None, None, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME | RDW_ERASE);
                 }
-            }
-            // Restored taskbars no longer need their saved placement.
-            if let Ok(mut guard) = ORIGINAL_SEC_TRAY_RECTS.lock() {
-                if let Some(rects) = guard.as_mut() {
-                    for hwnd in &secondary_trays {
-                        rects.remove(&(hwnd.0 as isize));
+            } else {
+                let has_sec_rect = ORIGINAL_SEC_TRAY_RECTS.lock().map(|g| g.iter().any(|(k, _)| *k == key)).unwrap_or(false);
+                if !has_sec_rect {
+                    let mut rect = windows::Win32::Foundation::RECT::default();
+                    let _ = GetWindowRect(secondary_tray_hwnd, &mut rect);
+                    if rect_is_on_screen(&rect) && IsWindowVisible(secondary_tray_hwnd).as_bool() {
+                        if let Ok(mut guard) = ORIGINAL_SEC_TRAY_RECTS.lock() {
+                            guard.push((key, rect));
+                        }
                     }
                 }
+                let _ = ShowWindow(secondary_tray_hwnd, SW_HIDE);
+                park_below_monitor(secondary_tray_hwnd, false);
             }
         }
-        primary_matches && secondary_matches
+
+        if visible {
+            use windows::Win32::UI::WindowsAndMessaging::{SendMessageTimeoutW, HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG};
+            let setting: Vec<u16> = "TraySettings".encode_utf16().chain(std::iter::once(0)).collect();
+            let _ = SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                windows::Win32::Foundation::WPARAM(0),
+                windows::Win32::Foundation::LPARAM(setting.as_ptr() as isize),
+                SMTO_ABORTIFHUNG,
+                1000,
+                None,
+            );
+        }
     }
 }
 
-/// Extracts the icon a shortcut declares for itself (`IShellLinkW::GetIconLocation`).
-///
-/// This is how Firefox web apps and user-customized shortcuts store their icon.
-/// Returns only real image files (`.ico`, `.png`, ...). Icon references into
-/// executables/DLLs are ignored so the regular target-based extraction is used
-/// instead (it yields a better icon than the file's first resource).
+pub fn exe_description(path: &str) -> Option<String> {
+    use windows::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW};
+    static CACHE: OnceLock<std::sync::Mutex<std::collections::HashMap<String, Option<String>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+    if let Some(hit) = cache.lock().ok().and_then(|c| c.get(path).cloned()) {
+        return hit;
+    }
+
+    let result = unsafe {
+        let wide = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
+        let path_w = wide(path);
+        let size = GetFileVersionInfoSizeW(windows::core::PCWSTR(path_w.as_ptr()), None);
+        if size == 0 {
+            None
+        } else {
+            let mut buf = vec![0u8; size as usize];
+            if GetFileVersionInfoW(windows::core::PCWSTR(path_w.as_ptr()), None, size, buf.as_mut_ptr() as *mut _).is_err() {
+                None
+            } else {
+                let query = |sub: &str| -> Option<(*mut std::ffi::c_void, u32)> {
+                    let sub_w = wide(sub);
+                    let mut ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+                    let mut len = 0u32;
+                    let ok = VerQueryValueW(buf.as_ptr() as *const _, windows::core::PCWSTR(sub_w.as_ptr()), &mut ptr, &mut len);
+                    if ok.as_bool() && !ptr.is_null() && len > 0 { Some((ptr, len)) } else { None }
+                };
+                query("\\VarFileInfo\\Translation").and_then(|(ptr, _)| {
+                    let lang = *(ptr as *const u16);
+                    let codepage = *(ptr as *const u16).add(1);
+                    let (desc, _) = query(&format!("\\StringFileInfo\\{:04x}{:04x}\\FileDescription", lang, codepage))?;
+                    let s = String::from_utf16_lossy(windows::core::PCWSTR(desc as *const u16).as_wide()).trim().to_string();
+                    if s.is_empty() { None } else { Some(s) }
+                })
+            }
+        }
+    };
+
+    if let Ok(mut c) = cache.lock() { c.insert(path.to_string(), result.clone()); }
+    result
+}
+
+pub unsafe fn icon_from_absolute_pidl(pidl: *const windows::Win32::UI::Shell::Common::ITEMIDLIST) -> Option<String> {
+    use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_PIDL};
+    use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
+    let mut shfi: SHFILEINFOW = std::mem::zeroed();
+    let res = SHGetFileInfoW(
+        windows::core::PCWSTR(pidl as *const u16),
+        Default::default(),
+        Some(&mut shfi),
+        std::mem::size_of::<SHFILEINFOW>() as u32,
+        SHGFI_ICON | SHGFI_LARGEICON | SHGFI_PIDL,
+    );
+    if res != 0 && !shfi.hIcon.is_invalid() {
+        let b64 = icon_to_base64(shfi.hIcon);
+        let _ = DestroyIcon(shfi.hIcon);
+        b64
+    } else {
+        None
+    }
+}
+
+pub unsafe fn icon_from_parsing_name(name: &str) -> Option<String> {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::SHParseDisplayName;
+    let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut pidl = std::ptr::null_mut();
+    SHParseDisplayName(windows::core::PCWSTR(wide.as_ptr()), None, &mut pidl, 0, None).ok()?;
+    if pidl.is_null() { return None; }
+    let icon = icon_from_absolute_pidl(pidl);
+    CoTaskMemFree(Some(pidl as *const _));
+    icon
+}
+
+pub unsafe fn icon_to_base64(hicon: HICON) -> Option<String> {
+    let factory: IWICImagingFactory = CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).ok()?;
+    let bitmap = factory.CreateBitmapFromHICON(hicon).ok()?;
+    
+    let stream = CreateStreamOnHGlobal(HGLOBAL(std::ptr::null_mut()), true).ok()?;
+    let encoder = factory.CreateEncoder(&GUID_ContainerFormatPng, std::ptr::null()).ok()?;
+    encoder.Initialize(&stream, WICBitmapEncoderNoCache).ok()?;
+    
+    let mut frame = None;
+    encoder.CreateNewFrame(&mut frame, std::ptr::null_mut()).ok()?;
+    let frame = frame?;
+    frame.Initialize(None).ok()?;
+    
+    let (mut width, mut height) = (0u32, 0u32);
+    bitmap.GetSize(&mut width, &mut height).ok()?;
+    frame.SetSize(width, height).ok()?;
+    
+    let mut format = GUID_WICPixelFormat32bppPBGRA;
+    frame.SetPixelFormat(&mut format).ok()?;
+    
+    frame.WriteSource(&bitmap, std::ptr::null()).ok()?;
+    frame.Commit().ok()?;
+    encoder.Commit().ok()?;
+    
+    let hglobal = GetHGlobalFromStream(&stream).ok()?;
+    let ptr = windows::Win32::System::Memory::GlobalLock(hglobal);
+    let size = windows::Win32::System::Memory::GlobalSize(hglobal);
+    
+    let data = std::slice::from_raw_parts(ptr as *const u8, size);
+    let png_bytes = data.to_vec();
+
+    let _ = windows::Win32::System::Memory::GlobalUnlock(hglobal);
+
+    let normalized = normalize_icon_padding(&png_bytes).unwrap_or(png_bytes);
+    let base64_str = general_purpose::STANDARD.encode(&normalized);
+
+    Some(format!("data:image/png;base64,{}", base64_str))
+}
+
+// Drops a near-black plate behind an icon (Figma, Zen).
+fn strip_dark_plate(img: &mut image::RgbaImage) {
+    let (w, h) = img.dimensions();
+    if w < 8 || h < 8 { return; }
+    let mut minx = w; let mut miny = h; let mut maxx = 0; let mut maxy = 0;
+    for y in 0..h { for x in 0..w {
+        if img.get_pixel(x, y)[3] > 200 {
+            minx = minx.min(x); maxx = maxx.max(x); miny = miny.min(y); maxy = maxy.max(y);
+        }
+    } }
+    if maxx <= minx + 4 || maxy <= miny + 4 { return; }
+    let mut ring: Vec<(u32, u32)> = Vec::new();
+    for x in minx..=maxx { ring.push((x, miny + 1)); ring.push((x, maxy - 1)); }
+    for y in miny..=maxy { ring.push((minx + 1, y)); ring.push((maxx - 1, y)); }
+    let mut counts: std::collections::HashMap<[u8; 3], usize> = std::collections::HashMap::new();
+    for &(x, y) in &ring {
+        let p = img.get_pixel(x, y);
+        if p[3] > 200 { *counts.entry([p[0], p[1], p[2]]).or_insert(0) += 1; }
+    }
+    let Some((&bg, &n)) = counts.iter().max_by_key(|(_, c)| **c) else { return };
+    let luma = (bg[0] as u32 * 299 + bg[1] as u32 * 587 + bg[2] as u32 * 114) / 1000;
+    if luma > 55 || n * 100 < ring.len() * 70 { return; }
+    let near = |p: &image::Rgba<u8>| {
+        (0..3).all(|i| (p[i] as i32 - bg[i] as i32).abs() <= 8)
+    };
+    let mut stack: Vec<(u32, u32)> = ring;
+    let mut seen = vec![false; (w * h) as usize];
+    while let Some((x, y)) = stack.pop() {
+        let idx = (y * w + x) as usize;
+        if seen[idx] { continue; }
+        seen[idx] = true;
+        let p = *img.get_pixel(x, y);
+        if p[3] == 0 || !near(&p) { continue; }
+        img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+        if x > 0 { stack.push((x - 1, y)); }
+        if y > 0 { stack.push((x, y - 1)); }
+        if x + 1 < w { stack.push((x + 1, y)); }
+        if y + 1 < h { stack.push((x, y + 1)); }
+    }
+}
+
+fn normalize_icon_padding(png_bytes: &[u8]) -> Option<Vec<u8>> {
+    const TARGET_FILL_RATIO: f64 = 0.82;
+
+    let img = image::load_from_memory(png_bytes).ok()?;
+    let mut rgba = img.to_rgba8();
+    for px in rgba.pixels_mut() {
+        if px[3] < 40 { *px = image::Rgba([0, 0, 0, 0]); }
+    }
+    let (w, h) = rgba.dimensions();
+    strip_dark_plate(&mut rgba);
+
+    let mut minx = w;
+    let mut miny = h;
+    let mut maxx: i64 = 0;
+    let mut maxy: i64 = 0;
+    let mut found = false;
+    for y in 0..h {
+        for x in 0..w {
+            if rgba.get_pixel(x, y)[3] > 10 {
+                found = true;
+                if x < minx { minx = x; }
+                if (x as i64) > maxx { maxx = x as i64; }
+                if y < miny { miny = y; }
+                if (y as i64) > maxy { maxy = y as i64; }
+            }
+        }
+    }
+    if !found { return None; }
+
+    let content_w = (maxx as u32).saturating_sub(minx) + 1;
+    let content_h = (maxy as u32).saturating_sub(miny) + 1;
+    let content_max = content_w.max(content_h);
+    let base_size = w.min(h);
+    let current_ratio = content_max as f64 / base_size as f64;
+
+    let canvas_size = if current_ratio > TARGET_FILL_RATIO {
+        (content_max as f64 / TARGET_FILL_RATIO).round() as u32
+    } else {
+        base_size
+    };
+
+    let cropped = image::imageops::crop_imm(&rgba, minx, miny, content_w, content_h).to_image();
+    let mut canvas = image::RgbaImage::new(canvas_size, canvas_size);
+    let ox = ((canvas_size - content_w) / 2) as i64;
+    let oy = ((canvas_size - content_h) / 2) as i64;
+    image::imageops::overlay(&mut canvas, &cropped, ox, oy);
+
+    let mut out: Vec<u8> = Vec::new();
+    image::DynamicImage::ImageRgba8(canvas)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .ok()?;
+    Some(out)
+}
+
+pub fn get_now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as i64
+}
+
+fn settings_cache() -> &'static std::sync::Mutex<std::collections::HashMap<String, serde_json::Value>> {
+    crate::state::SETTINGS_CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+/// Load settings.json into the in-memory cache. Call once at startup.
+pub fn init_settings_cache(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(path) = app.path().app_config_dir().ok().map(|p| p.join("settings.json")) {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            if let Ok(settings) = serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&content) {
+                if let Ok(mut cache) = settings_cache().lock() {
+                    *cache = settings;
+                }
+            }
+        }
+    }
+}
+
+/// Replace the entire settings cache (used by the file watcher on external changes).
+pub fn replace_settings_cache(new_settings: std::collections::HashMap<String, serde_json::Value>) {
+    if let Ok(mut cache) = settings_cache().lock() {
+        *cache = new_settings;
+    }
+}
+
+pub fn get_gloom_scale(_app: &tauri::AppHandle) -> f64 {
+    get_setting_str(_app, "gloom-scale")
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(1.0)
+}
+
+/// Read any string value from the settings cache. Returns None if the key is absent.
+pub fn setting_flag(key: &str) -> bool {
+    let Some(cache) = crate::state::SETTINGS_CACHE.get() else { return false };
+    let Ok(guard) = cache.lock() else { return false };
+    let val = guard.get(key).or_else(|| {
+        if let Some(stripped) = key.strip_prefix("gloom-") {
+            guard.get(&format!("gloom-{}", stripped))
+        } else if let Some(stripped) = key.strip_prefix("gloom-") {
+            guard.get(&format!("gloom-{}", stripped))
+        } else {
+            None
+        }
+    });
+    match val {
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::String(s)) => s == "true",
+        _ => false,
+    }
+}
+
+pub fn get_setting_str(_app: &tauri::AppHandle, key: &str) -> Option<String> {
+    let cache = crate::state::SETTINGS_CACHE.get()?;
+    let guard = cache.lock().ok()?;
+    if let Some(val) = guard.get(key) {
+        return val.as_str().map(|s| s.to_string());
+    }
+    let alt_key = if let Some(stripped) = key.strip_prefix("gloom-") {
+        format!("gloom-{}", stripped)
+    } else if let Some(stripped) = key.strip_prefix("gloom-") {
+        format!("gloom-{}", stripped)
+    } else {
+        return None;
+    };
+    guard.get(&alt_key)?.as_str().map(|s| s.to_string())
+}
+
+/// Re-assert HWND_TOPMOST without activating the window.
+pub fn re_assert_topmost(hwnd: HWND) {
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, GetWindowLongPtrW, SetWindowLongPtrW,
+            HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_NOSENDCHANGING,
+            GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        };
+        // Set topmost without activating or notifying the window
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING,
+        );
+        // Re-stamp NOACTIVATE + TOOLWINDOW — HWND_TOPMOST can cause these to be reset
+        // by the shell on some Windows builds
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
+        let keep_focusable = crate::state::KEYBOARD_FOCUS_LABEL.lock().ok().is_some_and(|l| l.is_some());
+        let noactivate = if keep_focusable { 0 } else { WS_EX_NOACTIVATE.0 as usize };
+        let new_ex = ex | noactivate | WS_EX_TOOLWINDOW.0 as usize;
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex as isize);
+    }
+}
+
+fn mostly_painted(pixels: &[u8]) -> bool {
+    pixels.chunks_exact(4).step_by(7).filter(|c| c[0] != 0 || c[1] != 0 || c[2] != 0).count() * 50 > pixels.len() / 28
+}
+
+fn encode_thumbnail(mut pixels: Vec<u8>, width: u32, height: u32, max_width: u32, max_height: u32) -> Option<String> {
+    for chunk in pixels.chunks_exact_mut(4) {
+        chunk.swap(0, 2);
+        chunk[3] = 255;
+    }
+    let mut img = image::RgbaImage::from_raw(width, height, pixels)?;
+    if img.width() > max_width || img.height() > max_height {
+        let dyn_img = image::DynamicImage::ImageRgba8(img);
+        img = dyn_img.resize(max_width, max_height, image::imageops::FilterType::Lanczos3).into_rgba8();
+    }
+    let mut buf = std::io::Cursor::new(Vec::new());
+    image::write_buffer_with_format(&mut buf, &img, img.width(), img.height(), image::ColorType::Rgba8, image::ImageFormat::Png).ok()?;
+    use base64::Engine;
+    Some(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(buf.into_inner())))
+}
+
+/// Captures an HWND to a base64-encoded PNG thumbnail, scaling it down if it exceeds max_width x max_height.
+pub fn capture_hwnd_to_base64(hwnd: HWND, max_width: u32, max_height: u32) -> Option<String> {
+    unsafe {
+        use windows::Win32::Foundation::RECT;
+        use windows::Win32::Graphics::Gdi::{
+            CreateCompatibleDC, CreateCompatibleBitmap, SelectObject, DeleteObject, DeleteDC,
+            GetDC, ReleaseDC, GetDIBits, BitBlt, SRCCOPY, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::{GetWindowPlacement, WINDOWPLACEMENT, IsWindow};
+        use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+        #[link(name = "user32")]
+        extern "system" { pub fn PrintWindow(hwnd: HWND, hdcBlt: HDC, nFlags: u32) -> i32; }
+
+        if !IsWindow(Some(hwnd)).as_bool() { return None; }
+
+        if let Some((pixels, w, h)) = crate::capture::capture_window_bgra(hwnd) {
+            if mostly_painted(&pixels) {
+                if let Some(png) = encode_thumbnail(pixels, w, h, max_width, max_height) {
+                    return Some(png);
+                }
+            }
+        }
+
+        let mut rect = RECT::default();
+        let _ = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &mut rect as *mut _ as *mut _, std::mem::size_of::<RECT>() as u32);
+        if rect.right == 0 && rect.bottom == 0 && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect).is_err() { return None; }
+        let mut width = rect.right - rect.left;
+        let mut height = rect.bottom - rect.top;
+        if width <= 10 || height <= 10 {
+            let mut wp = WINDOWPLACEMENT { length: std::mem::size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
+            if GetWindowPlacement(hwnd, &mut wp).is_ok() {
+                width = wp.rcNormalPosition.right - wp.rcNormalPosition.left;
+                height = wp.rcNormalPosition.bottom - wp.rcNormalPosition.top;
+            }
+        }
+        if width <= 100 || height <= 100 || width > 7680 || height > 4320 { return None; }
+
+        let hdc_screen = GetDC(None);
+        let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
+        let hbm_mem = CreateCompatibleBitmap(hdc_screen, width, height);
+        let h_old = SelectObject(hdc_mem, hbm_mem.into());
+        let mut bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: width,
+                biHeight: -height,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                biSizeImage: 0,
+                biXPelsPerMeter: 0,
+                biYPelsPerMeter: 0,
+                biClrUsed: 0,
+                biClrImportant: 0,
+            },
+            bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default(); 1],
+        };
+        let mut pixels = vec![0u8; (width * height * 4) as usize];
+        let mut read_bits = |pixels: &mut Vec<u8>| {
+            GetDIBits(hdc_mem, hbm_mem, 0, height as u32, Some(pixels.as_mut_ptr() as *mut _), &mut bmi, DIB_RGB_COLORS) != 0
+                && pixels.chunks_exact(4).step_by(7).filter(|c| c[0] != 0 || c[1] != 0 || c[2] != 0).count() * 50 > pixels.len() / 28
+        };
+
+        let mut captured = PrintWindow(hwnd, hdc_mem, 2) != 0 && read_bits(&mut pixels);
+        // PrintWindow fails on elevated and GPU-composited windows, so copy from the screen.
+        if !captured {
+            let center = windows::Win32::Foundation::POINT { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
+            let top = windows::Win32::UI::WindowsAndMessaging::WindowFromPoint(center);
+            let on_top = windows::Win32::UI::WindowsAndMessaging::GetAncestor(top, windows::Win32::UI::WindowsAndMessaging::GA_ROOT) == hwnd;
+            if on_top && BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_screen), rect.left, rect.top, SRCCOPY).is_ok() {
+                captured = read_bits(&mut pixels);
+            }
+        }
+
+        let mut result = None;
+        if captured {
+            for chunk in pixels.chunks_exact_mut(4) {
+                chunk.swap(0, 2);
+                chunk[3] = 255;
+            }
+            if let Ok(Some(png_base64)) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if let Some(mut img) = image::RgbaImage::from_raw(width as u32, height as u32, pixels) {
+                    if img.width() > max_width || img.height() > max_height {
+                        let dyn_img = image::DynamicImage::ImageRgba8(img);
+                        img = dyn_img.resize(max_width, max_height, image::imageops::FilterType::Lanczos3).into_rgba8();
+                    }
+                    let mut buf = std::io::Cursor::new(Vec::new());
+                    if image::write_buffer_with_format(&mut buf, &img, img.width(), img.height(), image::ColorType::Rgba8, image::ImageFormat::Png).is_ok() {
+                        use base64::Engine;
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(buf.into_inner());
+                        return Some(format!("data:image/png;base64,{}", b64));
+                    }
+                }
+                None
+            })) {
+                result = Some(png_base64);
+            }
+        }
+        SelectObject(hdc_mem, h_old);
+        let _ = DeleteObject(hbm_mem.into());
+        let _ = DeleteDC(hdc_mem);
+        ReleaseDC(None, hdc_screen);
+
+        result
+    }
+}
+
+/// Icon file a shortcut declares for itself (Firefox web apps, customized shortcuts).
+/// Only real image files, icon references into exes/DLLs are ignored.
 pub fn get_shortcut_icon_location(path: &str) -> Option<String> {
     unsafe {
         let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_ALL).ok()?;
         let persist_file: IPersistFile = shell_link.cast().ok()?;
         let wide_path: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
-        persist_file
-            .Load(
-                windows::core::PCWSTR(wide_path.as_ptr()),
-                windows::Win32::System::Com::STGM(0),
-            )
-            .ok()?;
+        persist_file.Load(windows::core::PCWSTR(wide_path.as_ptr()), windows::Win32::System::Com::STGM(0)).ok()?;
 
         let mut buffer = [0u16; 512];
         let mut index = 0i32;
         shell_link.GetIconLocation(&mut buffer, &mut index).ok()?;
 
-        let raw = String::from_utf16_lossy(&buffer)
-            .trim_matches(char::from(0))
-            .trim()
-            .to_string();
-        if raw.is_empty() {
-            return None;
-        }
+        let raw = String::from_utf16_lossy(&buffer).trim_matches(char::from(0)).trim().to_string();
+        if raw.is_empty() { return None; }
 
         let location = expand_env_vars(&raw);
-        let ext = std::path::Path::new(&location)
-            .extension()?
-            .to_str()?
-            .to_lowercase();
-        if !matches!(
-            ext.as_str(),
-            "ico" | "png" | "jpg" | "jpeg" | "bmp" | "webp" | "gif"
-        ) {
-            return None;
-        }
-        if !std::path::Path::new(&location).exists() {
-            return None;
-        }
+        let ext = std::path::Path::new(&location).extension()?.to_str()?.to_lowercase();
+        if !matches!(ext.as_str(), "ico" | "png" | "jpg" | "jpeg" | "bmp" | "webp" | "gif") { return None; }
+        if !std::path::Path::new(&location).exists() { return None; }
         Some(location)
     }
 }
 
-/// Expands `%VAR%` references using the current process environment.
+/// Expands %VAR% from the process environment.
 fn expand_env_vars(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut rest = input;
@@ -875,98 +792,55 @@ fn expand_env_vars(input: &str) -> String {
     result
 }
 
-/// Reads an image file (PNG/ICO/etc.) and returns it as a base64 PNG data URI.
+/// Reads an image file and returns it as a base64 PNG data URI.
 pub fn image_file_to_base64(path: &str) -> Option<String> {
     let bytes = std::fs::read(path).ok()?;
-    if bytes.len() > 8 * 1024 * 1024 {
-        return None;
-    }
+    if bytes.len() > 8 * 1024 * 1024 { return None; }
 
     if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         use base64::Engine;
-        return Some(format!(
-            "data:image/png;base64,{}",
-            general_purpose::STANDARD.encode(&bytes)
-        ));
+        return Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(&bytes)));
     }
 
     let img = image::load_from_memory(&bytes).ok()?;
     let mut png: Vec<u8> = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-        .ok()?;
+    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
     use base64::Engine;
-    Some(format!(
-        "data:image/png;base64,{}",
-        general_purpose::STANDARD.encode(&png)
-    ))
+    Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(&png)))
 }
 
-/// True when the window's client area covers its monitor and it is not a
-/// standard (captioned) maximized window — i.e. a real fullscreen window.
+/// True for real fullscreen: client area covers the monitor and it isn't a captioned maximized window.
 pub fn is_window_fullscreen(hwnd: HWND) -> bool {
     unsafe {
         use windows::Win32::Foundation::{POINT, RECT};
-        use windows::Win32::Graphics::Gdi::{
-            ClientToScreen, GetMonitorInfoA, MonitorFromWindow, MONITORINFO,
-            MONITOR_DEFAULTTONEAREST,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetClientRect, GetWindowLongW, IsZoomed, GWL_STYLE, WS_CAPTION, WS_MAXIMIZE,
-        };
+        use windows::Win32::Graphics::Gdi::{ClientToScreen, GetMonitorInfoA, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+        use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, GetWindowLongW, IsZoomed, GWL_STYLE, WS_CAPTION, WS_MAXIMIZE};
 
         let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        if monitor.is_invalid() {
-            return false;
-        }
-        let mut info = MONITORINFO {
-            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-            ..Default::default()
-        };
-        if !GetMonitorInfoA(monitor, &mut info).as_bool() {
-            return false;
-        }
+        if monitor.is_invalid() { return false; }
+        let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if !GetMonitorInfoA(monitor, &mut info).as_bool() { return false; }
         let screen = info.rcMonitor;
 
         let mut client = RECT::default();
-        if GetClientRect(hwnd, &mut client).is_err() {
-            return false;
-        }
-        let mut top_left = POINT {
-            x: client.left,
-            y: client.top,
-        };
-        let mut bottom_right = POINT {
-            x: client.right,
-            y: client.bottom,
-        };
+        if GetClientRect(hwnd, &mut client).is_err() { return false; }
+        let mut top_left = POINT { x: client.left, y: client.top };
+        let mut bottom_right = POINT { x: client.right, y: client.bottom };
         let _ = ClientToScreen(hwnd, &mut top_left);
         let _ = ClientToScreen(hwnd, &mut bottom_right);
 
         let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-        let is_maximized_standard = (IsZoomed(hwnd).as_bool() || (style & WS_MAXIMIZE.0) != 0)
-            && (style & WS_CAPTION.0) != 0;
+        let is_maximized_standard = (IsZoomed(hwnd).as_bool() || (style & WS_MAXIMIZE.0) != 0) && (style & WS_CAPTION.0) != 0;
 
-        let client_fullscreen = top_left.x <= screen.left
-            && top_left.y <= screen.top
-            && bottom_right.x >= screen.right
-            && bottom_right.y >= screen.bottom;
+        let client_fullscreen = top_left.x <= screen.left && top_left.y <= screen.top
+            && bottom_right.x >= screen.right && bottom_right.y >= screen.bottom;
         client_fullscreen && !is_maximized_standard
     }
 }
 
-/// Resolves a bare executable name (e.g. `notepad.exe`, `msedge`, `wt.exe`) to a
-/// full path, using the same mechanisms Windows uses: the registry `App Paths`
-/// registration, then the standard executable search path, then a few well-known
-/// install locations for apps that register in neither.
-///
-/// This matters for default pins: on Windows 11 `notepad.exe` resolves through
-/// App Paths to the Store Notepad package, whose icon comes from the package
-/// manifest rather than the stale stub in System32.
 pub fn resolve_executable_path(name: &str) -> Option<String> {
     let trimmed = name.trim().trim_matches('"');
-    if trimmed.is_empty() || trimmed.contains('\\') || trimmed.contains('/') {
-        return None;
-    }
+    if trimmed.is_empty() || trimmed.contains('\\') || trimmed.contains('/') { return None; }
 
     let file = if trimmed.to_lowercase().ends_with(".exe") {
         trimmed.to_string()
@@ -975,9 +849,7 @@ pub fn resolve_executable_path(name: &str) -> Option<String> {
     };
 
     if let Some(path) = app_paths_lookup(&file) {
-        if std::path::Path::new(&path).exists() {
-            return Some(path);
-        }
+        if std::path::Path::new(&path).exists() { return Some(path); }
     }
     if let Some(path) = search_system_path(&file) {
         return Some(path);
@@ -985,35 +857,19 @@ pub fn resolve_executable_path(name: &str) -> Option<String> {
     known_install_location(&file)
 }
 
-/// Reads `HKCU`/`HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths\<file>`.
+/// App Paths registry lookup (HKCU, then HKLM).
 fn app_paths_lookup(file: &str) -> Option<String> {
-    use windows::Win32::System::Registry::{
-        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE,
-        KEY_READ,
-    };
+    use windows::Win32::System::Registry::{HKEY, RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
 
     unsafe {
-        let subkey: Vec<u16> = format!(
-            "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{}",
-            file
-        )
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+        let subkey: Vec<u16> = format!("Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{}", file)
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
 
         for root in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
             let mut key = HKEY::default();
-            if RegOpenKeyExW(
-                root,
-                windows::core::PCWSTR(subkey.as_ptr()),
-                None,
-                KEY_READ,
-                &mut key,
-            )
-            .0 != 0
-            {
-                continue;
-            }
+            if RegOpenKeyExW(root, windows::core::PCWSTR(subkey.as_ptr()), None, KEY_READ, &mut key).0 != 0 { continue; }
 
             let mut buffer = [0u16; 1024];
             let mut size = (buffer.len() * 2) as u32;
@@ -1026,62 +882,39 @@ fn app_paths_lookup(file: &str) -> Option<String> {
                 Some(&mut size),
             );
             let _ = RegCloseKey(key);
-            if status.0 != 0 {
-                continue;
-            }
+            if status.0 != 0 { continue; }
 
             let value = String::from_utf16_lossy(&buffer[..(size as usize / 2).min(buffer.len())]);
-            let value = value
-                .trim_matches(char::from(0))
-                .trim()
-                .trim_matches('"')
-                .to_string();
-            if !value.is_empty() {
-                return Some(value);
-            }
+            let value = value.trim_matches(char::from(0)).trim().trim_matches('"').to_string();
+            if !value.is_empty() { return Some(value); }
         }
         None
     }
 }
 
-/// Standard executable search (PATH, System32, Windows, ...).
+/// PATH, System32, Windows.
 fn search_system_path(file: &str) -> Option<String> {
     use windows::Win32::Storage::FileSystem::SearchPathW;
 
     unsafe {
         let wide: Vec<u16> = file.encode_utf16().chain(std::iter::once(0)).collect();
         let mut buffer = vec![0u16; 32768];
-        let len = SearchPathW(
-            None,
-            windows::core::PCWSTR(wide.as_ptr()),
-            windows::core::PCWSTR::null(),
-            Some(&mut buffer),
-            None,
-        );
-        if len == 0 || len as usize >= buffer.len() {
-            return None;
-        }
+        let len = SearchPathW(None, windows::core::PCWSTR(wide.as_ptr()), windows::core::PCWSTR::null(), Some(&mut buffer), None);
+        if len == 0 || len as usize >= buffer.len() { return None; }
 
         let path = String::from_utf16_lossy(&buffer[..len as usize]);
-        if std::path::Path::new(&path).exists() {
-            Some(path)
-        } else {
-            None
-        }
+        if std::path::Path::new(&path).exists() { Some(path) } else { None }
     }
 }
 
-/// Last resort for apps that are neither registered in App Paths nor on PATH.
+/// Last resort for apps not in App Paths or PATH.
 fn known_install_location(file: &str) -> Option<String> {
     let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let home = std::env::var("USERPROFILE").unwrap_or_default();
 
     let candidates: Vec<String> = match file.to_lowercase().as_str() {
         "code.exe" | "code-insiders.exe" => vec![
-            format!(
-                "{}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
-                home
-            ),
+            format!("{}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe", home),
             format!("{}\\Programs\\Microsoft VS Code\\Code.exe", local),
             "C:\\Program Files\\Microsoft VS Code\\Code.exe".into(),
             "C:\\Program Files (x86)\\Microsoft VS Code\\Code.exe".into(),
@@ -1099,26 +932,16 @@ fn known_install_location(file: &str) -> Option<String> {
         _ => Vec::new(),
     };
 
-    candidates
-        .into_iter()
-        .find(|c| std::path::Path::new(c).exists())
+    candidates.into_iter().find(|c| std::path::Path::new(c).exists())
 }
 
-/// Reads the `System.AppUserModel.ID` shell property of a window.
-///
-/// This is the same identity the taskbar uses to group windows: for Store/UWP
-/// apps it is the package AppUserModelID, for installed browser web apps it is
-/// the browser's web app id. Unlike the process command line it is always
-/// available on the window itself.
+/// The window's AppUserModelID, same identity the taskbar groups by
+/// (package id for Store apps, web app id for browser web apps).
 pub fn get_window_app_user_model_id(hwnd: HWND) -> Option<String> {
     unsafe {
         use windows::Win32::Foundation::PROPERTYKEY;
-        use windows::Win32::System::Com::StructuredStorage::{
-            PropVariantClear, PropVariantToStringAlloc,
-        };
-        use windows::Win32::UI::Shell::PropertiesSystem::{
-            IPropertyStore, SHGetPropertyStoreForWindow,
-        };
+        use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
+        use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, SHGetPropertyStoreForWindow};
 
         const PKEY_APP_USER_MODEL_ID: PROPERTYKEY = PROPERTYKEY {
             fmtid: windows::core::GUID {
@@ -1140,702 +963,49 @@ pub fn get_window_app_user_model_id(hwnd: HWND) -> Option<String> {
     }
 }
 
-pub unsafe fn icon_to_base64(hicon: HICON) -> Option<String> {
-    let factory: IWICImagingFactory =
-        CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).ok()?;
-    let bitmap = factory.CreateBitmapFromHICON(hicon).ok()?;
-    wic_bitmap_to_base64(&factory, &bitmap)
-}
-
-/// Encodes an `HBITMAP` (as returned by `IShellItemImageFactory::GetImage`) to a base64 PNG.
+/// HBITMAP to base64 PNG.
 pub unsafe fn hbitmap_to_base64(hbitmap: windows::Win32::Graphics::Gdi::HBITMAP) -> Option<String> {
-    let factory: IWICImagingFactory =
-        CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).ok()?;
-    let bitmap = factory
-        .CreateBitmapFromHBITMAP(
-            hbitmap,
-            windows::Win32::Graphics::Gdi::HPALETTE::default(),
-            windows::Win32::Graphics::Imaging::WICBitmapUsePremultipliedAlpha,
-        )
-        .ok()?;
+    let factory: IWICImagingFactory = CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).ok()?;
+    let bitmap = factory.CreateBitmapFromHBITMAP(hbitmap, windows::Win32::Graphics::Gdi::HPALETTE::default(), windows::Win32::Graphics::Imaging::WICBitmapUsePremultipliedAlpha).ok()?;
     wic_bitmap_to_base64(&factory, &bitmap)
 }
 
-unsafe fn wic_bitmap_to_base64(
-    factory: &IWICImagingFactory,
-    bitmap: &windows::Win32::Graphics::Imaging::IWICBitmapSource,
-) -> Option<String> {
+unsafe fn wic_bitmap_to_base64(factory: &IWICImagingFactory, bitmap: &windows::Win32::Graphics::Imaging::IWICBitmapSource) -> Option<String> {
     let stream = CreateStreamOnHGlobal(HGLOBAL(std::ptr::null_mut()), true).ok()?;
-    let encoder = factory
-        .CreateEncoder(&GUID_ContainerFormatPng, std::ptr::null())
-        .ok()?;
+    let encoder = factory.CreateEncoder(&GUID_ContainerFormatPng, std::ptr::null()).ok()?;
     encoder.Initialize(&stream, WICBitmapEncoderNoCache).ok()?;
-
+    
     let mut frame = None;
-    encoder
-        .CreateNewFrame(&mut frame, std::ptr::null_mut())
-        .ok()?;
+    encoder.CreateNewFrame(&mut frame, std::ptr::null_mut()).ok()?;
     let frame = frame?;
     frame.Initialize(None).ok()?;
-
+    
     let (mut width, mut height) = (0u32, 0u32);
     bitmap.GetSize(&mut width, &mut height).ok()?;
     frame.SetSize(width, height).ok()?;
-
+    
     let mut format = GUID_WICPixelFormat32bppPBGRA;
     frame.SetPixelFormat(&mut format).ok()?;
-
+    
     frame.WriteSource(bitmap, std::ptr::null()).ok()?;
     frame.Commit().ok()?;
     encoder.Commit().ok()?;
-
+    
     let hglobal = GetHGlobalFromStream(&stream).ok()?;
     let ptr = windows::Win32::System::Memory::GlobalLock(hglobal);
     let size = windows::Win32::System::Memory::GlobalSize(hglobal);
-
+    
     let data = std::slice::from_raw_parts(ptr as *const u8, size);
     let base64_str = general_purpose::STANDARD.encode(data);
-
+    
     let _ = windows::Win32::System::Memory::GlobalUnlock(hglobal);
-
+    
     Some(format!("data:image/png;base64,{}", base64_str))
-}
-
-pub fn get_now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
-}
-
-/// Parse the editable settings file without discarding a UTF-8 BOM. A parse
-/// failure must reach the caller rather than turning into an empty map: the
-/// next save would otherwise overwrite all of the user's preferences.
-pub fn read_settings_file(
-    path: &std::path::Path,
-) -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
-    match std::fs::read_to_string(path) {
-        Ok(content) => serde_json::from_str(content.trim_start_matches('\u{feff}'))
-            .map_err(|e| format!("Invalid settings file: {e}")),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Default::default()),
-        Err(e) => Err(format!("Could not read settings file: {e}")),
-    }
-}
-
-/// Write a complete file in the same directory and replace the old file only
-/// after the new contents are ready. A crash or write failure leaves the old file.
-pub fn atomic_write_file(path: &std::path::Path, content: &[u8]) -> Result<(), String> {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
-    let temp = path.with_file_name(format!(
-        "{}.tmp-{}-{}",
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("gloom"),
-        std::process::id(),
-        NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
-    ));
-    if let Err(e) = std::fs::write(&temp, content) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(format!("Could not write {}: {e}", temp.display()));
-    }
-    if let Err(e) = std::fs::rename(&temp, path) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(format!("Could not replace {}: {e}", path.display()));
-    }
-    Ok(())
-}
-
-pub fn write_settings_file(
-    path: &std::path::Path,
-    settings: &std::collections::HashMap<String, serde_json::Value>,
-) -> Result<(), String> {
-    let content = serde_json::to_vec(settings).map_err(|e| e.to_string())?;
-    atomic_write_file(path, &content)
-}
-
-/// The four webviews may save at once. Keep each read/modify/write transaction
-/// together so one window cannot replace another window's new setting.
-pub fn save_setting_file(
-    path: &std::path::Path,
-    key: String,
-    value: serde_json::Value,
-) -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
-    let _guard = crate::state::SETTINGS_FILE_LOCK
-        .lock()
-        .map_err(|e| e.to_string())?;
-    let mut settings = read_settings_file(path)?;
-    settings.insert(key, value);
-    write_settings_file(path, &settings)?;
-    replace_settings_cache(settings.clone());
-    Ok(settings)
-}
-
-/// Load settings.json into the in-memory cache. Call once at startup.
-pub fn init_settings_cache(app: &tauri::AppHandle) {
-    use crate::state::SETTINGS_CACHE;
-    use tauri::Manager;
-    let cache =
-        SETTINGS_CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
-    if let Some(path) = app
-        .path()
-        .app_config_dir()
-        .ok()
-        .map(|p| p.join("settings.json"))
-    {
-        if let Ok(settings) = read_settings_file(&path) {
-            if let Ok(mut cache) = cache.lock() {
-                *cache = settings;
-            }
-        }
-    }
-}
-
-/// Replace the entire settings cache (used by save_setting and the file watcher).
-///
-/// Uses `get_or_init` rather than `get().unwrap()`: a webview can invoke
-/// `save_setting` before the setup hook has initialized the cache, and a panic
-/// on the main thread inside a WebView2 callback cannot unwind, which aborts
-/// the process.
-pub fn replace_settings_cache(new_settings: std::collections::HashMap<String, serde_json::Value>) {
-    let cache = crate::state::SETTINGS_CACHE
-        .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
-    if let Ok(mut cache) = cache.lock() {
-        *cache = new_settings;
-    }
-}
-
-pub fn get_gloom_scale(_app: &tauri::AppHandle) -> f64 {
-    get_setting_str(_app, "gloom-scale")
-        .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(1.0)
-}
-
-/// Read any string value from the settings cache. Returns None if the key is absent.
-pub fn get_setting_str(_app: &tauri::AppHandle, key: &str) -> Option<String> {
-    let cache = crate::state::SETTINGS_CACHE.get()?;
-    let guard = cache.lock().ok()?;
-    let val = guard.get(key)?;
-    if let Some(s) = val.as_str() {
-        Some(s.to_string())
-    } else if let Some(b) = val.as_bool() {
-        Some(b.to_string())
-    } else if let Some(n) = val.as_i64() {
-        Some(n.to_string())
-    } else if let Some(f) = val.as_f64() {
-        Some(f.to_string())
-    } else {
-        None
-    }
-}
-
-pub fn dock_setting_enabled(value: Option<&serde_json::Value>) -> bool {
-    value.is_none_or(|value| value.as_str() == Some("true"))
-}
-
-/// An absent setting uses the fresh-install default; any explicit value other
-/// than the string "true" leaves Windows' taskbar in charge.
-pub fn dock_enabled() -> bool {
-    crate::state::SETTINGS_CACHE.get().is_none_or(|cache| {
-        cache
-            .lock()
-            .map(|settings| dock_setting_enabled(settings.get("gloom-dock-enabled")))
-            .unwrap_or(false)
-    })
-}
-
-/// Makes a window click-through or not by its WS_EX_TRANSPARENT bit alone,
-/// keeping WS_EX_LAYERED set in both states.
-///
-/// tao's `set_ignore_cursor_events` sets both bits when ignoring and clears
-/// both otherwise. A window with a region (window_region.rs) that isn't
-/// layered loses its transparency: its clear pixels inside the region paint
-/// opaque. Writes only when the style differs, so it can be called on every
-/// cursor update, which also restores the bits if tao rewrites the extended
-/// style (it does on its own flag changes, such as show and hide). Returns
-/// whether it changed anything.
-pub fn set_click_through(hwnd: HWND, ignore: bool) -> bool {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE,
-    };
-    unsafe {
-        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-        let wanted = click_through_style(current, ignore);
-        if wanted == current {
-            return false;
-        }
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, wanted as isize);
-        true
-    }
-}
-
-/// The extended style with WS_EX_LAYERED set and WS_EX_TRANSPARENT set only
-/// when ignoring input, every other bit kept.
-fn click_through_style(style: u32, ignore: bool) -> u32 {
-    use windows::Win32::UI::WindowsAndMessaging::{WS_EX_LAYERED, WS_EX_TRANSPARENT};
-    let layered = style | WS_EX_LAYERED.0;
-    if ignore {
-        layered | WS_EX_TRANSPARENT.0
-    } else {
-        layered & !WS_EX_TRANSPARENT.0
-    }
-}
-
-/// Re-assert HWND_TOPMOST without activating the window.
-///
-/// Tauri's `set_always_on_top(true)` calls `SetWindowPos(HWND_TOPMOST)` without
-/// `SWP_NOACTIVATE`, which causes Windows to send `WM_ACTIVATE` to the WebView2 window.
-/// This activation message makes the WebView compositor briefly blank/hide the window,
-/// and can also strip the `WS_EX_NOACTIVATE` extended style.
-///
-/// This helper uses the raw Win32 call with the correct flags and re-stamps
-/// `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW` to prevent both problems.
-pub fn re_assert_topmost(hwnd: HWND) {
-    unsafe {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST,
-            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSENDCHANGING, SWP_NOSIZE, WS_EX_NOACTIVATE,
-            WS_EX_TOOLWINDOW,
-        };
-        // Set topmost without activating or notifying the window
-        let _ = SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING,
-        );
-        // Re-stamp NOACTIVATE + TOOLWINDOW — HWND_TOPMOST can cause these to be reset
-        // by the shell on some Windows builds
-        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-        let new_ex = ex | WS_EX_NOACTIVATE.0 as usize | WS_EX_TOOLWINDOW.0 as usize;
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex as isize);
-
-        // Sanitize styles to permanently eliminate window titlebars and borders
-        sanitize_window_style(hwnd);
-    }
-}
-
-/// Strips all window caption, non-client title bar, minimize/maximize/close buttons,
-/// system menu, and sizing borders from a window, guaranteeing it remains a pure borderless
-/// popup window without any non-client rendering. Also configures DWM non-client rendering
-/// policy, disables Windows 11 rounded corners, and suppresses borders.
-pub fn sanitize_window_style(hwnd: HWND) {
-    unsafe {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, GWL_STYLE, GWL_EXSTYLE,
-            WS_CAPTION, WS_THICKFRAME, WS_MINIMIZEBOX, WS_MAXIMIZEBOX, WS_SYSMENU,
-            WS_BORDER, WS_DLGFRAME, WS_POPUP, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
-            WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE,
-            SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE, SWP_FRAMECHANGED,
-        };
-        use windows::Win32::Graphics::Dwm::{
-            DwmSetWindowAttribute, DWMNCRENDERINGPOLICY, DWMNCRP_DISABLED,
-            DWMWA_NCRENDERING_POLICY, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWA_BORDER_COLOR,
-            DWM_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND,
-        };
-
-        // 1. Strip all caption, sysmenu, minimize/maximize boxes, and sizing frames from GWL_STYLE
-        let current_style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
-        let unwanted = WS_CAPTION.0
-            | WS_THICKFRAME.0
-            | WS_MINIMIZEBOX.0
-            | WS_MAXIMIZEBOX.0
-            | WS_SYSMENU.0
-            | WS_BORDER.0
-            | WS_DLGFRAME.0;
-        let wanted_style = (current_style & !unwanted) | WS_POPUP.0 | WS_CLIPCHILDREN.0 | WS_CLIPSIBLINGS.0;
-        if wanted_style != current_style {
-            SetWindowLongPtrW(hwnd, GWL_STYLE, wanted_style as isize);
-        }
-
-        // 2. Ensure WS_EX_TOOLWINDOW and WS_EX_NOACTIVATE on GWL_EXSTYLE
-        let current_ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-        let wanted_ex = current_ex | WS_EX_TOOLWINDOW.0 as usize | WS_EX_NOACTIVATE.0 as usize;
-        if wanted_ex != current_ex {
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, wanted_ex as isize);
-        }
-
-        // 3. Clear window title text in Win32 so no caption text can ever render
-        let _ = SetWindowTextW(hwnd, windows::core::w!(""));
-
-        // 4. Disable DWM non-client rendering policy so DWM never paints a caption, title, or frame
-        let nc_policy = DWMNCRP_DISABLED;
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_NCRENDERING_POLICY,
-            &nc_policy as *const _ as *const std::ffi::c_void,
-            std::mem::size_of::<DWMNCRENDERINGPOLICY>() as u32,
-        );
-
-        // 5. Force Windows 11 DWM to not round corners and suppress 1px window border
-        let corner_pref = DWMWCP_DONOTROUND;
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_WINDOW_CORNER_PREFERENCE,
-            &corner_pref as *const _ as *const std::ffi::c_void,
-            std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
-        );
-
-        const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_BORDER_COLOR,
-            &DWMWA_COLOR_NONE as *const _ as *const std::ffi::c_void,
-            std::mem::size_of::<u32>() as u32,
-        );
-
-        // 6. Recalculate frame if style was changed
-        if wanted_style != current_style {
-            let _ = SetWindowPos(
-                hwnd,
-                None,
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-            );
-        }
-
-        // 7. Subclass window to intercept and suppress WM_NCCALCSIZE, WM_NCPAINT, and WM_NCACTIVATE
-        let _ = windows::Win32::UI::Shell::SetWindowSubclass(
-            hwnd,
-            Some(no_titlebar_subclass_proc),
-            0x9100,
-            0,
-        );
-    }
-}
-
-unsafe extern "system" fn no_titlebar_subclass_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: windows::Win32::Foundation::WPARAM,
-    lparam: windows::Win32::Foundation::LPARAM,
-    _id: usize,
-    _ref_data: usize,
-) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::UI::WindowsAndMessaging::{WM_NCCALCSIZE, WM_NCPAINT, WM_NCACTIVATE};
-    match msg {
-        WM_NCCALCSIZE => windows::Win32::Foundation::LRESULT(0),
-        WM_NCPAINT => windows::Win32::Foundation::LRESULT(0),
-        WM_NCACTIVATE => windows::Win32::Foundation::LRESULT(1),
-        _ => windows::Win32::UI::Shell::DefSubclassProc(hwnd, msg, wparam, lparam),
-    }
-}
-
-/// Captures an HWND to a base64-encoded PNG thumbnail, scaling it down if it exceeds max_width x max_height.
-pub fn capture_hwnd_to_base64(hwnd: HWND, max_width: u32, max_height: u32) -> Option<String> {
-    unsafe {
-        use windows::Win32::Foundation::RECT;
-        use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
-        use windows::Win32::Graphics::Gdi::{
-            CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
-            ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowPlacement, IsWindow, WINDOWPLACEMENT,
-        };
-        // SAFETY: user32!PrintWindow is the standard Win32 window render capture API
-        unsafe extern "system" {
-            pub fn PrintWindow(hwnd: HWND, hdcBlt: HDC, nFlags: u32) -> i32;
-        }
-
-        if !IsWindow(Some(hwnd)).as_bool() {
-            return None;
-        }
-
-        let mut rect = RECT::default();
-        let _ = DwmGetWindowAttribute(
-            hwnd,
-            DWMWA_EXTENDED_FRAME_BOUNDS,
-            &mut rect as *mut _ as *mut _,
-            std::mem::size_of::<RECT>() as u32,
-        );
-        if rect.right == 0
-            && rect.bottom == 0
-            && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect).is_err()
-        {
-            return None;
-        }
-        let mut width = rect.right - rect.left;
-        let mut height = rect.bottom - rect.top;
-        if width <= 10 || height <= 10 {
-            let mut wp = WINDOWPLACEMENT {
-                length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
-                ..Default::default()
-            };
-            if GetWindowPlacement(hwnd, &mut wp).is_ok() {
-                width = wp.rcNormalPosition.right - wp.rcNormalPosition.left;
-                height = wp.rcNormalPosition.bottom - wp.rcNormalPosition.top;
-            }
-        }
-        if width <= 100 || height <= 100 || width > 7680 || height > 4320 {
-            return None;
-        }
-
-        let hdc_screen = GetDC(None);
-        let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
-        let hbm_mem = CreateCompatibleBitmap(hdc_screen, width, height);
-        let h_old = SelectObject(hdc_mem, hbm_mem.into());
-        let success = PrintWindow(hwnd, hdc_mem, 2);
-
-        let mut result = None;
-        if success != 0 {
-            let mut bmi = BITMAPINFO {
-                bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                    biWidth: width,
-                    biHeight: -height,
-                    biPlanes: 1,
-                    biBitCount: 32,
-                    biCompression: BI_RGB.0,
-                    biSizeImage: 0,
-                    biXPelsPerMeter: 0,
-                    biYPelsPerMeter: 0,
-                    biClrUsed: 0,
-                    biClrImportant: 0,
-                },
-                bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default(); 1],
-            };
-            let mut pixels = vec![0u8; (width * height * 4) as usize];
-            if GetDIBits(
-                hdc_mem,
-                hbm_mem,
-                0,
-                height as u32,
-                Some(pixels.as_mut_ptr() as *mut _),
-                &mut bmi,
-                DIB_RGB_COLORS,
-            ) != 0
-            {
-                for chunk in pixels.chunks_exact_mut(4) {
-                    let b = chunk[0];
-                    let r = chunk[2];
-                    chunk[0] = r;
-                    chunk[2] = b;
-                    chunk[3] = 255;
-                }
-                if let Ok(Some(png_base64)) =
-                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        if let Some(mut img) =
-                            image::RgbaImage::from_raw(width as u32, height as u32, pixels)
-                        {
-                            if img.width() > max_width || img.height() > max_height {
-                                let dyn_img = image::DynamicImage::ImageRgba8(img);
-                                img = dyn_img
-                                    .resize(
-                                        max_width,
-                                        max_height,
-                                        image::imageops::FilterType::Triangle,
-                                    )
-                                    .into_rgba8();
-                            }
-                            let mut buf = std::io::Cursor::new(Vec::new());
-                            if image::write_buffer_with_format(
-                                &mut buf,
-                                &img,
-                                img.width(),
-                                img.height(),
-                                image::ColorType::Rgba8,
-                                image::ImageFormat::Png,
-                            )
-                            .is_ok()
-                            {
-                                use base64::Engine;
-                                let b64 = base64::engine::general_purpose::STANDARD
-                                    .encode(buf.into_inner());
-                                return Some(format!("data:image/png;base64,{}", b64));
-                            }
-                        }
-                        None
-                    }))
-                {
-                    result = Some(png_base64);
-                }
-            }
-        }
-        SelectObject(hdc_mem, h_old);
-        let _ = DeleteObject(hbm_mem.into());
-        let _ = DeleteDC(hdc_mem);
-        ReleaseDC(None, hdc_screen);
-
-        result
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        click_through_style, expand_env_vars, is_placed_rect, marker_contents, parse_marker_pid,
-        parse_marker_rect, parse_marker_secondaries, parse_marker_state,
-    };
-
-    #[test]
-    fn click_through_keeps_the_window_layered() {
-        const LAYERED: u32 = 0x0008_0000;
-        const TRANSPARENT: u32 = 0x0000_0020;
-        const NOACTIVATE: u32 = 0x0800_0000;
-        // tao's interactive style: neither bit. Taking clicks adds layered.
-        assert_eq!(click_through_style(NOACTIVATE, false), NOACTIVATE | LAYERED);
-        // Click-through adds both; other bits are kept.
-        assert_eq!(
-            click_through_style(NOACTIVATE, true),
-            NOACTIVATE | LAYERED | TRANSPARENT
-        );
-        // Back to taking clicks drops only the transparent bit.
-        assert_eq!(
-            click_through_style(NOACTIVATE | LAYERED | TRANSPARENT, false),
-            NOACTIVATE | LAYERED
-        );
-    }
-    use std::collections::HashMap;
-    static TEST_SETTINGS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    fn test_settings_path() -> std::path::PathBuf {
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let dir = std::env::temp_dir().join(format!(
-            "gloom-settings-test-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir(&dir).expect("create test directory");
-        dir.join("settings.json")
-    }
-
-    #[test]
-    fn settings_bom_is_read_and_a_damaged_file_is_never_overwritten() {
-        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
-        let path = test_settings_path();
-        std::fs::write(&path, "\u{feff}{\"gloom-existing\":\"true\"}").unwrap();
-        let settings = super::read_settings_file(&path).unwrap();
-        assert_eq!(settings["gloom-existing"], "true");
-
-        super::save_setting_file(&path, "gloom-new".into(), "false".into()).unwrap();
-        let settings = super::read_settings_file(&path).unwrap();
-        assert_eq!(settings.len(), 2);
-
-        std::fs::write(&path, "{invalid").unwrap();
-        assert!(super::save_setting_file(&path, "gloom-another".into(), "true".into()).is_err());
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{invalid");
-        std::fs::remove_file(&path).unwrap();
-        std::fs::remove_dir(path.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn simultaneous_setting_saves_keep_every_key() {
-        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
-        let path = test_settings_path();
-        let workers: Vec<_> = (0..12)
-            .map(|index| {
-                let path = path.clone();
-                std::thread::spawn(move || {
-                    super::save_setting_file(
-                        &path,
-                        format!("gloom-key-{index}"),
-                        serde_json::json!(index.to_string()),
-                    )
-                    .unwrap();
-                })
-            })
-            .collect();
-        for worker in workers {
-            worker.join().unwrap();
-        }
-        assert_eq!(super::read_settings_file(&path).unwrap().len(), 12);
-        std::fs::remove_file(&path).unwrap();
-        std::fs::remove_dir(path.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn legacy_genie_settings_keys_load_safely_and_do_not_break_settings() {
-        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
-        let path = test_settings_path();
-        let legacy_json = serde_json::json!({
-            "gloom-dock-enabled": "true",
-            "gloom-dock-genie-effect": "true",
-            "gloom-dock-genie-duration": "380",
-            "gloom-dock-genie-style": "zorin"
-        });
-        std::fs::write(&path, legacy_json.to_string()).unwrap();
-
-        let settings = super::read_settings_file(&path).unwrap();
-        assert_eq!(settings["gloom-dock-enabled"], "true");
-        assert_eq!(settings["gloom-dock-genie-effect"], "true");
-
-        super::save_setting_file(&path, "gloom-dock-mode".into(), serde_json::json!("smart")).unwrap();
-        let updated = super::read_settings_file(&path).unwrap();
-        assert_eq!(updated["gloom-dock-mode"], "smart");
-        assert_eq!(updated["gloom-dock-enabled"], "true");
-
-        std::fs::remove_file(&path).unwrap();
-        std::fs::remove_dir(path.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn taskbar_marker_round_trips_the_original_state() {
-        for state in [0, 1, 2, 3] {
-            let rect = windows::Win32::Foundation::RECT {
-                left: 12,
-                top: 34,
-                right: 1234,
-                bottom: 56,
-            };
-            let contents = marker_contents(state, 1234, Some(rect), &HashMap::new());
-            assert_eq!(parse_marker_state(&contents), Some(state));
-            assert_eq!(parse_marker_pid(&contents), Some(1234));
-            assert_eq!(parse_marker_rect(&contents, "primary="), Some(rect));
-            assert!(parse_marker_secondaries(&contents).is_empty());
-        }
-    }
-
-    #[test]
-    fn taskbar_marker_round_trips_every_secondary_taskbar() {
-        let rect = |left, top| windows::Win32::Foundation::RECT {
-            left,
-            top,
-            right: left + 1920,
-            bottom: top + 48,
-        };
-        let secondaries = HashMap::from([(0x1010, rect(1920, 1032)), (0x2020, rect(-1920, 1032))]);
-        let contents = marker_contents(1, 7, None, &secondaries);
-        assert_eq!(parse_marker_rect(&contents, "primary="), None);
-        assert_eq!(parse_marker_secondaries(&contents), secondaries);
-        // A damaged line is skipped without losing the others.
-        let damaged = format!("{contents}secondary=99,1,2,3\nsecondary=x,1,2,3,4\n");
-        assert_eq!(parse_marker_secondaries(&damaged), secondaries);
-    }
-
-    #[test]
-    fn legacy_and_damaged_markers_carry_no_state() {
-        // Older versions wrote a bare "1": it must not be read as auto-hide.
-        assert_eq!(parse_marker_state("1"), None);
-        assert_eq!(parse_marker_state(""), None);
-        assert_eq!(parse_marker_state("abstate="), None);
-        assert_eq!(parse_marker_state("abstate=x"), None);
-        assert_eq!(parse_marker_state("abstate=2\r\n"), Some(2));
-        assert_eq!(parse_marker_pid("abstate=2\r\n"), None);
-        assert_eq!(parse_marker_rect("primary=1,2,3", "primary="), None);
-    }
-
-    #[test]
-    fn unplaced_taskbar_rects_are_not_restored() {
-        let rect = |left, top, right, bottom| windows::Win32::Foundation::RECT {
-            left,
-            top,
-            right,
-            bottom,
-        };
-        assert!(is_placed_rect(&rect(0, 1020, 1920, 1080)));
-        assert!(is_placed_rect(&rect(-1920, 1032, 0, 1080)));
-        // A taskbar Explorer hasn't placed yet, and one Gloom parked off-screen.
-        assert!(!is_placed_rect(&rect(0, 0, 0, 0)));
-        assert!(!is_placed_rect(&rect(-10000, -10000, -8080, -9952)));
-    }
+    use super::expand_env_vars;
 
     #[test]
     fn env_expansion() {
@@ -1844,10 +1014,7 @@ mod tests {
         assert!(!out.contains('%'), "got {out}");
 
         // Unknown variables stay verbatim
-        assert_eq!(
-            expand_env_vars("%GLOOM_NOT_A_REAL_VAR%\\x"),
-            "%GLOOM_NOT_A_REAL_VAR%\\x"
-        );
+        assert_eq!(expand_env_vars("%GLOOM_NOT_A_REAL_VAR%\\x"), "%GLOOM_NOT_A_REAL_VAR%\\x");
 
         // Unclosed percent is left alone
         assert_eq!(expand_env_vars("50% done"), "50% done");
@@ -1857,70 +1024,39 @@ mod tests {
     }
 
     #[test]
+    fn each_secondary_taskbar_keeps_its_own_monitor() {
+        use super::taskbar_monitor;
+        use windows::Win32::Foundation::RECT;
+
+        let rect = |left, right, top, bottom| RECT { left, top, right, bottom };
+        let primary = rect(0, 1920, 0, 1080);
+        let left = rect(-1920, 0, 0, 1080);
+        let right = rect(1920, 3840, 0, 1080);
+        let monitors = [(primary, true), (left, false), (right, false)];
+
+        let on_right = rect(1920, 3840, 1032, 1080);
+        assert_eq!(taskbar_monitor(&monitors, false, &on_right), Some(right));
+        let on_left = rect(-1920, 0, 1032, 1080);
+        assert_eq!(taskbar_monitor(&monitors, false, &on_left), Some(left));
+
+        let stranded = rect(-10000, -8080, -10000, -9952);
+        assert_eq!(taskbar_monitor(&monitors, false, &stranded), Some(left));
+        assert_eq!(taskbar_monitor(&monitors, true, &on_right), Some(primary));
+    }
+
+    #[test]
     fn bare_executable_resolution() {
         use super::resolve_executable_path;
 
         for name in ["notepad", "notepad.exe", "msedge"] {
-            let path =
-                resolve_executable_path(name).unwrap_or_else(|| panic!("{name} did not resolve"));
-            assert!(
-                std::path::Path::new(&path).exists(),
-                "{name} -> {path} does not exist"
-            );
+            let path = resolve_executable_path(name).unwrap_or_else(|| panic!("{name} did not resolve"));
+            assert!(std::path::Path::new(&path).exists(), "{name} -> {path} does not exist");
             assert!(path.to_lowercase().ends_with(".exe"), "{name} -> {path}");
         }
 
         // Already-qualified paths and nonsense are not resolved
         assert_eq!(resolve_executable_path("C:\\Windows\\notepad.exe"), None);
-        assert_eq!(
-            resolve_executable_path("gloom-definitely-not-installed"),
-            None
-        );
+        assert_eq!(resolve_executable_path("gloom-definitely-not-installed"), None);
         assert_eq!(resolve_executable_path(""), None);
-    }
-
-    #[test]
-    fn replace_settings_cache_before_init_does_not_panic() {
-        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
-        use super::replace_settings_cache;
-        use crate::state::SETTINGS_CACHE;
-
-        // Mirrors a webview invoking save_setting before the setup hook has
-        // initialized the cache.
-        let mut settings = std::collections::HashMap::new();
-        settings.insert("gloom-test".to_string(), serde_json::json!("true"));
-        replace_settings_cache(settings);
-
-        let cache = SETTINGS_CACHE.get().expect("cache initialized");
-        let guard = cache.lock().expect("cache lock");
-        assert_eq!(
-            guard.get("gloom-test").and_then(|value| value.as_str()),
-            Some("true")
-        );
-    }
-
-    #[test]
-    fn dock_setting_defaults_on_but_rejects_explicit_invalid_values() {
-        use super::dock_setting_enabled;
-
-        assert!(dock_setting_enabled(None));
-        assert!(dock_setting_enabled(Some(&serde_json::json!("true"))));
-        assert!(!dock_setting_enabled(Some(&serde_json::json!("false"))));
-        assert!(!dock_setting_enabled(Some(&serde_json::json!("invalid"))));
-        assert!(!dock_setting_enabled(Some(&serde_json::json!(true))));
-    }
-
-    #[test]
-    fn taskbar_autohide_registry_reads_and_restores() {
-        if let Some(initial) = super::get_taskbar_autohide_registry() {
-            let toggled = !initial;
-            let ok = super::set_taskbar_autohide_registry(toggled);
-            assert!(ok, "failed to write autohide registry");
-            assert_eq!(super::get_taskbar_autohide_registry(), Some(toggled));
-
-            let restored = super::set_taskbar_autohide_registry(initial);
-            assert!(restored, "failed to restore autohide registry");
-            assert_eq!(super::get_taskbar_autohide_registry(), Some(initial));
-        }
     }
 }

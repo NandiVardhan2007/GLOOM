@@ -1,7 +1,8 @@
 /* Surface styles from Settings > Appearance > Style, applied as a class on <html> by theme.ts.
    The notch, dock and overlays sit in transparent windows, so CSS cannot blur what is behind them.
-   The glass styles draw a blurred copy of the wallpaper behind the notch and dock
-   instead, and a haze, grain and sheen over the theme fill everywhere else.
+   The glass styles draw a blurred copy of the wallpaper (backdrop.ts) behind the notch and dock
+   instead, and a haze, grain and sheen over the theme fill everywhere else (overlays, or a solid
+   color wallpaper).
 
    Each surface is painted by SurfaceShape.tsx: one silhouette path, flares included, that clips a
    single fill layer (.surface-fill) and is stroked as the outline (.edge-outline). The flares are
@@ -9,94 +10,120 @@
    and Material keep a plain fill and the older flare pieces; they only use the outline. */
 
 :root {
-	--surface-grain: linear-gradient(transparent, transparent);
-	--surface-outline: rgba(255, 255, 255, 0.18);
+    --surface-grain: linear-gradient(transparent, transparent);
 }
 
 .surface-fill {
-	display: none;
-	position: absolute;
-	z-index: -1;
-	pointer-events: none;
-	background-repeat: no-repeat;
+    display: none;
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    background-repeat: no-repeat;
 }
 
 .edge-outline {
-	display: none;
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	overflow: visible;
-	pointer-events: none;
-	z-index: 3;
-	transition: opacity 0.25s ease;
+    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.edge-outline {
+    transition: opacity 0.25s ease;
 }
 
 .edge-outline.settling {
-	opacity: 0;
-	transition: none;
+    opacity: 0;
+    transition: none;
 }
 
 .edge-outline path {
-	fill: none;
-	stroke: var(--surface-outline, rgba(255, 255, 255, 0.22));
-	stroke-width: 1;
-	stroke-linecap: round;
-	stroke-linejoin: round;
+    fill: none;
+    stroke: var(--surface-outline, rgba(255, 255, 255, 0.22));
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 :root.style-solid {
-	--surface-outline: transparent;
+    --surface-outline: transparent;
 }
 
 :root.light-mode {
-	--surface-outline: rgba(0, 0, 0, 0.14);
+    --surface-outline: rgba(0, 0, 0, 0.14);
 }
 
 :root.style-material {
-	--surface-outline: var(--gloom-border, rgba(255, 255, 255, 0.16));
+    --surface-outline: var(--gloom-border, rgba(255, 255, 255, 0.16));
 }
 
 :root:is(.style-frosted, .style-liquid, .style-material, .light-mode) .edge-outline {
-	display: block;
+    display: block;
 }
 
 /* The notch measures its shape through this element, so it has to be laid out in every style */
 .gloom > .edge-outline {
-	display: block;
+    display: block;
 }
 
 /* Material and light mode: plain fill, the outline replaces any rim or shadow */
 :root:is(.style-material, .light-mode) :is(.gloom, .dock, .volume-notch, .brightness-notch) {
-	box-shadow: none !important;
+    box-shadow: none !important;
 }
 
-/* Solid and Material notch: the plain fill is also drawn by the shape */
+/* The volume and brightness panels always take their outline from the shape (the old border and
+   the ring drawn on their flares tapered off at the corners), in every style */
+.volume-notch-wrapper > .edge-outline,
+.brightness-notch-wrapper > .edge-outline {
+    display: block;
+}
+
+.volume-notch-wrapper,
+.brightness-notch-wrapper {
+    --surface-outline: var(--gloom-border, rgba(255, 255, 255, 0.12));
+}
+
+.volume-notch,
+.brightness-notch {
+    border-color: transparent !important;
+}
+
+.volume-notch-flares::before,
+.volume-notch-flares::after,
+.brightness-notch::before,
+.brightness-notch::after {
+    background: var(--gloom-bg, rgba(0, 0, 0, 0.8)) !important;
+}
+
+/* Solid and Material notch: the plain fill is also drawn by the shape, so the flares and the album glow are part of it */
 :root:not(.style-frosted, .style-liquid) .gloom {
-	isolation: isolate;
-	background: transparent !important;
+    isolation: isolate;
+    background: transparent !important;
 }
 
 :root:not(.style-frosted, .style-liquid) .gloom::before,
 :root:not(.style-frosted, .style-liquid) .gloom::after {
-	display: none !important;
+    display: none !important;
 }
 
 :root:not(.style-frosted, .style-liquid) .gloom > .surface-fill {
-	display: block;
-	background-color: var(--notch-bg, var(--gloom-bg, rgba(0, 0, 0, 0.8)));
-	transition: background-color 0.3s ease;
+    display: block;
+    background-color: var(--notch-bg, var(--gloom-bg, rgba(0, 0, 0, 0.8)));
+    transition: background-color 0.3s ease;
 }
 
 /* ── Glass: the fill layer carries everything, the surface itself is clear ── */
 
 :root:is(.style-frosted, .style-liquid) :is(.gloom, .dock, .volume-notch, .brightness-notch) {
-	isolation: isolate;
-	background: transparent !important;
-	background-image: none !important;
-	box-shadow: none !important;
-	border-color: transparent !important;
+    isolation: isolate;
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
 }
 
 :root:is(.style-frosted, .style-liquid) :is(.gloom, .dock)::before,
@@ -104,89 +131,152 @@
 :root:is(.style-frosted, .style-liquid) .brightness-notch::before,
 :root:is(.style-frosted, .style-liquid) .brightness-notch::after,
 :root:is(.style-frosted, .style-liquid) .volume-notch-flares {
-	display: none !important;
+    display: none !important;
 }
 
 :root:is(.style-frosted, .style-liquid) .surface-fill {
-	display: block;
-	background-color: var(--surface-color, var(--gloom-bg, rgba(0, 0, 0, 0.8)));
+    display: block;
+    background-color: var(--surface-color, var(--gloom-bg, rgba(0, 0, 0, 0.8)));
 }
 
 .gloom > .surface-fill {
-	--surface-color: var(--notch-bg, var(--gloom-bg, rgba(0, 0, 0, 0.8)));
+    --surface-color: var(--notch-bg, var(--gloom-bg, rgba(0, 0, 0, 0.8)));
+    --backdrop-y: var(--backdrop-top);
+}
+
+.dock > .surface-fill {
+    --backdrop-y: var(--backdrop-bottom);
 }
 
 /* Frosted: milky haze and a thin top sheen */
 :root.style-frosted .surface-fill {
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 999px rgba(255, 255, 255, 0.13);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 999px rgba(255, 255, 255, 0.13);
 }
 
 :root.style-frosted.light-mode .surface-fill {
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 0 0 999px rgba(255, 255, 255, 0.33);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 0 0 999px rgba(255, 255, 255, 0.33);
 }
 
+/* The notch hangs from the top edge of the screen, so it has no top sheen line */
 :root.style-frosted .gloom > .surface-fill {
-	box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.13);
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.13);
 }
 
 :root.style-frosted.light-mode .gloom > .surface-fill {
-	box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.33);
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.33);
 }
 
-/* Liquid: clear body, sheen and depth */
+/* Liquid: clear body, sheen and depth. The notch hangs from the top edge and the dock sits on the
+   bottom edge, so each catches the light on the side facing away from the screen. */
 :root.style-liquid .surface-fill {
-	background-image:
-		radial-gradient(120% 140% at 50% 115%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%),
-		linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 45%);
+    background-image:
+        radial-gradient(120% 140% at 50% 115%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 45%);
 }
 
 :root.style-liquid .gloom > .surface-fill {
-	background-image:
-		linear-gradient(0deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 22px),
-		linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 40px);
+    background-image:
+        linear-gradient(0deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 22px),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 40px);
 }
 
 :root.style-liquid .dock > .surface-fill {
-	background-image:
-		radial-gradient(120% 140% at 50% -15%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 55%),
-		linear-gradient(0deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 45%);
+    background-image:
+        radial-gradient(120% 140% at 50% -15%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 55%),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 45%);
 }
 
-/* ── Notch Progress Border (Tracing Island contour) ── */
-.notch-progress {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	pointer-events: none;
-	overflow: visible;
-	z-index: 4;
+/* ── Wallpaper backdrop (Frosted and Liquid on the notch and dock) ──
+   backdrop.ts loads a pre-blurred copy of the wallpaper and sets --backdrop-*; it is drawn inside
+   the fill layer, lined up with the screen, so the glass shows what is actually behind it. The
+   x position is relative to the centre, so the flares leave it unchanged. While an app window is
+   behind the surface, has-backdrop is dropped and the window shows through the tint. */
+
+:root.has-backdrop:is(.style-frosted, .style-liquid) :is(.gloom, .dock) {
+    --glass-tint: color-mix(in srgb, var(--notch-bg, var(--gloom-bg, rgba(0, 0, 0, 0.8))) 62%, transparent);
 }
 
-.notch-progress path {
-	fill: none;
-	stroke-linecap: round;
-	stroke-linejoin: round;
+:root.has-backdrop:is(.style-frosted, .style-liquid) .dock {
+    --glass-tint: color-mix(in srgb, var(--gloom-bg, rgba(0, 0, 0, 0.8)) 62%, transparent);
 }
 
-.notch-progress-track {
-	stroke: rgba(255, 255, 255, 0.06);
-	stroke-width: 2;
+:root.has-backdrop:is(.style-frosted, .style-liquid) :is(.gloom, .dock) > .surface-fill {
+    background-color: transparent;
+    background-size: auto, auto, auto, var(--backdrop-size);
+    background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+    background-blend-mode: soft-light, normal, normal, normal;
+    background-position: 0 0, 0 0, 0 0, var(--backdrop-x) var(--backdrop-y);
 }
 
-.notch-progress-fill {
-	stroke: var(--gloom-accent, #007aff);
-	stroke-width: 2.5;
-	filter: drop-shadow(0 0 6px var(--gloom-accent, #007aff));
-	transition: stroke-dasharray 0.15s ease-out;
+:root.has-backdrop.style-frosted :is(.gloom, .dock) > .surface-fill {
+    background-image:
+        var(--surface-grain),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+        linear-gradient(var(--glass-tint), var(--glass-tint)),
+        var(--backdrop-image);
 }
 
-.notch-progress.paused .notch-progress-fill {
-	stroke: rgba(255, 255, 255, 0.35);
-	filter: none;
+:root.has-backdrop.style-frosted.light-mode :is(.gloom, .dock) > .surface-fill {
+    background-image:
+        var(--surface-grain),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.12)),
+        linear-gradient(var(--glass-tint), var(--glass-tint)),
+        var(--backdrop-image);
 }
 
-.notch-progress.finished .notch-progress-fill {
-	stroke: #34c759;
-	filter: drop-shadow(0 0 8px #34c759);
+:root.has-backdrop.style-liquid .gloom > .surface-fill {
+    background-image:
+        linear-gradient(0deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 22px),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 40px),
+        linear-gradient(var(--glass-tint), var(--glass-tint)),
+        var(--backdrop-image);
+}
+
+:root.has-backdrop.style-liquid .dock > .surface-fill {
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 22px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 30px),
+        linear-gradient(var(--glass-tint), var(--glass-tint)),
+        var(--backdrop-image);
+}
+
+/* The album glow fades into the glass instead of into a solid dark edge */
+:root:is(.style-frosted, .style-liquid) .notch-ambient-glow {
+    -webkit-mask-image: radial-gradient(ellipse at center, #000 25%, rgba(0, 0, 0, 0) 85%);
+    mask-image: radial-gradient(ellipse at center, #000 25%, rgba(0, 0, 0, 0) 85%);
+}
+
+:root:is(.style-frosted, .style-liquid) .notch-ambient-glow::after {
+    display: none;
+}
+
+:root:is(.style-frosted, .style-liquid) .notch-ambient-glow img {
+    opacity: 0.55;
+}
+
+/* ── Light mode polish ──
+   Light surfaces get their edge from the outline above, dock tiles get a real fill, and the album
+   glow is toned down so it tints the panel instead of flooding it. */
+
+.light-mode .dock-icon {
+    background: rgba(0, 0, 0, 0.055);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+.light-mode .notch-ambient-glow img {
+    filter: blur(52px) saturate(1.7) brightness(1.08);
+    opacity: 0.5;
+}
+
+.light-mode .notch-ambient-glow::after {
+    background: radial-gradient(ellipse at center, transparent 25%, rgba(255, 255, 255, 0.3) 55%, rgba(255, 255, 255, 0.5) 100%);
+}
+
+:root:is(.style-frosted, .style-liquid) .dock:not(.dock-icon-only) .dock-icon {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+:root:is(.style-frosted, .style-liquid) .dock:not(.dock-icon-only) .dock-icon {
+    background: rgba(255, 255, 255, 0.1);
 }
