@@ -27,6 +27,11 @@ struct Incoming {
     project: Option<String>,
     window: Option<u64>,
     detail: Option<String>,
+    step: Option<usize>,
+    total_steps: Option<usize>,
+    tool_name: Option<String>,
+    elapsed_secs: Option<u64>,
+    tokens: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -62,6 +67,11 @@ struct Activity {
     detail: Option<String>,
     ask: Option<Ask>,
     cancelled: Option<u64>,
+    step: Option<usize>,
+    total_steps: Option<usize>,
+    tool_name: Option<String>,
+    elapsed_secs: Option<u64>,
+    tokens: Option<u64>,
 }
 
 pub fn data_dir() -> Option<PathBuf> {
@@ -234,6 +244,11 @@ fn handle(mut stream: TcpStream, app: &AppHandle, token: &str) {
                     }),
                 }),
                 cancelled: None,
+                step: None,
+                total_steps: None,
+                tool_name: None,
+                elapsed_secs: None,
+                tokens: None,
             },
         );
         return match wait_for_answer(&mut stream, id, &rx) {
@@ -241,7 +256,20 @@ fn handle(mut stream: TcpStream, app: &AppHandle, token: &str) {
             Some((true, _)) => reply_json(&mut stream, r#"{"decision":"allow"}"#),
             Some((false, _)) => reply_json(&mut stream, r#"{"decision":"deny"}"#),
             None => {
-                let _ = app.emit("agent-activity", Activity { state: "working", name, project, window, detail: None, ask: None, cancelled: Some(id) });
+                let _ = app.emit("agent-activity", Activity {
+                    state: "working",
+                    name,
+                    project,
+                    window,
+                    detail: None,
+                    ask: None,
+                    cancelled: Some(id),
+                    step: None,
+                    total_steps: None,
+                    tool_name: None,
+                    elapsed_secs: None,
+                    tokens: None,
+                });
                 reply(&mut stream, "204 No Content");
             }
         };
@@ -261,6 +289,11 @@ fn handle(mut stream: TcpStream, app: &AppHandle, token: &str) {
         detail: clean(incoming.detail, DETAIL_MAX),
         ask: None,
         cancelled: None,
+        step: incoming.step,
+        total_steps: incoming.total_steps,
+        tool_name: clean(incoming.tool_name, 40),
+        elapsed_secs: incoming.elapsed_secs,
+        tokens: incoming.tokens,
     });
     let _ = app.emit("agent-activity", activity);
     reply(&mut stream, "204 No Content");

@@ -11,6 +11,11 @@ export interface AgentActivity {
   detail?: string;
   ask?: { id: number; tool?: string; detail?: string; questions?: { question: string; options: string[] }[] };
   cancelled?: number;
+  step?: number;
+  total_steps?: number;
+  tool_name?: string;
+  elapsed_secs?: number;
+  tokens?: number;
 }
 
 const MASCOT: Record<AgentState, string> = {
@@ -52,6 +57,11 @@ export function AgentLeft({ activity, dot }: { activity: AgentActivity; dot: boo
   return (
     <>
       <AgentMascot activity={activity} />
+      {activity.step !== undefined && activity.total_steps !== undefined && (
+        <span className="agent-mini-step">
+          {activity.step}/{activity.total_steps}
+        </span>
+      )}
       {dot && <AgentDot activity={activity} />}
     </>
   );
@@ -101,6 +111,41 @@ export function AgentPanel({ activity, picks, onPick, onOpen, onDismiss, onAnswe
       {!ask && activity.detail && (
         <div className="agent-ask">
           <span className="agent-ask-text">{activity.detail}</span>
+        </div>
+      )}
+      {(activity.step !== undefined || activity.tool_name || activity.tokens !== undefined) && (
+        <div className="agent-progress-card">
+          <div className="agent-progress-meta">
+            {activity.step !== undefined && activity.total_steps !== undefined && (
+              <span className="agent-progress-badge">
+                Step {activity.step}/{activity.total_steps}
+              </span>
+            )}
+            {activity.tool_name && (
+              <span className="agent-tool-badge">
+                <span className="agent-tool-dot" />
+                {activity.tool_name}
+              </span>
+            )}
+            {activity.tokens !== undefined && (
+              <span className="agent-metric-item">
+                {activity.tokens.toLocaleString()} tokens
+              </span>
+            )}
+            {activity.elapsed_secs !== undefined && (
+              <span className="agent-metric-item">
+                {Math.floor(activity.elapsed_secs / 60)}:{(activity.elapsed_secs % 60).toString().padStart(2, '0')}
+              </span>
+            )}
+          </div>
+          {activity.step !== undefined && activity.total_steps !== undefined && activity.total_steps > 0 && (
+            <div className="agent-progress-bar-track">
+              <div
+                className="agent-progress-bar-fill"
+                style={{ width: `${Math.min(100, Math.round((activity.step / activity.total_steps) * 100))}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
       {!questions && <div className="agent-panel-actions">

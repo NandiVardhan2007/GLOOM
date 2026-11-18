@@ -2818,3 +2818,128 @@ img {
     margin-right: 6px;
     color: var(--gloom-text-muted, rgba(255, 255, 255, 0.6));
 }
+
+/* ── Dynamic Island Toast Notifications ── */
+.toast-notification-pulse {
+    cursor: pointer;
+    user-select: none;
+    padding: 0 10px;
+    gap: 7px;
+}
+
+.toast-bell-icon {
+    color: #FF9F0A;
+    flex-shrink: 0;
+    animation: toast-bell-shake 0.8s ease-in-out;
+}
+
+@keyframes toast-bell-shake {
+    0%, 100% { transform: rotate(0deg); }
+    20%, 60% { transform: rotate(14deg); }
+    40%, 80% { transform: rotate(-14deg); }
+}
+
+.toast-app-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #FF9F0A;
+    white-space: nowrap;
+}
+
+.toast-separator {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 10px;
+}
+
+.toast-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 170px;
+    font-size: 12px;
+}
+
+/* ── AI Agent Live Progress Enhancements ── */
+.agent-mini-step {
+    font-size: 10px;
+    font-weight: 700;
+    color: #30D158;
+    background: rgba(48, 209, 88, 0.15);
+    padding: 1px 5px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
+    font-variant-numeric: tabular-nums;
+}
+
+.agent-progress-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--gloom-group-bg, rgba(255, 255, 255, 0.08));
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--gloom-border, rgba(255, 255, 255, 0.12));
+    margin-top: 4px;
+}
+
+.agent-progress-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 11px;
+}
+
+.agent-progress-badge {
+    font-weight: 700;
+    color: #30D158;
+    font-variant-numeric: tabular-nums;
+}
+
+.agent-tool-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+}
+
+.agent-tool-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #0A84FF;
+    animation: tool-pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes tool-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.15); }
+}
+
+.agent-metric-item {
+    font-variant-numeric: tabular-nums;
+    color: var(--gloom-text-muted, rgba(255, 255, 255, 0.6));
+    font-size: 10.5px;
+    margin-left: auto;
+}
+
+.agent-progress-bar-track {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.agent-progress-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #30D158, #34C759);
+    transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}

@@ -26,6 +26,7 @@ import { parseCcLayout, parsePanelOrder, resolveCcLayout, type CcKind } from "./
 import { NotchProgressBorder } from "./components/NotchProgressBorder";
 import { SurfaceShape } from "./components/SurfaceShape";
 import { playAgentSound } from "./agentSounds";
+import { playTactileSound } from "./utils/audioFeedback";
 import { AgentLeft, AgentDot, AgentPanel, type AgentActivity } from "./components/AgentStatus";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import {
@@ -539,6 +540,7 @@ function App() {
   const [dockEnabled, setDockEnabled] = useState(() => localStorage.getItem("gloom-dock-enabled") !== "false");
   const [isNotchHovered, setIsNotchHovered] = useState(false);
   const [agentActivity, setAgentActivity] = useState<AgentActivity | null>(null);
+  const [activeToast, setActiveToast] = useState<{ id: number; app_name: string; title: string; body: string; timestamp: number } | null>(null);
   const [agentPicks, setAgentPicks] = useState<{ id: number; choices: number[] }>({ id: 0, choices: [] });
   const lastAgentKey = useRef("");
   const windowLabelRef = useRef("");
@@ -1567,6 +1569,28 @@ function App() {
     };
   }, []);
 
+  // Windows Toast Notification Interceptor
+  useEffect(() => {
+    let clearTimer: ReturnType<typeof setTimeout> | undefined;
+    const unlisten = listen<{ id: number; app_name: string; title: string; body: string; timestamp: number }>(
+      "windows-toast-notification",
+      (event) => {
+        clearTimeout(clearTimer);
+        if (event.payload) {
+          setActiveToast(event.payload);
+          playTactileSound("pop");
+          clearTimer = setTimeout(() => {
+            setActiveToast(null);
+          }, 5000);
+        }
+      }
+    );
+    return () => {
+      clearTimeout(clearTimer);
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   // Native Windows Media Controls - Listen for updates from background worker
   useEffect(() => {
     const applyMedia = (info: MediaInfo | null | undefined) => {
@@ -1984,6 +2008,10 @@ function App() {
       return Math.min(200 + totalWidgets * 65, 530) + dualClockExtra;
     }
     if (isMusicMode && isHovered) return mediaLayout === 'compact' ? 300 : 340;
+    if (activeToast && !isHovered) {
+      const textLen = (activeToast.title?.length || 0) + (activeToast.app_name?.length || 0);
+      return Math.min(360, Math.max(220, 140 + textLen * 5));
+    }
     if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
     let w = 140 + dualClockExtra + (agentWings ? (isMusicMode ? 24 : 56) : 0);
@@ -2354,7 +2382,26 @@ function App() {
                   >
                     <div className="main-row">
                       <AnimatePresence mode="wait">
-                        {(showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered ? (
+                        {activeToast && !isHovered ? (
+                          <motion.div
+                            key="toast-pulse-view"
+                            initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
+                            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
+                            className="power-pulse-content toast-notification-pulse"
+                            onClick={() => {
+                              setActiveToast(null);
+                              invoke("open_notification_center").catch(() => {});
+                            }}
+                          >
+                            <Bell size={13} className="toast-bell-icon" />
+                            <span className="toast-app-name">{activeToast.app_name}</span>
+                            <span className="toast-separator">•</span>
+                            <span className="label toast-text">
+                              {activeToast.title ? `${activeToast.title}${activeToast.body ? `: ${activeToast.body}` : ''}` : activeToast.body}
+                            </span>
+                          </motion.div>
+                        ) : (showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered ? (
                           showUpdatePulse ? (
                             <motion.div
                               key="update-pulse-view"

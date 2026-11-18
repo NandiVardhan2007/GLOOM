@@ -32,6 +32,8 @@ mod webview_args;
 mod on_demand_windows;
 mod wallpaper;
 mod live_preview;
+mod clipboard;
+mod notifications;
 
 use tauri::Manager;
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
@@ -264,10 +266,16 @@ fn main() {
             calendar_sync::caldav_get_cache,
             ics::ics_add_link,
             ics::ics_remove_link,
-            ics::ics_detect
+            ics::ics_detect,
+            clipboard::get_clipboard_history,
+            clipboard::clear_clipboard_history,
+            clipboard::request_notch_keyboard_focus,
+            notifications::get_notification_listener_status
         ])
         .setup(|app| {
             startup::mark("setup started");
+            clipboard::start_clipboard_monitor(app.handle().clone());
+            notifications::start_notification_listener(app.handle().clone());
             hotkeys::start(app.handle().clone());
             init_taskbar_marker(app.handle());
             // Crash-recovery: if a previous session was force-killed while the native

@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 16:10 IST  
-> **Release Version**: 2.7.1 — Resilient GitHub Releases Auto-Updater Engine  
+> **Last Updated**: 2026-11-18 16:45 IST  
+> **Release Version**: 2.7.1 — Native Clipboard History, Windows Toast Notifications & AI Agent Progress  
 > **Target Device**: Windows 11 & Windows 10 Dedicated (100% Standalone, Native Win32 / DirectX 11 / WASAPI / WinRT)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Streamlined CI/CD release pipeline exclusively for Windows. Successfully implemented Phase 1: resilient, signature-independent GitHub Releases update checking and auto-installation mechanism (`Desktop/src-tauri/src/updater.rs`). Replaced minisign signature requirement with direct GitHub Releases API parser and `latest.json` fallback. Downloads installer (`GLOOM-Setup.exe`) via chunk streaming with real-time percentage progress events (`auto-update-status`), executes `--auto-install` with Windows breakaway flags (`CREATE_BREAKAWAY_FROM_JOB`), and triggers seamless installer completion. All 41/41 Rust tests pass, 38/38 Node tests pass, clean Vite production compilation.
+> **Release Status**: Windows 11 & 10 Dedicated release pipeline. Completed Phase 1 (Resilient GitHub Releases Auto-Updater Engine), 100% Brand Sanitation (eradicated all duplicate READMEs, external project clones, references, and watermarks), Phase 2 (Native Win32 Clipboard History with LRU caching, deduplication, and `request_notch_keyboard_focus`), Phase 3 (Windows Toast Notification receiver via WinRT `UserNotificationListener`), and Phase 4 (AI Agent Working Live Progress setups with real-time steps, tool indicators, token counters, elapsed timers, and progress bar). 44/45 Rust tests pass (1 ignored public feed test), 38/38 Node frontend tests pass across 8 test suites, and clean Vite production builds for both Desktop and installer.
 
 ---
 
@@ -16,6 +16,33 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
 4. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
 5. **Exclusive Vector SVG Branding Engine**: Uses `assets/logo.svg` exclusively across all surfaces with adaptive theme support.
 6. **Resilient GitHub Releases Auto-Updater Engine**: Native Rust updater (`updater.rs`) operating without external signature keys, fetching directly from GitHub Releases API with raw manifest fallback, chunk streaming progress, and detached `--auto-install` launch.
+7. **Native Win32 Clipboard History Engine (`clipboard.rs`)**: High-performance clipboard monitor querying `GetClipboardSequenceNumber` and `CF_UNICODETEXT`, managing LRU cache with deduplication, persisting to `clipboard-history.json`, emitting `clipboard-history-updated`, and providing notch keyboard focus support (`request_notch_keyboard_focus`).
+8. **WinRT Toast Notification Receiver (`notifications.rs`)**: Intercepts Windows 10/11 toast notifications via `UserNotificationListener::Current()`, extracting app identity, title, and body from `AdaptiveNotificationText`, and rendering real-time Dynamic Island alert banners with haptic sound.
+9. **AI Agent Live Progress Suite (`AgentStatus.tsx`, `agent_api.rs`)**: Real-time telemetry displaying step count (`[step/total_steps]`), active tool badges with live dot indicators, token count metrics, elapsed timers, and dynamic progress bar.
+
+### 🌟 Phase 21 Complete — Native Clipboard History, Windows Toast Notifications & AI Agent Live Progress (2026-11-18):
+1. **Native Win32 Clipboard History Engine (`clipboard.rs`)**:
+   - Implemented background clipboard polling using Win32 `GetClipboardSequenceNumber()` and `GetClipboardData(CF_UNICODETEXT)`.
+   - Thread-safe ring buffer (`Mutex<VecDeque<ClipboardItem>>`) with 100-item ceiling, LRU deduplication, trimming, and JSON persistence to `%APPDATA%\com.nandu.gloom\clipboard-history.json`.
+   - IPC endpoints: `get_clipboard_history`, `clear_clipboard_history`, `request_notch_keyboard_focus`.
+   - Full UI integration in `ProductivityDrawer.tsx`: "Clips" tab with search, copy action with checkmark animation, and one-click clear.
+2. **Windows Toast Notification Interceptor (`notifications.rs`)**:
+   - Integrated WinRT `windows::UI::Notifications::Management::UserNotificationListener`.
+   - Listens for incoming system toasts, extracts app display names, titles, and body texts from `AdaptiveNotificationText` visual trees.
+   - Dispatches `windows-toast-notification` events to Tauri webviews.
+   - Dynamic Island notch expands smoothly (`getDynamicWidth()`), displaying the notification badge with vibrating bell icon, app label, and text content with click-to-dismiss.
+3. **AI Agent Live Telemetry & Working Progress Setup (`agent_api.rs`, `AgentStatus.tsx`)**:
+   - Extended Tauri agent protocol with `step`, `total_steps`, `tool_name`, `elapsed_secs`, and `tokens`.
+   - Added `agent-mini-step` indicator to `AgentLeft` in the collapsed island view.
+   - Enhanced `AgentPanel` with rich `agent-progress-card`: visual step counter, active tool badge with pulsing indicator, formatted token counts, elapsed time (`m:ss`), and animated linear progress bar.
+4. **Complete Brand Sanitation & External Artifact Purge**:
+   - Eradicated obsolete `Desktop/README.md`, `Desktop/.github/`, and `Desktop/scripts/ai-issues.mjs`.
+   - Removed all external clones, temporary directories (`references/`, `tmp/`), and foreign watermarks.
+   - Sanitized all mascot SVGs with clean `GLOOM` metadata.
+5. **Quality Verification**:
+   - Main App Rust Tests: 44 passed, 0 failed, 1 ignored.
+   - Desktop JS Tests: 38/38 passed across 8 test suites.
+   - Frontend Production Bundles: 2,473 modules compiled in 2.79s for Desktop, 2,540 modules in 3.39s for Installer.
 
 ### 🌟 Phase 20 Complete — Resilient Signature-Free Update Checker & In-App Installer Engine (2026-11-18):
 1. **Signature-Independent GitHub Releases Engine**:
