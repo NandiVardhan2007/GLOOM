@@ -57,7 +57,7 @@ jobs:
           if ($env:GITHUB_REF -like "refs/tags/*") {
             $version = $env:GITHUB_REF_NAME -replace '^v', ''
           } else {
-            $version = "2.7.${env:GITHUB_RUN_NUMBER}"
+            $version = "2.8.${env:GITHUB_RUN_NUMBER}"
           }
           python scripts/stamp_version.py "$version"
 
@@ -101,7 +101,7 @@ jobs:
             $version = $env:GITHUB_REF_NAME -replace '^v', ''
             $tag = $env:GITHUB_REF_NAME
           } else {
-            $version = "2.7.$env:GITHUB_RUN_NUMBER"
+            $version = "2.8.$env:GITHUB_RUN_NUMBER"
             $tag = "v$version"
           }
 
@@ -171,29 +171,39 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v2.7.{0}', github.run_number) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('GLOOM Dynamic Island Release {0}', github.ref_name) || format('GLOOM Dynamic Island Release v2.7.{0}', github.run_number) }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v2.8.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('GLOOM Dynamic Island Release {0}', github.ref_name) || format('GLOOM Dynamic Island Release v2.8.{0}', github.run_number) }}
           draft: false
           prerelease: false
           make_latest: true
           body: |
-            ### GLOOM v2.7.0 — Pure 1:1 Parity Clone, Custom Setup Wizard & Exclusive Vector SVG Branding
+            ### GLOOM ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.8.0' }} — Dedicated Windows Companion Suite
+
+            #### 🔄 Resilient In-App GitHub Releases Auto-Updater Engine
+            - **Signature-Free Native Updates**: Queries GitHub Releases API directly with raw manifest fallback.
+            - **Chunk Streaming Progress**: Real-time download progress bar in settings and notch.
+            - **Detached Auto-Install**: Spawns `GLOOM-Setup.exe --auto-install` with Windows breakaway flags (`CREATE_BREAKAWAY_FROM_JOB`) for seamless update and automatic restart.
+
+            #### 📋 Native Win32 Clipboard History
+            - **High-Performance Win32 Monitor**: Real-time clipboard tracking via `GetClipboardSequenceNumber` and `CF_UNICODETEXT`.
+            - **Deduplication & LRU Cache**: 100-item local history ring buffer with disk persistence.
+            - **Productivity Drawer UI**: Dedicated "Clips" tab with search, copy action with checkmark animation, and one-click clear.
+
+            #### 🔔 Windows Toast Notification Receiver
+            - **WinRT UserNotificationListener**: Intercepts Windows 10/11 system notifications in the background.
+            - **Dynamic Island Live Banner**: Automatically expands the notch with vibrating bell icon, app label, and notification text with click-to-dismiss.
+
+            #### 🤖 AI Agent Live Progress & Working Telemetry
+            - **Real-Time Step Counters**: Live `[step/total_steps]` indicator in the collapsed dynamic island.
+            - **Rich Progress Card**: Active tool badges with pulsating indicators, formatted token counts, elapsed timers, and dynamic linear progress bars.
 
             #### 🏝️ Custom Dark Glass Setup Wizard (`GLOOM-Setup.exe`)
             - **Self-Contained Installer App**: Custom webview installation UI with dark glass backdrop blur, animated vector logo, real-time extraction progress bar, elevation handling, desktop shortcuts, and uninstall registry registration.
             - **No Localhost Dependency**: Embedded production webview bundle directly into the Windows PE binary (`tauri build --no-bundle`), completely resolving `localhost refused to connect` / `ERR_CONNECTION_REFUSED`.
 
-            #### 🪟 On-Demand Acrylic Windows & Dynamic Island Parity
-            - **Calendar Window (`calendar.html`)**: Native CalDAV and ICS calendar synchronization with Windows Credential Manager integration.
-            - **Settings Window (`settings.html`)**: Full 11-tab settings suite with real-time fuzzy search engine and deep tab linking.
-            - **Dock Window (`dock.html`)**: macOS-style fluid continuous magnification dock.
-            - **Overlay Window (`overlay.html`)**: Full-screen dynamic overlay canvas.
-            - **14 Notch Components & 34 Rust Services**: Complete 1:1 parity with zero references to old project names.
-
-            #### 🎨 Exclusive Vector SVG Branding & Dual-Theme Contrast
-            - **100% Vector SVG**: Pure vector rendering using `assets/logo.svg` across all surfaces.
-            - **Dual-Theme Adaptation**: Automatically displays dark vector icon (`assets/logo-dark.svg` / `/gloom-dark.svg`) on light backgrounds and light vector icon (`/gloom.svg`) on dark/black OLED backgrounds.
-            - **Native Windows Icons**: Regenerated Windows PE `.ico`, taskbar icons, and installer graphics.
+            #### 🎨 100% GLOOM Standalone Branding
+            - Pure vector rendering with `assets/logo.svg` across all surfaces.
+            - Fully purged all external project artifacts, duplicate READMEs, and watermarks.
           generate_release_notes: true
           files: |
             release-assets/**/GLOOM-Setup-*.exe

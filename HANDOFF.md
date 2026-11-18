@@ -1,7 +1,7 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 16:45 IST  
-> **Release Version**: 2.7.1 — Native Clipboard History, Windows Toast Notifications & AI Agent Progress  
+> **Last Updated**: 2026-11-18 16:55 IST  
+> **Release Version**: 2.8.0 — Native Clipboard History, Windows Toast Notifications & AI Agent Progress  
 > **Target Device**: Windows 11 & Windows 10 Dedicated (100% Standalone, Native Win32 / DirectX 11 / WASAPI / WinRT)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
 > **Release Status**: Windows 11 & 10 Dedicated release pipeline. Completed Phase 1 (Resilient GitHub Releases Auto-Updater Engine), 100% Brand Sanitation (eradicated all duplicate READMEs, external project clones, references, and watermarks), Phase 2 (Native Win32 Clipboard History with LRU caching, deduplication, and `request_notch_keyboard_focus`), Phase 3 (Windows Toast Notification receiver via WinRT `UserNotificationListener`), and Phase 4 (AI Agent Working Live Progress setups with real-time steps, tool indicators, token counters, elapsed timers, and progress bar). 44/45 Rust tests pass (1 ignored public feed test), 38/38 Node frontend tests pass across 8 test suites, and clean Vite production builds for both Desktop and installer.
