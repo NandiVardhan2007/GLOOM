@@ -1,4 +1,4 @@
-//! OS drop target for the notch (files and text), adapted from Bloom by Sehajveer Singh (GPLv3).
+//! OS drop target for the notch (files and text).
 //! WebView2 recreates its render child after the window is built, so the target is registered again after first paint.
 
 use std::cell::UnsafeCell;

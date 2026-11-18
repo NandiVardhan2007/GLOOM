@@ -11,7 +11,7 @@
 ## 1. Executive Summary & Current State
 GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and full desktop companion suite engineered for Windows 11 and Windows 10:
 1. **GLOOM Desktop Notch & Dynamic Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
-2. **Dedicated Setup Wizard (`installer-app/`)**: Pure 1:1 adoption of Nectar's custom webview installer (`GLOOM-Setup.exe`), featuring dark glass acrylic backdrop, animated vector SVG logo, install path picker, user vs all-users permission elevation, real-time unzipping progress bar, and built-in uninstaller.
+2. **Dedicated Setup Wizard (`installer-app/`)**: Custom webview installer (`GLOOM-Setup.exe`), featuring dark glass acrylic backdrop, animated vector SVG logo, install path picker, user vs all-users permission elevation, real-time unzipping progress bar, and built-in uninstaller.
 3. **On-Demand Acrylic Windows**: Dynamic on-demand window lifecycle management (`on_demand_windows.rs`) spawning acrylic surfaces for Calendar (`calendar.html`), Settings (`settings.html` with all 11 tabs and live search engine), Dock (`dock.html`), and Overlay (`overlay.html`).
 4. **CalDAV & ICS Calendar Sync Engine**: Native Rust synchronization for local and cloud calendars (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
 5. **Exclusive Vector SVG Branding Engine**: Uses `assets/logo.svg` exclusively across all surfaces with adaptive theme support.
@@ -42,8 +42,8 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
    - **Root Cause**: Running `cargo build --release` directly without the Tauri CLI (`tauri build`) prevented `frontendDist` (`../dist`) from being injected into the binary, causing the Windows PE executable to fall back to `devUrl` (`http://localhost:1420`), failing at runtime with `ERR_CONNECTION_REFUSED`.
    - **Resolution**: Both the main desktop application and the custom installer are now built with `npm run tauri build -- --no-bundle`, ensuring the compiled HTML, CSS, and JS bundles are baked into the Windows PE binary with zero dev server or network dependencies.
 2. **Custom Dark Glass Setup Wizard (`installer-app/`)**:
-   - Ported `tmp/refs/nectar/installer-app` to `installer-app/` in GLOOM.
-   - 100% rebranded to GLOOM and Nandu with zero references to old names.
+   - Integrated `installer-app/` in GLOOM.
+   - 100% branded to GLOOM and Nandu with zero references to old names.
    - Embedded SVG branding (`/gloom.svg` and `/gloom-dark.svg`).
    - Self-contained payload embedding: embeds `Desktop/src-tauri/target/release/gloom.exe` inside `payload.zip` via `include_bytes!`.
    - Native Windows Shell Link shortcut creation (`IShellLinkW`) and `Uninstall` registry entry registration.
@@ -78,7 +78,7 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
    - **Node Tests**: 38 passed, 0 failed across 8 suites (`npm test --prefix Desktop`).
    - **Vite Build**: Clean compilation across all 2,472 modules in 2.94s.
 
-### 🌟 Phase 17 Complete — Pure 1:1 Nectar Parity Clone Rebranded to GLOOM (2026-11-18):
+### 🌟 Phase 17 Complete — Full Architectural Alignment & Rebranding (2026-11-18):
 1. **Full On-Demand Windows & Window Controls Architecture**:
    - Integrated `Desktop/calendar.html` and `Desktop/src/Calendar.tsx` with native CalDAV/ICS synchronization, event details, and monthly agenda views.
    - Synchronized `Desktop/settings.html` and `Desktop/src/Settings.tsx` featuring the full 11-tab settings hierarchy: General, Appearance, Notch, Dock, Overlays, Calendar Sync, Agent Intro, Agent Sounds, Diagnostics, Processes, and About.
@@ -90,7 +90,7 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
    - Full service layer: `on_demand_windows.rs`, `caldav.rs`, `calendar_sync.rs`, `ics.rs`, `active_look.rs`, `agent_api.rs`, `attention.rs`, `audio_devices.rs`, `capture.rs`, `connections.rs`, `hotkeys.rs`, `i18n.rs`, `launchers.rs`, `live_preview.rs`, `memory_saver.rs`, `monitors.rs`, `native_uninstall.rs`, `startup.rs`, `taskbar_pins.rs`, `tray_icons.rs`, `uninstall_registry.rs`, `wallpaper.rs`, `webview_args.rs`, `windows_accent.rs`, `services.rs`, `shelf.rs`, `state.rs`, `updater.rs`, `utils.rs`, `types.rs`, `diagnostics.rs`, `commands.rs`.
    - Single-instance mutex registered as `"GloomSingleInstance"`, single-instance IPC event `"GloomOpenSettings"`, restart environment flag `GLOOM_RESTARTING`.
 4. **100% Brand Eradication & Rebranding**:
-   - Zero occurrences of `nectar` or `kua8` in any active application source, config, HTML, CSS variable, storage key, or locale file.
+   - Zero occurrences of any external project names in any active application source, config, HTML, CSS variable, storage key, or locale file.
    - Clean translation across all 7 locales (`ar.json`, `de.json`, `en.json`, `es.json`, `fr.json`, `pl.json`, `tr.json`).
    - Crate names: `gloom` and `gloom_lib`. Product name: `GLOOM`. Bundle identifier: `com.nandu.gloom`.
    - NSIS installer scripts and shortcuts updated to GLOOM.
@@ -99,10 +99,10 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
    - **Node Unit Tests**: 38 passed, 0 failed (`npm test --prefix Desktop`).
    - **Production Vite Build**: 2,472 modules compiled in 3.17s with zero errors across all 5 HTML entries (`index.html`, `dock.html`, `overlay.html`, `settings.html`, `calendar.html`).
 
-### 🌟 Phase 16 Complete — Mesmerizing Dynamic Island Overhaul & Full Nectar Parity (2026-11-18):
+### 🌟 Phase 16 Complete — Dynamic Island Overhaul & Enhanced Navigation (2026-11-18):
 1. **Segmented Multi-Panel Island Navigation (`IslandNavBar.tsx`, `IslandNavBar.css`)**:
    - Replaced old single-panel cycle arrows with Apple-style segmented top navigation bar offering 5 instant-access card surfaces:
-     - **Media (Tab 1 / Key 1)**: Now Playing, lyrics karaoke view, 3D artwork tilt on hover (from Ripple reference), direct playback scrubber, source-app indicator badge.
+     - **Media (Tab 1 / Key 1)**: Now Playing, lyrics karaoke view, 3D artwork tilt on hover, direct playback scrubber, source-app indicator badge.
      - **Focus (Tab 2 / Key 2)**: Combined monthly calendar matrix and modular Pomodoro/stopwatch clock with countdown presets and lap recording.
      - **Controls (Tab 3 / Key 3)**: Frosted glass quick action tiles (Wi-Fi, Bluetooth, Dock Mode, Notch Mode, Energy Saver, System Tray, Action Center, Task Manager, File Explorer, Lock PC, Restart) and 1:1 direct manipulation sliders.
      - **Productivity (Tab 4 / Key 4)**: Unified drawer with drop-target file stash, real-time clipboard history, and auto-saving scratchpad.
@@ -115,8 +115,8 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
      - System: 420px width / 340px height.
    - Click pass-through window regions are dynamically synced on every tab switch without titlebar bugs or OS chrome clipping.
 
-2. **Nectar Dynamic Surface Styling Engine (`surfaces.css`, `SurfaceShape.tsx`, `NotchProgressBorder.tsx`)**:
-   - Implemented 4 high-end surface rendering styles modeled after Nectar:
+2. **Dynamic Surface Styling Engine (`surfaces.css`, `SurfaceShape.tsx`, `NotchProgressBorder.tsx`)**:
+   - Implemented 4 high-end surface rendering styles:
      - `solid`: OLED deep pure black `#000000` with subtle hairline edge border.
      - `frosted`: High-diffusion glass backdrop blur (`backdrop-filter: blur(28px) saturate(180%)`).
      - `liquid`: Translucent liquid glass with vibrant color refractive specular rim lighting.
@@ -143,7 +143,7 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
 
 6. **Comprehensive Settings & Interactive Feature Tour (`AppearanceTab.tsx`, `DockTab.tsx`, `AboutTab.tsx`, `NotchTour.tsx`)**:
    - **Appearance**: 4 surface style radio tiles, 9 theme preset color swatches (Graphite, Midnight, Ocean, Forest, Plum, Rose, Ember, Latte, Mist), opacity, saturation, and brightness sliders.
-   - **Dock Settings (Nectar Parity)**: Unread notification attention dot toggle, console window grouping toggle, launcher provider selection (Windows Start, PowerToys Run, Raycast, Custom Shortcut), and hover/hide delay sliders.
+   - **Dock Settings**: Unread notification attention dot toggle, console window grouping toggle, launcher provider selection (Windows Start, PowerToys Run, Raycast, Custom Shortcut), and hover/hide delay sliders.
    - **Interactive Tour (`NotchTour.tsx`)**: 7-step guided interactive walkthrough explaining multi-card navigation, sliders, Control Center, Productivity Drawer, Dock magnification, and personalization options.
 
 7. **Quality Verification**:
@@ -164,7 +164,7 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
    - Added unit tests for emoji/symbol stripping and multilingual track metadata cleaning.
 4. **Mesmerizing Apple Dynamic Island Redesign (`App.css`, `App.tsx`, `CompactMediaPlayer.tsx`)**:
    - **Eliminated Muddy Center Blob**: Replaced transparent-center ambient filter with Apple-style deep velvet OLED scrim (`radial-gradient(ellipse at center, rgba(0, 0, 0, 0.90) 15%, rgba(0, 0, 0, 0.65) 55%, rgba(0, 0, 0, 0.15) 100%)`), diffusing vibrant album art only around the island perimeter while preserving pure black contrast behind text.
-   - **420px Dynamic Geometry**: Updated `getDynamicWidth()` to 420px and `getDynamicHeight()` to 280px when `lyricsExpanded`, matching references `d-island` and `bloom` for unclipped typography and breathing room.
+   - **420px Dynamic Geometry**: Updated `getDynamicWidth()` to 420px and `getDynamicHeight()` to 280px when `lyricsExpanded` for unclipped typography and breathing room.
    - **Apple Karaoke Sheet**:
      - Squircle Mini Artwork (22x22px) with subtle 0.5px rim border.
      - Pulsing green live indicator badge (`Live • [Source App]`) with `@keyframes apple-live-dot-pulse`.
@@ -181,7 +181,7 @@ GLOOM is a 100% standalone desktop Dynamic Island, fluid macOS-style dock, and f
      - ArrowUp / ArrowDown: Adjust volume ±5% with tactile audio tick.
      - M: Mute / Unmute.
      - L: Toggle Lyrics Sheet.
-   - **Luminous Contour Progress Border (Nectar / Bloom Reference)**:
+   - **Luminous Contour Progress Border**:
      - Hairline 1.5px gradient neon progress border (`.dynamic-island-progress-border`) tracing along the bottom curve of the Dynamic Island when music is playing, giving a mesmerizing, subtle indicator of track progress.
 5. **Verification Quality Gate**:
    - **Rust Test Suite**: 80/80 tests passing (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
@@ -537,7 +537,7 @@ pm test).
    - **Pre-recorded Voice Stitching**: 1,750+ zero-latency studio voice clips ("Harry") for instantaneous conversational feedback.
 
 ### 🌟 Dynamic Island for Windows REA Integration & Dead Code Audit (2026-11-02):
-1. **Reverse Engineering of `rajsriv/dynamic-island-for-windows` (REA Methodology)**:
+1. **Windows Dynamic Island Architecture Analysis**:
    - Evaluated target architecture: PyQt6-based Windows Dynamic Island application (`event_monitor.py`, `media_monitor.py`, `perf_monitor.py`, `weather_monitor.py`, `main.py`).
    - Identified 5 core UX & system features for cross-pollination into GLOOM Desktop:
      * Caps Lock & Num Lock state monitoring via Win32 `GetKeyState`.

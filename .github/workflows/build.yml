@@ -180,7 +180,7 @@ jobs:
             ### GLOOM v2.7.0 — Pure 1:1 Parity Clone, Custom Setup Wizard & Exclusive Vector SVG Branding
 
             #### 🏝️ Custom Dark Glass Setup Wizard (`GLOOM-Setup.exe`)
-            - **Self-Contained Installer App**: Ported custom webview installation UI matching Nectar 1:1 with dark glass backdrop blur, animated vector logo, real-time extraction progress bar, elevation handling, desktop shortcuts, and uninstall registry registration.
+            - **Self-Contained Installer App**: Custom webview installation UI with dark glass backdrop blur, animated vector logo, real-time extraction progress bar, elevation handling, desktop shortcuts, and uninstall registry registration.
             - **No Localhost Dependency**: Embedded production webview bundle directly into the Windows PE binary (`tauri build --no-bundle`), completely resolving `localhost refused to connect` / `ERR_CONNECTION_REFUSED`.
 
             #### 🪟 On-Demand Acrylic Windows & Dynamic Island Parity

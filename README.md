@@ -65,14 +65,14 @@ Engineered with Rust, Tauri v2, React 19, and Framer Motion, GLOOM adheres stric
       </ul>
     </td>
     <td width="50%">
-      <h3 align="center">🖥️ Cross-Platform Desktop Power</h3>
+      <h3 align="center">🖥️ Native Windows 11 & 10 Architecture</h3>
       <ul>
-        <li><b>Multi-Platform Linux Support</b>: Native X11 and Wayland (XWayland) integration on <b>Zorin OS</b>, <b>Ubuntu</b>, and <b>Debian</b> via WebKitGTK and Cairo input regions.</li>
-        <li><b>Zero-Warning Clean Console</b>: Intercepted and silenced benign FUSE <code>statvfs</code> and Tracker3 IPC messages for clean, noise-free execution.</li>
-        <li><b>Window Region Clipping</b>: Pixel-accurate click pass-through outside the pill capsule; captures full input when expanded for controls and outside-click dismissal.</li>
+        <li><b>Pure Win32 & DirectX 11 Integration</b>: Low-overhead desktop companion architecture with hardware-accelerated Direct3D 11 rendering and WASAPI loopback audio capture.</li>
+        <li><b>Native Windows Acrylic Materials</b>: DWM acrylic and Mica background blur effects tuned for Windows 11 and Windows 10 surfaces.</li>
+        <li><b>Pixel-Perfect Window Clipping</b>: Pixel-accurate click pass-through outside the pill capsule; captures full input when expanded for controls and outside-click dismissal.</li>
         <li><b>Fullscreen Intelligence</b>: Auto-suppresses when full-screen 3D games, presentations, or video players gain focus.</li>
         <li><b>Glanceable Control Center</b>: iOS 18 glass tiles for quick Wi-Fi management, Bluetooth devices, volume slider, brightness control, and battery telemetry.</li>
-        <li><b>macOS-Style Magnifying Dock</b>: Optional fluid dock for Windows featuring true continuous magnification ($B=42\text{px}$, $M=72\text{px}$, $g=12\text{px}$), launch bounce, and smooth app launching.</li>
+        <li><b>macOS-Style Magnifying Dock</b>: Fluid dock for Windows featuring true continuous magnification ($B=42\text{px}$, $M=72\text{px}$, $g=12\text{px}$), launch bounce, and smooth app launching.</li>
       </ul>
     </td>
   </tr>
@@ -128,17 +128,15 @@ The codebase is organized into clean, focused directories:
 
 ```
 GLOOM/
-├── Desktop/                  # Desktop Tauri Workspace (Windows & Linux)
-│   ├── src/                  # React 19 + TypeScript Frontend
-│   │   ├── components/       # DynamicIsland, QuickPanel, StatusWidgets
-│   │   ├── settings/         # Appearance, Notch, General tabs
+├── Desktop/                  # Desktop Tauri Workspace (Windows 11 & 10)
+│   ├── src/                  # React 19 + TypeScript Frontend (Notch, Island, Dock, Settings, Calendar, Overlay)
+│   │   ├── components/       # DynamicIsland, IslandNavBar, NotchSubcomponents
+│   │   ├── settings/         # 11-Tab Settings Hierarchy & Search Engine
 │   │   └── icons/            # Apple SF-inspired SVG icons
-│   └── src-tauri/            # Rust Backend (Cross-Platform)
-│       ├── src/              # App entrypoint, state, updater, audio
-│       └── src/platform/
-│           └── linux/        # Native Linux (Cairo regions, wpctl, bluetoothctl, GTK)
+│   └── src-tauri/            # Rust Backend (Win32, DirectX 11, WASAPI, WinRT)
+│       └── src/              # Windows services, on-demand acrylic windows, CalDAV sync, updater
 ├── installer/                # NSIS installer hooks & graphics
-├── installer-app/            # Custom Tauri v2 Setup Wizard & Uninstaller App
+├── installer-app/            # Custom Tauri v2 Setup Wizard (`GLOOM-Setup.exe`) & Uninstaller App
 ├── scripts/                  # Version stamping & release automation
 └── tests/                    # Configuration and geometry test suites
 ```
