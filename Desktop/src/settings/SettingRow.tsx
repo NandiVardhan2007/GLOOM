@@ -8,7 +8,8 @@ export function SettingRow({
 	danger,
 	divider = true,
 	onClick,
-	children
+	children,
+	iconClassName
 }: SettingRowProps) {
 	const className = ["setting-item", action ? "action" : "", danger ? "danger" : ""]
 		.filter(Boolean)
@@ -18,11 +19,11 @@ export function SettingRow({
 		<>
 			<div className={className} onClick={onClick}>
 				<div className="setting-icon-bg">
-					<Icon size={14} strokeWidth={1.5} />
+					<Icon size={14} strokeWidth={1.5} className={iconClassName} />
 				</div>
 				<div className="setting-info">
 					<span className="setting-label">{label}</span>
-					{desc && <span className="setting-desc">{desc}</span>}
+					{desc && <div className="setting-desc">{desc}</div>}
 				</div>
 				{children}
 			</div>

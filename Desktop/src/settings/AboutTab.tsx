@@ -1,7 +1,8 @@
-import { Download, RefreshCw, FileDown, Upload } from "lucide-react";
+import { Download, RefreshCw, FileDown, Upload, CheckCircle2, Sparkles } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GithubIcon } from "../icons";
 import { SettingRow } from "./SettingRow";
+import { formatUpdateProgressMeta } from "./updaterUtils";
 
 interface AboutTabProps {
 	appVersion: string;
@@ -15,6 +16,9 @@ interface AboutTabProps {
 	importStatus: string;
 	handleExportSettings: () => void;
 	handleImportSettings: () => void;
+	updateProgress?: number;
+	updateDownloadedBytes?: number;
+	updateTotalBytes?: number;
 }
 
 export function AboutTab({
@@ -28,31 +32,73 @@ export function AboutTab({
 	exportStatus,
 	importStatus,
 	handleExportSettings,
-	handleImportSettings
+	handleImportSettings,
+	updateProgress = 0,
+	updateDownloadedBytes = 0,
+	updateTotalBytes = 0
 }: AboutTabProps) {
-	const getUpdateLabel = () => {
-		switch (updateStatus) {
-			case "checking":
-				return "Checking...";
-			case "available":
-				return `Update Available (v${updateVersion})`;
-			case "uptodate":
-				return "GLOOM is up to date";
-			case "downloading":
-				return "Downloading Update...";
-			case "installing":
-				return "Installing...";
-			case "error":
-				return "No updates found";
-			default:
-				return "Check for Updates";
-		}
+	const isDownloading = updateStatus === "downloading";
+	const isInstalling = updateStatus === "installing";
+	const isChecking = updateStatus === "checking";
+	const isAvailable = updateStatus === "available";
+	const isUpToDate = updateStatus === "uptodate";
+	const isBusy = isDownloading || isInstalling || isChecking;
+
+	const getUpdateIcon = () => {
+		if (isUpToDate) return CheckCircle2;
+		if (isAvailable) return Sparkles;
+		return RefreshCw;
 	};
 
-	const getUpdateDesc = () =>
-		updateStatus === "available"
-			? "Click to install and restart"
-			: `Currently running v${appVersion}`;
+	const getUpdateLabel = () => {
+		if (isChecking) return "Checking for Updates...";
+		if (isAvailable) return `Update Available (v${updateVersion})`;
+		if (isUpToDate) return "GLOOM is Up to Date";
+		if (isDownloading) return "Downloading Update...";
+		if (isInstalling) return "Installing Update...";
+		if (updateStatus === "error") return "Check for Updates";
+		return "Check for Updates";
+	};
+
+	const getUpdateDesc = () => {
+		if (isDownloading || isInstalling) {
+			const meta = formatUpdateProgressMeta(
+				updateStatus,
+				updateProgress,
+				updateDownloadedBytes,
+				updateTotalBytes
+			);
+
+			return (
+				<div className="update-progress-container">
+					<div className="update-progress-meta">
+						<span className="update-progress-subtext">{meta.text}</span>
+						<span className="update-progress-pct tabular-nums">{meta.pct}%</span>
+					</div>
+					<div className="about-progress-track">
+						<div
+							className={`about-progress-fill ${meta.isIndeterminate ? "indeterminate" : ""}`}
+							style={{ width: `${meta.pct}%` }}
+						/>
+					</div>
+				</div>
+			);
+		}
+
+		if (isAvailable) {
+			return "A new release is ready to download and install";
+		}
+
+		if (isUpToDate) {
+			return `Version ${appVersion} is the latest version`;
+		}
+
+		if (updateStatus === "error") {
+			return `No updates found • Running v${appVersion}`;
+		}
+
+		return `Currently running v${appVersion}`;
+	};
 
 	const getExportLabel = () => {
 		if (exportStatus === "exporting") return "Exporting...";
@@ -97,13 +143,34 @@ export function AboutTab({
 				</SettingRow>
 
 				<SettingRow
-					icon={RefreshCw}
+					icon={getUpdateIcon()}
+					iconClassName={isBusy ? "setting-icon--spin" : ""}
 					label={getUpdateLabel()}
 					desc={getUpdateDesc()}
-					action
+					action={!isBusy}
 					divider={false}
-					onClick={() => (updateStatus === "available" ? installUpdate() : checkForUpdates())}
-				/>
+					onClick={() => {
+						if (isBusy) return;
+						if (isAvailable) {
+							installUpdate();
+						} else {
+							checkForUpdates();
+						}
+					}}
+				>
+					{isAvailable && (
+						<button
+							className="update-action-btn"
+							onClick={(e) => {
+								e.stopPropagation();
+								installUpdate();
+							}}
+						>
+							<Download size={12} strokeWidth={2.2} />
+							<span>Update Now</span>
+						</button>
+					)}
+				</SettingRow>
 			</div>
 
 			<div className="setting-group-label setting-group-label--spaced">Data</div>

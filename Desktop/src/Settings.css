@@ -1149,3 +1149,118 @@ input:checked + .slider:before {
 	background: rgba(239, 68, 68, 0.25);
 	color: #ef4444;
 }
+
+/* ─── Software Update Progress & Actions in About Tab ─────────────────── */
+
+@keyframes setting-icon-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.setting-icon--spin {
+	animation: setting-icon-spin 1s linear infinite;
+}
+
+.update-progress-container {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 100%;
+	margin-top: 6px;
+}
+
+.update-progress-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 11px;
+	color: var(--gloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.update-progress-subtext {
+	font-size: 11px;
+	opacity: 0.9;
+}
+
+.update-progress-pct {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--gloom-accent, #0a84ff);
+	font-variant-numeric: tabular-nums;
+}
+
+.about-progress-track {
+	width: 100%;
+	height: 6px;
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 999px;
+	overflow: hidden;
+	position: relative;
+	border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.light-mode .about-progress-track {
+	background: rgba(0, 0, 0, 0.08);
+	border-color: rgba(0, 0, 0, 0.05);
+}
+
+.about-progress-fill {
+	height: 100%;
+	background: linear-gradient(90deg, #0a84ff, #30d158);
+	border-radius: 999px;
+	transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+	box-shadow: 0 0 10px rgba(10, 132, 255, 0.4);
+}
+
+.about-progress-fill.indeterminate {
+	width: 100% !important;
+	background: linear-gradient(
+		90deg,
+		rgba(10, 132, 255, 0.2) 0%,
+		rgba(10, 132, 255, 0.9) 50%,
+		rgba(10, 132, 255, 0.2) 100%
+	);
+	background-size: 200% 100%;
+	animation: progress-indeterminate 1.5s infinite linear;
+}
+
+@keyframes progress-indeterminate {
+	0% {
+		background-position: 200% 0;
+	}
+	100% {
+		background-position: -200% 0;
+	}
+}
+
+.update-action-btn {
+	background: #0a84ff;
+	color: #ffffff;
+	border: none;
+	border-radius: 999px;
+	padding: 5px 12px;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	flex-shrink: 0;
+	box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
+}
+
+.update-action-btn:hover {
+	background: #0071e3;
+	transform: scale(1.02);
+	box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);
+}
+
+.update-action-btn:active {
+	transform: scale(0.97);
+}
+

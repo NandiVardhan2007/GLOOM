@@ -268,6 +268,9 @@ function SettingsApp() {
 							toggleAutoUpdate={settings.toggleAutoUpdate}
 							updateStatus={settings.updateStatus}
 							updateVersion={settings.updateVersion}
+							updateProgress={settings.updateProgress}
+							updateDownloadedBytes={settings.updateDownloadedBytes}
+							updateTotalBytes={settings.updateTotalBytes}
 							checkForUpdates={settings.checkForUpdates}
 							installUpdate={settings.installUpdate}
 							exportStatus={settings.exportStatus}

@@ -141,6 +141,9 @@ export function useSettings() {
 		"idle" | "checking" | "available" | "uptodate" | "error" | "downloading" | "installing"
 	>("idle");
 	const [updateVersion, setUpdateVersion] = useState("");
+	const [updateProgress, setUpdateProgress] = useState(0);
+	const [updateDownloadedBytes, setUpdateDownloadedBytes] = useState(0);
+	const [updateTotalBytes, setUpdateTotalBytes] = useState(0);
 	const [appVersion, setAppVersion] = useState("");
 	const [autoUpdate, setAutoUpdate] = useState(
 		() => localStorage.getItem("gloom-auto-update") === "true"
@@ -455,6 +458,9 @@ export function useSettings() {
 	// ── Update checker ──
 	const checkForUpdates = async (manual = true) => {
 		setUpdateStatus("checking");
+		setUpdateProgress(0);
+		setUpdateDownloadedBytes(0);
+		setUpdateTotalBytes(0);
 		try {
 			const result = await invoke<UpdateCheckResult>("check_for_updates", { force: manual });
 			if (result.available) {
@@ -472,34 +478,64 @@ export function useSettings() {
 	const installUpdate = async () => {
 		try {
 			setUpdateStatus("downloading");
+			setUpdateProgress(0);
+			setUpdateDownloadedBytes(0);
+			setUpdateTotalBytes(0);
 			await invoke("install_update");
 			setUpdateStatus("idle");
+			setUpdateProgress(0);
 		} catch (e) {
 			console.error(e);
 			setUpdateStatus("error");
+			setUpdateProgress(0);
 		}
 	};
 
 	// Reflect install progress triggered from any window (including auto-update).
 	useEffect(() => {
-		const unlisten = listen<{ status: string; progress?: number }>(
-			"auto-update-status",
-			(event) => {
-				switch (event.payload.status) {
-					case "downloading":
-						setUpdateStatus("downloading");
-						break;
-					case "installing":
-						setUpdateStatus("installing");
-						break;
-					case "done":
-						setUpdateStatus((prev) =>
-							prev === "downloading" || prev === "installing" ? "idle" : prev
-						);
-						break;
-				}
+		const unlisten = listen<{
+			status: string;
+			progress?: number | null;
+			downloaded_bytes?: number;
+			total_bytes?: number;
+		}>("auto-update-status", (event) => {
+			const { status, progress, downloaded_bytes, total_bytes } = event.payload;
+
+			if (typeof progress === "number") {
+				setUpdateProgress(progress);
 			}
-		);
+			if (typeof downloaded_bytes === "number") {
+				setUpdateDownloadedBytes(downloaded_bytes);
+			}
+			if (typeof total_bytes === "number") {
+				setUpdateTotalBytes(total_bytes);
+			}
+
+			switch (status) {
+				case "checking":
+					setUpdateStatus("checking");
+					break;
+				case "downloading":
+					setUpdateStatus("downloading");
+					break;
+				case "installing":
+					setUpdateStatus("installing");
+					setUpdateProgress(100);
+					break;
+				case "done":
+					setUpdateStatus((prev) =>
+						prev === "downloading" || prev === "installing" ? "idle" : prev
+					);
+					setUpdateProgress(0);
+					setUpdateDownloadedBytes(0);
+					setUpdateTotalBytes(0);
+					break;
+				case "error":
+					setUpdateStatus("error");
+					setUpdateProgress(0);
+					break;
+			}
+		});
 		return () => {
 			unlisten.then((fn) => fn());
 		};
@@ -1051,6 +1087,9 @@ export function useSettings() {
 		// Updates
 		updateStatus,
 		updateVersion,
+		updateProgress,
+		updateDownloadedBytes,
+		updateTotalBytes,
 		appVersion,
 		checkForUpdates,
 		installUpdate,

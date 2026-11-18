@@ -176,18 +176,28 @@ async fn check_github_releases() -> Option<ManifestInfo> {
 async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
     use futures_util::StreamExt;
 
-    let _ = app.emit(
-        "auto-update-status",
-        serde_json::json!({ "status": "downloading", "progress": 0 }),
-    );
-
     let client = reqwest::Client::builder()
         .user_agent("GLOOM-Desktop-Updater")
+        .connect_timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let res = client.get(url).send().await.map_err(|e| e.to_string())?;
+    let res = match client.get(url).send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            let _ = app.emit(
+                "auto-update-status",
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err(e.to_string());
+        }
+    };
+
     if !res.status().is_success() {
+        let _ = app.emit(
+            "auto-update-status",
+            serde_json::json!({ "status": "error" }),
+        );
         return Err(format!("Download failed with status: {}", res.status()));
     }
 
@@ -199,28 +209,90 @@ async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
     let installer_name = "gloom-latest.deb";
 
     let installer_path = temp_dir.join(installer_name);
-    let mut file = tokio::fs::File::create(&installer_path)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut file = match tokio::fs::File::create(&installer_path).await {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = app.emit(
+                "auto-update-status",
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err(e.to_string());
+        }
+    };
+
+    let _ = app.emit(
+        "auto-update-status",
+        serde_json::json!({
+            "status": "downloading",
+            "progress": 0,
+            "downloaded_bytes": 0,
+            "total_bytes": total_size
+        }),
+    );
 
     let mut stream = res.bytes_stream();
     let mut downloaded: u64 = 0;
+    let mut last_progress: i32 = 0;
+    let mut last_emitted_downloaded: u64 = 0;
 
     use tokio::io::AsyncWriteExt;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| e.to_string())?;
-        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+    while let Some(chunk_res) = stream.next().await {
+        let chunk = match chunk_res {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = app.emit(
+                    "auto-update-status",
+                    serde_json::json!({ "status": "error" }),
+                );
+                return Err(e.to_string());
+            }
+        };
+
+        if let Err(e) = file.write_all(&chunk).await {
+            let _ = app.emit(
+                "auto-update-status",
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err(e.to_string());
+        }
+
         downloaded += chunk.len() as u64;
 
         if total_size > 0 {
-            let progress = (downloaded.saturating_mul(100) / total_size) as u32;
+            let progress = (downloaded.saturating_mul(100) / total_size).min(100) as u32;
+            if progress as i32 != last_progress || downloaded >= total_size {
+                last_progress = progress as i32;
+                let _ = app.emit(
+                    "auto-update-status",
+                    serde_json::json!({
+                        "status": "downloading",
+                        "progress": progress,
+                        "downloaded_bytes": downloaded,
+                        "total_bytes": total_size
+                    }),
+                );
+            }
+        } else if downloaded.saturating_sub(last_emitted_downloaded) >= 256 * 1024 || downloaded == chunk.len() as u64 {
+            last_emitted_downloaded = downloaded;
             let _ = app.emit(
                 "auto-update-status",
-                serde_json::json!({ "status": "downloading", "progress": progress }),
+                serde_json::json!({
+                    "status": "downloading",
+                    "progress": null,
+                    "downloaded_bytes": downloaded,
+                    "total_bytes": 0
+                }),
             );
         }
     }
-    file.flush().await.map_err(|e| e.to_string())?;
+
+    if let Err(e) = file.flush().await {
+        let _ = app.emit(
+            "auto-update-status",
+            serde_json::json!({ "status": "error" }),
+        );
+        return Err(e.to_string());
+    }
 
     // Verify SHA-256 integrity if sidecar is available
     let sha256_url = format!("{}.sha256", url);
@@ -250,7 +322,12 @@ async fn install_from_url(app: &AppHandle, url: &str) -> Result<(), String> {
 
     let _ = app.emit(
         "auto-update-status",
-        serde_json::json!({ "status": "installing" }),
+        serde_json::json!({
+            "status": "installing",
+            "progress": 100,
+            "downloaded_bytes": downloaded,
+            "total_bytes": downloaded
+        }),
     );
 
     #[cfg(windows)]

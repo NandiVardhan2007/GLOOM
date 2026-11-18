@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 08:05 IST  
+> **Last Updated**: 2026-11-18 08:48 IST  
 > **Release Version**: 2.5.0 (versionCode 250) — Native Rust Lyrics Engine & Apple Design Sensory Polish  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.5.0. Completed Phase 13 Native Rust Lyrics Engine (multi-tier LRCLIB waterfall resolution, candidate duration matching, CSP network permission) and Apple Design Sensory Polish (`/design-taste-frontend`, `/apple-design`, `/apple-ui-designer`, `/rust-skills`: sliding glass pill indicator, proximity-based dynamic typography, shimmering skeleton loaders, breathing album art aura bloom). All 77/77 Rust unit tests pass, all 21/21 Node tests pass, clean Vite production bundle.
+> **Release Status**: Stamped and released v2.5.0. Completed Phase 13 Native Rust Lyrics Engine (multi-tier LRCLIB waterfall resolution, candidate duration matching, CSP network permission) and Phase 14 In-App Updater Live Download Progress Bar & Metric Streaming (`AboutTab.tsx`, `updater.rs`, `useSettings.ts`, `Settings.css`, `updaterUtils.ts`). All 77/77 Rust unit tests pass, all 26/26 Node tests pass, clean Vite production bundle.
 
 ---
 
@@ -13,6 +13,30 @@ GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for 
 1. **GLOOM Desktop Notch & Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
 2. **Modular Island Card Engine**: Multi-mode visualizers, dynamic album art glow aura, Web Audio tactile transients, live LRCLIB lyrics, unified productivity drawer (Files, Clipboard history, Scratchpad notes), and real-time Live Activities (browser download watcher).
 3. **Fluid macOS-Style Dock**: Windows taskbar replacement with continuous magnification, running/minimized window indicators, launch bounce, and high-DPI icon extraction.
+
+### 🌟 Phase 14 Complete — In-App Updater Live Download Progress Bar & Metric Streaming (2026-11-18):
+1. **Root Cause Analysis of Missing Progress Bar**:
+   - In `Desktop/src/settings/useSettings.ts`, the `auto-update-status` event listener previously caught only `{ status }` and discarded `event.payload.progress`.
+   - `AboutTab.tsx` had no `updateProgress` prop or state, rendering solely static text `"Downloading Update..."` and `"Currently running v2.4.0"` without any progress track or byte counts.
+   - In `Desktop/src-tauri/src/updater.rs`, `install_from_url` did not emit `downloaded_bytes` or `total_bytes`, and had no error-event emission on network/disk write failures, leaving the UI stuck if a failure occurred.
+2. **Rust Backend Live Metric Streaming (`updater.rs`)**:
+   - Streamed `downloaded_bytes` and `total_bytes` alongside `progress` in `auto-update-status` payloads.
+   - Added percentage change throttling in `install_from_url` (emits on each percentage step or every 256KB for unknown sizes) to prevent IPC flooding.
+   - Added crash-proof error event broadcasting if network drops or file writes fail.
+3. **Frontend Settings State & Progress Engine (`useSettings.ts`, `updaterUtils.ts`)**:
+   - Added `updateProgress`, `updateDownloadedBytes`, and `updateTotalBytes` state in `useSettings.ts` listening to `auto-update-status`.
+   - Built `formatUpdateProgressMeta` and `formatBytes` in `updaterUtils.ts` (with 5 unit tests in `Desktop/tests/updaterUtils.test.mjs`).
+4. **Apple Design Progress Bar & UI Polish (`AboutTab.tsx`, `SettingRow.tsx`, `Settings.css`)**:
+   - **Progress Track & Fill**: Implemented `.about-progress-track` (6px rounded glass capsule) and `.about-progress-fill` (vibrant gradient `#0a84ff` to `#30d158` with subtle glow and spring transition).
+   - **Live Metrics**: Shows real-time megabytes (`18.5 MB of 42.0 MB`) and tabular percentage (`44%`).
+   - **Indeterminate Beam**: Animated shimmer beam (`@keyframes progress-indeterminate`) sweeps across track when connecting or when total size is unannounced.
+   - **Spinning Status Icon**: Added `.setting-icon--spin` keyframe animation for `RefreshCw` during checking, downloading, and installing.
+   - **Update Now Action Button**: Apple-style glass button (`.update-action-btn`) when an update is available (`Update Available (v2.5.0)`).
+   - **Interaction Lock**: Prevents accidental redundant clicks while download or installation is in progress.
+5. **Quality Verification**:
+   - 26/26 Node tests passing (`npm test --prefix Desktop`).
+   - 77/77 Rust tests passing (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
+   - Clean Vite production build in 6.67s (`tsc && vite build`).
 
 ### 🌟 Phase 13 Complete — Native Rust Lyrics Engine, CSP Resolution & Apple Design Sensory Polish (2026-11-17):
 1. **Root Cause Analysis of Lyric Delivery Failure**:
