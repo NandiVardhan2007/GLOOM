@@ -30,14 +30,10 @@ serde_json = "1"
 base64 = "0.22"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-clipboard-manager = "2"
-window-vibrancy = "0.7.1"
 tokio = { version = "1", features = ["time", "sync"] }
 image = "0.25"
-# Reads the thumbnail or text inside Office files for shelf previews.
-zip = { version = "4.6", default-features = false, features = ["deflate-flate2"] }
 tauri-plugin-drag = "2.1.1"
 tauri-plugin-dialog = "2"
-rustfft = "6"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
 futures-util = "0.3"
 sha2 = "0.10"
@@ -48,6 +44,10 @@ cairo-rs = "0.18"
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
+window-vibrancy = "0.7.1"
+# Reads the thumbnail or text inside Office files for shelf previews.
+zip = { version = "4.6", default-features = false, features = ["deflate-flate2"] }
+rustfft = "6"
 windows-core = "0.61"
 windows-collections = "0.2"
 windows = { version = "0.61", features = [

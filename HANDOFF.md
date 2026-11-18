@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-18 08:48 IST  
+> **Last Updated**: 2026-11-18 09:00 IST  
 > **Release Version**: 2.5.0 (versionCode 250) — Native Rust Lyrics Engine & Apple Design Sensory Polish  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.5.0. Completed Phase 13 Native Rust Lyrics Engine (multi-tier LRCLIB waterfall resolution, candidate duration matching, CSP network permission) and Phase 14 In-App Updater Live Download Progress Bar & Metric Streaming (`AboutTab.tsx`, `updater.rs`, `useSettings.ts`, `Settings.css`, `updaterUtils.ts`). All 77/77 Rust unit tests pass, all 26/26 Node tests pass, clean Vite production bundle.
+> **Release Status**: Stamped and released v2.5.0. Completed Phase 13 Native Rust Lyrics Engine (multi-tier LRCLIB waterfall resolution, candidate duration matching, CSP network permission) and Phase 14 In-App Updater Live Download Progress Bar & Metric Streaming (`AboutTab.tsx`, `updater.rs`, `useSettings.ts`, `Settings.css`, `updaterUtils.ts`). Resolved Linux CI compilation by routing `lyrics::fetch_lyrics` directly in `main.rs`'s `tauri::generate_handler!` and isolating Windows-only dependencies in `Cargo.toml`. All 77/77 Rust unit tests pass, all 26/26 Node tests pass, clean Vite production bundle.
 
 ---
 
@@ -37,6 +37,11 @@ GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for 
    - 26/26 Node tests passing (`npm test --prefix Desktop`).
    - 77/77 Rust tests passing (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
    - Clean Vite production build in 6.67s (`tsc && vite build`).
+6. **Cross-Platform Linux CI Fix (`lyrics.rs`, `main.rs`, `platform/linux/commands.rs`, `Cargo.toml`)**:
+   - Extracted `fetch_lyrics` and LRC parsers into a dedicated cross-platform module `Desktop/src-tauri/src/lyrics.rs`, registered in `main.rs` (`mod lyrics;`).
+   - Wired `lyrics::fetch_lyrics` directly into `main.rs`'s `tauri::generate_handler!`, ensuring Tauri macro resolution across all host targets without reliance on platform `commands.rs` re-exports.
+   - Resolved Linux CI build failure (`error: cannot find macro __tauri_command_name_fetch_lyrics in this scope`).
+   - Moved Windows-only dependencies (`window-vibrancy`, `zip`, `rustfft`) under `[target.'cfg(windows)'.dependencies]` in `Cargo.toml`, eliminating Linux compiler warnings.
 
 ### 🌟 Phase 13 Complete — Native Rust Lyrics Engine, CSP Resolution & Apple Design Sensory Polish (2026-11-17):
 1. **Root Cause Analysis of Lyric Delivery Failure**:

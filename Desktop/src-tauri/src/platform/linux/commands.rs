@@ -852,3 +852,4 @@ pub fn clear_clipboard_history() -> Result<(), String> {
     Ok(())
 }
 
+

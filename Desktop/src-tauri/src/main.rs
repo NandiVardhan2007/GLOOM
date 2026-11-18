@@ -54,6 +54,7 @@ mod tray;
 
 mod types;
 mod updater;
+mod lyrics;
 
 #[cfg(target_os = "windows")]
 mod utils;
@@ -319,7 +320,7 @@ fn main() {
             get_clipboard_history,
             clear_clipboard_history,
             request_notch_keyboard_focus,
-            fetch_lyrics
+            lyrics::fetch_lyrics
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());
