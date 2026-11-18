@@ -318,7 +318,8 @@ fn main() {
             set_notch_open,
             get_clipboard_history,
             clear_clipboard_history,
-            request_notch_keyboard_focus
+            request_notch_keyboard_focus,
+            fetch_lyrics
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());

@@ -1,10 +1,10 @@
 # GLOOM Session Handoff & Continuity State
 
-> **Last Updated**: 2026-11-17 22:15 IST  
-> **Release Version**: 2.4.0 (versionCode 240) — Standalone Desktop Dynamic Island & Modular Island Card Engine  
+> **Last Updated**: 2026-11-18 08:05 IST  
+> **Release Version**: 2.5.0 (versionCode 250) — Native Rust Lyrics Engine & Apple Design Sensory Polish  
 > **Target Device**: Windows 10/11 & Linux Dual-Platform (100% Standalone, Zero Mobile/Ecosystem Dependencies)  
 > **Workspace Root**: `d:\Coding\GLOOM`  
-> **Release Status**: Stamped and released v2.4.0. Completed the Modular Island Card Engine (Stages 1-3), Phase 10 performance optimizations (GPU rasterization, zero-copy, Fat LTO, V8 bytecodes), Phase 11 In-App Updater overhaul (instant update check, clean silent uninstaller & zero-leftover installer upgrade), and Phase 12 Comprehensive Rust Codebase Hardening via `/rust-skills`: zero-panic hardening across all production paths (`commands.rs`, `services.rs`, `main.rs`), lock-free atomic integers in high-frequency 1000Hz mouse hook (`MH_CACHED_MON_X/Y/W/H`), persistent HTTP connection pooling (`get_updater_client`), Rust 2024 safe extern blocks (`PrintWindow`), standard trait derivations (`Debug`, `PartialEq`, `Eq`) across all IPC structs in `types.rs`, `wifi.rs`, and `bluetooth.rs`, and settings watcher closure type alignment (`Some((changed, removed))`). All 16/16 Node tests pass, clean Vite production bundle.
+> **Release Status**: Stamped and released v2.5.0. Completed Phase 13 Native Rust Lyrics Engine (multi-tier LRCLIB waterfall resolution, candidate duration matching, CSP network permission) and Apple Design Sensory Polish (`/design-taste-frontend`, `/apple-design`, `/apple-ui-designer`, `/rust-skills`: sliding glass pill indicator, proximity-based dynamic typography, shimmering skeleton loaders, breathing album art aura bloom). All 77/77 Rust unit tests pass, all 21/21 Node tests pass, clean Vite production bundle.
 
 ---
 
@@ -13,6 +13,42 @@ GLOOM is a 100% standalone desktop Dynamic Island and fluid dock engineered for 
 1. **GLOOM Desktop Notch & Island**: Tauri v2 + Rust + React 19 + TypeScript desktop notch, floating dynamic island, and glanceable control center.
 2. **Modular Island Card Engine**: Multi-mode visualizers, dynamic album art glow aura, Web Audio tactile transients, live LRCLIB lyrics, unified productivity drawer (Files, Clipboard history, Scratchpad notes), and real-time Live Activities (browser download watcher).
 3. **Fluid macOS-Style Dock**: Windows taskbar replacement with continuous magnification, running/minimized window indicators, launch bounce, and high-DPI icon extraction.
+
+### 🌟 Phase 13 Complete — Native Rust Lyrics Engine, CSP Resolution & Apple Design Sensory Polish (2026-11-17):
+1. **Root Cause Analysis of Lyric Delivery Failure**:
+   - **Tauri CSP Blocking**: `tauri.conf.json` configured a strict Content Security Policy (`connect-src`) that omitted `https://lrclib.net`, causing WebView2 to silently abort client-side `fetch()` network requests.
+   - **Browser/GSMTC Metadata Pollution**: When media is played via Chrome, Edge, or YouTube, Windows GSMTC sets `artist = "YouTube"` or `""` and formats `title` as `"Artist - Title (Official Music Video)"` or `"Song Title | YouTube"`. Without cleaning, exact LRCLIB queries returned 404/0 results.
+   - **Hook Lockout Bug**: In `useLyrics.ts`, transient network errors or fast track switches set `lastKeyRef.current = cacheKey` on failure, permanently freezing subsequent retry attempts for that song.
+2. **Tauri CSP Permitted for LRCLIB (`tauri.conf.json`)**:
+   - Added `https://lrclib.net` to `security.csp.connect-src` in `tauri.conf.json`.
+3. **High-Performance Native Rust Lyrics Engine (`commands.rs`, `types.rs`, `main.rs`)**:
+   - Engineered `fetch_lyrics(title: String, artist: String, duration_ms: Option<i64>) -> Result<LyricsResult, String>` in Rust with zero `.unwrap()` / zero panics per `/rust-skills`.
+   - Reusable connection-pooled client via `get_lyrics_client()` with `OnceLock<Option<reqwest::Client>>` and custom User-Agent `GLOOM-Desktop/2.4.0`.
+   - Lightweight ASCII percent-encoding `url_encode` helper without extra crate bloat.
+   - Built-in LRC parser `parse_lrc_content` and plain-text fallback `parse_plain_content`.
+   - Multi-tier query waterfall:
+     1. Exact LRCLIB `get` endpoint (`/api/get?track_name=...&artist_name=...`).
+     2. Cleaned search query (`/api/search?track_name=...&artist_name=...`).
+     3. Combined title search query (`/api/search?q=...`).
+     4. Track-only search query (`/api/search?track_name=...`).
+   - Duration candidate matching closest to user's playing track when multiple results match.
+   - Registered `fetch_lyrics` in `main.rs` `generate_handler!`.
+   - Added unit tests `test_url_encode_unreserved_and_reserved`, `test_parse_lrc_content`, and `test_parse_plain_content` (77/77 Rust tests passing).
+4. **Client-Side Lyrics Hook Modernization (`useLyrics.ts`, `CompactMediaPlayer.tsx`)**:
+   - Rewrote `useLyrics.ts` with comprehensive title/artist cleaning: strips `(Official Video)`, `[Lyrics]`, `(Visualizer)`, `(Audio)`, `(Remastered)`, `- Topic`, and YouTube separators (` - `, ` | `).
+   - Calls native Rust `invoke("fetch_lyrics")` as primary engine; falls back to client-side fetch if Rust IPC is absent.
+   - Clears `lastKeyRef.current = ""` on error so retries can occur seamlessly.
+   - Passes active track `durationMs` into lyrics engine for candidate proximity matching.
+   - Added 5 unit tests in `Desktop/tests/lyrics.test.mjs` (21/21 Node tests passing).
+5. **Apple Design Sensory & Motion Polish (`apple-design`, `apple-ui-designer`, `design-taste-frontend`)**:
+   - **Sliding Glass Pill Indicator (`ProductivityDrawer.tsx`, `ProductivityDrawer.css`)**: Implemented Framer Motion `layoutId="productivity-active-tab-pill"` with spring physics (`stiffness: 420`, `damping: 34`) for seamless fluid gliding between segmented tabs (`Files`, `Clips`, `Scratchpad`).
+   - **Apple Music Shimmering Skeleton Loader (`CompactMediaPlayer.tsx`, `App.css`)**: Added 3-tier shimmering skeleton loader (`apple-karaoke-skeleton-line`) simulating Apple Music while lyrics are being discovered and synced.
+   - **Proximity-Based Dynamic Typography (`CompactMediaPlayer.tsx`, `App.css`)**: Karaoke sheet categorizes lines into `.active` (luminous aura, frosted pill background, full opacity), `.near` (0.60 opacity, scale 0.98), and `.distant` (0.28 opacity, scale 0.95) for focused, distraction-free reading.
+   - **Breathing Artwork Aura Bloom (`CompactMediaPlayer.tsx`, `App.css`)**: Enhanced album art aura with dynamic `@keyframes apple-aura-breathe` (gentle 4-second sinusoidal pulse between 1.0x and 1.12x scale with 32px to 48px blur diffusion) synchronized with music playback.
+6. **Verification Quality Gate**:
+   - **Rust Test Suite**: 77/77 tests passing (`cargo test --manifest-path Desktop/src-tauri/Cargo.toml`).
+   - **Desktop JS Suite**: 21/21 tests passing (`npm test --prefix Desktop`).
+   - **Vite Production Bundle**: Clean compilation in 3.11s with 0 warnings/errors.
 
 ### 🌟 Phase 12 Complete — Comprehensive Rust Codebase Hardening via `/rust-skills` (2026-11-17):
 1. **Zero-Panic Resilience (`err-no-unwrap-prod`, `anti-unwrap-abuse`)**:

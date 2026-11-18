@@ -2880,17 +2880,43 @@ img {
 	padding: 6px 10px;
 }
 
-/* Ambient Artwork Glow Aura */
+/* Ambient Artwork Glow Aura with Dynamic Breathing Bloom */
 .apple-artwork-aura {
 	position: absolute;
-	inset: -35px;
+	inset: -38px;
 	background-size: cover;
 	background-position: center;
-	filter: blur(48px) saturate(240%) opacity(0.36);
+	filter: blur(48px) saturate(230%) opacity(0.32);
 	pointer-events: none;
 	z-index: 0;
 	transform: translateZ(0);
-	transition: opacity 0.3s ease, filter 0.3s ease;
+	transition: opacity 0.4s ease, filter 0.4s ease, transform 0.4s ease;
+}
+
+.apple-artwork-aura.playing {
+	opacity: 0.42;
+	animation: apple-aura-breathe 4.5s ease-in-out infinite alternate;
+}
+
+.apple-artwork-aura.paused {
+	opacity: 0.18;
+	filter: blur(44px) saturate(160%);
+	transform: scale(0.96);
+}
+
+@keyframes apple-aura-breathe {
+	0% {
+		transform: scale(0.98);
+		filter: blur(46px) saturate(220%) opacity(0.36);
+	}
+	50% {
+		transform: scale(1.04);
+		filter: blur(52px) saturate(260%) opacity(0.48);
+	}
+	100% {
+		transform: scale(0.99);
+		filter: blur(48px) saturate(230%) opacity(0.38);
+	}
 }
 
 /* Classic View (Side-by-Side Squircle Artwork + Metadata + Scrubber + Controls) */
@@ -3344,29 +3370,40 @@ img {
 }
 
 .apple-karaoke-line {
-	font-size: 13px;
+	font-size: 13.5px;
 	font-weight: 500;
-	color: rgba(255, 255, 255, 0.35);
+	color: rgba(255, 255, 255, 0.32);
 	cursor: pointer;
-	padding: 5px 8px;
-	border-radius: 8px;
-	transition: color 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.22s ease;
+	padding: 5px 10px;
+	border-radius: 9px;
+	transition: color 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.22s ease, background 0.2s ease;
 	text-align: left;
-	line-height: 1.35;
+	line-height: 1.38;
 	user-select: none;
+	position: relative;
+}
+
+.apple-karaoke-line.near {
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.apple-karaoke-line.distant {
+	color: rgba(255, 255, 255, 0.28);
 }
 
 .apple-karaoke-line:hover {
-	color: rgba(255, 255, 255, 0.7);
-	background: rgba(255, 255, 255, 0.05);
+	color: rgba(255, 255, 255, 0.88);
+	background: rgba(255, 255, 255, 0.06);
 }
 
 .apple-karaoke-line.active {
-	font-size: 15px;
+	font-size: 15.5px;
 	font-weight: 700;
 	color: #FFFFFF;
-	text-shadow: 0 0 16px rgba(255, 255, 255, 0.65);
-	transform: scale(1.02);
+	background: rgba(255, 255, 255, 0.08);
+	backdrop-filter: blur(8px);
+	text-shadow: 0 0 16px rgba(255, 255, 255, 0.7), 0 0 32px rgba(255, 255, 255, 0.3);
+	transform: scale(1.025);
 	transform-origin: left center;
 }
 
@@ -3379,6 +3416,65 @@ img {
 	color: rgba(255, 255, 255, 0.5);
 	font-size: 12px;
 	gap: 6px;
+}
+
+/* Apple-style Shimmering Lyrics Loading Skeleton */
+.apple-karaoke-loading-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px 8px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.apple-karaoke-skeleton-line {
+	height: 14px;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.08);
+	position: relative;
+	overflow: hidden;
+}
+
+.apple-karaoke-skeleton-line.short {
+	width: 45%;
+}
+
+.apple-karaoke-skeleton-line.medium {
+	width: 70%;
+}
+
+.apple-karaoke-skeleton-line.long {
+	width: 90%;
+}
+
+.apple-karaoke-skeleton-line.shimmer::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	transform: translateX(-100%);
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		rgba(255, 255, 255, 0.12) 50%,
+		transparent 100%
+	);
+	animation: apple-skeleton-shimmer 1.8s infinite;
+}
+
+@keyframes apple-skeleton-shimmer {
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+.apple-karaoke-loading-text {
+	font-size: 11px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.5);
+	margin-top: 6px;
+	text-align: left;
+	letter-spacing: -0.01em;
 }
 
 .apple-karaoke-spinner {

@@ -193,40 +193,41 @@ export function ProductivityDrawer({
 			exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 			transition={{ type: "spring", stiffness: 400, damping: 30 }}
 		>
-			{/* Segmented Apple-Style Tab Header */}
+			{/* Segmented Apple-Style Tab Header with Fluid Sliding Pill */}
 			<div className="productivity-nav-header">
 				<div className="productivity-segmented-control">
-					<button
-						type="button"
-						className={`productivity-segment-btn ${activeTab === "files" ? "active" : ""}`}
-						onClick={() => handleTabChange("files")}
-					>
-						<Inbox size={12} strokeWidth={2.2} />
-						<span>Files</span>
-						{shelfItems.length > 0 && <span className="tab-pill-badge">{shelfItems.length}</span>}
-					</button>
-
-					<button
-						type="button"
-						className={`productivity-segment-btn ${activeTab === "clipboard" ? "active" : ""}`}
-						onClick={() => handleTabChange("clipboard")}
-					>
-						<Clipboard size={12} strokeWidth={2.2} />
-						<span>Clips</span>
-						{clipboardHistory.length > 0 && (
-							<span className="tab-pill-badge">{clipboardHistory.length}</span>
-						)}
-					</button>
-
-					<button
-						type="button"
-						className={`productivity-segment-btn ${activeTab === "scratchpad" ? "active" : ""}`}
-						onClick={() => handleTabChange("scratchpad")}
-					>
-						<FileText size={12} strokeWidth={2.2} />
-						<span>Scratchpad</span>
-						{scratchpadText.trim().length > 0 && <span className="tab-dot-badge" />}
-					</button>
+					{(
+						[
+							{ id: "files", label: "Files", icon: Inbox, count: shelfItems.length },
+							{ id: "clipboard", label: "Clips", icon: Clipboard, count: clipboardHistory.length },
+							{ id: "scratchpad", label: "Scratchpad", icon: FileText, dot: scratchpadText.trim().length > 0 }
+						] as const
+					).map((tab) => {
+						const isActive = activeTab === tab.id;
+						const IconComp = tab.icon;
+						return (
+							<button
+								key={tab.id}
+								type="button"
+								className={`productivity-segment-btn ${isActive ? "active" : ""}`}
+								onClick={() => handleTabChange(tab.id)}
+							>
+								{isActive && (
+									<motion.div
+										layoutId="productivity-active-tab-pill"
+										className="productivity-segment-pill-bg"
+										transition={{ type: "spring", stiffness: 450, damping: 32 }}
+									/>
+								)}
+								<IconComp size={12} strokeWidth={2.2} className="productivity-tab-icon" />
+								<span className="productivity-tab-label">{tab.label}</span>
+								{"count" in tab && (tab.count ?? 0) > 0 && (
+									<span className="tab-pill-badge">{tab.count}</span>
+								)}
+								{"dot" in tab && tab.dot && <span className="tab-dot-badge" />}
+							</button>
+						);
+					})}
 				</div>
 			</div>
 

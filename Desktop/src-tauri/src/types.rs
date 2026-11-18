@@ -113,4 +113,21 @@ pub struct LiveActivityItem {
     pub detail: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct LyricLineDto {
+    pub time_ms: i64,
+    pub text: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LyricsResult {
+    pub id: Option<i64>,
+    pub track_name: Option<String>,
+    pub artist_name: Option<String>,
+    pub synced_lyrics: Option<String>,
+    pub plain_lyrics: Option<String>,
+    pub lines: Vec<LyricLineDto>,
+    pub is_synced: bool,
+}
+
 

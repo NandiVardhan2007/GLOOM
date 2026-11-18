@@ -277,9 +277,13 @@ function AppleKaraokeSheet({
 
 			<div ref={listContainerRef} className="apple-karaoke-list">
 				{isLoading ? (
-					<div className="apple-karaoke-status">
-						<span className="apple-karaoke-spinner" />
-						<span>Searching synced lyrics...</span>
+					<div className="apple-karaoke-loading-wrap">
+						<div className="apple-karaoke-skeleton-line short shimmer" />
+						<div className="apple-karaoke-skeleton-line long shimmer" />
+						<div className="apple-karaoke-skeleton-line medium shimmer" />
+						<div className="apple-karaoke-skeleton-line long shimmer" />
+						<div className="apple-karaoke-skeleton-line short shimmer" />
+						<span className="apple-karaoke-loading-text">Syncing live lyrics…</span>
 					</div>
 				) : !hasLyrics ? (
 					<div className="apple-karaoke-status">
@@ -288,18 +292,21 @@ function AppleKaraokeSheet({
 					</div>
 				) : (
 					lyrics.map((line, idx) => {
+						const dist = Math.abs(idx - activeLyricIndex);
 						const isActive = idx === activeLyricIndex;
+						const proximityClass = isActive ? "active" : dist === 1 ? "near" : "distant";
 						return (
 							<motion.div
 								key={`${line.timeMs}-${idx}`}
 								ref={isActive ? activeLineRef : null}
-								className={`apple-karaoke-line ${isActive ? "active" : ""}`}
+								className={`apple-karaoke-line ${proximityClass}`}
 								onClick={(e) => {
 									e.stopPropagation();
+									playTactileSound("snap");
 									onSeekToLine(line.timeMs);
 								}}
 								whileHover={{ scale: 1.02 }}
-								whileTap={{ scale: 0.97 }}
+								whileTap={{ scale: 0.98 }}
 							>
 								{line.text}
 							</motion.div>
@@ -378,11 +385,12 @@ export function CompactMediaPlayer({
 		return () => clearInterval(interval);
 	}, [isPlaying, durationMs]);
 
-	// Live lyrics hook
+	// Live lyrics hook with duration-based precision candidate matching
 	const { lyrics, activeLyric, activeLyricIndex, hasLyrics, isLoading } = useLyrics(
 		mediaInfo.title,
 		mediaInfo.artist,
-		displayPosition
+		displayPosition,
+		durationMs
 	);
 
 	const handleSeek = useCallback(
@@ -454,10 +462,10 @@ export function CompactMediaPlayer({
 					}
 				}}
 			>
-				{/* Ambient Artwork Glow */}
+				{/* Ambient Artwork Glow with Dynamic Breathing Bloom */}
 				{albumArtUrl && (
 					<div
-						className="apple-artwork-aura"
+						className={`apple-artwork-aura ${isPlaying ? "playing" : "paused"}`}
 						style={{
 							backgroundImage: `radial-gradient(circle at 20% 50%, ${palette.primary} 0%, transparent 70%), radial-gradient(circle at 80% 50%, ${palette.secondary} 0%, transparent 65%), url(${albumArtUrl})`
 						}}
@@ -707,10 +715,10 @@ export function CompactMediaPlayer({
 				}
 			}}
 		>
-			{/* Ambient Artwork Glow */}
+			{/* Ambient Artwork Glow with Dynamic Breathing Bloom */}
 			{albumArtUrl && (
 				<div
-					className="apple-artwork-aura"
+					className={`apple-artwork-aura ${isPlaying ? "playing" : "paused"}`}
 					style={{
 						backgroundImage: `radial-gradient(circle at 20% 50%, ${palette.primary} 0%, transparent 70%), radial-gradient(circle at 80% 50%, ${palette.secondary} 0%, transparent 65%), url(${albumArtUrl})`
 					}}

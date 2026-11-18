@@ -691,11 +691,14 @@ mod tests {
         assert!(is_newer_semver("v1.8.0", "1.7.0"));
         assert!(is_newer_semver("v2.0.0", "1.9.9"));
         assert!(is_newer_semver("v2.4.0", "2.3.3"));
+        assert!(is_newer_semver("v2.5.0", "2.4.0"));
         assert!(is_newer_semver("1.7.1", "1.7.0"));
         assert!(!is_newer_semver("1.7.0", "1.7.0"));
         assert!(!is_newer_semver("v1.7.0", "1.7.0"));
         assert!(!is_newer_semver("v2.4.0", "2.4.0"));
         assert!(!is_newer_semver("2.4.0", "2.4.0"));
+        assert!(!is_newer_semver("v2.5.0", "2.5.0"));
+        assert!(!is_newer_semver("2.4.0", "2.5.0"));
         assert!(!is_newer_semver("2.3.3", "2.4.0"));
         assert!(!is_newer_semver("1.6.9", "1.7.0"));
     }
