@@ -1,11 +1,15 @@
 <div align="center">
 
-  <img src="assets/logo.png" width="140" height="140" alt="GLOOM Logo" style="filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.25));" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" width="140" height="140" alt="GLOOM Logo" style="filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.25));" />
+  </picture>
 
   # G L O O M
 
-  ### Next-Generation Dynamic Island & Fluid Desktop Dock
-  **A seamless, glanceable activity surface & fluid desktop dock crafted for Windows 11/10 and Linux (Zorin OS, Ubuntu, Debian)**
+  ### Next-Generation Dynamic Island, Fluid Desktop Dock & Desktop Companion
+  **A seamless, glanceable activity surface, fluid desktop dock & acrylic window suite crafted for Windows 11/10 and Linux (Zorin OS, Ubuntu, Debian)**
 
   <p align="center">
     <a href="https://github.com/NandiVardhan2007/GLOOM/releases/latest"><img src="https://img.shields.io/github/v/release/NandiVardhan2007/GLOOM?style=for-the-badge&color=007aff&label=Release&logo=github" alt="Latest Release" /></a>
@@ -18,7 +22,8 @@
 
   <p align="center">
     <a href="#-what-is-gloom">What is GLOOM</a> •
-    <a href="#-apple-design--dynamic-island-features">Apple Island Design</a> •
+    <a href="#-apple-design--dynamic-island-features">Dynamic Island</a> •
+    <a href="#-on-demand-acrylic-windows--calendar-sync">Acrylic Windows</a> •
     <a href="#-cross-platform-desktop-power">Platform Parity</a> •
     <a href="#-dual-island-styles-notch--pill">Island Styles</a> •
     <a href="#-installation--quickstart">Install</a> •
@@ -73,6 +78,25 @@ Engineered with Rust, Tauri v2, React 19, and Framer Motion, GLOOM adheres stric
     </td>
   </tr>
 </table>
+
+---
+
+## 🪟 On-Demand Acrylic Windows & Calendar Sync
+
+GLOOM features a dedicated multi-window desktop companion architecture instantiated on-demand with native Windows 11 acrylic materials:
+
+- **📅 Calendar Surface (`calendar.html`)**:
+  - Full-fidelity monthly agenda and event viewer powered by native Rust synchronization (`caldav.rs`, `ics.rs`, `calendar_sync.rs`).
+  - Seamless CalDAV integration with iCloud, Google Calendar, Fastmail, Nextcloud, and public ICS web feeds.
+  - Windows Credential Manager integration for secure token and password storage.
+- **⚙️ Comprehensive Settings Suite (`settings.html`)**:
+  - 11 dedicated configuration tabs: **General**, **Appearance**, **Notch**, **Dock**, **Overlays**, **Calendar Sync**, **Agent Intro**, **Agent Sounds**, **Diagnostics**, **Processes**, and **About**.
+  - **Live Fuzzy Search Engine**: Instant multi-keyword search across all settings with deep linking directly to target rows.
+  - Granular opacity, saturation, brightness, and accent color pickers with real-time preview.
+- **🚀 Dual-Theme Vector SVG Branding**:
+  - 100% vector SVG rendering using `assets/logo.svg` across all surfaces.
+  - **Adaptive Contrast**: Automatically switches to dark vector icon (`assets/logo-dark.svg` / `/gloom-dark.svg`) on light backgrounds, and light vector icon (`/gloom.svg`) on dark/black OLED backgrounds.
+  - Zero raster pixelation on high-DPI displays.
 
 ---
 

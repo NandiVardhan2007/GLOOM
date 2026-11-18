@@ -36,12 +36,17 @@ function updateCargoLock() {
 }
 
 function updateInnoSetup() {
-	const path = resolve(root, "../installer/gloom.iss");
-	try {
-		const content = readFileSync(path, "utf8");
-		writeFileSync(path, content.replace(/#define MyAppVersion "[^"]*"/, `#define MyAppVersion "${version}"`));
-	} catch {
-		// Ignore if not present
+	const paths = [
+		resolve(root, "../installer/gloom.iss"),
+		resolve(root, "installer/gloom.iss"),
+	];
+	for (const path of paths) {
+		try {
+			const content = readFileSync(path, "utf8");
+			writeFileSync(path, content.replace(/#define MyAppVersion "[^"]*"/, `#define MyAppVersion "${version}"`));
+		} catch {
+			// Ignore if not present
+		}
 	}
 }
 
